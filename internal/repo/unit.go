@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/amimof/blipblop/internal/models"
+	"github.com/amimof/blipblop/pkg/cache"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
-	"github.com/amimof/blipblop/pkg/cache"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/namespaces"
@@ -48,7 +48,7 @@ func (i *inmemUnitRepo) Get(ctx context.Context, key string) (*models.Unit, erro
 	return nil, nil
 }
 func (i *inmemUnitRepo) Set(ctx context.Context, unit *models.Unit) error {
-	return  nil
+	return nil
 }
 func (i *inmemUnitRepo) Delete(ctx context.Context, key string) error {
 	return nil

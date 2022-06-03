@@ -2,20 +2,20 @@ package controller
 
 import (
 	//"os"
-	"log"
 	"context"
-	"github.com/containerd/containerd"
-	gocni "github.com/containerd/go-cni"
 	"github.com/amimof/blipblop/internal/repo"
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	gocni "github.com/containerd/go-cni"
+	"log"
 )
 
 type unitController struct {
 	informer *Informer
-	repo repo.UnitRepo
+	repo     repo.UnitRepo
 }
 
-// 
+//
 func (u *unitController) exitHandler(e *events.TaskExit) {
 	ctx := context.Background()
 	err := u.repo.Kill(ctx, e.ID)
@@ -40,10 +40,9 @@ func NewUnitController(client *containerd.Client, cni gocni.CNI) Controller {
 	}
 	informer := NewInformer(client)
 	informer.AddHandler(&HandlerFuncs{
-		OnTaskExit: c.exitHandler,
+		OnTaskExit:   c.exitHandler,
 		OnTaskCreate: c.createHandler,
 	})
 	c.informer = informer
 	return c
 }
-

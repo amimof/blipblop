@@ -39,7 +39,3 @@ func NewAPIv1() *APIv1 {
 	}
 	return api.setupHandlers()
 }
-
-func (a *APIv1) Handler() http.Handler {
-	return adaptor.FiberApp(a.app)
-}

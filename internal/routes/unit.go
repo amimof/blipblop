@@ -1,13 +1,8 @@
 package routes
 
 import (
-<<<<<<< HEAD
-	"github.com/gofiber/fiber/v2"
-	"github.com/amimof/blipblop/internal/handlers"
-=======
 	"github.com/amimof/blipblop/internal/handlers"
 	"github.com/gofiber/fiber/v2"
->>>>>>> 4483218 (Split server and node:)
 )
 
 func MapUnitRoutes(group fiber.Router, h handlers.UnitHandler) {

@@ -1,19 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"context"
+	"fmt"
+	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/server"
-	"github.com/amimof/blipblop/pkg/controller"
+	proto "github.com/amimof/blipblop/proto"
 	"github.com/containerd/containerd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
-	proto "github.com/amimof/blipblop/proto"
-	"log"
 	"io"
+	"log"
 	"os"
 )
 
@@ -27,7 +27,7 @@ var (
 	// GOVERSION used to compile. Is set when project is built and should never be set manually
 	GOVERSION string
 
-	nodeName	string
+	nodeName string
 
 	insecureSkipVerify bool
 
@@ -37,10 +37,10 @@ var (
 	tlsCertificateKey string
 	tlsCACertificate  string
 
-	metricsHost  string
-	metricsPort  int
-	
-	containerdSocket  string
+	metricsHost string
+	metricsPort int
+
+	containerdSocket string
 )
 
 func init() {
@@ -96,7 +96,7 @@ func main() {
 		log.Fatalf("Failed to dial %s with error: %s", tlsHost, err.Error())
 	}
 	defer conn.Close()
-	
+
 	ctx := context.Background()
 	client := proto.NewNodeServiceClient(conn)
 	go joinNode(ctx, client, nodeName)
@@ -138,7 +138,6 @@ func main() {
 
 }
 
-
 type nodeServiceServer struct {
 	proto.UnimplementedNodeServiceServer
 	channel map[string][]chan *proto.Event
@@ -172,7 +171,7 @@ func joinNode(ctx context.Context, client proto.NodeServiceClient, name string) 
 	<-waitc
 }
 
-func sendEvent(ctx context.Context, client proto.NodeServiceClient, event, name string,) {
+func sendEvent(ctx context.Context, client proto.NodeServiceClient, event, name string) {
 	stream, err := client.FireEvent(ctx)
 	if err != nil {
 		log.Printf("Cannot fire event: %s", err.Error())

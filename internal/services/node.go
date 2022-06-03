@@ -7,8 +7,8 @@ import (
 )
 
 type NodeService struct {
-	repo   repo.NodeRepo
-	nodes  []*models.Node
+	repo  repo.NodeRepo
+	nodes []*models.Node
 }
 
 func (u *NodeService) Get(id string) (*models.Node, error) {

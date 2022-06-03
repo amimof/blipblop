@@ -196,7 +196,3 @@ func GetIPAddress(id string) (net.IP, error) {
 	}
 	return nil, fmt.Errorf("Couldn't find IP Address for %s", id)
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> 4483218 (Split server and node:)

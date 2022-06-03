@@ -1,24 +1,14 @@
 package handlers
 
 import (
-<<<<<<< HEAD
-	"github.com/gofiber/fiber/v2"
-	"github.com/amimof/blipblop/internal/models"
-	"github.com/amimof/blipblop/internal/services"
-=======
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/services"
 	"github.com/gofiber/fiber/v2"
->>>>>>> 4483218 (Split server and node:)
 )
 
 type UnitHandler interface {
 	Get() fiber.Handler
-<<<<<<< HEAD
-	GetAll() fiber.Handler	
-=======
 	GetAll() fiber.Handler
->>>>>>> 4483218 (Split server and node:)
 	Create() fiber.Handler
 	Update() fiber.Handler
 	Delete() fiber.Handler
@@ -107,7 +97,3 @@ func (u unitHandler) Stop() fiber.Handler {
 func NewUnitHandler(svc *services.UnitService) UnitHandler {
 	return &unitHandler{svc}
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> 4483218 (Split server and node:)

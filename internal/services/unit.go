@@ -1,29 +1,15 @@
 package services
 
 import (
-<<<<<<< HEAD
-	"strings"
 	"context"
-	"github.com/containerd/containerd"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
+	"strings"
 )
 
 type UnitService struct {
-	repo repo.UnitRepo
-	client *containerd.Client
+	repo  repo.UnitRepo
 	units []*models.Unit
-=======
-	"context"
-	"github.com/amimof/blipblop/internal/models"
-	"github.com/amimof/blipblop/internal/repo"
-	"strings"
-)
-
-type UnitService struct {
-	repo   repo.UnitRepo
-	units  []*models.Unit
->>>>>>> 4483218 (Split server and node:)
 }
 
 func (u *UnitService) Get(id string) (*models.Unit, error) {
@@ -58,8 +44,4 @@ func NewUnitService(repo repo.UnitRepo) *UnitService {
 	return &UnitService{
 		repo: repo,
 	}
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 4483218 (Split server and node:)

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-//	"context"
+	//	"context"
 	"github.com/amimof/blipblop/pkg/api"
 	"github.com/amimof/blipblop/pkg/server"
 	//"github.com/amimof/blipblop/pkg/controller"
+	proto "github.com/amimof/blipblop/proto"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -13,12 +14,11 @@ import (
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
-	proto "github.com/amimof/blipblop/proto"
-	"log"
 	"io"
+	"log"
+	"net"
 	"os"
 	"time"
-	"net"
 )
 
 var (
@@ -203,7 +203,6 @@ func main() {
 
 }
 
-
 type nodeServiceServer struct {
 	proto.UnimplementedNodeServiceServer
 	channel map[string][]chan *proto.Event
@@ -224,7 +223,7 @@ func (n *nodeServiceServer) JoinNode(node *proto.Node, stream proto.NodeService_
 
 	for {
 		select {
-		case <- stream.Context().Done():
+		case <-stream.Context().Done():
 			log.Printf("Node %s left", node.Id)
 			delete(n.channel, node.Id)
 			return nil
@@ -254,6 +253,6 @@ func (n *nodeServiceServer) FireEvent(stream proto.NodeService_FireEventServer) 
 			evChan <- ev
 		}
 	}()
-	
+
 	return nil
 }
