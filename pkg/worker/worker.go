@@ -1,9 +1,9 @@
 package worker
 
 import (
-	"log"
-	"fmt"
 	"context"
+	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,10 +11,10 @@ import (
 	//"github.com/containerd/console"
 	"github.com/amimof/blipblop/pkg/api"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/oci"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -42,7 +42,6 @@ func Run(work *api.Workload) error {
 		return err
 	}
 	log.Printf("Successfully pulled image: '%s'", image.Name())
-	
 	container, err := client.NewContainer(
 		ctx,
 		work.Name,
@@ -63,7 +62,7 @@ func Run(work *api.Workload) error {
 		return err
 	}
 	defer task.Delete(ctx, containerd.WithProcessKill)
-	log.Printf("Created task '%s' with PID %d", task.ID(), task.Pid())	
+	log.Printf("Created task '%s' with PID %d", task.ID(), task.Pid())
 
 	err = task.Start(ctx)
 	if err != nil {
@@ -95,7 +94,11 @@ func Run(work *api.Workload) error {
 		log.Printf("Exited with code '%d'", code.ExitCode())
 		return nil
 	}
+<<<<<<< HEAD
 	
+=======
+
+>>>>>>> 4483218 (Split server and node:)
 	return nil
 }
 

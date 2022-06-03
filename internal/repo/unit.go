@@ -1,40 +1,66 @@
 package repo
 
 import (
-	"log"
-	"fmt"
-	"time"
-	"errors"
 	"context"
-	"syscall"
-	"github.com/google/uuid"
-	gocni "github.com/containerd/go-cni"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/oci"
-	"github.com/containerd/containerd/namespaces"
+	"errors"
+	"fmt"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
+	"github.com/amimof/blipblop/pkg/cache"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/oci"
+	gocni "github.com/containerd/go-cni"
+	"github.com/google/uuid"
 	"github.com/opencontainers/runtime-spec/specs-go"
-
-	//github.com/containerd/go-cni
+	"log"
+	"syscall"
+	"time"
 )
 
 type UnitRepo interface {
 	GetAll(ctx context.Context) ([]*models.Unit, error)
 	Get(ctx context.Context, key string) (*models.Unit, error)
-	Set(ctx context.Context, unit *models.Unit) (error)
-	Delete(ctx context.Context, key string) (error)
-	Start(ctx context.Context, key string) (error)
-	Stop(ctx context.Context, key string) (error)
+	Set(ctx context.Context, unit *models.Unit) error
+	Delete(ctx context.Context, key string) error
+	Start(ctx context.Context, key string) error
+	Stop(ctx context.Context, key string) error
+	Kill(ctx context.Context, key string) error
 }
 
 // containerdRepo is a live containerd environment. Data is stored and fetched in and from the contaienrd runtime
 type containerdRepo struct {
 	client *containerd.Client
-	cni gocni.CNI
+	cni    gocni.CNI
+}
+
+type inmemUnitRepo struct {
+	cache *cache.Cache
+}
+
+func (i *inmemUnitRepo) GetAll(ctx context.Context) ([]*models.Unit, error) {
+	return nil, nil
+}
+func (i *inmemUnitRepo) Get(ctx context.Context, key string) (*models.Unit, error) {
+	return nil, nil
+}
+func (i *inmemUnitRepo) Set(ctx context.Context, unit *models.Unit) error {
+	return  nil
+}
+func (i *inmemUnitRepo) Delete(ctx context.Context, key string) error {
+	return nil
+}
+func (i *inmemUnitRepo) Start(ctx context.Context, key string) error {
+	return nil
+}
+func (i *inmemUnitRepo) Stop(ctx context.Context, key string) error {
+	return nil
+}
+func (i *inmemUnitRepo) Kill(ctx context.Context, key string) error {
+	return nil
 }
 
 func (u *containerdRepo) GetAll(ctx context.Context) ([]*models.Unit, error) {
@@ -64,8 +90,8 @@ func (u *containerdRepo) GetAll(ctx context.Context) ([]*models.Unit, error) {
 			}
 		}
 		result[i] = &models.Unit{
-			Name: &info.ID,
-			Image: &info.Image,
+			Name:   &info.ID,
+			Image:  &info.Image,
 			Labels: l,
 			Status: &models.Status{
 				Network: &netstatus,
@@ -88,7 +114,7 @@ func (u *containerdRepo) Get(ctx context.Context, key string) (*models.Unit, err
 	units, err := u.GetAll(ctx)
 	if err != nil {
 		return nil, err
-	}	
+	}
 	for _, unit := range units {
 		if key == *unit.Name {
 			return unit, nil
@@ -119,9 +145,9 @@ func (u *containerdRepo) Set(ctx context.Context, unit *models.Unit) error {
 		return err
 	}
 
-	// Configure labels	
+	// Configure labels
 	labels := labels.New()
-	labels.Set("blipblop.io/uuid",  uuid.New().String())
+	labels.Set("blipblop.io/uuid", uuid.New().String())
 
 	// Build OCI specification
 	opts := buildSpec(unit.EnvVars, unit.Mounts, unit.Args)
@@ -141,7 +167,6 @@ func (u *containerdRepo) Set(ctx context.Context, unit *models.Unit) error {
 	}
 
 	log.Printf("Created container '%s'", container.ID())
-	
 	event.MustFire("container-create")
 	return nil
 }
@@ -160,6 +185,19 @@ func (u *containerdRepo) Delete(ctx context.Context, key string) error {
 		}
 	}
 	return container.Delete(ctx)
+}
+
+func (u *containerdRepo) Kill(ctx context.Context, key string) error {
+	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	container, err := u.client.LoadContainer(ctx, key)
+	if err != nil {
+		return err
+	}
+	task, err := container.Task(ctx, nil)
+	if err != nil {
+		return err
+	}
+	return task.Kill(ctx, syscall.SIGINT)
 }
 
 func (u *containerdRepo) Stop(ctx context.Context, key string) error {
@@ -239,4 +277,12 @@ func (u *containerdRepo) Start(ctx context.Context, key string) error {
 
 func NewUnitRepo(client *containerd.Client, cni gocni.CNI) UnitRepo {
 	return &containerdRepo{client, cni}
+}
+
+func NewInMemUnitRepo() UnitRepo {
+	c := cache.New()
+	c.TTL = time.Hour * 24
+	return &inmemUnitRepo{
+		cache: c,
+	}
 }

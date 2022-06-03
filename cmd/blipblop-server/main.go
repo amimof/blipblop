@@ -2,20 +2,23 @@ package main
 
 import (
 	"fmt"
-	"github.com/amimof/blipblop/pkg/server"
+//	"context"
 	"github.com/amimof/blipblop/pkg/api"
-	"github.com/amimof/blipblop/pkg/event"
-	"github.com/amimof/blipblop/pkg/networking"
+	"github.com/amimof/blipblop/pkg/server"
+	//"github.com/amimof/blipblop/pkg/controller"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
-	"github.com/containerd/containerd"
+	"google.golang.org/grpc"
+	proto "github.com/amimof/blipblop/proto"
 	"log"
+	"io"
 	"os"
 	"time"
+	"net"
 )
 
 var (
@@ -43,16 +46,16 @@ var (
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 
-	tlsHost                string
-	tlsPort                int
-	tlsListenLimit         int
-	tlsKeepAlive           time.Duration
-	tlsReadTimeout         time.Duration
-	tlsWriteTimeout        time.Duration
-	tlsCertificate         string
-	tlsCertificateKey      string
-	tlsCACertificate       string
-	containerdSocket			 string
+	tlsHost           string
+	tlsPort           int
+	tlsListenLimit    int
+	tlsKeepAlive      time.Duration
+	tlsReadTimeout    time.Duration
+	tlsWriteTimeout   time.Duration
+	tlsCertificate    string
+	tlsCertificateKey string
+	tlsCACertificate  string
+	containerdSocket  string
 )
 
 func init() {
@@ -63,7 +66,6 @@ func init() {
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
-	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
@@ -126,21 +128,21 @@ func main() {
 		return
 	}
 
-	// Create containerd client
-	client, err := containerd.New(containerdSocket)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
-	}
-	defer client.Close()
-
-	// Create networking
-	cni, err := networking.InitNetwork()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
-	}
-
 	// Setup the API
-	a := api.NewAPIv1(client, cni)
+	a := api.NewAPIv1()
+
+	// Setup node service server
+	lis, err := net.Listen("tcp", "0.0.0.0:5700")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err.Error())
+	}
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+	nodeService := &nodeServiceServer{
+		channel: make(map[string][]chan *proto.Event),
+	}
+	proto.RegisterNodeServiceServer(grpcServer, nodeService)
+	go grpcServer.Serve(lis)
 
 	// Create the server
 	s := &server.Server{
@@ -165,11 +167,6 @@ func main() {
 		TLSWriteTimeout:   tlsWriteTimeout,
 		Handler:           a.Handler(),
 	}
-
-	event.On("container-create", event.ListenerFunc(func(e *event.Event) error {
-		log.Printf("Container created!", "")
-		return nil
-	}))
 
 	// Metrics server
 	ms := server.NewServer()
@@ -204,4 +201,59 @@ func main() {
 		log.Fatal(err)
 	}
 
+}
+
+
+type nodeServiceServer struct {
+	proto.UnimplementedNodeServiceServer
+	channel map[string][]chan *proto.Event
+}
+
+func (n *nodeServiceServer) JoinNode(node *proto.Node, stream proto.NodeService_JoinNodeServer) error {
+	eventChan := make(chan *proto.Event)
+	n.channel[node.Id] = append(n.channel[node.Id], eventChan)
+
+	// go func() {
+	// 	for {
+	// 		log.Printf("I have %d nodes", len(n.channel))
+	// 		time.Sleep(time.Second * 2)
+	// 	}
+	// }()
+
+	log.Printf("Node %s joined", node.Id)
+
+	for {
+		select {
+		case <- stream.Context().Done():
+			log.Printf("Node %s left", node.Id)
+			delete(n.channel, node.Id)
+			return nil
+		case n := <-eventChan:
+			log.Printf("Got event %s from node %s", n.Name, n.Node.Id)
+			stream.Send(n)
+		}
+	}
+}
+
+func (n *nodeServiceServer) FireEvent(stream proto.NodeService_FireEventServer) error {
+	ev, err := stream.Recv()
+	if err == io.EOF {
+		log.Println("Got EOF while reading from stream")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	ack := proto.EventAck{Status: "SENT"}
+	stream.SendAndClose(&ack)
+
+	go func() {
+		streams := n.channel[ev.Node.Id]
+		for _, evChan := range streams {
+			evChan <- ev
+		}
+	}()
+	
+	return nil
 }
