@@ -1,8 +1,8 @@
-package main 
+package main
 
 import (
-	"log"
 	"github.com/containernetworking/plugins/plugins/ipam/host-local/backend/allocator"
+	"log"
 )
 
 func main() {

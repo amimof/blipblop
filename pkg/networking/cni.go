@@ -1,18 +1,18 @@
 package networking
 
 import (
-	"os"
-	"net"
-	"fmt"
-	"log"
-	"path"
 	"bufio"
-	"strings"
 	"context"
-	"io/ioutil"
-	"path/filepath"
+	"fmt"
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
+	"io/ioutil"
+	"log"
+	"net"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -94,9 +94,9 @@ func netNamespace(task containerd.Task) string {
 
 // InitNetwork ...
 func InitNetwork() (gocni.CNI, error) {
-	
+
 	log.Printf("Writing CNI network configuration to %s/%s", CNIConfDir, defaultCNIConfFilename)
-	// Create directories 
+	// Create directories
 	_, err := os.Stat(CNIConfDir)
 	if !os.IsNotExist(err) {
 		if err := os.MkdirAll(CNIConfDir, 0755); err != nil {
@@ -136,10 +136,10 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 	result, err := cni.Setup(ctx, id, netns, gocni.WithLabels(labels),
 		gocni.WithCapabilityPortMap([]gocni.PortMapping{
 			gocni.PortMapping{
-				HostPort: 9090,
+				HostPort:      9090,
 				ContainerPort: 9090,
-				Protocol: "TCP",
-				HostIP: "192.168.13.19",
+				Protocol:      "TCP",
+				HostIP:        "192.168.13.19",
 			},
 		}),
 	)
@@ -154,13 +154,13 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, labels map[string]string) error {
 	id := netID(task)
 	netns := netNamespace(task)
-	err := cni.Remove(ctx, id, netns, gocni.WithLabels(labels), 
+	err := cni.Remove(ctx, id, netns, gocni.WithLabels(labels),
 		gocni.WithCapabilityPortMap([]gocni.PortMapping{
 			gocni.PortMapping{
-				HostPort: 9090,
+				HostPort:      9090,
 				ContainerPort: 9090,
-				Protocol: "TCP",
-				HostIP: "192.168.13.19",
+				Protocol:      "TCP",
+				HostIP:        "192.168.13.19",
 			},
 		}),
 	)
@@ -196,4 +196,3 @@ func GetIPAddress(id string) (net.IP, error) {
 	}
 	return nil, fmt.Errorf("Couldn't find IP Address for %s", id)
 }
-

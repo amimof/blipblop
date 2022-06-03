@@ -1,16 +1,14 @@
 package services
 
 import (
-	"strings"
 	"context"
-	"github.com/containerd/containerd"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
+	"strings"
 )
 
 type UnitService struct {
-	repo repo.UnitRepo
-	client *containerd.Client
+	repo  repo.UnitRepo
 	units []*models.Unit
 }
 

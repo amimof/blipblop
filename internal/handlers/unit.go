@@ -1,14 +1,14 @@
 package handlers
 
 import (
-	"github.com/gofiber/fiber/v2"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/services"
+	"github.com/gofiber/fiber/v2"
 )
 
 type UnitHandler interface {
 	Get() fiber.Handler
-	GetAll() fiber.Handler	
+	GetAll() fiber.Handler
 	Create() fiber.Handler
 	Update() fiber.Handler
 	Delete() fiber.Handler
@@ -97,4 +97,3 @@ func (u unitHandler) Stop() fiber.Handler {
 func NewUnitHandler(svc *services.UnitService) UnitHandler {
 	return &unitHandler{svc}
 }
-

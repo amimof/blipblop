@@ -2,20 +2,20 @@ package controller
 
 import (
 	//"os"
-	"log"
 	"context"
-	"github.com/containerd/typeurl"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/typeurl"
+	"log"
 )
 
 type Informer struct {
-	client *containerd.Client
+	client   *containerd.Client
 	handlers *HandlerFuncs
 }
 
 type HandlerFuncs struct {
-	OnTaskExit func(obj *events.TaskExit)
+	OnTaskExit   func(obj *events.TaskExit)
 	OnTaskCreate func(obj *events.TaskCreate)
 }
 
@@ -25,7 +25,7 @@ func (i *Informer) AddHandler(h *HandlerFuncs) {
 
 func (i *Informer) Watch(stopCh <-chan struct{}) {
 	ch, errs := i.client.Subscribe(context.Background())
-	for {	
+	for {
 		select {
 		case e := <-ch:
 			ev, err := typeurl.UnmarshalAny(e.Event)
@@ -58,5 +58,3 @@ func NewInformer(client *containerd.Client) *Informer {
 		client: client,
 	}
 }
-
-

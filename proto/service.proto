@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = "github.com/amimof/blipblop";
+
+service NodeService {
+  rpc JoinNode(Node) returns (stream Event) {}
+  rpc FireEvent(stream Event) returns (EventAck) {}
+}
+
+message Node {
+  string id = 1;
+}
+
+message Event {
+  string name = 1;
+  Node node = 2;
+}
+
+message EventAck {
+  string status = 1;
+}
