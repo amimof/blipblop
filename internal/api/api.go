@@ -6,15 +6,19 @@ import (
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/internal/routes"
 	"github.com/amimof/blipblop/internal/services"
+	proto "github.com/amimof/blipblop/proto"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"google.golang.org/grpc"
 	"net/http"
 )
 
 type APIv1 struct {
-	app    *fiber.App
-	router fiber.Router
-	root   string
+	app        *fiber.App
+	router     fiber.Router
+	root       string
+	nss        *nodeServiceServer
+	grpcServer *grpc.Server
 }
 
 func (a *APIv1) setupHandlers() *APIv1 {
@@ -29,13 +33,28 @@ func (a *APIv1) Handler() http.Handler {
 	return adaptor.FiberApp(a.app)
 }
 
+func (a *APIv1) GrpcServer() *grpc.Server {
+	return a.grpcServer
+}
+
 func NewAPIv1() *APIv1 {
+	// Setup grpc services
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+	nodeService := &nodeServiceServer{
+		channel: make(map[string][]chan *proto.Event),
+	}
+	proto.RegisterNodeServiceServer(grpcServer, nodeService)
+
+	// Setup http api
 	app := fiber.New()
 	router := app.Group("/api/v1/")
 	api := &APIv1{
-		app:    app,
-		router: router,
-		root:   "/api/v1/",
+		app:        app,
+		router:     router,
+		root:       "/api/v1/",
+		nss:        nodeService,
+		grpcServer: grpcServer,
 	}
 	return api.setupHandlers()
 }

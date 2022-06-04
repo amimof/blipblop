@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.0
-// source: service.proto
+// source: proto/node.proto
 
 package blipblop
 
@@ -198,5 +198,5 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "service.proto",
+	Metadata: "proto/node.proto",
 }

@@ -2,19 +2,14 @@ package main
 
 import (
 	"fmt"
-	//	"context"
-	"github.com/amimof/blipblop/pkg/api"
+	"github.com/amimof/blipblop/internal/api"
 	"github.com/amimof/blipblop/pkg/server"
-	//"github.com/amimof/blipblop/pkg/controller"
-	proto "github.com/amimof/blipblop/proto"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
-	"google.golang.org/grpc"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -128,21 +123,15 @@ func main() {
 		return
 	}
 
-	// Setup the API
-	a := api.NewAPIv1()
-
-	// Setup node service server
+	// Setup listener for the grpc server
 	lis, err := net.Listen("tcp", "0.0.0.0:5700")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	var opts []grpc.ServerOption
-	grpcServer := grpc.NewServer(opts...)
-	nodeService := &nodeServiceServer{
-		channel: make(map[string][]chan *proto.Event),
-	}
-	proto.RegisterNodeServiceServer(grpcServer, nodeService)
-	go grpcServer.Serve(lis)
+
+	// Setup the API
+	a := api.NewAPIv1()
+	go a.GrpcServer().Serve(lis)
 
 	// Create the server
 	s := &server.Server{
@@ -201,58 +190,4 @@ func main() {
 		log.Fatal(err)
 	}
 
-}
-
-type nodeServiceServer struct {
-	proto.UnimplementedNodeServiceServer
-	channel map[string][]chan *proto.Event
-}
-
-func (n *nodeServiceServer) JoinNode(node *proto.Node, stream proto.NodeService_JoinNodeServer) error {
-	eventChan := make(chan *proto.Event)
-	n.channel[node.Id] = append(n.channel[node.Id], eventChan)
-
-	// go func() {
-	// 	for {
-	// 		log.Printf("I have %d nodes", len(n.channel))
-	// 		time.Sleep(time.Second * 2)
-	// 	}
-	// }()
-
-	log.Printf("Node %s joined", node.Id)
-
-	for {
-		select {
-		case <-stream.Context().Done():
-			log.Printf("Node %s left", node.Id)
-			delete(n.channel, node.Id)
-			return nil
-		case n := <-eventChan:
-			log.Printf("Got event %s from node %s", n.Name, n.Node.Id)
-			stream.Send(n)
-		}
-	}
-}
-
-func (n *nodeServiceServer) FireEvent(stream proto.NodeService_FireEventServer) error {
-	ev, err := stream.Recv()
-	if err == io.EOF {
-		log.Println("Got EOF while reading from stream")
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	ack := proto.EventAck{Status: "SENT"}
-	stream.SendAndClose(&ack)
-
-	go func() {
-		streams := n.channel[ev.Node.Id]
-		for _, evChan := range streams {
-			evChan <- ev
-		}
-	}()
-
-	return nil
 }

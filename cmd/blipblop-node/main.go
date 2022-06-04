@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
+	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/networking"
@@ -165,7 +168,16 @@ func joinNode(ctx context.Context, client proto.NodeServiceClient, name string) 
 				//log.Printf("Failed to receive events from joined node: %s", err.Error())
 				continue
 			}
-			log.Printf("EVENT: (%v) -> %v \n", in.Node, in.Name)
+			log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
+			var u models.Unit
+			buf := bytes.NewBuffer(in.Payload)
+			dec := gob.NewDecoder(buf)
+			err = dec.Decode(&u)
+			if err != nil {
+				log.Printf("Error decoding payload %s", err.Error())
+				continue
+			}
+			log.Printf("Unit name %s, image %s", *u.Name, *u.Image)
 		}
 	}()
 	<-waitc
