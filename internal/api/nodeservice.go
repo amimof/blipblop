@@ -1,8 +1,7 @@
 package api
 
 import (
-	"bytes"
-	"encoding/gob"
+	"github.com/amimof/blipblop/pkg/util"
 	"github.com/amimof/blipblop/internal/models"
 	proto "github.com/amimof/blipblop/proto"
 	"io"
@@ -21,16 +20,11 @@ func (n *nodeServiceServer) JoinNode(node *proto.Node, stream proto.NodeService_
 
 	go func() {
 		for {
-			//log.Printf("I have %d nodes", len(n.channel))
-			name := "prometheus-deployment"
-			image := "quay.io/prometheus/prometheus:latest"
 			unit := &models.Unit{
-				Name:  &name,
-				Image: &image,
+				Name:  util.PtrString("prometheus-deployment"),
+				Image: util.PtrString("quay.io/prometheus/prometheus:latest"),
 			}
-			var buf bytes.Buffer
-			enc := gob.NewEncoder(&buf)
-			err := enc.Encode(unit)
+			d, err := unit.Encode()
 			if err != nil {
 				log.Printf("Error encoding: %s", err.Error())
 				continue
@@ -41,7 +35,7 @@ func (n *nodeServiceServer) JoinNode(node *proto.Node, stream proto.NodeService_
 				Node: &proto.Node{
 					Id: "asdasd",
 				},
-				Payload: buf.Bytes(),
+				Payload: d,
 			}
 			eventChan <- e
 			time.Sleep(time.Second * 2)

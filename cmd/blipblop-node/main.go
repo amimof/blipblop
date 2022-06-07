@@ -1,21 +1,22 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
 	"context"
-	"encoding/gob"
+	//"encoding/gob"
 	"fmt"
-	"github.com/amimof/blipblop/internal/models"
+	//"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/server"
-	proto "github.com/amimof/blipblop/proto"
+	"github.com/amimof/blipblop/pkg/client"
+	//proto "github.com/amimof/blipblop/proto"
 	"github.com/containerd/containerd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
-	"google.golang.org/grpc"
-	"io"
+	//"google.golang.org/grpc"
+	//"io"
 	"log"
 	"os"
 )
@@ -92,17 +93,22 @@ func main() {
 	}
 
 	// Setup node service client
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", tlsHost, tlsPort), opts...)
-	if err != nil {
-		log.Fatalf("Failed to dial %s with error: %s", tlsHost, err.Error())
-	}
-	defer conn.Close()
+	// var opts []grpc.DialOption
+	// opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
+	// conn, err := grpc.Dial(fmt.Sprintf("%s:%d", tlsHost, tlsPort), opts...)
+	// if err != nil {
+	// 	log.Fatalf("Failed to dial %s with error: %s", tlsHost, err.Error())
+	// }
+	// defer conn.Close()
 
-	ctx := context.Background()
-	client := proto.NewNodeServiceClient(conn)
-	go joinNode(ctx, client, nodeName)
+	// ctx := context.Background()
+	// client := proto.NewNodeServiceClient(conn)
+	// go joinNode(ctx, client, nodeName)
+	client, err := client.NewNodeServiceClient(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err.Error())
+	}
+	go client.JoinNode(context.Background(), nodeName)
 
 	// Create containerd client
 	cclient, err := containerd.New(containerdSocket)
@@ -121,6 +127,7 @@ func main() {
 	cm := controller.NewControllerManager(controller.NewUnitController(cclient, cni))
 	cm.SpawnAll()
 
+	// Test internal events
 	event.On("container-create", event.ListenerFunc(func(e *event.Event) error {
 		log.Printf("Container created!", "")
 		return nil
@@ -139,68 +146,4 @@ func main() {
 		log.Fatal(err)
 	}
 
-}
-
-type nodeServiceServer struct {
-	proto.UnimplementedNodeServiceServer
-	channel map[string][]chan *proto.Event
-}
-
-func joinNode(ctx context.Context, client proto.NodeServiceClient, name string) {
-	node := proto.Node{Id: name}
-	stream, err := client.JoinNode(ctx, &node)
-	if err != nil {
-		log.Fatalf("join node error %s", err.Error())
-	}
-
-	log.Printf("Node %s joined", node.Id)
-
-	waitc := make(chan struct{})
-	go func() {
-		for {
-			in, err := stream.Recv()
-			if err == io.EOF {
-				log.Println("Got EOF")
-				close(waitc)
-				return
-			}
-			if err != nil {
-				//log.Printf("Failed to receive events from joined node: %s", err.Error())
-				continue
-			}
-			log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
-			var u models.Unit
-			buf := bytes.NewBuffer(in.Payload)
-			dec := gob.NewDecoder(buf)
-			err = dec.Decode(&u)
-			if err != nil {
-				log.Printf("Error decoding payload %s", err.Error())
-				continue
-			}
-			log.Printf("Unit name %s, image %s", *u.Name, *u.Image)
-		}
-	}()
-	<-waitc
-}
-
-func sendEvent(ctx context.Context, client proto.NodeServiceClient, event, name string) {
-	stream, err := client.FireEvent(ctx)
-	if err != nil {
-		log.Printf("Cannot fire event: %s", err.Error())
-	}
-
-	ev := proto.Event{
-		Node: &proto.Node{
-			Id: name,
-		},
-		Name: event,
-	}
-
-	stream.Send(&ev)
-
-	ack, err := stream.CloseAndRecv()
-	if err != nil {
-		log.Fatalf("Cannot send event: %s", err.Error())
-	}
-	log.Printf("Event sent: %v", ack)
 }
