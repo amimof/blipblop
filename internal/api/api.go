@@ -17,7 +17,6 @@ type APIv1 struct {
 	app        *fiber.App
 	router     fiber.Router
 	root       string
-	nss        *nodeServiceServer
 	grpcServer *grpc.Server
 }
 
@@ -45,7 +44,6 @@ func NewAPIv1() *APIv1 {
 		channel: make(map[string][]chan *proto.Event),
 	}
 	proto.RegisterNodeServiceServer(grpcServer, nodeService)
-
 	// Setup http api
 	app := fiber.New()
 	router := app.Group("/api/v1/")
@@ -53,7 +51,6 @@ func NewAPIv1() *APIv1 {
 		app:        app,
 		router:     router,
 		root:       "/api/v1/",
-		nss:        nodeService,
 		grpcServer: grpcServer,
 	}
 	return api.setupHandlers()

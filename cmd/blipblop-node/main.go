@@ -108,7 +108,10 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	go client.JoinNode(context.Background(), nodeName)
+	err = client.JoinNode(context.Background(), nodeName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err.Error())
+	}
 
 	// Create containerd client
 	cclient, err := containerd.New(containerdSocket)

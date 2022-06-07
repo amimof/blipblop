@@ -1,9 +1,14 @@
 syntax = "proto3";
 
-option go_package = "github.com/amimof/blipblop";
+import "google/protobuf/timestamp.proto";
+
+package nodeservice;
+
+option go_package = "github.com/amimof/blipblop/proto";
 
 service NodeService {
-  rpc JoinNode(Node) returns (stream Event) {}
+  rpc Join(JoinRequest) returns (JoinResponse) {}
+  rpc Subscribe(Node) returns (stream Event) {}
   rpc FireEvent(stream Event) returns (EventAck) {}
 }
 
@@ -26,4 +31,20 @@ enum EventType {
 	ContainerCreate = 0;
 	ContainerDelete = 1;
   ContainerUpdate = 2;
+}
+
+enum Status {
+  JoinFail = 0;
+  JoinSuccess = 1;
+}
+
+message JoinRequest {
+  google.protobuf.Timestamp at = 1;
+  Node node = 2;
+}
+
+message JoinResponse {
+  google.protobuf.Timestamp at = 1;
+  Node node = 2;
+  Status status = 3;
 }

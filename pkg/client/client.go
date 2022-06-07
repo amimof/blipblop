@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"log"
+	"errors"
 	"bytes"
 	"google.golang.org/grpc"
 	proto "github.com/amimof/blipblop/proto"
@@ -32,15 +33,28 @@ func NewNodeServiceClient(server string) (*Client, error) {
 
 func (c *Client) Close() {
 	c.conn.Close()
-} 
-
-func (c *Client) JoinNode(ctx context.Context, name string) {
-	go joinNode(ctx, c.client, name)
 }
 
-func joinNode(ctx context.Context, client proto.NodeServiceClient, name string) {
+func (c *Client) JoinNode(ctx context.Context, name string) error {
+	n := &proto.JoinRequest{
+		Node: &proto.Node{
+			Id: name,
+		},
+	}
+	res, err := c.client.Join(context.Background(), n)
+	if err != nil {
+		return err
+	}
+	if res.Status == proto.Status_JoinFail {
+		return errors.New("unable to join node")
+	}
+	return nil
+	//go joinNode(ctx, c.client, name)
+}
+
+func subscribe(ctx context.Context, client proto.NodeServiceClient, name string) {
 	node := proto.Node{Id: name}
-	stream, err := client.JoinNode(ctx, &node)
+	stream, err := client.Subscribe(ctx, &node)
 	if err != nil {
 		log.Fatalf("join node error %s", err.Error())
 	}

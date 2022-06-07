@@ -6,6 +6,8 @@ import (
 	"github.com/amimof/blipblop/internal/repo"
 )
 
+var nodeService *NodeService
+
 type NodeService struct {
 	repo  repo.NodeRepo
 	nodes []*models.Node
@@ -27,8 +29,15 @@ func (u *NodeService) Delete(id string) error {
 	return u.repo.Delete(context.Background(), id)
 }
 
-func NewNodeService(repo repo.NodeRepo) *NodeService {
+func newNodeService(repo repo.NodeRepo) *NodeService {
 	return &NodeService{
 		repo: repo,
 	}
 }
+
+func NewNodeService(repo repo.NodeRepo) *NodeService {
+	if nodeService == nil {
+		nodeService = newNodeService(repo)
+	}
+	return nodeService
+} 

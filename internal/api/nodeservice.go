@@ -3,7 +3,13 @@ package api
 import (
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/amimof/blipblop/internal/models"
+	"github.com/amimof/blipblop/internal/repo"
+	"github.com/amimof/blipblop/internal/services"
+	"github.com/gogo/protobuf/types"
 	proto "github.com/amimof/blipblop/proto"
+	"errors"
+	"context"
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -14,7 +20,31 @@ type nodeServiceServer struct {
 	channel map[string][]chan *proto.Event
 }
 
-func (n *nodeServiceServer) JoinNode(node *proto.Node, stream proto.NodeService_JoinNodeServer) error {
+func (n *nodeServiceServer) Join(ctx context.Context, req *proto.JoinRequest) (*proto.JoinResponse, error) {
+	svc := services.NewNodeService(repo.NewNodeRepo())
+	if node, _ := svc.Get(req.Node.Id); node != nil {
+		return &proto.JoinResponse{
+			Node: req.Node,
+			//At: types.TimestampNow(),
+			Status: proto.Status_JoinFail,
+		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Id))
+	}
+	node := &models.Node{
+		Name: util.PtrString(req.Node.Id),
+		Created: types.TimestampNow().String(),
+	}
+	err := svc.Create(node)
+	if err != nil {
+		return nil, err
+	}
+	return &proto.JoinResponse{
+		Node: req.Node,
+		//At: types.TimestampNow(),
+		Status: proto.Status_JoinSuccess,
+	}, nil
+}
+
+func (n *nodeServiceServer) Subscribe(node *proto.Node, stream proto.NodeService_SubscribeServer) error {
 	eventChan := make(chan *proto.Event)
 	n.channel[node.Id] = append(n.channel[node.Id], eventChan)
 
