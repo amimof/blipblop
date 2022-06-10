@@ -6,7 +6,7 @@ import (
 )
 
 type Node struct {
-	Name   *string `json:"name,omitempty"`
-	Labels labels.Label
+	Name    *string `json:"name,omitempty"`
+	Labels  labels.Label
 	Created string
 }

@@ -6,11 +6,11 @@ import (
 	//"encoding/gob"
 	"fmt"
 	//"github.com/amimof/blipblop/internal/models"
+	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/server"
-	"github.com/amimof/blipblop/pkg/client"
 	//proto "github.com/amimof/blipblop/proto"
 	"github.com/containerd/containerd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -103,17 +103,17 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	evc, errc := client.Subscribe(ctx)
-	go func() {
-		for {
-			select {
-			case ev := <-evc:
-				log.Printf("Got event %s", ev.Name)
-			case err := <-errc:
-				log.Printf("Got err %s", err.Error())
-			}
-		}
-	}()
+	// evc, errc := client.Subscribe(ctx)
+	// go func() {
+	// 	for {
+	// 		select {
+	// 		case ev := <-evc:
+	// 			log.Printf("Got event %s", ev.Name)
+	// 		case err := <-errc:
+	// 			log.Printf("Got err %s", err.Error())
+	// 		}
+	// 	}
+	// }()
 
 	// Create containerd client
 	cclient, err := containerd.New(containerdSocket)
@@ -129,7 +129,7 @@ func main() {
 	}
 
 	// Setup controllers
-	cm := controller.NewControllerManager(controller.NewUnitController(cclient, cni))
+	cm := controller.NewControllerManager(controller.NewUnitController(client, cclient, cni))
 	cm.SpawnAll()
 
 	// Test internal events

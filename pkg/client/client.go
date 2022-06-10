@@ -1,20 +1,20 @@
 package client
 
 import (
-	"context"
-	"log"
-	"errors"
 	"bytes"
-	"google.golang.org/grpc"
-	proto "github.com/amimof/blipblop/proto"
-	"github.com/amimof/blipblop/internal/models"
-	"io"
+	"context"
 	"encoding/gob"
+	"errors"
+	"github.com/amimof/blipblop/internal/models"
+	proto "github.com/amimof/blipblop/proto"
+	"google.golang.org/grpc"
+	"io"
+	"log"
 )
 
 type Client struct {
-	name string
-	conn *grpc.ClientConn
+	name   string
+	conn   *grpc.ClientConn
 	client proto.NodeServiceClient
 }
 
@@ -26,7 +26,7 @@ func NewNodeServiceClient(server string) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{
-		conn: conn,
+		conn:   conn,
 		client: proto.NewNodeServiceClient(conn),
 	}
 	return c, nil

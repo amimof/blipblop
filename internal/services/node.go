@@ -1,17 +1,17 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"sync"
-	"log"
-	"io"
-	"context"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/util"
-	"github.com/golang/protobuf/ptypes"
 	proto "github.com/amimof/blipblop/proto"
+	"github.com/golang/protobuf/ptypes"
+	"io"
+	"log"
+	"sync"
 )
 
 var nodeService *NodeService
@@ -19,8 +19,8 @@ var nodeService *NodeService
 type NodeService struct {
 	mu sync.Mutex
 	proto.UnimplementedNodeServiceServer
-	repo  repo.NodeRepo
-	nodes []*models.Node
+	repo    repo.NodeRepo
+	nodes   []*models.Node
 	channel map[string][]chan *proto.Event
 }
 
@@ -71,7 +71,7 @@ func (n *NodeService) Join(ctx context.Context, req *proto.JoinRequest) (*proto.
 		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Id))
 	}
 	node := &models.Node{
-		Name: util.PtrString(req.Node.Id),
+		Name:    util.PtrString(req.Node.Id),
 		Created: ptypes.TimestampNow().String(),
 	}
 	err := n.Create(node)
@@ -153,7 +153,7 @@ func (n *NodeService) FireEvent(stream proto.NodeService_FireEventServer) error 
 
 func newNodeService(r repo.NodeRepo) *NodeService {
 	return &NodeService{
-		repo: r,
+		repo:    r,
 		channel: make(map[string][]chan *proto.Event),
 	}
 }
@@ -163,7 +163,7 @@ func NewNodeService() *NodeService {
 		nodeService = newNodeService(repo.NewNodeRepo())
 	}
 	return nodeService
-} 
+}
 
 func NewNodeServiceWithRepo(r repo.NodeRepo) *NodeService {
 	n := NewNodeService()
