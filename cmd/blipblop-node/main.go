@@ -93,25 +93,27 @@ func main() {
 	}
 
 	// Setup node service client
-	// var opts []grpc.DialOption
-	// opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
-	// conn, err := grpc.Dial(fmt.Sprintf("%s:%d", tlsHost, tlsPort), opts...)
-	// if err != nil {
-	// 	log.Fatalf("Failed to dial %s with error: %s", tlsHost, err.Error())
-	// }
-	// defer conn.Close()
-
-	// ctx := context.Background()
-	// client := proto.NewNodeServiceClient(conn)
-	// go joinNode(ctx, client, nodeName)
 	client, err := client.NewNodeServiceClient(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	err = client.JoinNode(context.Background(), nodeName)
+	defer client.Close()
+	ctx := context.Background()
+	err = client.JoinNode(ctx, nodeName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
+	evc, errc := client.Subscribe(ctx)
+	go func() {
+		for {
+			select {
+			case ev := <-evc:
+				log.Printf("Got event %s", ev.Name)
+			case err := <-errc:
+				log.Printf("Got err %s", err.Error())
+			}
+		}
+	}()
 
 	// Create containerd client
 	cclient, err := containerd.New(containerdSocket)

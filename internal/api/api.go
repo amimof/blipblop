@@ -24,7 +24,7 @@ func (a *APIv1) setupHandlers() *APIv1 {
 	// Units
 	routes.MapUnitRoutes(a.router.Group("/units"), handlers.NewUnitHandler(services.NewUnitService(repo.NewInMemUnitRepo())))
 	// Nodes
-	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(services.NewNodeService(repo.NewNodeRepo())))
+	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(services.NewNodeService()))
 	return a
 }
 
@@ -40,9 +40,7 @@ func NewAPIv1() *APIv1 {
 	// Setup grpc services
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
-	nodeService := &nodeServiceServer{
-		channel: make(map[string][]chan *proto.Event),
-	}
+	nodeService := services.NewNodeService()
 	proto.RegisterNodeServiceServer(grpcServer, nodeService)
 	// Setup http api
 	app := fiber.New()

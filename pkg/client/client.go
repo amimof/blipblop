@@ -13,6 +13,7 @@ import (
 )
 
 type Client struct {
+	name string
 	conn *grpc.ClientConn
 	client proto.NodeServiceClient
 }
@@ -36,9 +37,10 @@ func (c *Client) Close() {
 }
 
 func (c *Client) JoinNode(ctx context.Context, name string) error {
+	c.name = name
 	n := &proto.JoinRequest{
 		Node: &proto.Node{
-			Id: name,
+			Id: c.name,
 		},
 	}
 	res, err := c.client.Join(context.Background(), n)
@@ -52,14 +54,20 @@ func (c *Client) JoinNode(ctx context.Context, name string) error {
 	//go joinNode(ctx, c.client, name)
 }
 
-func subscribe(ctx context.Context, client proto.NodeServiceClient, name string) {
-	node := proto.Node{Id: name}
-	stream, err := client.Subscribe(ctx, &node)
-	if err != nil {
-		log.Fatalf("join node error %s", err.Error())
-	}
+func (c *Client) Subscribe(ctx context.Context) (<-chan *proto.Event, <-chan error) {
+	return c.subscribe(ctx, c.client, c.name)
+}
 
-	log.Printf("Node %s joined", node.Id)
+func (c *Client) subscribe(ctx context.Context, client proto.NodeServiceClient, name string) (<-chan *proto.Event, <-chan error) {
+
+	evc := make(chan *proto.Event)
+	errc := make(chan error)
+
+	stream, err := client.Subscribe(ctx, &proto.Node{Id: name})
+	if err != nil {
+		log.Fatalf("subscribe error occurred %s", err.Error())
+	}
+	log.Printf("Node %s joined", name)
 
 	waitc := make(chan struct{})
 	go func() {
@@ -75,7 +83,7 @@ func subscribe(ctx context.Context, client proto.NodeServiceClient, name string)
 				continue
 			}
 			log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
-			var u models.Unit
+			var u models.Node
 			buf := bytes.NewBuffer(in.Payload)
 			dec := gob.NewDecoder(buf)
 			err = dec.Decode(&u)
@@ -83,10 +91,11 @@ func subscribe(ctx context.Context, client proto.NodeServiceClient, name string)
 				log.Printf("Error decoding payload %s", err.Error())
 				continue
 			}
-			log.Printf("Unit name %s, image %s", *u.Name, *u.Image)
+			log.Printf("Node name %s", *u.Name)
 		}
 	}()
 	<-waitc
+	return evc, errc
 }
 
 // func sendEvent(ctx context.Context, client proto.NodeServiceClient, event, name string) {

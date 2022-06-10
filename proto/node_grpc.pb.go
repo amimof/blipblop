@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeServiceClient interface {
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
+	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
 	Subscribe(ctx context.Context, in *Node, opts ...grpc.CallOption) (NodeService_SubscribeClient, error)
 	FireEvent(ctx context.Context, opts ...grpc.CallOption) (NodeService_FireEventClient, error)
 }
@@ -38,6 +39,15 @@ func NewNodeServiceClient(cc grpc.ClientConnInterface) NodeServiceClient {
 func (c *nodeServiceClient) Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error) {
 	out := new(JoinResponse)
 	err := c.cc.Invoke(ctx, "/nodeservice.NodeService/Join", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeServiceClient) Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error) {
+	out := new(ForgetResponse)
+	err := c.cc.Invoke(ctx, "/nodeservice.NodeService/Forget", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +125,7 @@ func (x *nodeServiceFireEventClient) CloseAndRecv() (*EventAck, error) {
 // for forward compatibility
 type NodeServiceServer interface {
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
+	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
 	Subscribe(*Node, NodeService_SubscribeServer) error
 	FireEvent(NodeService_FireEventServer) error
 	mustEmbedUnimplementedNodeServiceServer()
@@ -126,6 +137,9 @@ type UnimplementedNodeServiceServer struct {
 
 func (UnimplementedNodeServiceServer) Join(context.Context, *JoinRequest) (*JoinResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Join not implemented")
+}
+func (UnimplementedNodeServiceServer) Forget(context.Context, *ForgetRequest) (*ForgetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Forget not implemented")
 }
 func (UnimplementedNodeServiceServer) Subscribe(*Node, NodeService_SubscribeServer) error {
 	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
@@ -160,6 +174,24 @@ func _NodeService_Join_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Join(ctx, req.(*JoinRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeService_Forget_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForgetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).Forget(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nodeservice.NodeService/Forget",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).Forget(ctx, req.(*ForgetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -221,6 +253,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Join",
 			Handler:    _NodeService_Join_Handler,
+		},
+		{
+			MethodName: "Forget",
+			Handler:    _NodeService_Forget_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
