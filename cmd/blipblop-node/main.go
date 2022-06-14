@@ -115,7 +115,7 @@ func main() {
 	// 	}
 	// }()
 
-	// Create containerd client
+	// Create  containerd client
 	cclient, err := containerd.New(containerdSocket)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
@@ -129,7 +129,10 @@ func main() {
 	}
 
 	// Setup controllers
-	cm := controller.NewControllerManager(controller.NewUnitController(client, cclient, cni))
+	cm := controller.NewControllerManager(
+		controller.NewUnitController(client, cclient, cni),
+		controller.NewNodeController(client, cclient),
+	)
 	cm.SpawnAll()
 
 	// Test internal events

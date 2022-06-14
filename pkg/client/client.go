@@ -16,6 +16,7 @@ type Client struct {
 	name   string
 	conn   *grpc.ClientConn
 	client proto.NodeServiceClient
+	//nodeService *services.NodeService
 }
 
 func NewNodeServiceClient(server string) (*Client, error) {
@@ -28,6 +29,7 @@ func NewNodeServiceClient(server string) (*Client, error) {
 	c := &Client{
 		conn:   conn,
 		client: proto.NewNodeServiceClient(conn),
+		//nodeService: services.NewNodeService(),
 	}
 	return c, nil
 }
@@ -50,51 +52,53 @@ func (c *Client) JoinNode(ctx context.Context, name string) error {
 	if res.Status == proto.Status_JoinFail {
 		return errors.New("unable to join node")
 	}
+	log.Printf("Node %s joined", name)
 	return nil
-	//go joinNode(ctx, c.client, name)
 }
 
 func (c *Client) Subscribe(ctx context.Context) (<-chan *proto.Event, <-chan error) {
-	return c.subscribe(ctx, c.client, c.name)
+	return c.subscribe(ctx, c.name)
 }
 
-func (c *Client) subscribe(ctx context.Context, client proto.NodeServiceClient, name string) (<-chan *proto.Event, <-chan error) {
+func (c *Client) subscribe(ctx context.Context, name string) (<-chan *proto.Event, <-chan error) {
 
 	evc := make(chan *proto.Event)
 	errc := make(chan error)
 
-	stream, err := client.Subscribe(ctx, &proto.Node{Id: name})
+	stream, err := c.client.Subscribe(ctx, &proto.Node{Id: name})
 	if err != nil {
 		log.Fatalf("subscribe error occurred %s", err.Error())
 	}
-	log.Printf("Node %s joined", name)
 
-	waitc := make(chan struct{})
+	//waitc := make(chan struct{})
 	go func() {
 		for {
 			in, err := stream.Recv()
 			if err == io.EOF {
-				log.Println("Got EOF")
-				close(waitc)
-				return
+				errc <- err
+				//close(waitc)
+				//return
 			}
 			if err != nil {
 				//log.Printf("Failed to receive events from joined node: %s", err.Error())
-				continue
+				errc <- err
+				//continue
 			}
-			log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
+			//log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
 			var u models.Node
 			buf := bytes.NewBuffer(in.Payload)
 			dec := gob.NewDecoder(buf)
 			err = dec.Decode(&u)
 			if err != nil {
-				log.Printf("Error decoding payload %s", err.Error())
-				continue
+				//log.Printf("Error decoding payload %s", err.Error())
+				errc <- err
+				//continue
 			}
-			log.Printf("Node name %s", *u.Name)
+			//log.Printf("Node name %s", *u.Name)
+			evc <- in
 		}
 	}()
-	<-waitc
+	//<-waitc
 	return evc, errc
 }
 

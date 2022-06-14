@@ -15,6 +15,7 @@ type unitController struct {
 	informer *Informer
 	repo     repo.UnitRepo
 	client   *client.Client
+	runtime  *client.RuntimeClient
 }
 
 //
@@ -36,16 +37,16 @@ func (u *unitController) Run(stop <-chan struct{}) {
 	go u.informer.Watch(stop)
 }
 
-func NewUnitController(client *client.Client, cclient *containerd.Client, cni gocni.CNI) Controller {
-	c := &unitController{
-		client: client,
-		repo:   repo.NewUnitRepo(cclient, cni),
+func NewUnitController(c *client.Client, cc *containerd.Client, cni gocni.CNI) Controller {
+	controll := &unitController{
+		client:  c,
+		runtime: client.NewContainerdRuntimeClient(cc, cni),
 	}
-	informer := NewInformer(cclient)
+	informer := NewInformer(controll.runtime.ContainerdClient())
 	informer.AddHandler(&HandlerFuncs{
-		OnTaskExit:   c.exitHandler,
-		OnTaskCreate: c.createHandler,
+		OnTaskExit:   controll.exitHandler,
+		OnTaskCreate: controll.createHandler,
 	})
-	c.informer = informer
-	return c
+	controll.informer = informer
+	return controll
 }
