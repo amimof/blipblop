@@ -41,7 +41,9 @@ func NewAPIv1() *APIv1 {
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 	nodeService := services.NewNodeService()
+	eventService := services.NewEventService()
 	proto.RegisterNodeServiceServer(grpcServer, nodeService)
+	proto.RegisterEventServiceServer(grpcServer, eventService)
 	// Setup http api
 	app := fiber.New()
 	router := app.Group("/api/v1/")

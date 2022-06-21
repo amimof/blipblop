@@ -37,6 +37,10 @@ docker_build: ; $(info $(M) building docker image) @ ## Build docker image
 	docker build -t amimof/blipblop:${VERSION} .
 	docker tag amimof/blipblop:${VERSION} amimof/blipblop:latest
 
+.PHONY: protos
+protos: ; $(info $(M) generating protos) @ ## Generate protos
+	protoc --proto_path=./proto/ --go_out=./proto/ --go-grpc_out=./proto/ --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative ./proto/*.proto
+
 # Tools
 
 $(BIN):

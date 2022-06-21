@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.1
-// source: proto/node.proto
+// source: node.proto
 
 package proto
 
@@ -24,8 +24,6 @@ const _ = grpc.SupportPackageIsVersion7
 type NodeServiceClient interface {
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
-	Subscribe(ctx context.Context, in *Node, opts ...grpc.CallOption) (NodeService_SubscribeClient, error)
-	FireEvent(ctx context.Context, opts ...grpc.CallOption) (NodeService_FireEventClient, error)
 }
 
 type nodeServiceClient struct {
@@ -54,80 +52,12 @@ func (c *nodeServiceClient) Forget(ctx context.Context, in *ForgetRequest, opts 
 	return out, nil
 }
 
-func (c *nodeServiceClient) Subscribe(ctx context.Context, in *Node, opts ...grpc.CallOption) (NodeService_SubscribeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeService_ServiceDesc.Streams[0], "/nodeservice.NodeService/Subscribe", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeServiceSubscribeClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type NodeService_SubscribeClient interface {
-	Recv() (*Event, error)
-	grpc.ClientStream
-}
-
-type nodeServiceSubscribeClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeServiceSubscribeClient) Recv() (*Event, error) {
-	m := new(Event)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *nodeServiceClient) FireEvent(ctx context.Context, opts ...grpc.CallOption) (NodeService_FireEventClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeService_ServiceDesc.Streams[1], "/nodeservice.NodeService/FireEvent", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeServiceFireEventClient{stream}
-	return x, nil
-}
-
-type NodeService_FireEventClient interface {
-	Send(*Event) error
-	CloseAndRecv() (*EventAck, error)
-	grpc.ClientStream
-}
-
-type nodeServiceFireEventClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeServiceFireEventClient) Send(m *Event) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeServiceFireEventClient) CloseAndRecv() (*EventAck, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(EventAck)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // NodeServiceServer is the server API for NodeService service.
 // All implementations must embed UnimplementedNodeServiceServer
 // for forward compatibility
 type NodeServiceServer interface {
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
-	Subscribe(*Node, NodeService_SubscribeServer) error
-	FireEvent(NodeService_FireEventServer) error
 	mustEmbedUnimplementedNodeServiceServer()
 }
 
@@ -140,12 +70,6 @@ func (UnimplementedNodeServiceServer) Join(context.Context, *JoinRequest) (*Join
 }
 func (UnimplementedNodeServiceServer) Forget(context.Context, *ForgetRequest) (*ForgetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Forget not implemented")
-}
-func (UnimplementedNodeServiceServer) Subscribe(*Node, NodeService_SubscribeServer) error {
-	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
-}
-func (UnimplementedNodeServiceServer) FireEvent(NodeService_FireEventServer) error {
-	return status.Errorf(codes.Unimplemented, "method FireEvent not implemented")
 }
 func (UnimplementedNodeServiceServer) mustEmbedUnimplementedNodeServiceServer() {}
 
@@ -196,53 +120,6 @@ func _NodeService_Forget_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeService_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Node)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(NodeServiceServer).Subscribe(m, &nodeServiceSubscribeServer{stream})
-}
-
-type NodeService_SubscribeServer interface {
-	Send(*Event) error
-	grpc.ServerStream
-}
-
-type nodeServiceSubscribeServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeServiceSubscribeServer) Send(m *Event) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _NodeService_FireEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeServiceServer).FireEvent(&nodeServiceFireEventServer{stream})
-}
-
-type NodeService_FireEventServer interface {
-	SendAndClose(*EventAck) error
-	Recv() (*Event, error)
-	grpc.ServerStream
-}
-
-type nodeServiceFireEventServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeServiceFireEventServer) SendAndClose(m *EventAck) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeServiceFireEventServer) Recv() (*Event, error) {
-	m := new(Event)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // NodeService_ServiceDesc is the grpc.ServiceDesc for NodeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -259,17 +136,6 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeService_Forget_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "Subscribe",
-			Handler:       _NodeService_Subscribe_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "FireEvent",
-			Handler:       _NodeService_FireEvent_Handler,
-			ClientStreams: true,
-		},
-	},
-	Metadata: "proto/node.proto",
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "node.proto",
 }

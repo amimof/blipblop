@@ -46,6 +46,9 @@ func (i *NodeInformer) Watch(stopCh <-chan struct{}) {
 }
 
 func handleNodeEvent(h *NodeHandlerFuncs, ev *proto.Event) {
+	if ev == nil {
+		return
+	}
 	t := ev.Type
 	switch t {
 	case proto.EventType_ContainerCreate:

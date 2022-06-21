@@ -1,11 +1,11 @@
 package client
 
 import (
-	"bytes"
+	//"bytes"
 	"context"
-	"encoding/gob"
+	//"encoding/gob"
 	"errors"
-	"github.com/amimof/blipblop/internal/models"
+	//"github.com/amimof/blipblop/internal/models"
 	proto "github.com/amimof/blipblop/proto"
 	"google.golang.org/grpc"
 	"io"
@@ -13,9 +13,10 @@ import (
 )
 
 type Client struct {
-	name   string
-	conn   *grpc.ClientConn
-	client proto.NodeServiceClient
+	name         string
+	conn         *grpc.ClientConn
+	nodeService  proto.NodeServiceClient
+	eventService proto.EventServiceClient
 	//nodeService *services.NodeService
 }
 
@@ -27,8 +28,9 @@ func NewNodeServiceClient(server string) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{
-		conn:   conn,
-		client: proto.NewNodeServiceClient(conn),
+		conn:         conn,
+		nodeService:  proto.NewNodeServiceClient(conn),
+		eventService: proto.NewEventServiceClient(conn),
 		//nodeService: services.NewNodeService(),
 	}
 	return c, nil
@@ -45,7 +47,7 @@ func (c *Client) JoinNode(ctx context.Context, name string) error {
 			Id: c.name,
 		},
 	}
-	res, err := c.client.Join(context.Background(), n)
+	res, err := c.nodeService.Join(context.Background(), n)
 	if err != nil {
 		return err
 	}
@@ -65,7 +67,7 @@ func (c *Client) subscribe(ctx context.Context, name string) (<-chan *proto.Even
 	evc := make(chan *proto.Event)
 	errc := make(chan error)
 
-	stream, err := c.client.Subscribe(ctx, &proto.Node{Id: name})
+	stream, err := c.eventService.Subscribe(ctx, &proto.SubscribeRequest{Id: name})
 	if err != nil {
 		log.Fatalf("subscribe error occurred %s", err.Error())
 	}
@@ -85,15 +87,15 @@ func (c *Client) subscribe(ctx context.Context, name string) (<-chan *proto.Even
 				//continue
 			}
 			//log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
-			var u models.Node
-			buf := bytes.NewBuffer(in.Payload)
-			dec := gob.NewDecoder(buf)
-			err = dec.Decode(&u)
-			if err != nil {
-				//log.Printf("Error decoding payload %s", err.Error())
-				errc <- err
-				//continue
-			}
+			// var u models.Node
+			// buf := bytes.NewBuffer(in.Payload)
+			// dec := gob.NewDecoder(buf)
+			// err = dec.Decode(&u)
+			// if err != nil {
+			// 	//log.Printf("Error decoding payload %s", err.Error())
+			// 	errc <- err
+			// 	//continue
+			// }
 			//log.Printf("Node name %s", *u.Name)
 			evc <- in
 		}

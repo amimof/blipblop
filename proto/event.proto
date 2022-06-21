@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package eventservice;
+
+option go_package = "github.com/amimof/blipblop/proto";
+
+service EventService {
+  rpc Subscribe(SubscribeRequest) returns (stream Event) {}
+  rpc FireEvent(stream Event) returns (EventAck) {}
+}
+
+message SubscribeRequest {
+  string id = 1;
+}
+
+message Event {
+  google.protobuf.Timestamp timestamp = 1;
+  string name = 2;
+  bytes payload = 3;
+  EventType type = 4;
+}
+
+enum EventType {
+	ContainerCreate = 0;
+	ContainerDelete = 1;
+  ContainerUpdate = 2;
+}
+
+message EventAck {
+  string status = 1;
+}

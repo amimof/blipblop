@@ -9,29 +9,8 @@ option go_package = "github.com/amimof/blipblop/proto";
 service NodeService {
   rpc Join(JoinRequest) returns (JoinResponse) {}
   rpc Forget(ForgetRequest) returns (ForgetResponse) {}
-  rpc Subscribe(Node) returns (stream Event) {}
-  rpc FireEvent(stream Event) returns (EventAck) {}
-}
-
-message Node {
-  string id = 1;
-}
-
-message Event {
-  string name = 1;
-  Node node = 2;
-  bytes payload = 3;
-  EventType type = 4;
-}
-
-message EventAck {
-  string status = 1;
-}
-
-enum EventType {
-	ContainerCreate = 0;
-	ContainerDelete = 1;
-  ContainerUpdate = 2;
+  // rpc Subscribe(Node) returns (stream Event) {}
+  // rpc FireEvent(stream Event) returns (EventAck) {}
 }
 
 enum Status {
@@ -39,6 +18,11 @@ enum Status {
   JoinSuccess = 1;
   ForgetFail = 2;
   ForgetSuccess = 3;
+}
+
+
+message Node {
+  string id = 1;
 }
 
 message JoinRequest {
@@ -60,3 +44,20 @@ message ForgetResponse {
   string node = 1;
   Status status = 2;
 }
+
+// message Event {
+//   string name = 1;
+//   Node node = 2;
+//   bytes payload = 3;
+//   EventType type = 4;
+// }
+
+// message EventAck {
+//   string status = 1;
+// }
+
+// enum EventType {
+// 	ContainerCreate = 0;
+// 	ContainerDelete = 1;
+//   ContainerUpdate = 2;
+// }
