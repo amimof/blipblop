@@ -6,7 +6,9 @@ import (
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/internal/routes"
 	"github.com/amimof/blipblop/internal/services"
-	proto "github.com/amimof/blipblop/proto"
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
@@ -21,8 +23,8 @@ type APIv1 struct {
 }
 
 func (a *APIv1) setupHandlers() *APIv1 {
-	// Units
-	routes.MapUnitRoutes(a.router.Group("/units"), handlers.NewUnitHandler(services.NewUnitService(repo.NewInMemUnitRepo())))
+	// Containers
+	routes.MapContainerRoutes(a.router.Group("/containers"), handlers.NewContainerHandler(services.NewContainerService(repo.NewInMemContainerRepo())))
 	// Nodes
 	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(services.NewNodeService()))
 	return a
@@ -42,8 +44,10 @@ func NewAPIv1() *APIv1 {
 	grpcServer := grpc.NewServer(opts...)
 	nodeService := services.NewNodeService()
 	eventService := services.NewEventService()
-	proto.RegisterNodeServiceServer(grpcServer, nodeService)
-	proto.RegisterEventServiceServer(grpcServer, eventService)
+	containerService := services.NewContainerService(repo.NewInMemContainerRepo())
+	nodesv1.RegisterNodeServiceServer(grpcServer, nodeService)
+	eventsv1.RegisterEventServiceServer(grpcServer, eventService)
+	containersv1.RegisterContainerServiceServer(grpcServer, containerService)
 	// Setup http api
 	app := fiber.New()
 	router := app.Group("/api/v1/")

@@ -1,7 +1,7 @@
 package services
 
 import (
-	proto "github.com/amimof/blipblop/proto"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"io"
 	"log"
 )
@@ -9,12 +9,13 @@ import (
 var eventService *EventService
 
 type EventService struct {
-	channel map[string][]chan *proto.Event
-	proto.UnimplementedEventServiceServer
+	channel map[string][]chan *events.Event
+	events.UnimplementedEventServiceServer
 }
 
-func (n *EventService) Subscribe(req *proto.SubscribeRequest, stream proto.EventService_SubscribeServer) error {
-	eventChan := make(chan *proto.Event)
+func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
+	log.Printf("Added subscriber %s", req.Id)
+	eventChan := make(chan *events.Event)
 	n.channel[req.Id] = append(n.channel[req.Id], eventChan)
 
 	// go func() {
@@ -28,10 +29,10 @@ func (n *EventService) Subscribe(req *proto.SubscribeRequest, stream proto.Event
 	// 			log.Printf("Error encoding: %s", err.Error())
 	// 			continue
 	// 		}
-	// 		e := &proto.Event{
+	// 		e := &events.Event{
 	// 			Name: "ContainerCreate",
-	// 			Type: proto.EventType_ContainerCreate,
-	// 			Node: &proto.Node{
+	// 			Type: events.EventType_ContainerCreate,
+	// 			Node: &events.Node{
 	// 				Id: "asdasd",
 	// 			},
 	// 			Payload: d,
@@ -56,7 +57,7 @@ func (n *EventService) Subscribe(req *proto.SubscribeRequest, stream proto.Event
 	}
 }
 
-func (n *EventService) FireEvent(stream proto.EventService_FireEventServer) error {
+func (n *EventService) FireEvent(stream events.EventService_FireEventServer) error {
 	ev, err := stream.Recv()
 	if err == io.EOF {
 		log.Println("Got EOF while reading from stream")
@@ -66,7 +67,7 @@ func (n *EventService) FireEvent(stream proto.EventService_FireEventServer) erro
 		return err
 	}
 
-	ack := proto.EventAck{Status: "SENT"}
+	ack := events.EventAck{Status: "SENT"}
 	stream.SendAndClose(&ack)
 
 	go func() {
@@ -81,7 +82,7 @@ func (n *EventService) FireEvent(stream proto.EventService_FireEventServer) erro
 
 func newEventService() *EventService {
 	return &EventService{
-		channel: make(map[string][]chan *proto.Event),
+		channel: make(map[string][]chan *events.Event),
 	}
 }
 

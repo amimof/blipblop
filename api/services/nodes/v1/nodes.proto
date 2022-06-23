@@ -1,10 +1,10 @@
 syntax = "proto3";
 
+package blipblop.services.nodes.v1;
+
 import "google/protobuf/timestamp.proto";
 
-package nodeservice;
-
-option go_package = "github.com/amimof/blipblop/proto";
+option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 
 service NodeService {
   rpc Join(JoinRequest) returns (JoinResponse) {}
@@ -19,7 +19,6 @@ enum Status {
   ForgetFail = 2;
   ForgetSuccess = 3;
 }
-
 
 message Node {
   string id = 1;

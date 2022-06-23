@@ -1,10 +1,10 @@
 syntax = "proto3";
 
+package blipblop.services.containers.v1;
+
 import "google/protobuf/timestamp.proto";
 
-package eventservice;
-
-option go_package = "github.com/amimof/blipblop/proto";
+option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
 
 service EventService {
   rpc Subscribe(SubscribeRequest) returns (stream Event) {}
@@ -17,9 +17,10 @@ message SubscribeRequest {
 
 message Event {
   google.protobuf.Timestamp timestamp = 1;
-  string name = 2;
-  bytes payload = 3;
-  EventType type = 4;
+  string id = 2;
+  string name = 3;
+  bytes payload = 4;
+  EventType type = 5;
 }
 
 enum EventType {

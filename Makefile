@@ -14,6 +14,7 @@ SRC_FILES=find . -name "*.go" -type f -not -path "./vendor/*" -not -path "./.git
 BIN      = $(CURDIR)/bin
 TBIN		 = $(CURDIR)/test/bin
 INTDIR	 = $(CURDIR)/test/int-test
+API_SERVICES=./api/services
 GO			 = go
 TIMEOUT  = 15
 V = 0
@@ -38,8 +39,17 @@ docker_build: ; $(info $(M) building docker image) @ ## Build docker image
 	docker tag amimof/blipblop:${VERSION} amimof/blipblop:latest
 
 .PHONY: protos
-protos: ; $(info $(M) generating protos) @ ## Generate protos
-	protoc --proto_path=./proto/ --go_out=./proto/ --go-grpc_out=./proto/ --go-grpc_opt=paths=source_relative --go_opt=paths=source_relative ./proto/*.proto
+protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos
+	@for d in $^; do \
+		protoc \
+			--proto_path=./$$d/v1 \
+			--go_out=./$$d/v1 \
+			--go-grpc_out=./$$d/v1 \
+			--go-grpc_opt=paths=source_relative \
+			--go_opt=paths=source_relative \
+			./$$d/v1/*.proto ; \
+		echo ./$$d/v1/*.proto ; \
+	done
 
 # Tools
 

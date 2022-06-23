@@ -13,7 +13,7 @@ import (
 
 type unitController struct {
 	informer *Informer
-	repo     repo.UnitRepo
+	repo     repo.ContainerRepo
 	client   *client.Client
 	runtime  *client.RuntimeClient
 }

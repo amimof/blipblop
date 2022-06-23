@@ -93,7 +93,7 @@ func main() {
 	}
 
 	// Setup node service client
-	client, err := client.NewNodeServiceClient(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	client, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -129,12 +129,11 @@ func main() {
 	}
 
 	// Setup controllers
-	cm := controller.NewControllerManager(
+	controller.NewControllerManager(
 		controller.NewUnitController(client, cclient, cni),
-		controller.NewNodeController(client, cclient),
-	)
-	cm.SpawnAll()
-
+		controller.NewEventController(client, cclient),
+	).SpawnAll()
+	
 	// Test internal events
 	event.On("container-create", event.ListenerFunc(func(e *event.Event) error {
 		log.Printf("Container created!", "")

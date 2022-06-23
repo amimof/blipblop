@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type UnitHandler interface {
+type ContainerHandler interface {
 	Get() fiber.Handler
 	GetAll() fiber.Handler
 	Create() fiber.Handler
@@ -16,13 +16,13 @@ type UnitHandler interface {
 	Stop() fiber.Handler
 }
 
-type unitHandler struct {
-	svc *services.UnitService
+type containerHandler struct {
+	svc *services.ContainerService
 }
 
-func (u unitHandler) Get() fiber.Handler {
+func (c containerHandler) Get() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		unit, err := u.svc.Get(ctx.Params("id"))
+		unit, err := c.svc.Get(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -33,9 +33,9 @@ func (u unitHandler) Get() fiber.Handler {
 		return nil
 	}
 }
-func (u unitHandler) GetAll() fiber.Handler {
+func (c containerHandler) GetAll() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		units, err := u.svc.All()
+		units, err := c.svc.All()
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -43,14 +43,14 @@ func (u unitHandler) GetAll() fiber.Handler {
 		return nil
 	}
 }
-func (u unitHandler) Create() fiber.Handler {
+func (c containerHandler) Create() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		unit := new(models.Unit)
+		unit := new(models.Container)
 		err := ctx.BodyParser(unit)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
-		err = u.svc.Create(unit)
+		err = c.svc.Create(unit)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -58,14 +58,14 @@ func (u unitHandler) Create() fiber.Handler {
 		return nil
 	}
 }
-func (u unitHandler) Update() fiber.Handler {
+func (c containerHandler) Update() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		return nil
 	}
 }
-func (u unitHandler) Delete() fiber.Handler {
+func (c containerHandler) Delete() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := u.svc.Delete(ctx.Params("id"))
+		err := c.svc.Delete(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -73,9 +73,9 @@ func (u unitHandler) Delete() fiber.Handler {
 		return nil
 	}
 }
-func (u unitHandler) Start() fiber.Handler {
+func (c containerHandler) Start() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := u.svc.Start(ctx.Params("id"))
+		err := c.svc.Start(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -83,9 +83,9 @@ func (u unitHandler) Start() fiber.Handler {
 		return nil
 	}
 }
-func (u unitHandler) Stop() fiber.Handler {
+func (c containerHandler) Stop() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := u.svc.Stop(ctx.Params("id"))
+		err := c.svc.Stop(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -94,6 +94,6 @@ func (u unitHandler) Stop() fiber.Handler {
 	}
 }
 
-func NewUnitHandler(svc *services.UnitService) UnitHandler {
-	return &unitHandler{svc}
+func NewContainerHandler(svc *services.ContainerService) ContainerHandler {
+	return &containerHandler{svc}
 }

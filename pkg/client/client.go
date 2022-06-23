@@ -6,21 +6,27 @@ import (
 	//"encoding/gob"
 	"errors"
 	//"github.com/amimof/blipblop/internal/models"
-	proto "github.com/amimof/blipblop/proto"
+	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/services/containers/v1"
 	"google.golang.org/grpc"
 	"io"
 	"log"
 )
 
+type RESTClient struct {
+
+}
+
 type Client struct {
 	name         string
 	conn         *grpc.ClientConn
-	nodeService  proto.NodeServiceClient
-	eventService proto.EventServiceClient
-	//nodeService *services.NodeService
+	nodeService  nodes.NodeServiceClient
+	eventService events.EventServiceClient
+	containerService containers.ContainerServiceClient
 }
 
-func NewNodeServiceClient(server string) (*Client, error) {
+func New(server string) (*Client, error) {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
 	conn, err := grpc.Dial(server, opts...)
@@ -29,9 +35,9 @@ func NewNodeServiceClient(server string) (*Client, error) {
 	}
 	c := &Client{
 		conn:         conn,
-		nodeService:  proto.NewNodeServiceClient(conn),
-		eventService: proto.NewEventServiceClient(conn),
-		//nodeService: services.NewNodeService(),
+		nodeService:  nodes.NewNodeServiceClient(conn),
+		eventService: events.NewEventServiceClient(conn),
+		containerService: containers.NewContainerServiceClient(conn), 
 	}
 	return c, nil
 }
@@ -42,8 +48,8 @@ func (c *Client) Close() {
 
 func (c *Client) JoinNode(ctx context.Context, name string) error {
 	c.name = name
-	n := &proto.JoinRequest{
-		Node: &proto.Node{
+	n := &nodes.JoinRequest{
+		Node: &nodes.Node{
 			Id: c.name,
 		},
 	}
@@ -51,23 +57,31 @@ func (c *Client) JoinNode(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	if res.Status == proto.Status_JoinFail {
+	if res.Status == nodes.Status_JoinFail {
 		return errors.New("unable to join node")
 	}
 	log.Printf("Node %s joined", name)
 	return nil
 }
 
-func (c *Client) Subscribe(ctx context.Context) (<-chan *proto.Event, <-chan error) {
+func (c *Client) GetContainer(ctx context.Context, id string) (*containers.Container, error) {
+	res, err := c.containerService.GetTest(ctx, &containers.GetContainerRequest{Id: id})
+	if err != nil {
+		return nil, err
+	}
+	return res.Container, nil
+}
+
+func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {
 	return c.subscribe(ctx, c.name)
 }
 
-func (c *Client) subscribe(ctx context.Context, name string) (<-chan *proto.Event, <-chan error) {
+func (c *Client) subscribe(ctx context.Context, name string) (<-chan *events.Event, <-chan error) {
 
-	evc := make(chan *proto.Event)
+	evc := make(chan *events.Event)
 	errc := make(chan error)
 
-	stream, err := c.eventService.Subscribe(ctx, &proto.SubscribeRequest{Id: name})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: name})
 	if err != nil {
 		log.Fatalf("subscribe error occurred %s", err.Error())
 	}
@@ -104,14 +118,14 @@ func (c *Client) subscribe(ctx context.Context, name string) (<-chan *proto.Even
 	return evc, errc
 }
 
-// func sendEvent(ctx context.Context, client proto.NodeServiceClient, event, name string) {
+// func sendEvent(ctx context.Context, client nodes.NodeServiceClient, event, name string) {
 // 	stream, err := client.FireEvent(ctx)
 // 	if err != nil {
 // 		log.Printf("Cannot fire event: %s", err.Error())
 // 	}
 
-// 	ev := proto.Event{
-// 		Node: &proto.Node{
+// 	ev := events.Event{
+// 		Node: &nodes.Node{
 // 			Id: name,
 // 		},
 // 		Name: event,

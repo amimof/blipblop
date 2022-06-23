@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.1
-// source: node.proto
+// source: nodes.proto
 
-package proto
+package nodes
 
 import (
 	context "context"
@@ -36,7 +36,7 @@ func NewNodeServiceClient(cc grpc.ClientConnInterface) NodeServiceClient {
 
 func (c *nodeServiceClient) Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error) {
 	out := new(JoinResponse)
-	err := c.cc.Invoke(ctx, "/nodeservice.NodeService/Join", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Join", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (c *nodeServiceClient) Join(ctx context.Context, in *JoinRequest, opts ...g
 
 func (c *nodeServiceClient) Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error) {
 	out := new(ForgetResponse)
-	err := c.cc.Invoke(ctx, "/nodeservice.NodeService/Forget", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Forget", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func _NodeService_Join_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nodeservice.NodeService/Join",
+		FullMethod: "/blipblop.services.nodes.v1.NodeService/Join",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Join(ctx, req.(*JoinRequest))
@@ -112,7 +112,7 @@ func _NodeService_Forget_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nodeservice.NodeService/Forget",
+		FullMethod: "/blipblop.services.nodes.v1.NodeService/Forget",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Forget(ctx, req.(*ForgetRequest))
@@ -124,7 +124,7 @@ func _NodeService_Forget_Handler(srv interface{}, ctx context.Context, dec func(
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var NodeService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeservice.NodeService",
+	ServiceName: "blipblop.services.nodes.v1.NodeService",
 	HandlerType: (*NodeServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -137,5 +137,5 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "node.proto",
+	Metadata: "nodes.proto",
 }

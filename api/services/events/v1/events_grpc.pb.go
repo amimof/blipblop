@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.1
-// source: event.proto
+// source: events.proto
 
-package proto
+package events
 
 import (
 	context "context"
@@ -35,7 +35,7 @@ func NewEventServiceClient(cc grpc.ClientConnInterface) EventServiceClient {
 }
 
 func (c *eventServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (EventService_SubscribeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[0], "/eventservice.EventService/Subscribe", opts...)
+	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[0], "/blipblop.services.containers.v1.EventService/Subscribe", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (x *eventServiceSubscribeClient) Recv() (*Event, error) {
 }
 
 func (c *eventServiceClient) FireEvent(ctx context.Context, opts ...grpc.CallOption) (EventService_FireEventClient, error) {
-	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[1], "/eventservice.EventService/FireEvent", opts...)
+	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[1], "/blipblop.services.containers.v1.EventService/FireEvent", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func (x *eventServiceFireEventServer) Recv() (*Event, error) {
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var EventService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "eventservice.EventService",
+	ServiceName: "blipblop.services.containers.v1.EventService",
 	HandlerType: (*EventServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -198,5 +198,5 @@ var EventService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "event.proto",
+	Metadata: "events.proto",
 }

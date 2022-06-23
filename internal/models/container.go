@@ -11,7 +11,7 @@ import (
 	"net"
 )
 
-type Unit struct {
+type Container struct {
 	//UUID			uuid.UUID `json:"uuid,omitempty"`
 	Name    *string           `json:"name,omitempty"`
 	Image   *string           `json:"image,omitempty"`
@@ -40,7 +40,7 @@ type NetworkStatus struct {
 	Mac string `json:"mac,omitempty"`
 }
 
-func (u *Unit) Encode() ([]byte, error) {
+func (u *Container) Encode() ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	return buf.Bytes(), enc.Encode(u)

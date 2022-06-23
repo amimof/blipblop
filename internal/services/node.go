@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"log"
 	"errors"
 	"fmt"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/util"
-	proto "github.com/amimof/blipblop/proto"
+	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/golang/protobuf/ptypes"
 	"sync"
 )
@@ -16,10 +18,10 @@ var nodeService *NodeService
 
 type NodeService struct {
 	mu sync.Mutex
-	proto.UnimplementedNodeServiceServer
+	nodes.UnimplementedNodeServiceServer
 	repo    repo.NodeRepo
 	nodes   []*models.Node
-	channel map[string][]chan *proto.Event
+	channel map[string][]chan *events.Event
 }
 
 func (n *NodeService) Get(id string) (*models.Node, error) {
@@ -28,10 +30,10 @@ func (n *NodeService) Get(id string) (*models.Node, error) {
 		return nil, err
 	}
 	for _, ch := range n.channel[id] {
-		ch <- &proto.Event{
+		ch <- &events.Event{
 			Name: "ContainerCreate",
-			Type: proto.EventType_ContainerCreate,
-			// Node: &proto.Node{
+			Type: events.EventType_ContainerCreate,
+			// Node: &nodes.Node{
 			// 	Id: id,
 			// },
 		}
@@ -60,12 +62,12 @@ func (n *NodeService) Repo() repo.NodeRepo {
 	return repo.NewNodeRepo()
 }
 
-func (n *NodeService) Join(ctx context.Context, req *proto.JoinRequest) (*proto.JoinResponse, error) {
+func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.JoinResponse, error) {
 	if node, _ := n.Get(req.Node.Id); node != nil {
-		return &proto.JoinResponse{
+		return &nodes.JoinResponse{
 			Node: req.Node,
 			//At: types.TimestampNow(),
-			Status: proto.Status_JoinFail,
+			Status: nodes.Status_JoinFail,
 		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Id))
 	}
 	node := &models.Node{
@@ -76,17 +78,17 @@ func (n *NodeService) Join(ctx context.Context, req *proto.JoinRequest) (*proto.
 	if err != nil {
 		return nil, err
 	}
-	return &proto.JoinResponse{
+	return &nodes.JoinResponse{
 		Node: req.Node,
 		//At: types.TimestampNow(),
-		Status: proto.Status_JoinSuccess,
+		Status: nodes.Status_JoinSuccess,
 	}, nil
 }
 
 func newNodeService(r repo.NodeRepo) *NodeService {
 	return &NodeService{
 		repo:    r,
-		channel: make(map[string][]chan *proto.Event),
+		channel: make(map[string][]chan *events.Event),
 	}
 }
 

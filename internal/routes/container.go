@@ -5,7 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func MapUnitRoutes(group fiber.Router, h handlers.UnitHandler) {
+func MapContainerRoutes(group fiber.Router, h handlers.ContainerHandler) {
 	group.Get("/:id", h.Get())
 	group.Get("/", h.GetAll())
 	group.Post("/", h.Create())

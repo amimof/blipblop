@@ -21,9 +21,9 @@ import (
 )
 
 type RuntimeClient struct {
-	// GetAll(ctx context.Context) ([]*models.Unit, error)
-	// Get(ctx context.Context, key string) (*models.Unit, error)
-	// Set(ctx context.Context, unit *models.Unit) error
+	// GetAll(ctx context.Context) ([]*models.Container, error)
+	// Get(ctx context.Context, key string) (*models.Container, error)
+	// Set(ctx context.Context, unit *models.Container) error
 	// Delete(ctx context.Context, key string) error
 	// Start(ctx context.Context, key string) error
 	// Stop(ctx context.Context, key string) error
@@ -32,13 +32,13 @@ type RuntimeClient struct {
 	cni    gocni.CNI
 }
 
-func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Unit, error) {
+func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	containers, err := c.client.Containers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result = make([]*models.Unit, len(containers))
+	var result = make([]*models.Container, len(containers))
 	for i, c := range containers {
 		l, err := parseContainerLabels(ctx, c)
 		if err != nil {
@@ -58,7 +58,7 @@ func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Unit, error) {
 				runstatus.Status = status.Status
 			}
 		}
-		result[i] = &models.Unit{
+		result[i] = &models.Container{
 			Name:   &info.ID,
 			Image:  &info.Image,
 			Labels: l,
@@ -79,7 +79,7 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 	return info, nil
 }
 
-func (c *RuntimeClient) Get(ctx context.Context, key string) (*models.Unit, error) {
+func (c *RuntimeClient) Get(ctx context.Context, key string) (*models.Container, error) {
 	units, err := c.GetAll(ctx)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpt
 	return opts
 }
 
-func (c *RuntimeClient) Set(ctx context.Context, unit *models.Unit) error {
+func (c *RuntimeClient) Set(ctx context.Context, unit *models.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
 	image, err := c.client.Pull(ctx, *unit.Image, containerd.WithPullUnpack)
