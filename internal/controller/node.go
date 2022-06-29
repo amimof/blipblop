@@ -2,8 +2,10 @@ package controller
 
 import (
 	"context"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
+	"github.com/amimof/blipblop/pkg/client"
 	"sync"
 )
 
@@ -13,10 +15,20 @@ type NodeController struct {
 	mu sync.Mutex
 	repo    repo.NodeRepo
 	nodes   []*models.Node
+	client *client.LocalClient
 }
 
 func (n *NodeController) Get(id string) (*models.Node, error) {
-	node, err := n.Repo().Get(context.Background(), id)
+	ctx := context.Background()
+	node, err := n.Repo().Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	e := &events.Event{
+		Name: "GetNode",
+		Type: events.EventType_ContainerCreate,
+	}
+	_, err = n.client.EventService().Publish(ctx, &events.PublishRequest{Id: id, Event: e})
 	if err != nil {
 		return nil, err
 	}
@@ -44,21 +56,22 @@ func (n *NodeController) Repo() repo.NodeRepo {
 	return repo.NewNodeRepo()
 }
 
-func newNodeController(r repo.NodeRepo) *NodeController {
+func newNodeController(client *client.LocalClient, r repo.NodeRepo) *NodeController {
 	return &NodeController{
 		repo:    r,
+		client: client,
 	}
 }
 
-func NewNodeController() *NodeController {
+func NewNodeController(client *client.LocalClient) *NodeController {
 	if nodeController == nil {
-		nodeController = newNodeController(repo.NewNodeRepo())
+		nodeController = newNodeController(client, repo.NewNodeRepo())
 	}
 	return nodeController
 }
 
-func NewNodeControllerWithRepo(r repo.NodeRepo) *NodeController {
-	n := NewNodeController()
+func NewNodeControllerWithRepo(client *client.LocalClient, r repo.NodeRepo) *NodeController {
+	n := NewNodeController(client)
 	n.repo = r
 	return n
 }

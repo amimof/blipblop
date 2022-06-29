@@ -7,7 +7,7 @@ import (
 	"github.com/amimof/blipblop/internal/routes"
 	"github.com/amimof/blipblop/internal/controller"
 	"github.com/amimof/blipblop/internal/services"
-	//"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/client"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
@@ -24,11 +24,11 @@ type APIv1 struct {
 	grpcServer *grpc.Server
 }
 
-func (a *APIv1) setupHandlers() *APIv1 {
+func (a *APIv1) setupHandlers(client *client.LocalClient) *APIv1 {
 	// Containers
-	routes.MapContainerRoutes(a.router.Group("/containers"), handlers.NewContainerHandler(controller.NewContainerController(repo.NewInMemContainerRepo())))
+	routes.MapContainerRoutes(a.router.Group("/containers"), handlers.NewContainerHandler(controller.NewContainerController(client, repo.NewInMemContainerRepo())))
 	// Nodes
-	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(controller.NewNodeController()))
+	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(controller.NewNodeController(client)))
 	return a
 }
 
@@ -49,7 +49,7 @@ func NewAPIv1() *APIv1 {
 	nodeService := services.NewNodeService()
 	eventService := services.NewEventService()
 	containerService := services.NewContainerService()
-	//client := client.NewLocalClient(nodeService, eventService, containerService)
+	client := client.NewLocalClient(nodeService, eventService, containerService)
 
 	// Register services
 	nodesv1.RegisterNodeServiceServer(grpcServer, nodeService)
@@ -65,5 +65,5 @@ func NewAPIv1() *APIv1 {
 		root:       "/api/v1/",
 		grpcServer: grpcServer,
 	}
-	return api.setupHandlers()
+	return api.setupHandlers(client)
 }

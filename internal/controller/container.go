@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
+	"github.com/amimof/blipblop/pkg/client"
 	"strings"
 )
 
@@ -11,6 +12,7 @@ var containerController *ContainerController
 
 type ContainerController struct {
 	repo  repo.ContainerRepo
+	client *client.LocalClient
 }
 
 func (c *ContainerController) Get(id string) (*models.Container, error) {
@@ -41,15 +43,16 @@ func (c *ContainerController) Delete(id string) error {
 	return c.repo.Delete(context.Background(), id)
 }
 
-func newContainerController(r repo.ContainerRepo) *ContainerController {
+func newContainerController(client *client.LocalClient, r repo.ContainerRepo) *ContainerController {
 	return &ContainerController{
 		repo: r,
+		client: client,
 	}
 }
 
-func NewContainerController(r repo.ContainerRepo) *ContainerController {
+func NewContainerController(client *client.LocalClient, r repo.ContainerRepo) *ContainerController {
 	if containerController == nil {
-		containerController = newContainerController(repo.NewInMemContainerRepo())
+		containerController = newContainerController(client, repo.NewInMemContainerRepo())
 	}
 	return containerController
 }

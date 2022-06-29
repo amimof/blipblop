@@ -1,7 +1,9 @@
 package services
 
 import (
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"github.com/amimof/blipblop/api/services/events/v1"
+	"context"
 	"io"
 	"log"
 )
@@ -55,6 +57,13 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 			stream.Send(n)
 		}
 	}
+}
+
+func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*emptypb.Empty, error) {
+	for _, ch := range n.channel[req.Id] {
+		ch <- req.Event
+	}
+	return nil, nil
 }
 
 func (n *EventService) FireEvent(stream events.EventService_FireEventServer) error {
