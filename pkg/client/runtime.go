@@ -1,11 +1,10 @@
-package repo
+package client
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"github.com/amimof/blipblop/internal/models"
-	"github.com/amimof/blipblop/pkg/cache"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
@@ -21,55 +20,25 @@ import (
 	"time"
 )
 
-type UnitRepo interface {
-	GetAll(ctx context.Context) ([]*models.Unit, error)
-	Get(ctx context.Context, key string) (*models.Unit, error)
-	Set(ctx context.Context, unit *models.Unit) error
-	Delete(ctx context.Context, key string) error
-	Start(ctx context.Context, key string) error
-	Stop(ctx context.Context, key string) error
-	Kill(ctx context.Context, key string) error
-}
-
-// containerdRepo is a live containerd environment. Data is stored and fetched in and from the contaienrd runtime
-type containerdRepo struct {
+type RuntimeClient struct {
+	// GetAll(ctx context.Context) ([]*models.Container, error)
+	// Get(ctx context.Context, key string) (*models.Container, error)
+	// Set(ctx context.Context, unit *models.Container) error
+	// Delete(ctx context.Context, key string) error
+	// Start(ctx context.Context, key string) error
+	// Stop(ctx context.Context, key string) error
+	// Kill(ctx context.Context, key string) error
 	client *containerd.Client
 	cni    gocni.CNI
 }
 
-type inmemUnitRepo struct {
-	cache *cache.Cache
-}
-
-func (i *inmemUnitRepo) GetAll(ctx context.Context) ([]*models.Unit, error) {
-	return nil, nil
-}
-func (i *inmemUnitRepo) Get(ctx context.Context, key string) (*models.Unit, error) {
-	return nil, nil
-}
-func (i *inmemUnitRepo) Set(ctx context.Context, unit *models.Unit) error {
-	return nil
-}
-func (i *inmemUnitRepo) Delete(ctx context.Context, key string) error {
-	return nil
-}
-func (i *inmemUnitRepo) Start(ctx context.Context, key string) error {
-	return nil
-}
-func (i *inmemUnitRepo) Stop(ctx context.Context, key string) error {
-	return nil
-}
-func (i *inmemUnitRepo) Kill(ctx context.Context, key string) error {
-	return nil
-}
-
-func (u *containerdRepo) GetAll(ctx context.Context) ([]*models.Unit, error) {
+func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	containers, err := u.client.Containers(ctx)
+	containers, err := c.client.Containers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result = make([]*models.Unit, len(containers))
+	var result = make([]*models.Container, len(containers))
 	for i, c := range containers {
 		l, err := parseContainerLabels(ctx, c)
 		if err != nil {
@@ -89,7 +58,7 @@ func (u *containerdRepo) GetAll(ctx context.Context) ([]*models.Unit, error) {
 				runstatus.Status = status.Status
 			}
 		}
-		result[i] = &models.Unit{
+		result[i] = &models.Container{
 			Name:   &info.ID,
 			Image:  &info.Image,
 			Labels: l,
@@ -110,8 +79,8 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 	return info, nil
 }
 
-func (u *containerdRepo) Get(ctx context.Context, key string) (*models.Unit, error) {
-	units, err := u.GetAll(ctx)
+func (c *RuntimeClient) Get(ctx context.Context, key string) (*models.Container, error) {
+	units, err := c.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -137,10 +106,10 @@ func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpt
 	return opts
 }
 
-func (u *containerdRepo) Set(ctx context.Context, unit *models.Unit) error {
+func (c *RuntimeClient) Set(ctx context.Context, unit *models.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
-	image, err := u.client.Pull(ctx, *unit.Image, containerd.WithPullUnpack)
+	image, err := c.client.Pull(ctx, *unit.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
 	}
@@ -155,7 +124,7 @@ func (u *containerdRepo) Set(ctx context.Context, unit *models.Unit) error {
 	opts = append(opts, oci.WithImageConfig(image))
 
 	// Create container
-	container, err := u.client.NewContainer(
+	container, err := c.client.NewContainer(
 		ctx,
 		*unit.Name,
 		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", *unit.Name), image),
@@ -171,9 +140,9 @@ func (u *containerdRepo) Set(ctx context.Context, unit *models.Unit) error {
 	return nil
 }
 
-func (u *containerdRepo) Delete(ctx context.Context, key string) error {
+func (c *RuntimeClient) Delete(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := u.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -187,9 +156,9 @@ func (u *containerdRepo) Delete(ctx context.Context, key string) error {
 	return container.Delete(ctx)
 }
 
-func (u *containerdRepo) Kill(ctx context.Context, key string) error {
+func (c *RuntimeClient) Kill(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := u.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -200,9 +169,9 @@ func (u *containerdRepo) Kill(ctx context.Context, key string) error {
 	return task.Kill(ctx, syscall.SIGINT)
 }
 
-func (u *containerdRepo) Stop(ctx context.Context, key string) error {
+func (c *RuntimeClient) Stop(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := u.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -213,7 +182,7 @@ func (u *containerdRepo) Stop(ctx context.Context, key string) error {
 	// Tear down network
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err = networking.DeleteCNINetwork(ctx, u.cni, task, cniLabels)
+	err = networking.DeleteCNINetwork(ctx, c.cni, task, cniLabels)
 	if err != nil {
 		log.Printf("Unable to tear down network: %s", err)
 	}
@@ -235,9 +204,9 @@ func (u *containerdRepo) Stop(ctx context.Context, key string) error {
 	}
 }
 
-func (u *containerdRepo) Start(ctx context.Context, key string) error {
+func (c *RuntimeClient) Start(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := u.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -249,7 +218,7 @@ func (u *containerdRepo) Start(ctx context.Context, key string) error {
 	// Setup network for namespace.
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	result, err := networking.CreateCNINetwork(ctx, u.cni, task, cniLabels)
+	result, err := networking.CreateCNINetwork(ctx, c.cni, task, cniLabels)
 	if err != nil {
 		return err
 	}
@@ -275,14 +244,10 @@ func (u *containerdRepo) Start(ctx context.Context, key string) error {
 	return nil
 }
 
-func NewUnitRepo(client *containerd.Client, cni gocni.CNI) UnitRepo {
-	return &containerdRepo{client, cni}
+func (r *RuntimeClient) ContainerdClient() *containerd.Client {
+	return r.client
 }
 
-func NewInMemUnitRepo() UnitRepo {
-	c := cache.New()
-	c.TTL = time.Hour * 24
-	return &inmemUnitRepo{
-		cache: c,
-	}
+func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI) *RuntimeClient {
+	return &RuntimeClient{client, cni}
 }

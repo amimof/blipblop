@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package blipblop.services.containers.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
+
+service ContainerService {
+  rpc GetTest(GetContainerRequest) returns (GetContainerResponse);
+	// rpc List(ListContainersRequest) returns (ListContainersResponse);
+	rpc CreateTest(CreateContainerRequest) returns (CreateContainerResponse);
+	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
+	// rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty);
+}
+
+message Container {
+  string id = 1;
+  map<string, string> labels = 2;
+  string image = 3;
+	google.protobuf.Timestamp created = 4;
+	google.protobuf.Timestamp updated = 5;
+}
+
+message GetContainerRequest {
+  string id = 1;
+}
+
+message GetContainerResponse {
+	Container container = 1;
+}
+
+message CreateContainerRequest {
+	Container container = 1;
+}
+
+message CreateContainerResponse {
+	Container container = 1;
+}

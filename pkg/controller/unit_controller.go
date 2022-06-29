@@ -4,6 +4,7 @@ import (
 	//"os"
 	"context"
 	"github.com/amimof/blipblop/internal/repo"
+	"github.com/amimof/blipblop/pkg/client"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	gocni "github.com/containerd/go-cni"
@@ -12,7 +13,9 @@ import (
 
 type unitController struct {
 	informer *Informer
-	repo     repo.UnitRepo
+	repo     repo.ContainerRepo
+	client   *client.Client
+	runtime  *client.RuntimeClient
 }
 
 //
@@ -34,15 +37,16 @@ func (u *unitController) Run(stop <-chan struct{}) {
 	go u.informer.Watch(stop)
 }
 
-func NewUnitController(client *containerd.Client, cni gocni.CNI) Controller {
-	c := &unitController{
-		repo: repo.NewUnitRepo(client, cni),
+func NewUnitController(c *client.Client, cc *containerd.Client, cni gocni.CNI) Controller {
+	controll := &unitController{
+		client:  c,
+		runtime: client.NewContainerdRuntimeClient(cc, cni),
 	}
-	informer := NewInformer(client)
+	informer := NewInformer(controll.runtime.ContainerdClient())
 	informer.AddHandler(&HandlerFuncs{
-		OnTaskExit:   c.exitHandler,
-		OnTaskCreate: c.createHandler,
+		OnTaskExit:   controll.exitHandler,
+		OnTaskCreate: controll.createHandler,
 	})
-	c.informer = informer
-	return c
+	controll.informer = informer
+	return controll
 }

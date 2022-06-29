@@ -24,9 +24,10 @@ require (
 
 require (
 	github.com/containernetworking/plugins v1.1.1
-	github.com/gogo/protobuf v1.3.2
 	github.com/google/uuid v1.2.0
 )
+
+require github.com/gogo/protobuf v1.3.2 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.5.1 // indirect
@@ -38,7 +39,7 @@ require (
 	github.com/containerd/continuity v0.2.2 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
 	github.com/containerd/ttrpc v1.1.0 // indirect
-	github.com/containerd/typeurl v1.0.2 // indirect
+	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.0 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect

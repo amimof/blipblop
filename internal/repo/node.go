@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+var nodeRepo NodeRepo
+
 type NodeRepo interface {
 	GetAll(ctx context.Context) ([]*models.Node, error)
 	Get(ctx context.Context, key string) (*models.Node, error)
@@ -28,7 +30,11 @@ func (u *inmemNodeRepo) GetAll(ctx context.Context) ([]*models.Node, error) {
 }
 
 func (u *inmemNodeRepo) Get(ctx context.Context, key string) (*models.Node, error) {
-	return u.cache.Get(key).Value.(*models.Node), nil
+	val := u.cache.Get(key)
+	if val == nil {
+		return nil, nil
+	}
+	return val.Value.(*models.Node), nil
 }
 
 func (u *inmemNodeRepo) Create(ctx context.Context, node *models.Node) error {
@@ -41,10 +47,17 @@ func (u *inmemNodeRepo) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func NewNodeRepo() NodeRepo {
+func newNodeRepo() NodeRepo {
 	c := cache.New()
 	c.TTL = time.Hour * 24
 	return &inmemNodeRepo{
 		cache: c,
 	}
+}
+
+func NewNodeRepo() NodeRepo {
+	if nodeRepo == nil {
+		nodeRepo = newNodeRepo()
+	}
+	return nodeRepo
 }
