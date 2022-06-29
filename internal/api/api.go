@@ -5,7 +5,9 @@ import (
 	"github.com/amimof/blipblop/internal/handlers"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/internal/routes"
+	"github.com/amimof/blipblop/internal/controller"
 	"github.com/amimof/blipblop/internal/services"
+	//"github.com/amimof/blipblop/pkg/client"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
@@ -24,9 +26,9 @@ type APIv1 struct {
 
 func (a *APIv1) setupHandlers() *APIv1 {
 	// Containers
-	routes.MapContainerRoutes(a.router.Group("/containers"), handlers.NewContainerHandler(services.NewContainerService(repo.NewInMemContainerRepo())))
+	routes.MapContainerRoutes(a.router.Group("/containers"), handlers.NewContainerHandler(controller.NewContainerController(repo.NewInMemContainerRepo())))
 	// Nodes
-	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(services.NewNodeService()))
+	routes.MapNodeRoutes(a.router.Group("/nodes"), handlers.NewNodeHandler(controller.NewNodeController()))
 	return a
 }
 
@@ -42,12 +44,18 @@ func NewAPIv1() *APIv1 {
 	// Setup grpc services
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
+
+	// Setup our internal client 
 	nodeService := services.NewNodeService()
 	eventService := services.NewEventService()
-	containerService := services.NewContainerService(repo.NewInMemContainerRepo())
+	containerService := services.NewContainerService()
+	//client := client.NewLocalClient(nodeService, eventService, containerService)
+
+	// Register services
 	nodesv1.RegisterNodeServiceServer(grpcServer, nodeService)
 	eventsv1.RegisterEventServiceServer(grpcServer, eventService)
 	containersv1.RegisterContainerServiceServer(grpcServer, containerService)
+
 	// Setup http api
 	app := fiber.New()
 	router := app.Group("/api/v1/")

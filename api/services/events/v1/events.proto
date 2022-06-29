@@ -3,11 +3,13 @@ syntax = "proto3";
 package blipblop.services.containers.v1;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
 
 service EventService {
   rpc Subscribe(SubscribeRequest) returns (stream Event) {}
+  rpc Publish(PublishRequest) returns (google.protobuf.Empty) {}
   rpc FireEvent(stream Event) returns (EventAck) {}
 }
 
@@ -31,4 +33,8 @@ enum EventType {
 
 message EventAck {
   string status = 1;
+}
+
+message PublishRequest {
+  Event event = 1;
 }

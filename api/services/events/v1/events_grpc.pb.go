@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -23,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EventServiceClient interface {
 	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (EventService_SubscribeClient, error)
+	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	FireEvent(ctx context.Context, opts ...grpc.CallOption) (EventService_FireEventClient, error)
 }
 
@@ -66,6 +68,15 @@ func (x *eventServiceSubscribeClient) Recv() (*Event, error) {
 	return m, nil
 }
 
+func (c *eventServiceClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.EventService/Publish", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *eventServiceClient) FireEvent(ctx context.Context, opts ...grpc.CallOption) (EventService_FireEventClient, error) {
 	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[1], "/blipblop.services.containers.v1.EventService/FireEvent", opts...)
 	if err != nil {
@@ -105,6 +116,7 @@ func (x *eventServiceFireEventClient) CloseAndRecv() (*EventAck, error) {
 // for forward compatibility
 type EventServiceServer interface {
 	Subscribe(*SubscribeRequest, EventService_SubscribeServer) error
+	Publish(context.Context, *PublishRequest) (*emptypb.Empty, error)
 	FireEvent(EventService_FireEventServer) error
 	mustEmbedUnimplementedEventServiceServer()
 }
@@ -115,6 +127,9 @@ type UnimplementedEventServiceServer struct {
 
 func (UnimplementedEventServiceServer) Subscribe(*SubscribeRequest, EventService_SubscribeServer) error {
 	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
+}
+func (UnimplementedEventServiceServer) Publish(context.Context, *PublishRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
 }
 func (UnimplementedEventServiceServer) FireEvent(EventService_FireEventServer) error {
 	return status.Errorf(codes.Unimplemented, "method FireEvent not implemented")
@@ -153,6 +168,24 @@ func (x *eventServiceSubscribeServer) Send(m *Event) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _EventService_Publish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventServiceServer).Publish(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.EventService/Publish",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventServiceServer).Publish(ctx, req.(*PublishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _EventService_FireEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(EventServiceServer).FireEvent(&eventServiceFireEventServer{stream})
 }
@@ -185,7 +218,12 @@ func (x *eventServiceFireEventServer) Recv() (*Event, error) {
 var EventService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "blipblop.services.containers.v1.EventService",
 	HandlerType: (*EventServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Publish",
+			Handler:    _EventService_Publish_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Subscribe",

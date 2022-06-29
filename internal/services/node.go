@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"log"
 	"errors"
 	"fmt"
 	"github.com/amimof/blipblop/internal/models"

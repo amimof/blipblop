@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"github.com/amimof/blipblop/internal/models"
-	"github.com/amimof/blipblop/internal/services"
+	"github.com/amimof/blipblop/internal/controller"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -17,12 +17,12 @@ type ContainerHandler interface {
 }
 
 type containerHandler struct {
-	svc *services.ContainerService
+	controller *controller.ContainerController
 }
 
 func (c containerHandler) Get() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		unit, err := c.svc.Get(ctx.Params("id"))
+		unit, err := c.controller.Get(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -35,7 +35,7 @@ func (c containerHandler) Get() fiber.Handler {
 }
 func (c containerHandler) GetAll() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		units, err := c.svc.All()
+		units, err := c.controller.All()
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -50,7 +50,7 @@ func (c containerHandler) Create() fiber.Handler {
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
-		err = c.svc.Create(unit)
+		err = c.controller.Create(unit)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -65,7 +65,7 @@ func (c containerHandler) Update() fiber.Handler {
 }
 func (c containerHandler) Delete() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := c.svc.Delete(ctx.Params("id"))
+		err := c.controller.Delete(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -75,7 +75,7 @@ func (c containerHandler) Delete() fiber.Handler {
 }
 func (c containerHandler) Start() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := c.svc.Start(ctx.Params("id"))
+		err := c.controller.Start(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -85,7 +85,7 @@ func (c containerHandler) Start() fiber.Handler {
 }
 func (c containerHandler) Stop() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := c.svc.Stop(ctx.Params("id"))
+		err := c.controller.Stop(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -94,6 +94,6 @@ func (c containerHandler) Stop() fiber.Handler {
 	}
 }
 
-func NewContainerHandler(svc *services.ContainerService) ContainerHandler {
-	return &containerHandler{svc}
+func NewContainerHandler(controller *controller.ContainerController) ContainerHandler {
+	return &containerHandler{controller}
 }

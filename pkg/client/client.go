@@ -9,6 +9,7 @@ import (
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/internal/services"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -24,6 +25,32 @@ type Client struct {
 	nodeService  nodes.NodeServiceClient
 	eventService events.EventServiceClient
 	containerService containers.ContainerServiceClient
+}
+
+type LocalClient struct {
+	nodeService *services.NodeService
+	eventService *services.EventService
+	containerService *services.ContainerService
+}
+
+func NewLocalClient(nodeService *services.NodeService, eventService *services.EventService, containerService *services.ContainerService) *LocalClient {
+	return &LocalClient{
+		nodeService: nodeService,
+		eventService: eventService,
+		containerService: containerService,
+	}
+}
+
+func (l *LocalClient) NodeService() *services.NodeService {
+	return l.nodeService
+}
+
+func (l *LocalClient) EventService() *services.EventService {
+	return l.eventService
+}
+
+func (l *LocalClient) ContainerService() *services.ContainerService {
+	return l.containerService
 }
 
 func New(server string) (*Client, error) {

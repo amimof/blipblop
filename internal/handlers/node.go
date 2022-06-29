@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"github.com/amimof/blipblop/internal/models"
-	"github.com/amimof/blipblop/internal/services"
+	"github.com/amimof/blipblop/internal/controller"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -14,12 +14,12 @@ type NodeHandler interface {
 }
 
 type nodeHandler struct {
-	svc *services.NodeService
+	controller *controller.NodeController
 }
 
 func (n nodeHandler) Get() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		node, err := n.svc.Get(ctx.Params("id"))
+		node, err := n.controller.Get(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -32,7 +32,7 @@ func (n nodeHandler) Get() fiber.Handler {
 }
 func (n nodeHandler) GetAll() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		nodes, err := n.svc.All()
+		nodes, err := n.controller.All()
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -48,7 +48,7 @@ func (n nodeHandler) Create() fiber.Handler {
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
-		err = n.svc.Create(node)
+		err = n.controller.Create(node)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -59,7 +59,7 @@ func (n nodeHandler) Create() fiber.Handler {
 
 func (n nodeHandler) Delete() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		err := n.svc.Delete(ctx.Params("id"))
+		err := n.controller.Delete(ctx.Params("id"))
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
 		}
@@ -68,6 +68,6 @@ func (n nodeHandler) Delete() fiber.Handler {
 	}
 }
 
-func NewNodeHandler(svc *services.NodeService) NodeHandler {
-	return &nodeHandler{svc}
+func NewNodeHandler(controller *controller.NodeController) NodeHandler {
+	return &nodeHandler{controller}
 }
