@@ -60,8 +60,10 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 }
 
 func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*emptypb.Empty, error) {
-	for _, ch := range n.channel[req.Id] {
-		ch <- req.Event
+	for k, _ := range n.channel {
+		for _, ch := range n.channel[k] {
+			ch <- req.Event
+		}
 	}
 	return nil, nil
 }

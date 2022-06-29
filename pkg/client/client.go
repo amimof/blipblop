@@ -25,6 +25,7 @@ type Client struct {
 	nodeService  nodes.NodeServiceClient
 	eventService events.EventServiceClient
 	containerService containers.ContainerServiceClient
+	runtime *RuntimeClient
 }
 
 type LocalClient struct {
@@ -51,6 +52,17 @@ func (l *LocalClient) EventService() *services.EventService {
 
 func (l *LocalClient) ContainerService() *services.ContainerService {
 	return l.containerService
+}
+
+func (l *LocalClient) Publish(ctx context.Context, e *events.Event) error {
+	req := &events.PublishRequest{
+		Event: e,
+	}
+	_, err := l.EventService().Publish(ctx, req)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func New(server string) (*Client, error) {
@@ -104,65 +116,23 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan er
 }
 
 func (c *Client) subscribe(ctx context.Context, name string) (<-chan *events.Event, <-chan error) {
-
 	evc := make(chan *events.Event)
 	errc := make(chan error)
-
 	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: name})
 	if err != nil {
 		log.Fatalf("subscribe error occurred %s", err.Error())
 	}
-
-	//waitc := make(chan struct{})
 	go func() {
 		for {
 			in, err := stream.Recv()
 			if err == io.EOF {
 				errc <- err
-				//close(waitc)
-				//return
 			}
 			if err != nil {
-				//log.Printf("Failed to receive events from joined node: %s", err.Error())
 				errc <- err
-				//continue
 			}
-			//log.Printf("Event %s on node %s len: %d", in.Type, in.Node.Id, len(in.Payload))
-			// var u models.Node
-			// buf := bytes.NewBuffer(in.Payload)
-			// dec := gob.NewDecoder(buf)
-			// err = dec.Decode(&u)
-			// if err != nil {
-			// 	//log.Printf("Error decoding payload %s", err.Error())
-			// 	errc <- err
-			// 	//continue
-			// }
-			//log.Printf("Node name %s", *u.Name)
 			evc <- in
 		}
 	}()
-	//<-waitc
 	return evc, errc
 }
-
-// func sendEvent(ctx context.Context, client nodes.NodeServiceClient, event, name string) {
-// 	stream, err := client.FireEvent(ctx)
-// 	if err != nil {
-// 		log.Printf("Cannot fire event: %s", err.Error())
-// 	}
-
-// 	ev := events.Event{
-// 		Node: &nodes.Node{
-// 			Id: name,
-// 		},
-// 		Name: event,
-// 	}
-
-// 	stream.Send(&ev)
-
-// 	ack, err := stream.CloseAndRecv()
-// 	if err != nil {
-// 		log.Fatalf("Cannot send event: %s", err.Error())
-// 	}
-// 	log.Printf("Event sent: %v", ack)
-// }

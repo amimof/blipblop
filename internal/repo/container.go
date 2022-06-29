@@ -33,9 +33,14 @@ func (i *inmemContainerRepo) GetAll(ctx context.Context) ([]*models.Container, e
 	return nil, nil
 }
 func (i *inmemContainerRepo) Get(ctx context.Context, key string) (*models.Container, error) {
-	return nil, nil
+	var c *models.Container
+	if item := i.cache.Get(key); item != nil {
+		c = item.Value.(*models.Container)
+	}
+	return c, nil
 }
 func (i *inmemContainerRepo) Set(ctx context.Context, unit *models.Container) error {
+	i.cache.Set(*unit.Name, unit)
 	return nil
 }
 func (i *inmemContainerRepo) Delete(ctx context.Context, key string) error {

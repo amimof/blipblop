@@ -36,6 +36,5 @@ message EventAck {
 }
 
 message PublishRequest {
-  string id = 1;
   Event event = 2;
 }

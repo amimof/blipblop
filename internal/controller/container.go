@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"strings"
 )
@@ -24,7 +25,20 @@ func (c *ContainerController) All() ([]*models.Container, error) {
 }
 
 func (c *ContainerController) Create(unit *models.Container) error {
-	return c.repo.Set(context.Background(), unit)
+	ctx := context.Background()
+	err := c.repo.Set(ctx, unit)
+	if err != nil {
+		return err
+	}
+	e := &events.Event{
+		Name: "ContainerCreate",
+		Type: events.EventType_ContainerCreate,
+	}
+	err = c.client.Publish(ctx, e)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *ContainerController) Start(id string) error {

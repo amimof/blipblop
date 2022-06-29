@@ -5,6 +5,7 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/containerd/containerd"
+	gocni "github.com/containerd/go-cni"
 	"log"
 )
 
@@ -74,10 +75,10 @@ func NewEventInformer(client *client.Client) *EventInformer {
 	}
 }
 
-func NewEventController(c *client.Client, cc *containerd.Client) Controller {
+func NewEventController(c *client.Client, cc *containerd.Client, cni gocni.CNI) Controller {
 	n := &eventController{
 		client:  c,
-		runtime: client.NewContainerdRuntimeClient(cc, nil),
+		runtime: client.NewContainerdRuntimeClient(cc, cni),
 	}
 	informer := NewEventInformer(c)
 	informer.AddHandler(&EventHandlerFuncs{
