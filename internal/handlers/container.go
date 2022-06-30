@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/controller"
+	"github.com/amimof/blipblop/internal/models"
 	"github.com/gofiber/fiber/v2"
 )
 

@@ -2,9 +2,9 @@ package controller
 
 import (
 	"context"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"strings"
 )
@@ -12,7 +12,7 @@ import (
 var containerController *ContainerController
 
 type ContainerController struct {
-	repo  repo.ContainerRepo
+	repo   repo.ContainerRepo
 	client *client.LocalClient
 }
 
@@ -59,7 +59,7 @@ func (c *ContainerController) Delete(id string) error {
 
 func newContainerController(client *client.LocalClient, r repo.ContainerRepo) *ContainerController {
 	return &ContainerController{
-		repo: r,
+		repo:   r,
 		client: client,
 	}
 }

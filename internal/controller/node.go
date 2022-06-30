@@ -11,8 +11,8 @@ import (
 var nodeController *NodeController
 
 type NodeController struct {
-	mu sync.Mutex
-	repo    repo.NodeRepo
+	mu     sync.Mutex
+	repo   repo.NodeRepo
 	client *client.LocalClient
 }
 
@@ -48,7 +48,7 @@ func (n *NodeController) Repo() repo.NodeRepo {
 
 func newNodeController(client *client.LocalClient, r repo.NodeRepo) *NodeController {
 	return &NodeController{
-		repo:    r,
+		repo:   r,
 		client: client,
 	}
 }

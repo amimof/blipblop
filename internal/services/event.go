@@ -1,9 +1,9 @@
 package services
 
 import (
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"context"
+	"github.com/amimof/blipblop/api/services/events/v1"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"io"
 	"log"
 )

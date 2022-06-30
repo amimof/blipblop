@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/util"
-	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/golang/protobuf/ptypes"
 	"sync"
 )

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	//"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/controller"
+	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/server"
@@ -129,11 +129,11 @@ func main() {
 	}
 
 	// Setup controllers
-	controller.NewControllerManager(
-		controller.NewUnitController(client, cclient, cni),
-		controller.NewEventController(client, cclient),
+	middleware.NewManager(
+		middleware.WithRuntime(client, cclient, cni),
+		middleware.WithEvents(client, cclient, cni),
 	).SpawnAll()
-	
+
 	// Test internal events
 	event.On("container-create", event.ListenerFunc(func(e *event.Event) error {
 		log.Printf("Container created!", "")

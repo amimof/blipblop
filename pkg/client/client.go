@@ -6,9 +6,9 @@ import (
 	//"encoding/gob"
 	"errors"
 	//"github.com/amimof/blipblop/internal/models"
+	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/internal/services"
 	"google.golang.org/grpc"
 	"io"
@@ -16,28 +16,27 @@ import (
 )
 
 type RESTClient struct {
-
 }
 
 type Client struct {
-	name         string
-	conn         *grpc.ClientConn
-	nodeService  nodes.NodeServiceClient
-	eventService events.EventServiceClient
+	name             string
+	conn             *grpc.ClientConn
+	nodeService      nodes.NodeServiceClient
+	eventService     events.EventServiceClient
 	containerService containers.ContainerServiceClient
-	runtime *RuntimeClient
+	runtime          *RuntimeClient
 }
 
 type LocalClient struct {
-	nodeService *services.NodeService
-	eventService *services.EventService
+	nodeService      *services.NodeService
+	eventService     *services.EventService
 	containerService *services.ContainerService
 }
 
 func NewLocalClient(nodeService *services.NodeService, eventService *services.EventService, containerService *services.ContainerService) *LocalClient {
 	return &LocalClient{
-		nodeService: nodeService,
-		eventService: eventService,
+		nodeService:      nodeService,
+		eventService:     eventService,
 		containerService: containerService,
 	}
 }
@@ -73,10 +72,10 @@ func New(server string) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{
-		conn:         conn,
-		nodeService:  nodes.NewNodeServiceClient(conn),
-		eventService: events.NewEventServiceClient(conn),
-		containerService: containers.NewContainerServiceClient(conn), 
+		conn:             conn,
+		nodeService:      nodes.NewNodeServiceClient(conn),
+		eventService:     events.NewEventServiceClient(conn),
+		containerService: containers.NewContainerServiceClient(conn),
 	}
 	return c, nil
 }
