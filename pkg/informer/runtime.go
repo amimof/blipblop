@@ -45,8 +45,7 @@ func (i *RuntimeInformer) AddHandler(h *RuntimeHandlerFuncs) {
 	i.handlers = h
 }
 
-func (i *RuntimeInformer) Watch(stopCh <-chan struct{}) {
-	ctx := context.Background()
+func (i *RuntimeInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
 	ch, errs := i.client.Subscribe(ctx)
 	for {
 		select {
@@ -57,8 +56,13 @@ func (i *RuntimeInformer) Watch(stopCh <-chan struct{}) {
 			}
 			handleEvent(i.handlers, ev)
 		case err := <-errs:
-			log.Printf("Error %s", err.Error())
+			if err != nil {
+				log.Printf("Error %s", err)
+			}
+		case <-ctx.Done():
+			return
 		case <-stopCh:
+			i.client.Close()
 			ctx.Done()
 		}
 	}

@@ -16,8 +16,8 @@ type eventMiddleware struct {
 	informer *informer.EventInformer
 }
 
-func (e *eventMiddleware) Run(stop <-chan struct{}) {
-	go e.informer.Watch(stop)
+func (e *eventMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
+	go e.informer.Watch(ctx, stop)
 }
 
 func WithEvents(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {

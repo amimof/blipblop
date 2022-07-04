@@ -1,11 +1,16 @@
 package middleware
 
+import (
+	"context"
+)
+
 type Middleware interface {
-	Run(<-chan struct{})
+	Run(context.Context, <-chan struct{})
 }
 
 type MiddlewareManager struct {
 	middlewares []Middleware
+	stop chan struct{}
 }
 
 func (c *MiddlewareManager) Register(m Middleware) {
@@ -14,11 +19,15 @@ func (c *MiddlewareManager) Register(m Middleware) {
 	}
 }
 
-func (c *MiddlewareManager) SpawnAll() {
-	stop := make(chan struct{})
+func (c *MiddlewareManager) Run(ctx context.Context) {
+	c.stop = make(chan struct{})
 	for _, ctrl := range c.middlewares {
-		go ctrl.Run(stop)
+		go ctrl.Run(ctx, c.stop)
 	}
+}
+
+func (c *MiddlewareManager) Stop() {
+	c.stop <- struct{}{}
 }
 
 func NewManager(m ...Middleware) *MiddlewareManager {

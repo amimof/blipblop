@@ -21,8 +21,7 @@ func (i *EventInformer) AddHandler(h *EventHandlerFuncs) {
 	i.handlers = h
 }
 
-func (i *EventInformer) Watch(stopCh <-chan struct{}) {
-	ctx := context.Background()
+func (i *EventInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
 	evc, errc := i.client.Subscribe(ctx)
 	for {
 		select {
@@ -33,6 +32,9 @@ func (i *EventInformer) Watch(stopCh <-chan struct{}) {
 		case <-stopCh:
 			ctx.Done()
 			log.Println("Done watching event informer")
+			return
+		case <-ctx.Done():
+			i.client.Close()
 			return
 		}
 	}
@@ -54,7 +56,9 @@ func handleEventEvent(h *EventHandlerFuncs, ev *events.Event) {
 }
 
 func handleEventError(err error) {
-	//log.Printf("error occurred handling error %s", err.Error())
+	if err != nil {
+		log.Printf("error occurred handling error %s", err.Error())
+	}
 }
 
 func NewEventInformer(client *client.Client) *EventInformer {

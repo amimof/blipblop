@@ -1,24 +1,19 @@
 package main
 
 import (
-	//"bytes"
-	"context"
-	//"encoding/gob"
+	"os"
 	"fmt"
-	//"github.com/amimof/blipblop/internal/models"
-	"github.com/amimof/blipblop/pkg/client"
+	"log"
+	"context"
+	"os/signal"
 	"github.com/amimof/blipblop/pkg/middleware"
+	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/server"
-	//proto "github.com/amimof/blipblop/proto"
 	"github.com/containerd/containerd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
-	//"google.golang.org/grpc"
-	//"io"
-	"log"
-	"os"
 )
 
 var (
@@ -98,22 +93,27 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	defer client.Close()
+
+	// Join node
 	ctx := context.Background()
 	err = client.JoinNode(ctx, nodeName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	// evc, errc := client.Subscribe(ctx)
-	// go func() {
-	// 	for {
-	// 		select {
-	// 		case ev := <-evc:
-	// 			log.Printf("Got event %s", ev.Name)
-	// 		case err := <-errc:
-	// 			log.Printf("Got err %s", err.Error())
-	// 		}
-	// 	}
-	// }()
+
+	// Setup signal handler
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt)
+	go func() {
+		select{
+		case <-done: 
+			err := client.ForgetNode(ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s", err.Error())
+			}
+			log.Printf("Unjoined %s", nodeName)
+		}
+	}()
 
 	// Create  containerd client
 	cclient, err := containerd.New(containerdSocket)
@@ -129,10 +129,12 @@ func main() {
 	}
 
 	// Setup controllers
-	middleware.NewManager(
+	mdlwr := middleware.NewManager(
 		middleware.WithRuntime(client, cclient, cni),
 		middleware.WithEvents(client, cclient, cni),
-	).SpawnAll()
+	)
+	mdlwr.Run(ctx)
+	defer mdlwr.Stop()
 
 	// Test internal events
 	event.On("container-create", event.ListenerFunc(func(e *event.Event) error {

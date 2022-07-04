@@ -84,6 +84,19 @@ func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.
 	}, nil
 }
 
+func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
+	res := &nodes.ForgetResponse{
+		Node: req.Node,
+		Status: nodes.Status_ForgetSuccess,
+	}
+	err := n.Delete(req.Node)
+	if err != nil {
+		res.Status = nodes.Status_ForgetFail
+		return res, err
+	}
+	return res, nil
+}
+
 func newNodeService(r repo.NodeRepo) *NodeService {
 	return &NodeService{
 		repo:    r,

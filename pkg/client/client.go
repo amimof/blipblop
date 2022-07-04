@@ -1,18 +1,16 @@
 package client
 
 import (
-	//"bytes"
-	"context"
-	//"encoding/gob"
+	"io"
+	"log"
 	"errors"
-	//"github.com/amimof/blipblop/internal/models"
+	"context"
+	"sync"
+	"google.golang.org/grpc"
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/internal/services"
-	"google.golang.org/grpc"
-	"io"
-	"log"
 )
 
 type RESTClient struct {
@@ -25,6 +23,7 @@ type Client struct {
 	eventService     events.EventServiceClient
 	containerService containers.ContainerServiceClient
 	runtime          *RuntimeClient
+	mu sync.Mutex
 }
 
 type LocalClient struct {
@@ -80,8 +79,15 @@ func New(server string) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) Close() {
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	err := c.ForgetNode(context.Background())
+	if err != nil {
+		return err
+	}
 	c.conn.Close()
+	return nil
 }
 
 func (c *Client) JoinNode(ctx context.Context, name string) error {
@@ -91,14 +97,27 @@ func (c *Client) JoinNode(ctx context.Context, name string) error {
 			Id: c.name,
 		},
 	}
-	res, err := c.nodeService.Join(context.Background(), n)
+	res, err := c.nodeService.Join(ctx, n)
 	if err != nil {
 		return err
 	}
 	if res.Status == nodes.Status_JoinFail {
 		return errors.New("unable to join node")
 	}
-	log.Printf("Node %s joined", name)
+	return nil
+}
+
+func (c *Client) ForgetNode(ctx context.Context) error {
+	req := &nodes.ForgetRequest{
+		Node: c.name,
+	}
+	res, err := c.nodeService.Forget(ctx, req)
+	if err != nil {
+		return err
+	}
+	if res.Status == nodes.Status_ForgetFail {
+		return errors.New("unable to forget node")
+	}
 	return nil
 }
 
@@ -111,13 +130,9 @@ func (c *Client) GetContainer(ctx context.Context, id string) (*containers.Conta
 }
 
 func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {
-	return c.subscribe(ctx, c.name)
-}
-
-func (c *Client) subscribe(ctx context.Context, name string) (<-chan *events.Event, <-chan error) {
 	evc := make(chan *events.Event)
 	errc := make(chan error)
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: name})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: c.name})
 	if err != nil {
 		log.Fatalf("subscribe error occurred %s", err.Error())
 	}

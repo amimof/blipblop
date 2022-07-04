@@ -34,8 +34,8 @@ func (c *containerMiddleware) createHandler(e *events.TaskCreate) {
 	log.Printf("Task was just created with PID %d", e.Pid)
 }
 
-func (c *containerMiddleware) Run(stop <-chan struct{}) {
-	go c.informer.Watch(stop)
+func (c *containerMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
+	go c.informer.Watch(ctx, stop)
 }
 
 func WithRuntime(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {
