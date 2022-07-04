@@ -2,15 +2,15 @@ package api
 
 import (
 	//"log"
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/internal/controller"
 	"github.com/amimof/blipblop/internal/handlers"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/internal/routes"
-	"github.com/amimof/blipblop/internal/controller"
 	"github.com/amimof/blipblop/internal/services"
 	"github.com/amimof/blipblop/pkg/client"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
@@ -45,7 +45,7 @@ func NewAPIv1() *APIv1 {
 	var opts []grpc.ServerOption
 	grpcServer := grpc.NewServer(opts...)
 
-	// Setup our internal client 
+	// Setup our internal client
 	nodeService := services.NewNodeService()
 	eventService := services.NewEventService()
 	containerService := services.NewContainerService()

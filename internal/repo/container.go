@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+
+var containerRepo ContainerRepo
+
 type ContainerRepo interface {
 	GetAll(ctx context.Context) ([]*models.Container, error)
 	Get(ctx context.Context, key string) (*models.Container, error)
@@ -30,11 +33,19 @@ type inmemContainerRepo struct {
 }
 
 func (i *inmemContainerRepo) GetAll(ctx context.Context) ([]*models.Container, error) {
-	return nil, nil
+	var c []*models.Container
+	for _, key := range i.cache.ListKeys() {
+		container, _ := i.Get(ctx, key)
+		if container != nil {
+			c = append(c, container)
+		}
+	}
+	return c, nil
 }
 func (i *inmemContainerRepo) Get(ctx context.Context, key string) (*models.Container, error) {
 	var c *models.Container
-	if item := i.cache.Get(key); item != nil {
+	item := i.cache.Get(key)
+	if item != nil {
 		c = item.Value.(*models.Container)
 	}
 	return c, nil
@@ -56,10 +67,17 @@ func (i *inmemContainerRepo) Kill(ctx context.Context, key string) error {
 	return nil
 }
 
-func NewInMemContainerRepo() ContainerRepo {
+func newInMemContainerRepo() ContainerRepo {
 	c := cache.New()
 	c.TTL = time.Hour * 24
 	return &inmemContainerRepo{
 		cache: c,
 	}
+}
+
+func NewInMemContainerRepo() ContainerRepo {
+	if containerRepo == nil {
+		containerRepo = newInMemContainerRepo()
+	}
+	return containerRepo
 }

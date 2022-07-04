@@ -1,20 +1,44 @@
 package services
 
 import (
+	"fmt"
+	"sync"
+	"errors"
 	"context"
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/internal/repo"
 )
 
 var containerService *ContainerService
 
 type ContainerService struct {
 	containers.UnimplementedContainerServiceServer
+	repo repo.ContainerRepo
+	mu   sync.Mutex
 }
 
-func (c *ContainerService) GetTest(ctx context.Context, container *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {
+func (c *ContainerService) Repo() repo.ContainerRepo {
+	if c.repo != nil {
+		return c.repo
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return repo.NewInMemContainerRepo()
+}
+
+func (c *ContainerService) GetTest(ctx context.Context, req *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {
+	container, err := c.Repo().Get(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	if container == nil {
+		return nil, errors.New(fmt.Sprintf("container not found %s", req.Id))
+	}
 	return &containers.GetContainerResponse{
 		Container: &containers.Container{
-			Image: "docker.io/amimo/node-cert-exporter:latest",
+			Id: *container.Name,
+			Image: *container.Image,
+			Labels: container.Labels,
 		},
 	}, nil
 }
@@ -25,13 +49,15 @@ func (c *ContainerService) CreateTest(ctx context.Context, container *containers
 	}, nil
 }
 
-func newContainerService() *ContainerService {
-	return &ContainerService{}
+func newContainerService(repo repo.ContainerRepo) *ContainerService {
+	return &ContainerService{
+		repo: repo,
+	}
 }
 
 func NewContainerService() *ContainerService {
 	if containerService == nil {
-		containerService = newContainerService()
+		containerService = newContainerService(repo.NewInMemContainerRepo())
 	}
 	return containerService
 }

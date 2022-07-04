@@ -20,15 +20,16 @@ message SubscribeRequest {
 message Event {
   google.protobuf.Timestamp timestamp = 1;
   string id = 2;
-  string name = 3;
-  bytes payload = 4;
-  EventType type = 5;
+  string eventId = 3;
+  EventType type = 4;
 }
 
 enum EventType {
 	ContainerCreate = 0;
 	ContainerDelete = 1;
   ContainerUpdate = 2;
+  NodeJoin = 3;
+  NodeForget = 4;
 }
 
 message EventAck {

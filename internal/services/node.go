@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/util"
-	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/golang/protobuf/ptypes"
 	"sync"
 )
@@ -30,7 +30,7 @@ func (n *NodeService) Get(id string) (*models.Node, error) {
 	}
 	for _, ch := range n.channel[id] {
 		ch <- &events.Event{
-			Name: "ContainerCreate",
+			//Name: "ContainerCreate",
 			Type: events.EventType_ContainerCreate,
 			// Node: &nodes.Node{
 			// 	Id: id,
@@ -82,6 +82,19 @@ func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.
 		//At: types.TimestampNow(),
 		Status: nodes.Status_JoinSuccess,
 	}, nil
+}
+
+func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
+	res := &nodes.ForgetResponse{
+		Node:   req.Node,
+		Status: nodes.Status_ForgetSuccess,
+	}
+	err := n.Delete(req.Node)
+	if err != nil {
+		res.Status = nodes.Status_ForgetFail
+		return res, err
+	}
+	return res, nil
 }
 
 func newNodeService(r repo.NodeRepo) *NodeService {
