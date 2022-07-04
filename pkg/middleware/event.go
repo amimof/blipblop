@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"context"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
 	"log"
@@ -28,13 +28,21 @@ func WithEvents(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middlewa
 	i := informer.NewEventInformer(c)
 	i.AddHandler(&informer.EventHandlerFuncs{
 		OnContainerCreate: func(obj *events.Event) {
-			
-			log.Println("not implemented: OnContainerCreate")
-			cont, err := c.GetContainer(context.Background(), "asd")
+			ctx := context.Background()
+			cont, err := c.GetContainer(ctx, obj.Id)
+			if cont == nil {
+				log.Printf("Container %s not found", obj.Id)
+				return
+			}
 			if err != nil {
 				log.Printf("error occurred: %s", err.Error())
 			}
-			log.Printf("Got container: %s", cont.Image)
+			err = e.runtime.Set(ctx, cont)
+			if err != nil {
+				log.Printf("error creating container %s with error: %s", *cont.Name, err)
+				return
+			}
+			log.Printf("Successfully created container: %s", *cont.Name)
 		},
 		OnContainerDelete: func(obj *events.Event) {
 			log.Println("not implemented: OnContainerDelete")

@@ -2,8 +2,6 @@ package models
 
 import (
 	//"github.com/google/uuid"
-	"bytes"
-	"encoding/gob"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/containerd/containerd"
 	"github.com/containerd/go-cni"
@@ -38,10 +36,4 @@ type NetworkStatus struct {
 	IP  net.IP `json:"ip,omitempty"`
 	GW  net.IP `json:"gw,omitempty"`
 	Mac string `json:"mac,omitempty"`
-}
-
-func (u *Container) Encode() ([]byte, error) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	return buf.Bytes(), enc.Encode(u)
 }

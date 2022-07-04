@@ -10,7 +10,7 @@ type Middleware interface {
 
 type MiddlewareManager struct {
 	middlewares []Middleware
-	stop chan struct{}
+	stop        chan struct{}
 }
 
 func (c *MiddlewareManager) Register(m Middleware) {

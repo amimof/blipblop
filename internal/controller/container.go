@@ -6,6 +6,8 @@ import (
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/google/uuid"
 	"strings"
 )
 
@@ -31,8 +33,10 @@ func (c *ContainerController) Create(unit *models.Container) error {
 		return err
 	}
 	e := &events.Event{
-		Name: "ContainerCreate",
-		Type: events.EventType_ContainerCreate,
+		Type:      events.EventType_ContainerCreate,
+		Id:        *unit.Name,
+		EventId:   uuid.New().String(),
+		Timestamp: ptypes.TimestampNow(),
 	}
 	err = c.client.Publish(ctx, e)
 	if err != nil {

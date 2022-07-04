@@ -1,16 +1,17 @@
 package client
 
 import (
-	"io"
-	"log"
-	"errors"
 	"context"
-	"sync"
-	"google.golang.org/grpc"
+	"errors"
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/services"
+	"google.golang.org/grpc"
+	"io"
+	"log"
+	"sync"
 )
 
 type RESTClient struct {
@@ -23,7 +24,7 @@ type Client struct {
 	eventService     events.EventServiceClient
 	containerService containers.ContainerServiceClient
 	runtime          *RuntimeClient
-	mu sync.Mutex
+	mu               sync.Mutex
 }
 
 type LocalClient struct {
@@ -121,12 +122,17 @@ func (c *Client) ForgetNode(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) GetContainer(ctx context.Context, id string) (*containers.Container, error) {
+func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container, error) {
 	res, err := c.containerService.GetTest(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
-	return res.Container, nil
+	container := &models.Container{
+		Name:   &res.Container.Id,
+		Image:  &res.Container.Image,
+		Labels: res.Container.Labels,
+	}
+	return container, nil
 }
 
 func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {

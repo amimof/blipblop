@@ -1,19 +1,18 @@
 package main
 
 import (
-	"os"
-	"fmt"
-	"log"
 	"context"
-	"os/signal"
-	"github.com/amimof/blipblop/pkg/middleware"
+	"fmt"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/event"
+	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/server"
 	"github.com/containerd/containerd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
+	"log"
+	"os"
+	"os/signal"
 )
 
 var (
@@ -105,8 +104,8 @@ func main() {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt)
 	go func() {
-		select{
-		case <-done: 
+		select {
+		case <-done:
 			err := client.ForgetNode(ctx)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s", err.Error())
@@ -130,17 +129,11 @@ func main() {
 
 	// Setup controllers
 	mdlwr := middleware.NewManager(
-		middleware.WithRuntime(client, cclient, cni),
+		//middleware.WithRuntime(client, cclient, cni),
 		middleware.WithEvents(client, cclient, cni),
 	)
 	mdlwr.Run(ctx)
 	defer mdlwr.Stop()
-
-	// Test internal events
-	event.On("container-create", event.ListenerFunc(func(e *event.Event) error {
-		log.Printf("Container created!", "")
-		return nil
-	}))
 
 	// Metrics server
 	ms := server.NewServer()

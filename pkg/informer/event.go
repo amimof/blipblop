@@ -1,9 +1,9 @@
 package informer
 
 import (
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"context"
+	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/client"
 	"log"
 )
 
@@ -56,9 +56,9 @@ func handleEventEvent(h *EventHandlerFuncs, ev *events.Event) {
 }
 
 func handleEventError(err error) {
-	if err != nil {
-		log.Printf("error occurred handling error %s", err.Error())
-	}
+	// if err != nil && err != io.EOF {
+	// 	log.Printf("error occurred handling error %s", err.Error())
+	// }
 }
 
 func NewEventInformer(client *client.Client) *EventInformer {

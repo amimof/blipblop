@@ -20,30 +20,6 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 	eventChan := make(chan *events.Event)
 	n.channel[req.Id] = append(n.channel[req.Id], eventChan)
 
-	// go func() {
-	// 	for {
-	// 		unit := &models.Unit{
-	// 			Name:  util.PtrString("prometheus-deployment"),
-	// 			Image: util.PtrString("quay.io/prometheus/prometheus:latest"),
-	// 		}
-	// 		d, err := unit.Encode()
-	// 		if err != nil {
-	// 			log.Printf("Error encoding: %s", err.Error())
-	// 			continue
-	// 		}
-	// 		e := &events.Event{
-	// 			Name: "ContainerCreate",
-	// 			Type: events.EventType_ContainerCreate,
-	// 			Node: &events.Node{
-	// 				Id: "asdasd",
-	// 			},
-	// 			Payload: d,
-	// 		}
-	// 		eventChan <- e
-	// 		time.Sleep(time.Second * 2)
-	// 	}
-	// }()
-
 	log.Printf("Node %s joined", req.Id)
 
 	for {
@@ -53,7 +29,7 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 			delete(n.channel, req.Id)
 			return nil
 		case n := <-eventChan:
-			log.Printf("Got event %s from client %s", n.Name, req.Id)
+			log.Printf("Got event %s (%s) from client %s", n.Type, n.Id, req.Id)
 			stream.Send(n)
 		}
 	}

@@ -30,7 +30,7 @@ func (n *NodeService) Get(id string) (*models.Node, error) {
 	}
 	for _, ch := range n.channel[id] {
 		ch <- &events.Event{
-			Name: "ContainerCreate",
+			//Name: "ContainerCreate",
 			Type: events.EventType_ContainerCreate,
 			// Node: &nodes.Node{
 			// 	Id: id,
@@ -86,7 +86,7 @@ func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.
 
 func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
 	res := &nodes.ForgetResponse{
-		Node: req.Node,
+		Node:   req.Node,
 		Status: nodes.Status_ForgetSuccess,
 	}
 	err := n.Delete(req.Node)
