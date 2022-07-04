@@ -3,15 +3,16 @@ syntax = "proto3";
 package blipblop.services.containers.v1;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
 service ContainerService {
-  rpc GetTest(GetContainerRequest) returns (GetContainerResponse);
+  rpc Get(GetContainerRequest) returns (GetContainerResponse);
 	// rpc List(ListContainersRequest) returns (ListContainersResponse);
-	rpc CreateTest(CreateContainerRequest) returns (CreateContainerResponse);
+	rpc Create(CreateContainerRequest) returns (CreateContainerResponse);
 	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
-	// rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty);
+	rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty);
 }
 
 message Container {
@@ -36,4 +37,8 @@ message CreateContainerRequest {
 
 message CreateContainerResponse {
 	Container container = 1;
+}
+
+message DeleteContainerRequest {
+	string id = 1;
 }

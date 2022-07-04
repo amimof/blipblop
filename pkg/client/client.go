@@ -123,7 +123,7 @@ func (c *Client) ForgetNode(ctx context.Context) error {
 }
 
 func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container, error) {
-	res, err := c.containerService.GetTest(ctx, &containers.GetContainerRequest{Id: id})
+	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +133,14 @@ func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container
 		Labels: res.Container.Labels,
 	}
 	return container, nil
+}
+
+func (c *Client) DeleteContainer(ctx context.Context, id string) error {
+	_, err := c.containerService.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {

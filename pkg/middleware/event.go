@@ -31,21 +31,51 @@ func WithEvents(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middlewa
 			ctx := context.Background()
 			cont, err := c.GetContainer(ctx, obj.Id)
 			if cont == nil {
-				log.Printf("Container %s not found", obj.Id)
+				log.Printf("container %s not found", obj.Id)
 				return
 			}
 			if err != nil {
 				log.Printf("error occurred: %s", err.Error())
+				return
 			}
 			err = e.runtime.Set(ctx, cont)
 			if err != nil {
 				log.Printf("error creating container %s with error: %s", *cont.Name, err)
 				return
 			}
-			log.Printf("Successfully created container: %s", *cont.Name)
+			log.Printf("successfully created container: %s", *cont.Name)
 		},
 		OnContainerDelete: func(obj *events.Event) {
-			log.Println("not implemented: OnContainerDelete")
+			ctx := context.Background()
+			err := c.DeleteContainer(ctx, obj.Id)
+			if err != nil {
+				log.Printf("error deleting container %s with error", obj.Id, err)
+				return
+			}
+			err = e.runtime.Delete(ctx, obj.Id)
+			if err != nil {
+				log.Printf("error stopping container %s with error %s", obj.Id, err)
+				return
+			}
+			log.Printf("successfully deleted container %s", obj.Id)
+		},
+		OnContainerStart: func(obj *events.Event) {
+			ctx := context.Background()
+			err := e.runtime.Start(ctx, obj.Id)
+			if err != nil {
+				log.Printf("error starting container %s with error %s", obj.Id, err)
+				return
+			}
+			log.Printf("successfully started container %s", obj.Id)
+		},
+		OnContainerStop: func(obj *events.Event) {
+			ctx := context.Background()
+			err := e.runtime.Kill(ctx, obj.Id)
+			if err != nil {
+				log.Printf("error killing container %s with error %s", obj.Id, err)
+				return
+			}
+			log.Printf("successfully killed container %s", obj.Id)
 		},
 	})
 	e.informer = i

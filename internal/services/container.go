@@ -1,12 +1,13 @@
 package services
 
 import (
-	"fmt"
-	"sync"
-	"errors"
 	"context"
+	"errors"
+	"fmt"
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/internal/repo"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"sync"
 )
 
 var containerService *ContainerService
@@ -26,7 +27,7 @@ func (c *ContainerService) Repo() repo.ContainerRepo {
 	return repo.NewInMemContainerRepo()
 }
 
-func (c *ContainerService) GetTest(ctx context.Context, req *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {
+func (c *ContainerService) Get(ctx context.Context, req *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {
 	container, err := c.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
@@ -36,17 +37,25 @@ func (c *ContainerService) GetTest(ctx context.Context, req *containers.GetConta
 	}
 	return &containers.GetContainerResponse{
 		Container: &containers.Container{
-			Id: *container.Name,
-			Image: *container.Image,
+			Id:     *container.Name,
+			Image:  *container.Image,
 			Labels: container.Labels,
 		},
 	}, nil
 }
 
-func (c *ContainerService) CreateTest(ctx context.Context, container *containers.CreateContainerRequest) (*containers.CreateContainerResponse, error) {
+func (c *ContainerService) Create(ctx context.Context, container *containers.CreateContainerRequest) (*containers.CreateContainerResponse, error) {
 	return &containers.CreateContainerResponse{
 		Container: container.Container,
 	}, nil
+}
+
+func (c *ContainerService) Delete(ctx context.Context, req *containers.DeleteContainerRequest) (*emptypb.Empty, error) {
+	err := c.Repo().Delete(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
 }
 
 func newContainerService(repo repo.ContainerRepo) *ContainerService {

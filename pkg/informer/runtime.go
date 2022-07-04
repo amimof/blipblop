@@ -9,6 +9,10 @@ import (
 	"log"
 )
 
+type ContainerdEvent interface {
+	ProtoMessage()
+}
+
 type RuntimeInformer struct {
 	client   *containerd.Client
 	handlers *RuntimeHandlerFuncs
@@ -71,53 +75,101 @@ func (i *RuntimeInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
 func handleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
 	switch t := obj.(type) {
 	case *events.TaskExit:
-		handlers.OnTaskExit(t)
+		if handlers.OnTaskExit != nil {
+			handlers.OnTaskExit(t)
+		}
 	case *events.TaskCreate:
-		handlers.OnTaskCreate(t)
+		if handlers.OnTaskCreate != nil {
+			handlers.OnTaskCreate(t)
+		}
 	case *events.TaskStart:
-		handlers.OnTaskStart(t)
+		if handlers.OnTaskStart != nil {
+			handlers.OnTaskStart(t)
+		}
 	case *events.TaskDelete:
-		handlers.OnTaskDelete(t)
+		if handlers.OnTaskDelete != nil {
+			handlers.OnTaskDelete(t)
+		}
 	case *events.TaskIO:
-		handlers.OnTaskIO(t)
+		if handlers.OnTaskIO != nil {
+			handlers.OnTaskIO(t)
+		}
 	case *events.TaskOOM:
-		handlers.OnTaskOOM(t)
+		if handlers.OnTaskOOM != nil {
+			handlers.OnTaskOOM(t)
+		}
 	case *events.TaskExecAdded:
-		handlers.OnTaskExecAdded(t)
+		if handlers.OnTaskExecAdded != nil {
+			handlers.OnTaskExecAdded(t)
+		}
 	case *events.TaskExecStarted:
-		handlers.OnTaskExecStarted(t)
+		if handlers.OnTaskExecStarted != nil {
+			handlers.OnTaskExecStarted(t)
+		}
 	case *events.TaskPaused:
-		handlers.OnTaskPaused(t)
+		if handlers.OnTaskPaused != nil {
+			handlers.OnTaskPaused(t)
+		}
 	case *events.TaskResumed:
-		handlers.OnTaskResumed(t)
+		if handlers.OnTaskResumed != nil {
+			handlers.OnTaskResumed(t)
+		}
 	case *events.TaskCheckpointed:
-		handlers.OnTaskCheckpointed(t)
+		if handlers.OnTaskCheckpointed != nil {
+			handlers.OnTaskCheckpointed(t)
+		}
 	case *events.SnapshotPrepare:
-		handlers.OnSnapshotPrepare(t)
+		if handlers.OnSnapshotPrepare != nil {
+			handlers.OnSnapshotPrepare(t)
+		}
 	case *events.SnapshotCommit:
-		handlers.OnSnapshotCommit(t)
+		if handlers.OnSnapshotCommit != nil {
+			handlers.OnSnapshotCommit(t)
+		}
 	case *events.SnapshotRemove:
-		handlers.OnSnapshotRemove(t)
+		if handlers.OnSnapshotRemove != nil {
+			handlers.OnSnapshotRemove(t)
+		}
 	case *events.NamespaceCreate:
-		handlers.OnNamespaceCreate(t)
+		if handlers.OnNamespaceCreate != nil {
+			handlers.OnNamespaceCreate(t)
+		}
 	case *events.NamespaceUpdate:
-		handlers.OnNamespaceUpdate(t)
+		if handlers.OnNamespaceUpdate != nil {
+			handlers.OnNamespaceUpdate(t)
+		}
 	case *events.NamespaceDelete:
-		handlers.OnNamespaceDelete(t)
+		if handlers.OnNamespaceDelete != nil {
+			handlers.OnNamespaceDelete(t)
+		}
 	case *events.ImageCreate:
-		handlers.OnImageCreate(t)
+		if handlers.OnImageCreate != nil {
+			handlers.OnImageCreate(t)
+		}
 	case *events.ImageUpdate:
-		handlers.OnImageUpdate(t)
+		if handlers.OnImageUpdate != nil {
+			handlers.OnImageUpdate(t)
+		}
 	case *events.ImageDelete:
-		handlers.OnImageDelete(t)
+		if handlers.OnImageDelete != nil {
+			handlers.OnImageDelete(t)
+		}
 	case *events.ContentDelete:
-		handlers.OnContentDelete(t)
+		if handlers.OnContentDelete != nil {
+			handlers.OnContentDelete(t)
+		}
 	case *events.ContainerCreate:
-		handlers.OnContainerCreate(t)
+		if handlers.OnContainerCreate != nil {
+			handlers.OnContainerCreate(t)
+		}
 	case *events.ContainerUpdate:
-		handlers.OnContainerUpdate(t)
+		if handlers.OnContainerUpdate != nil {
+			handlers.OnContainerUpdate(t)
+		}
 	case *events.ContainerDelete:
-		handlers.OnContainerDelete(t)
+		if handlers.OnContainerDelete != nil {
+			handlers.OnContainerDelete(t)
+		}
 	default:
 		log.Printf("No handler exists for event %s", t)
 	}

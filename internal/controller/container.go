@@ -46,19 +46,60 @@ func (c *ContainerController) Create(unit *models.Container) error {
 }
 
 func (c *ContainerController) Start(id string) error {
-	return c.repo.Start(context.Background(), id)
+	ctx := context.Background()
+	err := c.repo.Start(ctx, id)
+	if err != nil {
+		return err
+	}
+	e := &events.Event{
+		Type:      events.EventType_ContainerStart,
+		Id:        id,
+		EventId:   uuid.New().String(),
+		Timestamp: ptypes.TimestampNow(),
+	}
+	err = c.client.Publish(ctx, e)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *ContainerController) Stop(id string) error {
-	err := c.repo.Stop(context.Background(), id)
+	ctx := context.Background()
+	err := c.repo.Stop(ctx, id)
 	if err != nil && !strings.Contains(err.Error(), "process already finished") {
+		return err
+	}
+	e := &events.Event{
+		Type:      events.EventType_ContainerStop,
+		Id:        id,
+		EventId:   uuid.New().String(),
+		Timestamp: ptypes.TimestampNow(),
+	}
+	err = c.client.Publish(ctx, e)
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
 func (c *ContainerController) Delete(id string) error {
-	return c.repo.Delete(context.Background(), id)
+	ctx := context.Background()
+	err := c.repo.Delete(ctx, id)
+	if err != nil {
+		return err
+	}
+	e := &events.Event{
+		Type:      events.EventType_ContainerDelete,
+		Id:        id,
+		EventId:   uuid.New().String(),
+		Timestamp: ptypes.TimestampNow(),
+	}
+	err = c.client.Publish(ctx, e)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func newContainerController(client *client.LocalClient, r repo.ContainerRepo) *ContainerController {

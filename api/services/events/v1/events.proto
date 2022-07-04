@@ -28,8 +28,10 @@ enum EventType {
 	ContainerCreate = 0;
 	ContainerDelete = 1;
   ContainerUpdate = 2;
-  NodeJoin = 3;
-  NodeForget = 4;
+  ContainerStart = 3;
+  ContainerStop = 4;
+  NodeJoin = 5;
+  NodeForget = 6;
 }
 
 message EventAck {
