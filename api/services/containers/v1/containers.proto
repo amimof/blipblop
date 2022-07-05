@@ -9,7 +9,7 @@ option go_package = "github.com/amimof/blipblop/api/services/containers/v1;conta
 
 service ContainerService {
   rpc Get(GetContainerRequest) returns (GetContainerResponse);
-	// rpc List(ListContainersRequest) returns (ListContainersResponse);
+	rpc List(ListContainerRequest) returns (ListContainerResponse);
 	rpc Create(CreateContainerRequest) returns (CreateContainerResponse);
 	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
 	rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty);
@@ -41,4 +41,12 @@ message CreateContainerResponse {
 
 message DeleteContainerRequest {
 	string id = 1;
+}
+
+message ListContainerRequest {
+	map<string, string> selector = 2;
+}
+
+message ListContainerResponse {
+	repeated Container containers = 1;
 }

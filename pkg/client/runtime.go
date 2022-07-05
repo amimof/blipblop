@@ -13,7 +13,6 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
-	"github.com/google/uuid"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"log"
 	"syscall"
@@ -21,13 +20,6 @@ import (
 )
 
 type RuntimeClient struct {
-	// GetAll(ctx context.Context) ([]*models.Container, error)
-	// Get(ctx context.Context, key string) (*models.Container, error)
-	// Set(ctx context.Context, unit *models.Container) error
-	// Delete(ctx context.Context, key string) error
-	// Start(ctx context.Context, key string) error
-	// Stop(ctx context.Context, key string) error
-	// Kill(ctx context.Context, key string) error
 	client *containerd.Client
 	cni    gocni.CNI
 }
@@ -48,24 +40,24 @@ func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error)
 		if err != nil {
 			return nil, err
 		}
-		var netstatus models.NetworkStatus
-		var runstatus models.RuntimeStatus
-		if task, _ := c.Task(ctx, nil); task != nil {
-			if ip, _ := networking.GetIPAddress(fmt.Sprintf("%s-%d", task.ID(), task.Pid())); ip != nil {
-				netstatus.IP = ip
-			}
-			if status, _ := task.Status(ctx); &status != nil {
-				runstatus.Status = status.Status
-			}
-		}
+		// var netstatus models.NetworkStatus
+		// var runstatus models.RuntimeStatus
+		// if task, _ := c.Task(ctx, nil); task != nil {
+		// 	if ip, _ := networking.GetIPAddress(fmt.Sprintf("%s-%d", task.ID(), task.Pid())); ip != nil {
+		// 		netstatus.IP = ip
+		// 	}
+		// 	if status, _ := task.Status(ctx); &status != nil {
+		// 		runstatus.Status = status.Status
+		// 	}
+		// }
 		result[i] = &models.Container{
 			Name:   &info.ID,
 			Image:  &info.Image,
 			Labels: l,
-			Status: &models.Status{
-				Network: &netstatus,
-				Runtime: &runstatus,
-			},
+			// Status: &models.Status{
+			// 	Network: &netstatus,
+			// 	Runtime: &runstatus,
+			// },
 		}
 	}
 	return result, nil
@@ -116,7 +108,6 @@ func (c *RuntimeClient) Set(ctx context.Context, unit *models.Container) error {
 
 	// Configure labels
 	labels := labels.New()
-	labels.Set("blipblop.io/uuid", uuid.New().String())
 
 	// Build OCI specification
 	opts := buildSpec(unit.EnvVars, unit.Mounts, unit.Args)

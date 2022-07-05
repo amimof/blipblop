@@ -8,6 +8,7 @@ import (
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/services"
+	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -133,6 +134,24 @@ func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container
 		Labels: res.Container.Labels,
 	}
 	return container, nil
+}
+
+func (c *Client) ListContainers(ctx context.Context) ([]*models.Container, error) {
+	var ctrns []*models.Container
+	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: labels.New()})
+	if err != nil {
+		return ctrns, err
+	}
+	for _, ctr := range res.Containers {
+		ctrns = append(ctrns, &models.Container{
+			Name:    &ctr.Id,
+			Image:   &ctr.Image,
+			Labels:  ctr.Labels,
+			Created: ctr.Created.AsTime(),
+			Updated: ctr.Updated.AsTime(),
+		})
+	}
+	return ctrns, nil
 }
 
 func (c *Client) DeleteContainer(ctx context.Context, id string) error {

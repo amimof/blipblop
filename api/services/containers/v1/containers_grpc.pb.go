@@ -24,7 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ContainerServiceClient interface {
 	Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error)
-	// rpc List(ListContainersRequest) returns (ListContainersResponse);
+	List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error)
 	Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
 	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
 	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -41,6 +41,15 @@ func NewContainerServiceClient(cc grpc.ClientConnInterface) ContainerServiceClie
 func (c *containerServiceClient) Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error) {
 	out := new(GetContainerResponse)
 	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Get", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error) {
+	out := new(ListContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +79,7 @@ func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteContainer
 // for forward compatibility
 type ContainerServiceServer interface {
 	Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error)
-	// rpc List(ListContainersRequest) returns (ListContainersResponse);
+	List(context.Context, *ListContainerRequest) (*ListContainerResponse, error)
 	Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
 	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
 	Delete(context.Context, *DeleteContainerRequest) (*emptypb.Empty, error)
@@ -83,6 +92,9 @@ type UnimplementedContainerServiceServer struct {
 
 func (UnimplementedContainerServiceServer) Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedContainerServiceServer) List(context.Context, *ListContainerRequest) (*ListContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
 func (UnimplementedContainerServiceServer) Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
@@ -117,6 +129,24 @@ func _ContainerService_Get_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerServiceServer).Get(ctx, req.(*GetContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContainerService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/List",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).List(ctx, req.(*ListContainerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -167,6 +197,10 @@ var ContainerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Get",
 			Handler:    _ContainerService_Get_Handler,
+		},
+		{
+			MethodName: "List",
+			Handler:    _ContainerService_List_Handler,
 		},
 		{
 			MethodName: "Create",

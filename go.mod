@@ -1,6 +1,6 @@
 module github.com/amimof/blipblop
 
-go 1.17
+go 1.18
 
 require (
 	github.com/containerd/go-cni v1.1.4
@@ -25,6 +25,7 @@ require (
 require (
 	github.com/containernetworking/plugins v1.1.1
 	github.com/google/uuid v1.2.0
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 )
 
 require github.com/gogo/protobuf v1.3.2 // indirect
@@ -46,7 +47,7 @@ require (
 	github.com/gofiber/utils v0.1.2 // indirect
 	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.2
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.15.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect

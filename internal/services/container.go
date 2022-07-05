@@ -7,6 +7,7 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/internal/repo"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 )
 
@@ -41,6 +42,26 @@ func (c *ContainerService) Get(ctx context.Context, req *containers.GetContainer
 			Image:  *container.Image,
 			Labels: container.Labels,
 		},
+	}, nil
+}
+
+func (c *ContainerService) List(ctx context.Context, req *containers.ListContainerRequest) (*containers.ListContainerResponse, error) {
+	var result []*containers.Container
+	ctrns, err := c.Repo().GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, ctr := range ctrns {
+		result = append(result, &containers.Container{
+			Id:      *ctr.Name,
+			Image:   *ctr.Image,
+			Labels:  ctr.Labels,
+			Created: timestamppb.New(ctr.Created),
+			Updated: timestamppb.New(ctr.Updated),
+		})
+	}
+	return &containers.ListContainerResponse{
+		Containers: result,
 	}, nil
 }
 

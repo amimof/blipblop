@@ -1,14 +1,17 @@
 package controller
 
 import (
+	"time"
+	"bytes"
 	"context"
+	"strings"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
-	"strings"
 )
 
 var containerController *ContainerController
@@ -19,30 +22,37 @@ type ContainerController struct {
 }
 
 func (c *ContainerController) Get(id string) (*models.Container, error) {
-	return c.repo.Get(context.Background(), id)
+	ctx := context.Background()
+	container, err := c.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return container, c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerGet))
 }
 
 func (c *ContainerController) All() ([]*models.Container, error) {
-	return c.repo.GetAll(context.Background())
+	ctx := context.Background()
+	containers, err := c.repo.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return containers, c.client.Publish(ctx, NewEventFor("", events.EventType_ContainerGetAll))
 }
 
 func (c *ContainerController) Create(unit *models.Container) error {
 	ctx := context.Background()
-	err := c.repo.Set(ctx, unit)
+	unit.Created = time.Now()
+	unit.Updated = time.Now()
+	hash, err := util.NewSerializer(unit, &bytes.Buffer{}).HashString()
 	if err != nil {
 		return err
 	}
-	e := &events.Event{
-		Type:      events.EventType_ContainerCreate,
-		Id:        *unit.Name,
-		EventId:   uuid.New().String(),
-		Timestamp: ptypes.TimestampNow(),
-	}
-	err = c.client.Publish(ctx, e)
+	unit.Digest = hash
+	err = c.repo.Set(ctx, unit)
 	if err != nil {
 		return err
 	}
-	return nil
+	return c.client.Publish(ctx, NewEventFor(*unit.Name, events.EventType_ContainerCreate))
 }
 
 func (c *ContainerController) Start(id string) error {
@@ -51,17 +61,7 @@ func (c *ContainerController) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	e := &events.Event{
-		Type:      events.EventType_ContainerStart,
-		Id:        id,
-		EventId:   uuid.New().String(),
-		Timestamp: ptypes.TimestampNow(),
-	}
-	err = c.client.Publish(ctx, e)
-	if err != nil {
-		return err
-	}
-	return nil
+	return c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerStart))
 }
 
 func (c *ContainerController) Stop(id string) error {
@@ -70,17 +70,7 @@ func (c *ContainerController) Stop(id string) error {
 	if err != nil && !strings.Contains(err.Error(), "process already finished") {
 		return err
 	}
-	e := &events.Event{
-		Type:      events.EventType_ContainerStop,
-		Id:        id,
-		EventId:   uuid.New().String(),
-		Timestamp: ptypes.TimestampNow(),
-	}
-	err = c.client.Publish(ctx, e)
-	if err != nil {
-		return err
-	}
-	return nil
+	return c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerStop))
 }
 
 func (c *ContainerController) Delete(id string) error {
@@ -89,17 +79,16 @@ func (c *ContainerController) Delete(id string) error {
 	if err != nil {
 		return err
 	}
-	e := &events.Event{
-		Type:      events.EventType_ContainerDelete,
+	return c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerDelete))
+}
+
+func NewEventFor(id string, t events.EventType) *events.Event {
+	return &events.Event{
+		Type:      t,
 		Id:        id,
 		EventId:   uuid.New().String(),
 		Timestamp: ptypes.TimestampNow(),
 	}
-	err = c.client.Publish(ctx, e)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func newContainerController(client *client.LocalClient, r repo.ContainerRepo) *ContainerController {

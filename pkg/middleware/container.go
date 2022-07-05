@@ -1,53 +1,91 @@
 package middleware
 
 import (
-	//"os"
 	"context"
-	"github.com/amimof/blipblop/internal/repo"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/api/events"
 	gocni "github.com/containerd/go-cni"
 	"log"
 )
 
 type containerMiddleware struct {
-	informer *informer.RuntimeInformer
-	repo     repo.ContainerRepo
 	client   *client.Client
 	runtime  *client.RuntimeClient
-}
-
-//
-func (c *containerMiddleware) exitHandler(e *events.TaskExit) {
-	ctx := context.Background()
-	err := c.repo.Kill(ctx, e.ID)
-	if err != nil {
-		log.Printf("Got an error while trying to kill task %s. The error was %s", e.ID, err.Error())
-	}
-	err = c.repo.Start(ctx, e.ContainerID)
-	log.Printf("Task %s just exited", e.ID)
-}
-
-func (c *containerMiddleware) createHandler(e *events.TaskCreate) {
-	log.Printf("Task was just created with PID %d", e.Pid)
+	informer *informer.EventInformer
 }
 
 func (c *containerMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 	go c.informer.Watch(ctx, stop)
 }
 
-func WithRuntime(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {
-	m := &containerMiddleware{
+func (c *containerMiddleware) onContainerCreate(obj *events.Event) {
+	ctx := context.Background()
+	cont, err := c.client.GetContainer(ctx, obj.Id)
+	if cont == nil {
+		log.Printf("container %s not found", obj.Id)
+		return
+	}
+	if err != nil {
+		log.Printf("error occurred: %s", err.Error())
+		return
+	}
+	err = c.runtime.Set(ctx, cont)
+	if err != nil {
+		log.Printf("error creating container %s with error: %s", *cont.Name, err)
+		return
+	}
+	log.Printf("successfully created container: %s", *cont.Name)
+}
+
+func (c *containerMiddleware) onContainerDelete(obj *events.Event) {
+	ctx := context.Background()
+	err := c.client.DeleteContainer(ctx, obj.Id)
+	if err != nil {
+		log.Printf("error deleting container %s with error", obj.Id, err)
+		return
+	}
+	err = c.runtime.Delete(ctx, obj.Id)
+	if err != nil {
+		log.Printf("error stopping container %s with error %s", obj.Id, err)
+		return
+	}
+	log.Printf("successfully deleted container %s", obj.Id)
+}
+
+func (c *containerMiddleware) onContainerStart(obj *events.Event) {
+	ctx := context.Background()
+	err := c.runtime.Start(ctx, obj.Id)
+	if err != nil {
+		log.Printf("error starting container %s with error %s", obj.Id, err)
+		return
+	}
+	log.Printf("successfully started container %s", obj.Id)
+}
+
+func (c *containerMiddleware) onContainerStop(obj *events.Event) {
+	ctx := context.Background()
+	err := c.runtime.Kill(ctx, obj.Id)
+	if err != nil {
+		log.Printf("error killing container %s with error %s", obj.Id, err)
+		return
+	}
+	log.Printf("successfully killed container %s", obj.Id)
+}
+
+func WithEvents(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {
+	e := &containerMiddleware{
 		client:  c,
 		runtime: client.NewContainerdRuntimeClient(cc, cni),
 	}
-	i := informer.NewRuntimeInformer(m.runtime.ContainerdClient())
-	i.AddHandler(&informer.RuntimeHandlerFuncs{
-		OnTaskExit:   m.exitHandler,
-		OnTaskCreate: m.createHandler,
+	i := informer.NewEventInformer(c)
+	i.AddHandler(&informer.EventHandlerFuncs{
+		OnContainerCreate: e.onContainerCreate,
+		OnContainerDelete: e.onContainerDelete,
+		OnContainerStart:  e.onContainerStart,
+		OnContainerStop:   e.onContainerStop,
 	})
-	m.informer = i
-	return m
+	e.informer = i
+	return e
 }
