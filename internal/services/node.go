@@ -9,8 +9,8 @@ import (
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/util"
-	"github.com/golang/protobuf/ptypes"
 	"sync"
+	"time"
 )
 
 var nodeService *NodeService
@@ -62,39 +62,42 @@ func (n *NodeService) Repo() repo.NodeRepo {
 }
 
 func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.JoinResponse, error) {
-	if node, _ := n.Get(req.Node.Id); node != nil {
+	if node, _ := n.Get(req.Node.Name); node != nil {
 		return &nodes.JoinResponse{
-			Node: req.Node,
-			//At: types.TimestampNow(),
-			Status: nodes.Status_JoinFail,
-		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Id))
+			Id: req.Node.Name,
+		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Name))
 	}
 	node := &models.Node{
-		Name:    util.PtrString(req.Node.Id),
-		Created: ptypes.TimestampNow().String(),
+		Metadata: models.Metadata{
+			Name:     util.PtrString(req.Node.Name),
+			Created:  time.Now(),
+			Updated:  time.Now(),
+			Revision: 1,
+		},
+		Status: &models.NodeStatus{
+			IPs:      req.Node.Status.Ips,
+			HostName: req.Node.Status.Hostname,
+			Arch:     req.Node.Status.Arch,
+			Os:       req.Node.Status.Os,
+		},
 	}
 	err := n.Create(node)
 	if err != nil {
 		return nil, err
 	}
 	return &nodes.JoinResponse{
-		Node: req.Node,
-		//At: types.TimestampNow(),
-		Status: nodes.Status_JoinSuccess,
+		Id: req.Node.Name,
 	}, nil
 }
 
 func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
-	res := &nodes.ForgetResponse{
-		Node:   req.Node,
-		Status: nodes.Status_ForgetSuccess,
-	}
-	err := n.Delete(req.Node)
+	err := n.Delete(req.Id)
 	if err != nil {
-		res.Status = nodes.Status_ForgetFail
-		return res, err
+		return nil, err
 	}
-	return res, nil
+	return &nodes.ForgetResponse{
+		Id: req.Id,
+	}, nil
 }
 
 func newNodeService(r repo.NodeRepo) *NodeService {

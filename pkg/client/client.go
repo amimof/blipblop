@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
@@ -10,8 +9,12 @@ import (
 	"github.com/amimof/blipblop/internal/services"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
+	"net"
+	"os"
+	"runtime"
 	"sync"
 )
 
@@ -34,57 +37,28 @@ type LocalClient struct {
 	containerService *services.ContainerService
 }
 
-func NewLocalClient(nodeService *services.NodeService, eventService *services.EventService, containerService *services.ContainerService) *LocalClient {
-	return &LocalClient{
-		nodeService:      nodeService,
-		eventService:     eventService,
-		containerService: containerService,
-	}
-}
-
-func (l *LocalClient) NodeService() *services.NodeService {
-	return l.nodeService
-}
-
-func (l *LocalClient) EventService() *services.EventService {
-	return l.eventService
-}
-
-func (l *LocalClient) ContainerService() *services.ContainerService {
-	return l.containerService
-}
-
-func (l *LocalClient) Publish(ctx context.Context, e *events.Event) error {
-	req := &events.PublishRequest{
-		Event: e,
-	}
-	_, err := l.EventService().Publish(ctx, req)
+func getIpAddressesAsString() []string {
+	var i []string
+	inters, err := net.Interfaces()
 	if err != nil {
-		return err
+		return i
 	}
-	return nil
-}
-
-func New(server string) (*Client, error) {
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
-	conn, err := grpc.Dial(server, opts...)
-	if err != nil {
-		return nil, err
+	for _, inter := range inters {
+		addrs, err := inter.Addrs()
+		if err != nil {
+			return i
+		}
+		for _, addr := range addrs {
+			i = append(i, addr.String())
+		}
 	}
-	c := &Client{
-		conn:             conn,
-		nodeService:      nodes.NewNodeServiceClient(conn),
-		eventService:     events.NewEventServiceClient(conn),
-		containerService: containers.NewContainerServiceClient(conn),
-	}
-	return c, nil
+	return i
 }
 
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	err := c.ForgetNode(context.Background())
+	err := c.ForgetNode(context.Background(), c.name)
 	if err != nil {
 		return err
 	}
@@ -92,33 +66,37 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) JoinNode(ctx context.Context, name string) error {
-	c.name = name
+func (c *Client) JoinNode(ctx context.Context, node *models.Node) error {
+	c.name = *node.Name
 	n := &nodes.JoinRequest{
 		Node: &nodes.Node{
-			Id: c.name,
+			Name:     *node.Name,
+			Labels:   node.Labels,
+			Created:  timestamppb.New(node.Created),
+			Updated:  timestamppb.New(node.Updated),
+			Revision: node.Revision,
+			Status: &nodes.Status{
+				Ips:      node.Status.IPs,
+				Hostname: node.Status.HostName,
+				Os:       node.Status.Os,
+				Arch:     node.Status.Arch,
+			},
 		},
 	}
-	res, err := c.nodeService.Join(ctx, n)
+	_, err := c.nodeService.Join(ctx, n)
 	if err != nil {
 		return err
-	}
-	if res.Status == nodes.Status_JoinFail {
-		return errors.New("unable to join node")
 	}
 	return nil
 }
 
-func (c *Client) ForgetNode(ctx context.Context) error {
+func (c *Client) ForgetNode(ctx context.Context, n string) error {
 	req := &nodes.ForgetRequest{
-		Node: c.name,
+		Id: n,
 	}
-	res, err := c.nodeService.Forget(ctx, req)
+	_, err := c.nodeService.Forget(ctx, req)
 	if err != nil {
 		return err
-	}
-	if res.Status == nodes.Status_ForgetFail {
-		return errors.New("unable to forget node")
 	}
 	return nil
 }
@@ -194,4 +172,68 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan er
 		}
 	}()
 	return evc, errc
+}
+
+func (l *LocalClient) NodeService() *services.NodeService {
+	return l.nodeService
+}
+
+func (l *LocalClient) EventService() *services.EventService {
+	return l.eventService
+}
+
+func (l *LocalClient) ContainerService() *services.ContainerService {
+	return l.containerService
+}
+
+func (l *LocalClient) Publish(ctx context.Context, e *events.Event) error {
+	req := &events.PublishRequest{
+		Event: e,
+	}
+	_, err := l.EventService().Publish(ctx, req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func New(server string) (*Client, error) {
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
+	conn, err := grpc.Dial(server, opts...)
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{
+		conn:             conn,
+		nodeService:      nodes.NewNodeServiceClient(conn),
+		eventService:     events.NewEventServiceClient(conn),
+		containerService: containers.NewContainerServiceClient(conn),
+	}
+	return c, nil
+}
+
+// NewNodeFromEnv creates a new node from the current environment with the name s
+func NewNodeFromEnv(s string) *models.Node {
+	hostname, _ := os.Hostname()
+	n := &models.Node{
+		Metadata: models.Metadata{
+			Name: &s,
+		},
+		Status: &models.NodeStatus{
+			IPs:      getIpAddressesAsString(),
+			HostName: hostname,
+			Arch:     runtime.GOARCH,
+			Os:       runtime.GOOS,
+		},
+	}
+	return n
+}
+
+func NewLocalClient(nodeService *services.NodeService, eventService *services.EventService, containerService *services.ContainerService) *LocalClient {
+	return &LocalClient{
+		nodeService:      nodeService,
+		eventService:     eventService,
+		containerService: containerService,
+	}
 }

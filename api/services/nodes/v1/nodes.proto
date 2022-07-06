@@ -9,54 +9,54 @@ option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 service NodeService {
   rpc Join(JoinRequest) returns (JoinResponse) {}
   rpc Forget(ForgetRequest) returns (ForgetResponse) {}
+  rpc Update(UpdateNodeRequest) returns (UpdateNodeResponse) {}
   // rpc Subscribe(Node) returns (stream Event) {}
   // rpc FireEvent(stream Event) returns (EventAck) {}
 }
 
-enum Status {
-  JoinFail = 0;
-  JoinSuccess = 1;
-  ForgetFail = 2;
-  ForgetSuccess = 3;
-}
+// enum Status {
+//   JoinFail = 0;
+//   JoinSuccess = 1;
+//   ForgetFail = 2;
+//   ForgetSuccess = 3;
+// }
 
 message Node {
-  string id = 1;
+  string name = 1;
+  map<string, string> labels = 2;
+	google.protobuf.Timestamp created = 3;
+	google.protobuf.Timestamp updated = 4;
+	uint64 revision = 5;
+  Status status = 6;
+}
+
+message Status {
+  repeated string ips = 1;
+  string hostname = 2;
+  string arch = 3;
+  string os = 4;
 }
 
 message JoinRequest {
-  google.protobuf.Timestamp at = 1;
-  Node node = 2;
+  Node node = 1;
 }
 
 message JoinResponse {
-  google.protobuf.Timestamp at = 1;
-  Node node = 2;
-  Status status = 3;
+  string id = 1;
 }
 
 message ForgetRequest {
-  string node = 1;
+  string id = 1;
 }
 
 message ForgetResponse {
-  string node = 1;
-  Status status = 2;
+  string id = 1;
 }
 
-// message Event {
-//   string name = 1;
-//   Node node = 2;
-//   bytes payload = 3;
-//   EventType type = 4;
-// }
+message UpdateNodeRequest {
+  Node node = 1;
+}
 
-// message EventAck {
-//   string status = 1;
-// }
-
-// enum EventType {
-// 	ContainerCreate = 0;
-// 	ContainerDelete = 1;
-//   ContainerUpdate = 2;
-// }
+message UpdateNodeResponse {
+  Node node = 1;
+}
