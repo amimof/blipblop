@@ -100,6 +100,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 
+	// Recouncile state
+
 	// Setup signal handler
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt)
@@ -129,7 +131,7 @@ func main() {
 
 	// Setup controllers
 	mdlwr := middleware.NewManager(
-		//middleware.WithRuntime(client, cclient, cni),
+		middleware.WithRuntime(client, cclient, cni),
 		middleware.WithEvents(client, cclient, cni),
 	)
 	mdlwr.Run(ctx)

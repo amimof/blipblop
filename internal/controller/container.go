@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
 	"strings"
+	"time"
 )
 
 var containerController *ContainerController
@@ -19,46 +20,74 @@ type ContainerController struct {
 }
 
 func (c *ContainerController) Get(id string) (*models.Container, error) {
-	return c.repo.Get(context.Background(), id)
+	ctx := context.Background()
+	container, err := c.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return container, c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerGet))
 }
 
 func (c *ContainerController) All() ([]*models.Container, error) {
-	return c.repo.GetAll(context.Background())
+	ctx := context.Background()
+	containers, err := c.repo.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return containers, c.client.Publish(ctx, NewEventFor("", events.EventType_ContainerGetAll))
 }
 
 func (c *ContainerController) Create(unit *models.Container) error {
 	ctx := context.Background()
+	unit.Created = time.Now()
+	unit.Updated = time.Now()
+	unit.Revision = 1
+	// hash, err := util.NewSerializer(unit.Config, &bytes.Buffer{}).HashString()
+	// if err != nil {
+	// 	return err
+	// }
+	// unit.Digest = hash
 	err := c.repo.Set(ctx, unit)
 	if err != nil {
 		return err
 	}
-	e := &events.Event{
-		Type:      events.EventType_ContainerCreate,
-		Id:        *unit.Name,
-		EventId:   uuid.New().String(),
-		Timestamp: ptypes.TimestampNow(),
-	}
-	err = c.client.Publish(ctx, e)
-	if err != nil {
-		return err
-	}
-	return nil
+	return c.client.Publish(ctx, NewEventFor(*unit.Name, events.EventType_ContainerCreate))
 }
 
 func (c *ContainerController) Start(id string) error {
-	return c.repo.Start(context.Background(), id)
+	ctx := context.Background()
+	err := c.repo.Start(ctx, id)
+	if err != nil {
+		return err
+	}
+	return c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerStart))
 }
 
 func (c *ContainerController) Stop(id string) error {
-	err := c.repo.Stop(context.Background(), id)
+	ctx := context.Background()
+	err := c.repo.Stop(ctx, id)
 	if err != nil && !strings.Contains(err.Error(), "process already finished") {
 		return err
 	}
-	return nil
+	return c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerStop))
 }
 
 func (c *ContainerController) Delete(id string) error {
-	return c.repo.Delete(context.Background(), id)
+	ctx := context.Background()
+	err := c.repo.Delete(ctx, id)
+	if err != nil {
+		return err
+	}
+	return c.client.Publish(ctx, NewEventFor(id, events.EventType_ContainerDelete))
+}
+
+func NewEventFor(id string, t events.EventType) *events.Event {
+	return &events.Event{
+		Type:      t,
+		Id:        id,
+		EventId:   uuid.New().String(),
+		Timestamp: ptypes.TimestampNow(),
+	}
 }
 
 func newContainerController(client *client.LocalClient, r repo.ContainerRepo) *ContainerController {

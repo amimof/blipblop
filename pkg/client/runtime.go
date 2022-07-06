@@ -8,28 +8,54 @@ import (
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
+	"github.com/amimof/blipblop/pkg/util"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
-	"github.com/google/uuid"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"log"
 	"syscall"
 	"time"
 )
 
+const labelPrefix = "blipblop.io/"
+
 type RuntimeClient struct {
-	// GetAll(ctx context.Context) ([]*models.Container, error)
-	// Get(ctx context.Context, key string) (*models.Container, error)
-	// Set(ctx context.Context, unit *models.Container) error
-	// Delete(ctx context.Context, key string) error
-	// Start(ctx context.Context, key string) error
-	// Stop(ctx context.Context, key string) error
-	// Kill(ctx context.Context, key string) error
 	client *containerd.Client
 	cni    gocni.CNI
+}
+
+func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpts {
+	var opts []oci.SpecOpts
+	if len(envs) > 0 {
+		opts = append(opts, oci.WithEnv(envs))
+	}
+	if len(mounts) > 0 {
+		opts = append(opts, oci.WithMounts(mounts))
+	}
+	if len(args) > 0 {
+		opts = append(opts, oci.WithProcessArgs(args...))
+	}
+	return opts
+}
+
+func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
+	info, err := container.Labels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+func buildContainerLabels(container *models.Container) labels.Label {
+	l := labels.New()
+	l.Set(fmt.Sprintf("%s%s", labelPrefix, "revision"), util.Uint64ToString(container.Revision))
+	l.Set(fmt.Sprintf("%s%s", labelPrefix, "created"), container.Created.String())
+	l.Set(fmt.Sprintf("%s%s", labelPrefix, "updated"), container.Updated.String())
+	l.AppendMap(container.Labels)
+	return l
 }
 
 func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error) {
@@ -48,35 +74,29 @@ func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error)
 		if err != nil {
 			return nil, err
 		}
-		var netstatus models.NetworkStatus
-		var runstatus models.RuntimeStatus
-		if task, _ := c.Task(ctx, nil); task != nil {
-			if ip, _ := networking.GetIPAddress(fmt.Sprintf("%s-%d", task.ID(), task.Pid())); ip != nil {
-				netstatus.IP = ip
-			}
-			if status, _ := task.Status(ctx); &status != nil {
-				runstatus.Status = status.Status
-			}
-		}
+		// var netstatus models.NetworkStatus
+		// var runstatus models.RuntimeStatus
+		// if task, _ := c.Task(ctx, nil); task != nil {
+		// 	if ip, _ := networking.GetIPAddress(fmt.Sprintf("%s-%d", task.ID(), task.Pid())); ip != nil {
+		// 		netstatus.IP = ip
+		// 	}
+		// 	if status, _ := task.Status(ctx); &status != nil {
+		// 		runstatus.Status = status.Status
+		// 	}
+		// }
 		result[i] = &models.Container{
-			Name:   &info.ID,
-			Image:  &info.Image,
-			Labels: l,
-			Status: &models.Status{
-				Network: &netstatus,
-				Runtime: &runstatus,
+			Metadata: models.Metadata{
+				Name:     &info.ID,
+				Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
+				Created:  util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "created"))),
+				Updated:  util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "updated"))),
+			},
+			Config: &models.ContainerConfig{
+				Image: &info.Image,
 			},
 		}
 	}
 	return result, nil
-}
-
-func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
-	info, err := container.Labels(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return info, nil
 }
 
 func (c *RuntimeClient) Get(ctx context.Context, key string) (*models.Container, error) {
@@ -92,34 +112,19 @@ func (c *RuntimeClient) Get(ctx context.Context, key string) (*models.Container,
 	return nil, nil
 }
 
-func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpts {
-	var opts []oci.SpecOpts
-	if len(envs) > 0 {
-		opts = append(opts, oci.WithEnv(envs))
-	}
-	if len(mounts) > 0 {
-		opts = append(opts, oci.WithMounts(mounts))
-	}
-	if len(args) > 0 {
-		opts = append(opts, oci.WithProcessArgs(args...))
-	}
-	return opts
-}
-
 func (c *RuntimeClient) Set(ctx context.Context, unit *models.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
-	image, err := c.client.Pull(ctx, *unit.Image, containerd.WithPullUnpack)
+	image, err := c.client.Pull(ctx, *unit.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
 	}
 
 	// Configure labels
-	labels := labels.New()
-	labels.Set("blipblop.io/uuid", uuid.New().String())
+	l := buildContainerLabels(unit)
 
 	// Build OCI specification
-	opts := buildSpec(unit.EnvVars, unit.Mounts, unit.Args)
+	opts := buildSpec(unit.Config.EnvVars, unit.Config.Mounts, unit.Config.Args)
 	opts = append(opts, oci.WithHostname(*unit.Name))
 	opts = append(opts, oci.WithImageConfig(image))
 
@@ -129,7 +134,7 @@ func (c *RuntimeClient) Set(ctx context.Context, unit *models.Container) error {
 		*unit.Name,
 		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", *unit.Name), image),
 		containerd.WithNewSpec(opts...),
-		containerd.WithContainerLabels(labels),
+		containerd.WithContainerLabels(l),
 	)
 	if err != nil {
 		return err

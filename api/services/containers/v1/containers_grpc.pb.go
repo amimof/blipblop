@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -22,9 +23,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ContainerServiceClient interface {
-	GetTest(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error)
-	// rpc List(ListContainersRequest) returns (ListContainersResponse);
-	CreateTest(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
+	Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error)
+	List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error)
+	Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
+	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
+	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type containerServiceClient struct {
@@ -35,18 +38,36 @@ func NewContainerServiceClient(cc grpc.ClientConnInterface) ContainerServiceClie
 	return &containerServiceClient{cc}
 }
 
-func (c *containerServiceClient) GetTest(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error) {
+func (c *containerServiceClient) Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error) {
 	out := new(GetContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/GetTest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) CreateTest(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error) {
+func (c *containerServiceClient) List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error) {
+	out := new(ListContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/List", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error) {
 	out := new(CreateContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/CreateTest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Create", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +78,11 @@ func (c *containerServiceClient) CreateTest(ctx context.Context, in *CreateConta
 // All implementations must embed UnimplementedContainerServiceServer
 // for forward compatibility
 type ContainerServiceServer interface {
-	GetTest(context.Context, *GetContainerRequest) (*GetContainerResponse, error)
-	// rpc List(ListContainersRequest) returns (ListContainersResponse);
-	CreateTest(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
+	Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error)
+	List(context.Context, *ListContainerRequest) (*ListContainerResponse, error)
+	Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
+	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
+	Delete(context.Context, *DeleteContainerRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedContainerServiceServer()
 }
 
@@ -67,11 +90,17 @@ type ContainerServiceServer interface {
 type UnimplementedContainerServiceServer struct {
 }
 
-func (UnimplementedContainerServiceServer) GetTest(context.Context, *GetContainerRequest) (*GetContainerResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTest not implemented")
+func (UnimplementedContainerServiceServer) Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedContainerServiceServer) CreateTest(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateTest not implemented")
+func (UnimplementedContainerServiceServer) List(context.Context, *ListContainerRequest) (*ListContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedContainerServiceServer) Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
+}
+func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteContainerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
 func (UnimplementedContainerServiceServer) mustEmbedUnimplementedContainerServiceServer() {}
 
@@ -86,38 +115,74 @@ func RegisterContainerServiceServer(s grpc.ServiceRegistrar, srv ContainerServic
 	s.RegisterService(&ContainerService_ServiceDesc, srv)
 }
 
-func _ContainerService_GetTest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ContainerService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetContainerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContainerServiceServer).GetTest(ctx, in)
+		return srv.(ContainerServiceServer).Get(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/GetTest",
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).GetTest(ctx, req.(*GetContainerRequest))
+		return srv.(ContainerServiceServer).Get(ctx, req.(*GetContainerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContainerService_CreateTest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ContainerService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/List",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).List(ctx, req.(*ListContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContainerService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateContainerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ContainerServiceServer).CreateTest(ctx, in)
+		return srv.(ContainerServiceServer).Create(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/CreateTest",
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Create",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).CreateTest(ctx, req.(*CreateContainerRequest))
+		return srv.(ContainerServiceServer).Create(ctx, req.(*CreateContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContainerService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).Delete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Delete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).Delete(ctx, req.(*DeleteContainerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -130,12 +195,20 @@ var ContainerService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ContainerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetTest",
-			Handler:    _ContainerService_GetTest_Handler,
+			MethodName: "Get",
+			Handler:    _ContainerService_Get_Handler,
 		},
 		{
-			MethodName: "CreateTest",
-			Handler:    _ContainerService_CreateTest_Handler,
+			MethodName: "List",
+			Handler:    _ContainerService_List_Handler,
+		},
+		{
+			MethodName: "Create",
+			Handler:    _ContainerService_Create_Handler,
+		},
+		{
+			MethodName: "Delete",
+			Handler:    _ContainerService_Delete_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -15,6 +15,8 @@ type EventInformer struct {
 type EventHandlerFuncs struct {
 	OnContainerCreate func(obj *events.Event)
 	OnContainerDelete func(obj *events.Event)
+	OnContainerStart  func(obj *events.Event)
+	OnContainerStop   func(obj *events.Event)
 }
 
 func (i *EventInformer) AddHandler(h *EventHandlerFuncs) {
@@ -50,6 +52,10 @@ func handleEventEvent(h *EventHandlerFuncs, ev *events.Event) {
 		h.OnContainerCreate(ev)
 	case events.EventType_ContainerDelete:
 		h.OnContainerDelete(ev)
+	case events.EventType_ContainerStart:
+		h.OnContainerStart(ev)
+	case events.EventType_ContainerStop:
+		h.OnContainerStop(ev)
 	default:
 		log.Printf("Handler not implemented for event type %s", t)
 	}

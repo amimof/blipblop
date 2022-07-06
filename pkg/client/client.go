@@ -8,6 +8,7 @@ import (
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/services"
+	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -123,16 +124,54 @@ func (c *Client) ForgetNode(ctx context.Context) error {
 }
 
 func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container, error) {
-	res, err := c.containerService.GetTest(ctx, &containers.GetContainerRequest{Id: id})
+	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
 	container := &models.Container{
-		Name:   &res.Container.Id,
-		Image:  &res.Container.Image,
-		Labels: res.Container.Labels,
+		Metadata: models.Metadata{
+			Name:     &res.Container.Name,
+			Labels:   res.Container.Labels,
+			Created:  res.Container.Created.AsTime(),
+			Updated:  res.Container.Updated.AsTime(),
+			Revision: res.Container.Revision,
+		},
+		Config: &models.ContainerConfig{
+			Image: &res.Container.Config.Image,
+		},
 	}
 	return container, nil
+}
+
+func (c *Client) ListContainers(ctx context.Context) ([]*models.Container, error) {
+	var ctrns []*models.Container
+	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: labels.New()})
+	if err != nil {
+		return ctrns, err
+	}
+	for _, ctr := range res.Containers {
+		ctrns = append(ctrns, &models.Container{
+			Metadata: models.Metadata{
+				Name:     &ctr.Name,
+				Labels:   ctr.Labels,
+				Revision: ctr.Revision,
+				Created:  ctr.Created.AsTime(),
+				Updated:  ctr.Updated.AsTime(),
+			},
+			Config: &models.ContainerConfig{
+				Image: &ctr.Config.Image,
+			},
+		})
+	}
+	return ctrns, nil
+}
+
+func (c *Client) DeleteContainer(ctx context.Context, id string) error {
+	_, err := c.containerService.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {

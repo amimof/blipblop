@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-
 var containerRepo ContainerRepo
 
 type ContainerRepo interface {
@@ -55,6 +54,7 @@ func (i *inmemContainerRepo) Set(ctx context.Context, unit *models.Container) er
 	return nil
 }
 func (i *inmemContainerRepo) Delete(ctx context.Context, key string) error {
+	i.cache.Delete(key)
 	return nil
 }
 func (i *inmemContainerRepo) Start(ctx context.Context, key string) error {
