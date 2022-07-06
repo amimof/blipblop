@@ -1,10 +1,12 @@
 package util
 
 import (
-	"fmt"
 	"bytes"
-	"encoding/gob"
 	"crypto/sha256"
+	"encoding/gob"
+	"fmt"
+	"strconv"
+	"time"
 )
 
 type Serializer struct {
@@ -55,4 +57,21 @@ func PtrString(s string) *string {
 
 func PtrInt(i int) *int {
 	return &i
+}
+
+func Uint64ToString(u uint64) string {
+	return strconv.FormatUint(u, 10)
+}
+
+func StringToUint64(s string) uint64 {
+	n, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func StringToTimestamp(s string) time.Time {
+	t, _ := time.Parse(time.RFC3339, s)
+	return t
 }

@@ -38,27 +38,30 @@ func (c *ContainerService) Get(ctx context.Context, req *containers.GetContainer
 	}
 	return &containers.GetContainerResponse{
 		Container: &containers.Container{
-			Id:     *container.Name,
-			Image:  *container.Image,
-			Labels: container.Labels,
+			Name:     *container.Metadata.Name,
+			Labels:   container.Labels,
+			Created:  timestamppb.New(container.Created),
+			Updated:  timestamppb.New(container.Updated),
+			Revision: container.Revision,
+			Config: &containers.Config{
+				Image: *container.Config.Image,
+			},
 		},
 	}, nil
 }
 
 func (c *ContainerService) List(ctx context.Context, req *containers.ListContainerRequest) (*containers.ListContainerResponse, error) {
-	var result []*containers.Container
-	ctrns, err := c.Repo().GetAll(ctx)
+	ctrs, err := c.Repo().GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, ctr := range ctrns {
-		result = append(result, &containers.Container{
-			Id:      *ctr.Name,
-			Image:   *ctr.Image,
-			Labels:  ctr.Labels,
-			Created: timestamppb.New(ctr.Created),
-			Updated: timestamppb.New(ctr.Updated),
-		})
+	var result []*containers.Container
+	for _, container := range ctrs {
+		res, err := c.Get(ctx, &containers.GetContainerRequest{Id: *container.Name})
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, res.Container)
 	}
 	return &containers.ListContainerResponse{
 		Containers: result,

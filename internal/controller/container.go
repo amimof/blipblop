@@ -1,17 +1,15 @@
 package controller
 
 import (
-	"time"
-	"bytes"
 	"context"
-	"strings"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/util"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
+	"strings"
+	"time"
 )
 
 var containerController *ContainerController
@@ -43,12 +41,13 @@ func (c *ContainerController) Create(unit *models.Container) error {
 	ctx := context.Background()
 	unit.Created = time.Now()
 	unit.Updated = time.Now()
-	hash, err := util.NewSerializer(unit, &bytes.Buffer{}).HashString()
-	if err != nil {
-		return err
-	}
-	unit.Digest = hash
-	err = c.repo.Set(ctx, unit)
+	unit.Revision = 1
+	// hash, err := util.NewSerializer(unit.Config, &bytes.Buffer{}).HashString()
+	// if err != nil {
+	// 	return err
+	// }
+	// unit.Digest = hash
+	err := c.repo.Set(ctx, unit)
 	if err != nil {
 		return err
 	}

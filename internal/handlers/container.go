@@ -55,7 +55,7 @@ func (c containerHandler) Create() fiber.Handler {
 		existing, err := c.controller.Get(*unit.Name)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
-		} 
+		}
 		if existing != nil {
 			return ctx.Status(fiber.StatusConflict).SendString(fmt.Sprintf("failed to create container: %s already exists", *unit.Name))
 		}
@@ -73,7 +73,7 @@ func (c containerHandler) Update() fiber.Handler {
 		existing, err := c.controller.Get(id)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
-		} 
+		}
 		if existing == nil {
 			return ctx.Status(fiber.StatusNotFound).SendString(fmt.Sprintf("failed to update container: %s doesn't exist", id))
 		}
@@ -87,7 +87,7 @@ func (c containerHandler) Delete() fiber.Handler {
 		existing, err := c.controller.Get(id)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
-		} 
+		}
 		if existing == nil {
 			return ctx.Status(fiber.StatusNotFound).SendString(fmt.Sprintf("failed to delete container: %s doesn't exist", id))
 		}
@@ -105,7 +105,7 @@ func (c containerHandler) Start() fiber.Handler {
 		existing, err := c.controller.Get(id)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
-		} 
+		}
 		if existing == nil {
 			return ctx.Status(fiber.StatusNotFound).SendString(fmt.Sprintf("failed to start container: %s doesn't exist", id))
 		}
@@ -123,7 +123,7 @@ func (c containerHandler) Stop() fiber.Handler {
 		existing, err := c.controller.Get(id)
 		if err != nil {
 			return ctx.Status(fiber.StatusInternalServerError).SendString(err.Error())
-		} 
+		}
 		if existing == nil {
 			return ctx.Status(fiber.StatusNotFound).SendString(fmt.Sprintf("failed to stop container: %s doesn't exist", id))
 		}

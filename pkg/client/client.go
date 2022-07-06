@@ -129,9 +129,16 @@ func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container
 		return nil, err
 	}
 	container := &models.Container{
-		Name:   &res.Container.Id,
-		Image:  &res.Container.Image,
-		Labels: res.Container.Labels,
+		Metadata: models.Metadata{
+			Name:     &res.Container.Name,
+			Labels:   res.Container.Labels,
+			Created:  res.Container.Created.AsTime(),
+			Updated:  res.Container.Updated.AsTime(),
+			Revision: res.Container.Revision,
+		},
+		Config: &models.ContainerConfig{
+			Image: &res.Container.Config.Image,
+		},
 	}
 	return container, nil
 }
@@ -144,11 +151,16 @@ func (c *Client) ListContainers(ctx context.Context) ([]*models.Container, error
 	}
 	for _, ctr := range res.Containers {
 		ctrns = append(ctrns, &models.Container{
-			Name:    &ctr.Id,
-			Image:   &ctr.Image,
-			Labels:  ctr.Labels,
-			Created: ctr.Created.AsTime(),
-			Updated: ctr.Updated.AsTime(),
+			Metadata: models.Metadata{
+				Name:     &ctr.Name,
+				Labels:   ctr.Labels,
+				Revision: ctr.Revision,
+				Created:  ctr.Created.AsTime(),
+				Updated:  ctr.Updated.AsTime(),
+			},
+			Config: &models.ContainerConfig{
+				Image: &ctr.Config.Image,
+			},
 		})
 	}
 	return ctrns, nil

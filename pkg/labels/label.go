@@ -9,7 +9,7 @@ type Label map[string]string
 
 var DefaultContainerLabels = []string{"blipblop.io/uuid"}
 
-func (l *Label) Value(key string) *string {
+func (l *Label) Get(key string) *string {
 	if val, ok := (*l)[key]; ok {
 		return &val
 	}
@@ -18,6 +18,12 @@ func (l *Label) Value(key string) *string {
 
 func (l *Label) Set(key string, value string) {
 	(*l)[key] = value
+}
+
+func (l *Label) AppendMap(m map[string]string) {
+	for k, v := range m {
+		l.Set(k, v)
+	}
 }
 
 func New() Label {

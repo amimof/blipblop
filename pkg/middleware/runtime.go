@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	//"os"
 	"context"
 	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
@@ -11,7 +10,6 @@ import (
 	"github.com/containerd/containerd/api/events"
 	gocni "github.com/containerd/go-cni"
 	"log"
-	"reflect"
 )
 
 type runtimeMiddleware struct {
@@ -48,44 +46,50 @@ func (r *runtimeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 // Checks to see if c is present in cs
 func contains(cs []*models.Container, c *models.Container) bool {
 	for _, container := range cs {
-		if reflect.DeepEqual(container, c) {
+		if container.Revision == c.Revision && *container.Name == *c.Name {
 			return true
 		}
 	}
 	return false
 }
 
+// Recouncile ensures that desired containers matches with containers
+// in the runtime environment. It removes any containers that are not
+// desired (missing from the server) and adds those missing from runtime.
+// It is preferrably run early during startup of the controller.
 func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
-	var toremove []*models.Container
-	var toadd []*models.Container
-	//var toupdate []*models.Container
-
+	// Get containers from the server. Ultimately we want these to match with our runtime
 	containers, err := r.client.ListContainers(ctx)
 	if err != nil {
 		return err
 	}
-	log.Printf("Got %d containers from server", len(containers))
 
+	// Get containers from our runtime
 	currentContainers, err := r.runtime.GetAll(ctx)
 	if err != nil {
 		return err
 	}
-	log.Printf("Got %d containers from runtime env", len(currentContainers))
 
+	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, c := range currentContainers {
 		if !contains(containers, c) {
-			toremove = append(toremove, c)
+			r.runtime.Kill(ctx, *c.Name)
+			err := r.runtime.Delete(ctx, *c.Name)
+			if err != nil {
+				log.Printf("error removing container: %s", err)
+			}
 		}
 	}
-	log.Printf("Going to remove %d from runtime env", len(toremove))
 
+	// Check if  there are containers on the server that doesn't exist in our runtime
 	for _, c := range containers {
 		if !contains(currentContainers, c) {
-			toadd = append(toadd, c)
+			err := r.runtime.Set(ctx, c)
+			if err != nil {
+				log.Printf("error creating container: %s", err)
+			}
 		}
 	}
-	log.Printf("Going to add %d to runtime env", len(toremove))
-
 	return nil
 }
 
