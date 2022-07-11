@@ -3,60 +3,117 @@ syntax = "proto3";
 package blipblop.services.nodes.v1;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 
 service NodeService {
+  rpc List(ListNodeRequest) returns (ListNodeResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/nodes"
+    };
+  }
+  rpc Get(GetNodeRequest) returns (GetNodeResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/nodes/{id}"
+    };
+  }
+  rpc Create(CreateNodeRequest) returns (CreateNodeResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/nodes"
+      body: "node"
+    };
+  }
+  rpc Update(UpdateNodeRequest) returns (UpdateNodeResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/nodes/{node.name}"
+      body: "node"
+      additional_bindings {
+        patch: "/api/v1/nodes/{node.name}"
+        body: "node"
+      }
+    };
+  }
+  rpc Delete(DeleteNodeRequest) returns (DeleteNodeResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/nodes/{id}"
+    };
+  }
   rpc Join(JoinRequest) returns (JoinResponse) {}
   rpc Forget(ForgetRequest) returns (ForgetResponse) {}
-  // rpc Subscribe(Node) returns (stream Event) {}
-  // rpc FireEvent(stream Event) returns (EventAck) {}
-}
-
-enum Status {
-  JoinFail = 0;
-  JoinSuccess = 1;
-  ForgetFail = 2;
-  ForgetSuccess = 3;
 }
 
 message Node {
+  string name = 1;
+  map<string, string> labels = 2;
+	google.protobuf.Timestamp created = 3;
+	google.protobuf.Timestamp updated = 4;
+	uint64 revision = 5;
+  Status status = 6;
+}
+
+message Status {
+  repeated string ips = 1;
+  string hostname = 2;
+  string arch = 3;
+  string os = 4;
+  bool ready = 5;
+}
+
+message GetNodeRequest {
   string id = 1;
 }
 
+message GetNodeResponse {
+  Node node = 1;
+}
+
+message CreateNodeRequest {
+  Node node = 1;
+}
+
+message CreateNodeResponse {
+  Node node = 1;
+}
+
+message DeleteNodeRequest {
+  string id = 1;
+}
+
+message DeleteNodeResponse {
+  string id = 1;
+}
+
+message UpdateNodeRequest {
+  Node node = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateNodeResponse {
+  Node node = 1;
+}
+
+message ListNodeRequest {
+  map<string, string> selector = 1;
+}
+
+message ListNodeResponse {
+  repeated Node nodes = 1;
+}
+
 message JoinRequest {
-  google.protobuf.Timestamp at = 1;
-  Node node = 2;
+  Node node = 1;
 }
 
 message JoinResponse {
-  google.protobuf.Timestamp at = 1;
-  Node node = 2;
-  Status status = 3;
+  string id = 1;
 }
 
 message ForgetRequest {
-  string node = 1;
+  string id = 1;
 }
 
 message ForgetResponse {
-  string node = 1;
-  Status status = 2;
+  string id = 1;
 }
-
-// message Event {
-//   string name = 1;
-//   Node node = 2;
-//   bytes payload = 3;
-//   EventType type = 4;
-// }
-
-// message EventAck {
-//   string status = 1;
-// }
-
-// enum EventType {
-// 	ContainerCreate = 0;
-// 	ContainerDelete = 1;
-//   ContainerUpdate = 2;
-// }

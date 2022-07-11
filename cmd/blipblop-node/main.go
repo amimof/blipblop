@@ -87,20 +87,18 @@ func main() {
 	}
 
 	// Setup node service client
-	client, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	c, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	defer client.Close()
+	defer c.Close()
 
 	// Join node
 	ctx := context.Background()
-	err = client.JoinNode(ctx, nodeName)
+	err = c.JoinNode(ctx, client.NewNodeFromEnv(nodeName))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-
-	// Recouncile state
 
 	// Setup signal handler
 	done := make(chan os.Signal, 1)
@@ -108,7 +106,7 @@ func main() {
 	go func() {
 		select {
 		case <-done:
-			err := client.ForgetNode(ctx)
+			err := c.ForgetNode(ctx, nodeName)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s", err.Error())
 			}
@@ -131,8 +129,9 @@ func main() {
 
 	// Setup controllers
 	mdlwr := middleware.NewManager(
-		middleware.WithRuntime(client, cclient, cni),
-		middleware.WithEvents(client, cclient, cni),
+		middleware.WithRuntime(c, cclient, cni),
+		middleware.WithEvents(c, cclient, cni),
+		middleware.WithNode(c, cclient, cni),
 	)
 	mdlwr.Run(ctx)
 	defer mdlwr.Stop()

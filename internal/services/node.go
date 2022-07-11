@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/repo"
-	"github.com/amimof/blipblop/pkg/util"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/proto"
 	"sync"
 )
 
@@ -18,38 +15,92 @@ var nodeService *NodeService
 type NodeService struct {
 	mu sync.Mutex
 	nodes.UnimplementedNodeServiceServer
-	repo    repo.NodeRepo
-	nodes   []*models.Node
-	channel map[string][]chan *events.Event
+	repo repo.NodeRepo
 }
 
-func (n *NodeService) Get(id string) (*models.Node, error) {
-	node, err := n.Repo().Get(context.Background(), id)
+func (n *NodeService) Get(ctx context.Context, req *nodes.GetNodeRequest) (*nodes.GetNodeResponse, error) {
+	node, err := n.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
-	for _, ch := range n.channel[id] {
-		ch <- &events.Event{
-			//Name: "ContainerCreate",
-			Type: events.EventType_ContainerCreate,
-			// Node: &nodes.Node{
-			// 	Id: id,
-			// },
-		}
+	return &nodes.GetNodeResponse{
+		Node: node,
+	}, nil
+}
+
+func (n *NodeService) Create(ctx context.Context, req *nodes.CreateNodeRequest) (*nodes.CreateNodeResponse, error) {
+	err := n.Repo().Create(ctx, req.Node)
+	if err != nil {
+		return nil, err
 	}
-	return node, err
+	node, err := n.Repo().Get(ctx, req.Node.Name)
+	return &nodes.CreateNodeResponse{
+		Node: node,
+	}, nil
 }
 
-func (n *NodeService) All() ([]*models.Node, error) {
-	return n.Repo().GetAll(context.Background())
+func (n *NodeService) Delete(ctx context.Context, req *nodes.DeleteNodeRequest) (*nodes.DeleteNodeResponse, error) {
+	err := n.Repo().Delete(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &nodes.DeleteNodeResponse{
+		Id: req.Id,
+	}, nil
 }
 
-func (n *NodeService) Create(node *models.Node) error {
-	return n.Repo().Create(context.Background(), node)
+func (n *NodeService) List(ctx context.Context, req *nodes.ListNodeRequest) (*nodes.ListNodeResponse, error) {
+	res, err := n.Repo().List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &nodes.ListNodeResponse{
+		Nodes: res,
+	}, nil
 }
 
-func (n *NodeService) Delete(id string) error {
-	return n.Repo().Delete(context.Background(), id)
+func (n *NodeService) Update(ctx context.Context, req *nodes.UpdateNodeRequest) (*nodes.UpdateNodeResponse, error) {
+	updateMask := req.GetUpdateMask()
+	updateNode := req.GetNode()
+	existingNode, err := n.Repo().Get(ctx, updateNode.GetName())
+	if err != nil {
+		return nil, err
+	}
+	if updateMask != nil && updateMask.IsValid(existingNode) {
+		proto.Merge(existingNode, updateNode)
+	}
+	err = n.Repo().Update(ctx, existingNode)
+	if err != nil {
+		return nil, err
+	}
+	return &nodes.UpdateNodeResponse{
+		Node: req.Node,
+	}, nil
+}
+
+func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.JoinResponse, error) {
+	if node, _ := n.Get(ctx, &nodes.GetNodeRequest{Id: req.Node.Name}); node.GetNode() != nil {
+		return &nodes.JoinResponse{
+			Id: req.Node.Name,
+		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Name))
+	}
+	_, err := n.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node})
+	if err != nil {
+		return nil, err
+	}
+	return &nodes.JoinResponse{
+		Id: req.Node.Name,
+	}, nil
+}
+
+func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
+	_, err := n.Delete(ctx, &nodes.DeleteNodeRequest{Id: req.Id})
+	if err != nil {
+		return nil, err
+	}
+	return &nodes.ForgetResponse{
+		Id: req.Id,
+	}, nil
 }
 
 func (n *NodeService) Repo() repo.NodeRepo {
@@ -61,46 +112,9 @@ func (n *NodeService) Repo() repo.NodeRepo {
 	return repo.NewNodeRepo()
 }
 
-func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.JoinResponse, error) {
-	if node, _ := n.Get(req.Node.Id); node != nil {
-		return &nodes.JoinResponse{
-			Node: req.Node,
-			//At: types.TimestampNow(),
-			Status: nodes.Status_JoinFail,
-		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Id))
-	}
-	node := &models.Node{
-		Name:    util.PtrString(req.Node.Id),
-		Created: ptypes.TimestampNow().String(),
-	}
-	err := n.Create(node)
-	if err != nil {
-		return nil, err
-	}
-	return &nodes.JoinResponse{
-		Node: req.Node,
-		//At: types.TimestampNow(),
-		Status: nodes.Status_JoinSuccess,
-	}, nil
-}
-
-func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
-	res := &nodes.ForgetResponse{
-		Node:   req.Node,
-		Status: nodes.Status_ForgetSuccess,
-	}
-	err := n.Delete(req.Node)
-	if err != nil {
-		res.Status = nodes.Status_ForgetFail
-		return res, err
-	}
-	return res, nil
-}
-
 func newNodeService(r repo.NodeRepo) *NodeService {
 	return &NodeService{
-		repo:    r,
-		channel: make(map[string][]chan *events.Event),
+		repo: r,
 	}
 }
 

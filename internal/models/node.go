@@ -1,17 +1,14 @@
 package models
 
-import (
-	"github.com/amimof/blipblop/pkg/labels"
-	"time"
-	//"github.com/gogo/protobuf/types"
-)
-
 type Node struct {
-	Name    *string `json:"name,omitempty"`
-	Labels  labels.Label
-	Created string
+	Metadata
+	Status *NodeStatus `json:"status,omitempty"`
 }
 
 type NodeStatus struct {
-	LastSeenSeconds time.Duration
+	IPs      []*string `json:"ips,omitempty"`
+	HostName *string   `json:"hostname,omitempty"`
+	Arch     *string   `json:"arch,omitempty"`
+	Os       *string   `json:"os,omitempty"`
+	Ready    *bool     `json:"ready"`
 }

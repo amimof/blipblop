@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"context"
-	"github.com/amimof/blipblop/internal/models"
+	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
@@ -19,7 +19,6 @@ type runtimeMiddleware struct {
 	runtime  *client.RuntimeClient
 }
 
-//
 func (r *runtimeMiddleware) exitHandler(e *events.TaskExit) {
 	// ctx := context.Background()
 	// err := r.repo.Kill(ctx, e.ID)
@@ -44,9 +43,9 @@ func (r *runtimeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 }
 
 // Checks to see if c is present in cs
-func contains(cs []*models.Container, c *models.Container) bool {
+func contains(cs []*containers.Container, c *containers.Container) bool {
 	for _, container := range cs {
-		if container.Revision == c.Revision && *container.Name == *c.Name {
+		if container.Revision == c.Revision && container.Name == c.Name {
 			return true
 		}
 	}
@@ -65,7 +64,7 @@ func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 	}
 
 	// Get containers from our runtime
-	currentContainers, err := r.runtime.GetAll(ctx)
+	currentContainers, err := r.runtime.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -73,8 +72,8 @@ func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, c := range currentContainers {
 		if !contains(containers, c) {
-			r.runtime.Kill(ctx, *c.Name)
-			err := r.runtime.Delete(ctx, *c.Name)
+			r.runtime.Kill(ctx, c.Name)
+			err := r.runtime.Delete(ctx, c.Name)
 			if err != nil {
 				log.Printf("error removing container: %s", err)
 			}

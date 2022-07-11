@@ -33,10 +33,10 @@ func (c *containerMiddleware) onContainerCreate(obj *events.Event) {
 	}
 	err = c.runtime.Set(ctx, cont)
 	if err != nil {
-		log.Printf("error creating container %s with error: %s", *cont.Name, err)
+		log.Printf("error creating container %s with error: %s", cont.Name, err)
 		return
 	}
-	log.Printf("successfully created container: %s", *cont.Name)
+	log.Printf("successfully created container: %s", cont.Name)
 }
 
 func (c *containerMiddleware) onContainerDelete(obj *events.Event) {
