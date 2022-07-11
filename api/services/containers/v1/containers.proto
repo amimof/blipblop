@@ -3,22 +3,48 @@ syntax = "proto3";
 package blipblop.services.containers.v1;
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
 service ContainerService {
-  rpc Get(GetContainerRequest) returns (GetContainerResponse) {};
+  rpc Get(GetContainerRequest) returns (GetContainerResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/containers/{id}"
+    };
+	}
 	rpc List(ListContainerRequest) returns (ListContainerResponse) {
 		option (google.api.http) = {
 			get: "/api/v1/containers"
 		};
 	}
-	rpc Create(CreateContainerRequest) returns (CreateContainerResponse) {};
-	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
-	rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty) {};
+	rpc Create(CreateContainerRequest) returns (CreateContainerResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/containers"
+      body: "container"
+    };
+	}
+	rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/containers/{container.name}"
+      body: "container"
+      additional_bindings {
+        patch: "/api/v1/containers/{container.name}"
+        body: "container"
+      }
+    };
+	}
+	rpc Delete(DeleteContainerRequest) returns (DeleteContainerResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/container/{id}"
+    };
+	}
+	rpc Start(StartContainerRequest) returns (StartContainerResponse) {}
+	rpc Stop(StopContainerRequest) returns (StopContainerResponse) {}
+	rpc Kill(KillContainerRequest) returns (KillContainerResponse) {}
 }
+
 
 message Container {
   string name = 1;
@@ -74,7 +100,20 @@ message CreateContainerResponse {
 	Container container = 1;
 }
 
+message UpdateContainerRequest {
+  Container container = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message UpdateContainerResponse {
+  Container container = 1;
+}
+
 message DeleteContainerRequest {
+	string id = 1;
+}
+
+message DeleteContainerResponse {
 	string id = 1;
 }
 
@@ -85,3 +124,28 @@ message ListContainerRequest {
 message ListContainerResponse {
 	repeated Container containers = 1;
 }
+
+message StartContainerRequest {
+	string id = 1;
+}
+
+message StartContainerResponse {
+	string id = 1;
+}
+
+message StopContainerRequest {
+	string id = 1;
+}
+
+message StopContainerResponse {
+	string id = 1;
+}
+
+message KillContainerRequest {
+	string id = 1;
+}
+
+message KillContainerResponse {
+	string id = 1;
+}
+
