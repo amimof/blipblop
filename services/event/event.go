@@ -3,9 +3,12 @@ package event
 import (
 	"context"
 	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/google/uuid"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
+	"time"
 )
 
 var eventService *EventService
@@ -16,12 +19,9 @@ type EventService struct {
 }
 
 func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
-	log.Printf("Added subscriber %s", req.Id)
 	eventChan := make(chan *events.Event)
 	n.channel[req.Id] = append(n.channel[req.Id], eventChan)
-
 	log.Printf("Node %s joined", req.Id)
-
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -78,4 +78,13 @@ func NewEventService() *EventService {
 		eventService = newEventService()
 	}
 	return eventService
+}
+
+func NewEventFor(id string, t events.EventType) *events.Event {
+	return &events.Event{
+		Type:      t,
+		Id:        id,
+		EventId:   uuid.New().String(),
+		Timestamp: timestamppb.New(time.Now()),
+	}
 }

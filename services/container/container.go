@@ -2,91 +2,63 @@ package container
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/amimof/blipblop/api/services/containers/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"sync"
-	"time"
+	"github.com/amimof/blipblop/services/event"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"google.golang.org/grpc"
 )
-
-var containerService *ContainerService
 
 type ContainerService struct {
 	containers.UnimplementedContainerServiceServer
-	repo Repo
-	mu   sync.Mutex
+	local containers.ContainerServiceClient
+}
+
+func NewService(repo Repo, ev *event.EventService) *ContainerService {
+	return &ContainerService{
+		local: &local{
+			repo:        repo,
+			eventClient: ev,
+		},
+	}
+}
+
+func (c *ContainerService) Register(server *grpc.Server) error {
+	containers.RegisterContainerServiceServer(server, c)
+	return nil
+}
+
+func (c *ContainerService) RegisterHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+	return containers.RegisterContainerServiceHandler(ctx, mux, conn)
 }
 
 func (c *ContainerService) Get(ctx context.Context, req *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {
-	container, err := c.Repo().Get(ctx, req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	if container == nil {
-		return nil, errors.New(fmt.Sprintf("container not found %s", req.GetId()))
-	}
-	return &containers.GetContainerResponse{
-		Container: container,
-	}, nil
+	return c.local.Get(ctx, req)
 }
 
 func (c *ContainerService) List(ctx context.Context, req *containers.ListContainerRequest) (*containers.ListContainerResponse, error) {
-	ctrs, err := c.Repo().GetAll(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &containers.ListContainerResponse{
-		Containers: ctrs,
-	}, nil
+	return c.local.List(ctx, req)
 }
 
 func (c *ContainerService) Create(ctx context.Context, req *containers.CreateContainerRequest) (*containers.CreateContainerResponse, error) {
-	container := req.GetContainer()
-	container.Created = timestamppb.New(time.Now())
-	container.Updated = timestamppb.New(time.Now())
-	container.Revision = 1
-	err := c.Repo().Create(ctx, container)
-	if err != nil {
-		return nil, err
-	}
-	container, err = c.Repo().Get(ctx, container.GetName())
-	if err != nil {
-		return nil, err
-	}
-	return &containers.CreateContainerResponse{
-		Container: container,
-	}, nil
+	return c.local.Create(ctx, req)
 }
 
 func (c *ContainerService) Delete(ctx context.Context, req *containers.DeleteContainerRequest) (*containers.DeleteContainerResponse, error) {
-	err := c.Repo().Delete(ctx, req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	return &containers.DeleteContainerResponse{
-		Id: req.GetId(),
-	}, nil
+	return c.local.Delete(ctx, req)
 }
 
-func (c *ContainerService) Repo() Repo {
-	if c.repo != nil {
-		return c.repo
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return NewInMemRepo()
+func (c *ContainerService) Kill(ctx context.Context, req *containers.KillContainerRequest) (*containers.KillContainerResponse, error) {
+	return c.local.Kill(ctx, req)
 }
 
-func newContainerService(repo Repo) *ContainerService {
-	return &ContainerService{
-		repo: repo,
-	}
+func (c *ContainerService) Start(ctx context.Context, req *containers.StartContainerRequest) (*containers.StartContainerResponse, error) {
+	return c.local.Start(ctx, req)
 }
 
-func NewContainerService() *ContainerService {
-	if containerService == nil {
-		containerService = newContainerService(NewInMemRepo())
-	}
-	return containerService
+func (c *ContainerService) Stop(ctx context.Context, req *containers.StopContainerRequest) (*containers.StopContainerResponse, error) {
+	return c.local.Stop(ctx, req)
+}
+
+func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateContainerRequest) (*containers.UpdateContainerResponse, error) {
+	return c.local.Update(ctx, req)
 }
