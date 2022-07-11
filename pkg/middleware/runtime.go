@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/internal/repo"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
 	"github.com/containerd/containerd"
@@ -14,7 +13,6 @@ import (
 
 type runtimeMiddleware struct {
 	informer *informer.RuntimeInformer
-	repo     repo.ContainerRepo
 	client   *client.Client
 	runtime  *client.RuntimeClient
 }

@@ -5,7 +5,6 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/internal/services"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -30,12 +29,6 @@ type Client struct {
 	containerService containers.ContainerServiceClient
 	runtime          *RuntimeClient
 	mu               sync.Mutex
-}
-
-type LocalClient struct {
-	nodeService      *services.NodeService
-	eventService     *services.EventService
-	containerService *services.ContainerService
 }
 
 func getIpAddressesAsString() []string {
@@ -171,29 +164,6 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan er
 	return evc, errc
 }
 
-func (l *LocalClient) NodeService() *services.NodeService {
-	return l.nodeService
-}
-
-func (l *LocalClient) EventService() *services.EventService {
-	return l.eventService
-}
-
-func (l *LocalClient) ContainerService() *services.ContainerService {
-	return l.containerService
-}
-
-func (l *LocalClient) Publish(ctx context.Context, e *events.Event) error {
-	req := &events.PublishRequest{
-		Event: e,
-	}
-	_, err := l.EventService().Publish(ctx, req)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func New(server string) (*Client, error) {
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
@@ -226,12 +196,4 @@ func NewNodeFromEnv(s string) *nodes.Node {
 		},
 	}
 	return n
-}
-
-func NewLocalClient(nodeService *services.NodeService, eventService *services.EventService, containerService *services.ContainerService) *LocalClient {
-	return &LocalClient{
-		nodeService:      nodeService,
-		eventService:     eventService,
-		containerService: containerService,
-	}
 }

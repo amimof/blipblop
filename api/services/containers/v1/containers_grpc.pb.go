@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -26,8 +25,11 @@ type ContainerServiceClient interface {
 	Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error)
 	List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error)
 	Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
-	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
-	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Update(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error)
+	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error)
+	Start(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*StartContainerResponse, error)
+	Stop(ctx context.Context, in *StopContainerRequest, opts ...grpc.CallOption) (*StopContainerResponse, error)
+	Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error)
 }
 
 type containerServiceClient struct {
@@ -65,9 +67,45 @@ func (c *containerServiceClient) Create(ctx context.Context, in *CreateContainer
 	return out, nil
 }
 
-func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *containerServiceClient) Update(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error) {
+	out := new(UpdateContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Update", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error) {
+	out := new(DeleteContainerResponse)
 	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Delete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) Start(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*StartContainerResponse, error) {
+	out := new(StartContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Start", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) Stop(ctx context.Context, in *StopContainerRequest, opts ...grpc.CallOption) (*StopContainerResponse, error) {
+	out := new(StopContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Stop", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *containerServiceClient) Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error) {
+	out := new(KillContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Kill", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +119,11 @@ type ContainerServiceServer interface {
 	Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error)
 	List(context.Context, *ListContainerRequest) (*ListContainerResponse, error)
 	Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
-	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
-	Delete(context.Context, *DeleteContainerRequest) (*emptypb.Empty, error)
+	Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error)
+	Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error)
+	Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error)
+	Stop(context.Context, *StopContainerRequest) (*StopContainerResponse, error)
+	Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error)
 	mustEmbedUnimplementedContainerServiceServer()
 }
 
@@ -99,8 +140,20 @@ func (UnimplementedContainerServiceServer) List(context.Context, *ListContainerR
 func (UnimplementedContainerServiceServer) Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
 }
-func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteContainerRequest) (*emptypb.Empty, error) {
+func (UnimplementedContainerServiceServer) Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedContainerServiceServer) Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Start not implemented")
+}
+func (UnimplementedContainerServiceServer) Stop(context.Context, *StopContainerRequest) (*StopContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedContainerServiceServer) Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Kill not implemented")
 }
 func (UnimplementedContainerServiceServer) mustEmbedUnimplementedContainerServiceServer() {}
 
@@ -169,6 +222,24 @@ func _ContainerService_Create_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContainerService_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).Update(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Update",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).Update(ctx, req.(*UpdateContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ContainerService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteContainerRequest)
 	if err := dec(in); err != nil {
@@ -183,6 +254,60 @@ func _ContainerService_Delete_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerServiceServer).Delete(ctx, req.(*DeleteContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContainerService_Start_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).Start(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Start",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).Start(ctx, req.(*StartContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContainerService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).Stop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Stop",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).Stop(ctx, req.(*StopContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContainerService_Kill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KillContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).Kill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Kill",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).Kill(ctx, req.(*KillContainerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -207,8 +332,24 @@ var ContainerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ContainerService_Create_Handler,
 		},
 		{
+			MethodName: "Update",
+			Handler:    _ContainerService_Update_Handler,
+		},
+		{
 			MethodName: "Delete",
 			Handler:    _ContainerService_Delete_Handler,
+		},
+		{
+			MethodName: "Start",
+			Handler:    _ContainerService_Start_Handler,
+		},
+		{
+			MethodName: "Stop",
+			Handler:    _ContainerService_Stop_Handler,
+		},
+		{
+			MethodName: "Kill",
+			Handler:    _ContainerService_Kill_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

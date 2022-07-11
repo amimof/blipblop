@@ -1,4 +1,4 @@
-package repo
+package node
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-var nodeRepo NodeRepo
+var nodeRepo Repo
 
-type NodeRepo interface {
+type Repo interface {
 	Get(ctx context.Context, key string) (*nodes.Node, error)
 	List(ctx context.Context) ([]*nodes.Node, error)
 	Create(ctx context.Context, node *nodes.Node) error
@@ -18,11 +18,11 @@ type NodeRepo interface {
 	Update(ctx context.Context, node *nodes.Node) error
 }
 
-type inmemNodeRepo struct {
+type inmemRepo struct {
 	cache *cache.Cache
 }
 
-func (u *inmemNodeRepo) List(ctx context.Context) ([]*nodes.Node, error) {
+func (u *inmemRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 	var n []*nodes.Node
 	for _, k := range u.cache.ListKeys() {
 		node, _ := u.Get(ctx, k)
@@ -31,7 +31,7 @@ func (u *inmemNodeRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 	return n, nil
 }
 
-func (u *inmemNodeRepo) Get(ctx context.Context, key string) (*nodes.Node, error) {
+func (u *inmemRepo) Get(ctx context.Context, key string) (*nodes.Node, error) {
 	val := u.cache.Get(key)
 	if val == nil {
 		return nil, nil
@@ -39,33 +39,33 @@ func (u *inmemNodeRepo) Get(ctx context.Context, key string) (*nodes.Node, error
 	return val.Value.(*nodes.Node), nil
 }
 
-func (u *inmemNodeRepo) Create(ctx context.Context, node *nodes.Node) error {
+func (u *inmemRepo) Create(ctx context.Context, node *nodes.Node) error {
 	log.Printf("Node %+v", node)
 	u.cache.Set(node.Name, node)
 	return nil
 }
 
-func (u *inmemNodeRepo) Update(ctx context.Context, node *nodes.Node) error {
+func (u *inmemRepo) Update(ctx context.Context, node *nodes.Node) error {
 	u.cache.Set(node.Name, node)
 	return nil
 }
 
-func (u *inmemNodeRepo) Delete(ctx context.Context, key string) error {
+func (u *inmemRepo) Delete(ctx context.Context, key string) error {
 	u.cache.Delete(key)
 	return nil
 }
 
-func newNodeRepo() NodeRepo {
+func newRepo() Repo {
 	c := cache.New()
 	c.TTL = time.Hour * 24
-	return &inmemNodeRepo{
+	return &inmemRepo{
 		cache: c,
 	}
 }
 
-func NewNodeRepo() NodeRepo {
+func NewRepo() Repo {
 	if nodeRepo == nil {
-		nodeRepo = newNodeRepo()
+		nodeRepo = newRepo()
 	}
 	return nodeRepo
 }

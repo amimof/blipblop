@@ -1,11 +1,10 @@
-package services
+package node
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/internal/repo"
 	"google.golang.org/protobuf/proto"
 	"sync"
 )
@@ -15,7 +14,7 @@ var nodeService *NodeService
 type NodeService struct {
 	mu sync.Mutex
 	nodes.UnimplementedNodeServiceServer
-	repo repo.NodeRepo
+	repo Repo
 }
 
 func (n *NodeService) Get(ctx context.Context, req *nodes.GetNodeRequest) (*nodes.GetNodeResponse, error) {
@@ -34,6 +33,9 @@ func (n *NodeService) Create(ctx context.Context, req *nodes.CreateNodeRequest) 
 		return nil, err
 	}
 	node, err := n.Repo().Get(ctx, req.Node.Name)
+	if err != nil {
+		return nil, err
+	}
 	return &nodes.CreateNodeResponse{
 		Node: node,
 	}, nil
@@ -103,16 +105,16 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 	}, nil
 }
 
-func (n *NodeService) Repo() repo.NodeRepo {
+func (n *NodeService) Repo() Repo {
 	if n.repo != nil {
 		return n.repo
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return repo.NewNodeRepo()
+	return NewRepo()
 }
 
-func newNodeService(r repo.NodeRepo) *NodeService {
+func newNodeService(r Repo) *NodeService {
 	return &NodeService{
 		repo: r,
 	}
@@ -120,12 +122,12 @@ func newNodeService(r repo.NodeRepo) *NodeService {
 
 func NewNodeService() *NodeService {
 	if nodeService == nil {
-		nodeService = newNodeService(repo.NewNodeRepo())
+		nodeService = newNodeService(NewRepo())
 	}
 	return nodeService
 }
 
-func NewNodeServiceWithRepo(r repo.NodeRepo) *NodeService {
+func NewNodeServiceWithRepo(r Repo) *NodeService {
 	n := NewNodeService()
 	n.repo = r
 	return n
