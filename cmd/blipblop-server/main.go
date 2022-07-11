@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 	"github.com/amimof/blipblop/internal/api"
-	"github.com/amimof/blipblop/pkg/server"
-	"github.com/opentracing/opentracing-go"
+	//"github.com/amimof/blipblop/pkg/server"
+	//"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	//"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
-	"github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/config"
+	//"github.com/uber/jaeger-client-go"
+	//"github.com/uber/jaeger-client-go/config"
 	"log"
 	"net"
 	"os"
@@ -124,70 +124,78 @@ func main() {
 	}
 
 	// Setup listener for the grpc server
-	lis, err := net.Listen("tcp", "0.0.0.0:5700")
+	endpoint := "0.0.0.0:5700"
+	lis, err := net.Listen("tcp", endpoint)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 
-	// Setup the API
+	// Setup the API and run the gRPC server
 	a := api.NewAPIv1()
 	go a.GrpcServer().Serve(lis)
+	log.Printf("Started gRPC server at %s", endpoint)
 
-	// Create the server
-	s := &server.Server{
-		EnabledListeners:  enabledListeners,
-		CleanupTimeout:    cleanupTimeout,
-		MaxHeaderSize:     maxHeaderSize,
-		SocketPath:        socketPath,
-		Host:              host,
-		Port:              port,
-		ListenLimit:       listenLimit,
-		KeepAlive:         keepAlive,
-		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
-		TLSHost:           tlsHost,
-		TLSPort:           tlsPort,
-		TLSCertificate:    tlsCertificate,
-		TLSCertificateKey: tlsCertificateKey,
-		TLSCACertificate:  tlsCACertificate,
-		TLSListenLimit:    tlsListenLimit,
-		TLSKeepAlive:      tlsKeepAlive,
-		TLSReadTimeout:    tlsReadTimeout,
-		TLSWriteTimeout:   tlsWriteTimeout,
-		Handler:           a.Handler(),
-	}
-
-	// Metrics server
-	ms := server.NewServer()
-	ms.Port = metricsPort
-	ms.Host = metricsHost
-	ms.Name = "metrics"
-	ms.Handler = promhttp.Handler()
-	go ms.Serve()
-
-	// Setup opentracing
-	cfg := config.Configuration{
-		ServiceName: "blipblop",
-		Sampler: &config.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &config.ReporterConfig{
-			LogSpans:            true,
-			BufferFlushInterval: 1 * time.Second,
-		},
-	}
-	tracer, closer, err := cfg.New("blipblop", config.Logger(jaeger.StdLogger))
-	if err != nil {
+	// Run HTTP server
+	log.Printf("Running HTTP Server at %s", "0.0.0.0:8443")
+	if err := a.Run(endpoint); err != nil {
 		log.Fatal(err)
 	}
-	opentracing.SetGlobalTracer(tracer)
-	defer closer.Close()
 
-	// Listen and serve!
-	err = s.Serve()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// // Create the server
+	// s := &server.Server{
+	// 	EnabledListeners:  enabledListeners,
+	// 	CleanupTimeout:    cleanupTimeout,
+	// 	MaxHeaderSize:     maxHeaderSize,
+	// 	SocketPath:        socketPath,
+	// 	Host:              host,
+	// 	Port:              port,
+	// 	ListenLimit:       listenLimit,
+	// 	KeepAlive:         keepAlive,
+	// 	ReadTimeout:       readTimeout,
+	// 	WriteTimeout:      writeTimeout,
+	// 	TLSHost:           tlsHost,
+	// 	TLSPort:           tlsPort,
+	// 	TLSCertificate:    tlsCertificate,
+	// 	TLSCertificateKey: tlsCertificateKey,
+	// 	TLSCACertificate:  tlsCACertificate,
+	// 	TLSListenLimit:    tlsListenLimit,
+	// 	TLSKeepAlive:      tlsKeepAlive,
+	// 	TLSReadTimeout:    tlsReadTimeout,
+	// 	TLSWriteTimeout:   tlsWriteTimeout,
+	// 	Handler:           a.Handler(),
+	// }
+
+	// // Metrics server
+	// ms := server.NewServer()
+	// ms.Port = metricsPort
+	// ms.Host = metricsHost
+	// ms.Name = "metrics"
+	// ms.Handler = promhttp.Handler()
+	// go ms.Serve()
+
+	// // Setup opentracing
+	// cfg := config.Configuration{
+	// 	ServiceName: "blipblop",
+	// 	Sampler: &config.SamplerConfig{
+	// 		Type:  "const",
+	// 		Param: 1,
+	// 	},
+	// 	Reporter: &config.ReporterConfig{
+	// 		LogSpans:            true,
+	// 		BufferFlushInterval: 1 * time.Second,
+	// 	},
+	// }
+	// tracer, closer, err := cfg.New("blipblop", config.Logger(jaeger.StdLogger))
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// opentracing.SetGlobalTracer(tracer)
+	// defer closer.Close()
+
+	// // Listen and serve!
+	// err = s.Serve()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 }

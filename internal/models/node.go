@@ -6,8 +6,9 @@ type Node struct {
 }
 
 type NodeStatus struct {
-	IPs      []string `json:"ips,omitempty"`
-	HostName string   `json:"hostname,omitempty"`
-	Arch     string   `json:"arch,omitempty"`
-	Os       string   `json:"os,omitempty"`
+	IPs      []*string `json:"ips,omitempty"`
+	HostName *string   `json:"hostname,omitempty"`
+	Arch     *string   `json:"arch,omitempty"`
+	Os       *string   `json:"os,omitempty"`
+	Ready    *bool     `json:"ready"`
 }

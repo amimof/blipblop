@@ -45,8 +45,12 @@ protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos
 			--proto_path=./$$d/v1 \
 			--go_out=./$$d/v1 \
 			--go-grpc_out=./$$d/v1 \
-			--go-grpc_opt=paths=source_relative \
+			--grpc-gateway_out=./$$d/v1 \
 			--go_opt=paths=source_relative \
+			--go-grpc_opt=paths=source_relative \
+			--grpc-gateway_opt=logtostderr=true \
+			--grpc-gateway_opt=paths=source_relative \
+			--grpc-gateway_opt=generate_unbound_methods=true \
 			./$$d/v1/*.proto ; \
 		echo ./$$d/v1/*.proto ; \
 	done

@@ -5,10 +5,10 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/internal/models"
 	"github.com/amimof/blipblop/internal/services"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
@@ -16,6 +16,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type RESTClient struct {
@@ -49,7 +50,8 @@ func getIpAddressesAsString() []string {
 			return i
 		}
 		for _, addr := range addrs {
-			i = append(i, addr.String())
+			a := addr.String()
+			i = append(i, a)
 		}
 	}
 	return i
@@ -66,24 +68,46 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) JoinNode(ctx context.Context, node *models.Node) error {
-	c.name = *node.Name
-	n := &nodes.JoinRequest{
+func (c *Client) SetNodeReady(ctx context.Context, ready bool) error {
+	n := &nodes.UpdateNodeRequest{
 		Node: &nodes.Node{
-			Name:     *node.Name,
-			Labels:   node.Labels,
-			Created:  timestamppb.New(node.Created),
-			Updated:  timestamppb.New(node.Updated),
-			Revision: node.Revision,
+			Name: c.name,
 			Status: &nodes.Status{
-				Ips:      node.Status.IPs,
-				Hostname: node.Status.HostName,
-				Os:       node.Status.Os,
-				Arch:     node.Status.Arch,
+				Ready: ready,
 			},
 		},
 	}
-	_, err := c.nodeService.Join(ctx, n)
+	fm, err := fieldmaskpb.New(n.Node, "status.ready")
+	if err != nil {
+		return err
+	}
+	fm.Normalize()
+	n.UpdateMask = fm
+	if fm.IsValid(n.Node) {
+		_, err = c.nodeService.Update(ctx, n)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
+	node.Updated = timestamppb.New(time.Now())
+	node.Revision = node.Revision + 1
+	_, err := c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Node: node})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) JoinNode(ctx context.Context, node *nodes.Node) error {
+	c.name = node.Name
+	node.Created = timestamppb.New(time.Now())
+	node.Updated = timestamppb.New(time.Now())
+	node.Revision = 1
+	_, err := c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err
 	}
@@ -101,47 +125,20 @@ func (c *Client) ForgetNode(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *Client) GetContainer(ctx context.Context, id string) (*models.Container, error) {
+func (c *Client) GetContainer(ctx context.Context, id string) (*containers.Container, error) {
 	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
-	container := &models.Container{
-		Metadata: models.Metadata{
-			Name:     &res.Container.Name,
-			Labels:   res.Container.Labels,
-			Created:  res.Container.Created.AsTime(),
-			Updated:  res.Container.Updated.AsTime(),
-			Revision: res.Container.Revision,
-		},
-		Config: &models.ContainerConfig{
-			Image: &res.Container.Config.Image,
-		},
-	}
-	return container, nil
+	return res.Container, nil
 }
 
-func (c *Client) ListContainers(ctx context.Context) ([]*models.Container, error) {
-	var ctrns []*models.Container
+func (c *Client) ListContainers(ctx context.Context) ([]*containers.Container, error) {
 	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: labels.New()})
 	if err != nil {
-		return ctrns, err
+		return nil, err
 	}
-	for _, ctr := range res.Containers {
-		ctrns = append(ctrns, &models.Container{
-			Metadata: models.Metadata{
-				Name:     &ctr.Name,
-				Labels:   ctr.Labels,
-				Revision: ctr.Revision,
-				Created:  ctr.Created.AsTime(),
-				Updated:  ctr.Updated.AsTime(),
-			},
-			Config: &models.ContainerConfig{
-				Image: &ctr.Config.Image,
-			},
-		})
-	}
-	return ctrns, nil
+	return res.Containers, nil
 }
 
 func (c *Client) DeleteContainer(ctx context.Context, id string) error {
@@ -214,17 +211,18 @@ func New(server string) (*Client, error) {
 }
 
 // NewNodeFromEnv creates a new node from the current environment with the name s
-func NewNodeFromEnv(s string) *models.Node {
+func NewNodeFromEnv(s string) *nodes.Node {
+	arch := runtime.GOARCH
+	oper := runtime.GOOS
 	hostname, _ := os.Hostname()
-	n := &models.Node{
-		Metadata: models.Metadata{
-			Name: &s,
-		},
-		Status: &models.NodeStatus{
-			IPs:      getIpAddressesAsString(),
-			HostName: hostname,
-			Arch:     runtime.GOARCH,
-			Os:       runtime.GOOS,
+	n := &nodes.Node{
+		Name: s,
+		Status: &nodes.Status{
+			Ips:      getIpAddressesAsString(),
+			Hostname: hostname,
+			Arch:     arch,
+			Os:       oper,
+			Ready:    false,
 		},
 	}
 	return n

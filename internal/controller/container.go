@@ -42,11 +42,6 @@ func (c *ContainerController) Create(unit *models.Container) error {
 	unit.Created = time.Now()
 	unit.Updated = time.Now()
 	unit.Revision = 1
-	// hash, err := util.NewSerializer(unit.Config, &bytes.Buffer{}).HashString()
-	// if err != nil {
-	// 	return err
-	// }
-	// unit.Digest = hash
 	err := c.repo.Set(ctx, unit)
 	if err != nil {
 		return err

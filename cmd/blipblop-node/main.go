@@ -131,6 +131,7 @@ func main() {
 	mdlwr := middleware.NewManager(
 		middleware.WithRuntime(c, cclient, cni),
 		middleware.WithEvents(c, cclient, cni),
+		middleware.WithNode(c, cclient, cni),
 	)
 	mdlwr.Run(ctx)
 	defer mdlwr.Stop()

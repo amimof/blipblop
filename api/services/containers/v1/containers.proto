@@ -4,15 +4,20 @@ package blipblop.services.containers.v1;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
 service ContainerService {
-  rpc Get(GetContainerRequest) returns (GetContainerResponse);
-	rpc List(ListContainerRequest) returns (ListContainerResponse);
-	rpc Create(CreateContainerRequest) returns (CreateContainerResponse);
+  rpc Get(GetContainerRequest) returns (GetContainerResponse) {};
+	rpc List(ListContainerRequest) returns (ListContainerResponse) {
+		option (google.api.http) = {
+			get: "/api/v1/containers"
+		};
+	}
+	rpc Create(CreateContainerRequest) returns (CreateContainerResponse) {};
 	// rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse);
-	rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty);
+	rpc Delete(DeleteContainerRequest) returns (google.protobuf.Empty) {};
 }
 
 message Container {
@@ -33,6 +38,24 @@ message Status {
 
 message Config {
 	string image = 1;
+	repeated string args = 2;
+	repeated string envvars = 3;
+	repeated Mount mounts = 4;
+	repeated Port ports = 5;
+}
+
+message Mount {
+	string destination = 1;
+	string type = 2;
+	string source = 3;
+	repeated string options = 4;
+}
+
+message Port {
+	int32 hostport = 1;
+	int32 containerport = 2;
+	string protocol = 3;
+	string hostip = 4;
 }
 
 message GetContainerRequest {
@@ -56,7 +79,7 @@ message DeleteContainerRequest {
 }
 
 message ListContainerRequest {
-	map<string, string> selector = 2;
+	map<string, string> selector = 1;
 }
 
 message ListContainerResponse {

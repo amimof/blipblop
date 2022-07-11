@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/amimof/blipblop/internal/models"
+	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
@@ -15,6 +15,7 @@ import (
 	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"syscall"
 	"time"
@@ -25,6 +26,19 @@ const labelPrefix = "blipblop.io/"
 type RuntimeClient struct {
 	client *containerd.Client
 	cni    gocni.CNI
+}
+
+func buildMounts(m []*containers.Mount) []specs.Mount {
+	var mounts []specs.Mount
+	for _, mount := range m {
+		mounts = append(mounts, specs.Mount{
+			Destination: mount.Destination,
+			Type:        mount.Type,
+			Source:      mount.Source,
+			Options:     mount.Options,
+		})
+	}
+	return mounts
 }
 
 func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpts {
@@ -49,7 +63,7 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 	return info, nil
 }
 
-func buildContainerLabels(container *models.Container) labels.Label {
+func buildContainerLabels(container *containers.Container) labels.Label {
 	l := labels.New()
 	l.Set(fmt.Sprintf("%s%s", labelPrefix, "revision"), util.Uint64ToString(container.Revision))
 	l.Set(fmt.Sprintf("%s%s", labelPrefix, "created"), container.Created.String())
@@ -58,14 +72,14 @@ func buildContainerLabels(container *models.Container) labels.Label {
 	return l
 }
 
-func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error) {
+func (c *RuntimeClient) List(ctx context.Context) ([]*containers.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	containers, err := c.client.Containers(ctx)
+	ctrs, err := c.client.Containers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result = make([]*models.Container, len(containers))
-	for i, c := range containers {
+	var result = make([]*containers.Container, len(ctrs))
+	for i, c := range ctrs {
 		l, err := parseContainerLabels(ctx, c)
 		if err != nil {
 			return nil, err
@@ -84,55 +98,54 @@ func (c *RuntimeClient) GetAll(ctx context.Context) ([]*models.Container, error)
 		// 		runstatus.Status = status.Status
 		// 	}
 		// }
-		result[i] = &models.Container{
-			Metadata: models.Metadata{
-				Name:     &info.ID,
-				Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
-				Created:  util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "created"))),
-				Updated:  util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "updated"))),
-			},
-			Config: &models.ContainerConfig{
-				Image: &info.Image,
+		result[i] = &containers.Container{
+			Name:     info.ID,
+			Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
+			Created:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "created")))),
+			Updated:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "updated")))),
+			Config: &containers.Config{
+				Image: info.Image,
 			},
 		}
 	}
 	return result, nil
 }
 
-func (c *RuntimeClient) Get(ctx context.Context, key string) (*models.Container, error) {
-	units, err := c.GetAll(ctx)
+func (c *RuntimeClient) Get(ctx context.Context, key string) (*containers.Container, error) {
+	units, err := c.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for _, unit := range units {
-		if key == *unit.Name {
+		if key == unit.Name {
 			return unit, nil
 		}
 	}
 	return nil, nil
 }
 
-func (c *RuntimeClient) Set(ctx context.Context, unit *models.Container) error {
+func (c *RuntimeClient) Set(ctx context.Context, unit *containers.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
-	image, err := c.client.Pull(ctx, *unit.Config.Image, containerd.WithPullUnpack)
+	image, err := c.client.Pull(ctx, unit.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
 	}
 
 	// Configure labels
 	l := buildContainerLabels(unit)
+	m := buildMounts(unit.Config.Mounts)
 
 	// Build OCI specification
-	opts := buildSpec(unit.Config.EnvVars, unit.Config.Mounts, unit.Config.Args)
-	opts = append(opts, oci.WithHostname(*unit.Name))
+	opts := buildSpec(unit.Config.Envvars, m, unit.Config.Args)
+	opts = append(opts, oci.WithHostname(unit.Name))
 	opts = append(opts, oci.WithImageConfig(image))
 
 	// Create container
 	container, err := c.client.NewContainer(
 		ctx,
-		*unit.Name,
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", *unit.Name), image),
+		unit.Name,
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", unit.Name), image),
 		containerd.WithNewSpec(opts...),
 		containerd.WithContainerLabels(l),
 	)

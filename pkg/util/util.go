@@ -59,6 +59,10 @@ func PtrInt(i int) *int {
 	return &i
 }
 
+func PtrBool(b bool) *bool {
+	return &b
+}
+
 func Uint64ToString(u uint64) string {
 	return strconv.FormatUint(u, 10)
 }
