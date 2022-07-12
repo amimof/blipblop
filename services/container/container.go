@@ -13,15 +13,6 @@ type ContainerService struct {
 	local containers.ContainerServiceClient
 }
 
-func NewService(repo Repo, ev *event.EventService) *ContainerService {
-	return &ContainerService{
-		local: &local{
-			repo:        repo,
-			eventClient: ev,
-		},
-	}
-}
-
 func (c *ContainerService) Register(server *grpc.Server) error {
 	containers.RegisterContainerServiceServer(server, c)
 	return nil
@@ -61,4 +52,13 @@ func (c *ContainerService) Stop(ctx context.Context, req *containers.StopContain
 
 func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateContainerRequest) (*containers.UpdateContainerResponse, error) {
 	return c.local.Update(ctx, req)
+}
+
+func NewService(repo Repo, ev *event.EventService) *ContainerService {
+	return &ContainerService{
+		local: &local{
+			repo:        repo,
+			eventClient: ev,
+		},
+	}
 }

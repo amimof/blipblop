@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-
 	"github.com/amimof/blipblop/services/container"
 	"github.com/amimof/blipblop/services/event"
 	"github.com/amimof/blipblop/services/node"
@@ -22,6 +20,7 @@ type APIv1 struct {
 	grpcServer       *grpc.Server
 	containerService *container.ContainerService
 	nodeService      *node.NodeService
+	eventService     *event.EventService
 }
 
 func (a *APIv1) GrpcServer() *grpc.Server {
@@ -46,7 +45,7 @@ func (a *APIv1) Run(addr string) error {
 	if err != nil {
 		return err
 	}
-	err = eventsv1.RegisterEventServiceHandler(ctx, mux, conn)
+	err = a.eventService.RegisterHandler(ctx, mux, conn)
 	if err != nil {
 		return err
 	}
@@ -67,7 +66,8 @@ func NewAPIv1() *APIv1 {
 	grpcServer := grpc.NewServer(opts...)
 
 	// Events
-	eventService := event.NewEventService()
+	eventService := event.NewService(event.NewInMemRepo())
+	eventService.Register(grpcServer)
 
 	// Containers
 	containerService := container.NewService(container.NewInMemRepo(), eventService)
@@ -78,12 +78,14 @@ func NewAPIv1() *APIv1 {
 	nodeService.Register(grpcServer)
 
 	// Register services
-	eventsv1.RegisterEventServiceServer(grpcServer, event.NewEventService())
+	//eventService
+	//eventsv1.RegisterEventServiceServer(grpcServer, event.NewEventService())
 
 	// Setup http api
 	return &APIv1{
 		grpcServer:       grpcServer,
 		containerService: containerService,
 		nodeService:      nodeService,
+		eventService:     eventService,
 	}
 }

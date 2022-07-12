@@ -3,14 +3,28 @@ syntax = "proto3";
 package blipblop.services.containers.v1;
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/empty.proto";
+import "google/api/annotations.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
 
 service EventService {
+  rpc Get(GetEventRequest) returns (GetEventResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/events/{id}"
+    };
+  }
+  rpc List(ListEventRequest) returns (ListEventResponse) {
+		option (google.api.http) = {
+			get: "/api/v1/events"
+		};
+  }
+  rpc Delete(DeleteEventRequest) returns (DeleteEventResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/events/{id}"
+    };
+  }
   rpc Subscribe(SubscribeRequest) returns (stream Event) {}
-  rpc Publish(PublishRequest) returns (google.protobuf.Empty) {}
-  rpc FireEvent(stream Event) returns (EventAck) {}
+  rpc Publish(PublishRequest) returns (PublishResponse) {}
 }
 
 message SubscribeRequest {
@@ -36,10 +50,34 @@ enum EventType {
   NodeForget = 8;
 }
 
-message EventAck {
-  string status = 1;
+message GetEventRequest {
+  string id = 1;
+}
+
+message GetEventResponse {
+  Event event = 1;
+}
+
+message ListEventRequest {
+  map<string, string> selector = 1;
+}
+
+message ListEventResponse {
+  repeated Event events = 1;
+}
+
+message DeleteEventRequest {
+  string id = 1;
+}
+
+message DeleteEventResponse {
+  string id = 1;
 }
 
 message PublishRequest {
-  Event event = 2;
+  Event event = 1;
+}
+
+message PublishResponse {
+  Event event = 1;
 }

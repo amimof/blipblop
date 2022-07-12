@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -23,9 +22,11 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EventServiceClient interface {
+	Get(ctx context.Context, in *GetEventRequest, opts ...grpc.CallOption) (*GetEventResponse, error)
+	List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error)
+	Delete(ctx context.Context, in *DeleteEventRequest, opts ...grpc.CallOption) (*DeleteEventResponse, error)
 	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (EventService_SubscribeClient, error)
-	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	FireEvent(ctx context.Context, opts ...grpc.CallOption) (EventService_FireEventClient, error)
+	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error)
 }
 
 type eventServiceClient struct {
@@ -34,6 +35,33 @@ type eventServiceClient struct {
 
 func NewEventServiceClient(cc grpc.ClientConnInterface) EventServiceClient {
 	return &eventServiceClient{cc}
+}
+
+func (c *eventServiceClient) Get(ctx context.Context, in *GetEventRequest, opts ...grpc.CallOption) (*GetEventResponse, error) {
+	out := new(GetEventResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.EventService/Get", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *eventServiceClient) List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error) {
+	out := new(ListEventResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.EventService/List", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *eventServiceClient) Delete(ctx context.Context, in *DeleteEventRequest, opts ...grpc.CallOption) (*DeleteEventResponse, error) {
+	out := new(DeleteEventResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.EventService/Delete", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *eventServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (EventService_SubscribeClient, error) {
@@ -68,8 +96,8 @@ func (x *eventServiceSubscribeClient) Recv() (*Event, error) {
 	return m, nil
 }
 
-func (c *eventServiceClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *eventServiceClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error) {
+	out := new(PublishResponse)
 	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.EventService/Publish", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -77,47 +105,15 @@ func (c *eventServiceClient) Publish(ctx context.Context, in *PublishRequest, op
 	return out, nil
 }
 
-func (c *eventServiceClient) FireEvent(ctx context.Context, opts ...grpc.CallOption) (EventService_FireEventClient, error) {
-	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[1], "/blipblop.services.containers.v1.EventService/FireEvent", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &eventServiceFireEventClient{stream}
-	return x, nil
-}
-
-type EventService_FireEventClient interface {
-	Send(*Event) error
-	CloseAndRecv() (*EventAck, error)
-	grpc.ClientStream
-}
-
-type eventServiceFireEventClient struct {
-	grpc.ClientStream
-}
-
-func (x *eventServiceFireEventClient) Send(m *Event) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *eventServiceFireEventClient) CloseAndRecv() (*EventAck, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(EventAck)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // EventServiceServer is the server API for EventService service.
 // All implementations must embed UnimplementedEventServiceServer
 // for forward compatibility
 type EventServiceServer interface {
+	Get(context.Context, *GetEventRequest) (*GetEventResponse, error)
+	List(context.Context, *ListEventRequest) (*ListEventResponse, error)
+	Delete(context.Context, *DeleteEventRequest) (*DeleteEventResponse, error)
 	Subscribe(*SubscribeRequest, EventService_SubscribeServer) error
-	Publish(context.Context, *PublishRequest) (*emptypb.Empty, error)
-	FireEvent(EventService_FireEventServer) error
+	Publish(context.Context, *PublishRequest) (*PublishResponse, error)
 	mustEmbedUnimplementedEventServiceServer()
 }
 
@@ -125,14 +121,20 @@ type EventServiceServer interface {
 type UnimplementedEventServiceServer struct {
 }
 
+func (UnimplementedEventServiceServer) Get(context.Context, *GetEventRequest) (*GetEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (UnimplementedEventServiceServer) List(context.Context, *ListEventRequest) (*ListEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedEventServiceServer) Delete(context.Context, *DeleteEventRequest) (*DeleteEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
 func (UnimplementedEventServiceServer) Subscribe(*SubscribeRequest, EventService_SubscribeServer) error {
 	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
 }
-func (UnimplementedEventServiceServer) Publish(context.Context, *PublishRequest) (*emptypb.Empty, error) {
+func (UnimplementedEventServiceServer) Publish(context.Context, *PublishRequest) (*PublishResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
-}
-func (UnimplementedEventServiceServer) FireEvent(EventService_FireEventServer) error {
-	return status.Errorf(codes.Unimplemented, "method FireEvent not implemented")
 }
 func (UnimplementedEventServiceServer) mustEmbedUnimplementedEventServiceServer() {}
 
@@ -145,6 +147,60 @@ type UnsafeEventServiceServer interface {
 
 func RegisterEventServiceServer(s grpc.ServiceRegistrar, srv EventServiceServer) {
 	s.RegisterService(&EventService_ServiceDesc, srv)
+}
+
+func _EventService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventServiceServer).Get(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.EventService/Get",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventServiceServer).Get(ctx, req.(*GetEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EventService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventServiceServer).List(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.EventService/List",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventServiceServer).List(ctx, req.(*ListEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EventService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventServiceServer).Delete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.EventService/Delete",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventServiceServer).Delete(ctx, req.(*DeleteEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _EventService_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -186,32 +242,6 @@ func _EventService_Publish_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _EventService_FireEvent_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(EventServiceServer).FireEvent(&eventServiceFireEventServer{stream})
-}
-
-type EventService_FireEventServer interface {
-	SendAndClose(*EventAck) error
-	Recv() (*Event, error)
-	grpc.ServerStream
-}
-
-type eventServiceFireEventServer struct {
-	grpc.ServerStream
-}
-
-func (x *eventServiceFireEventServer) SendAndClose(m *EventAck) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *eventServiceFireEventServer) Recv() (*Event, error) {
-	m := new(Event)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // EventService_ServiceDesc is the grpc.ServiceDesc for EventService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -219,6 +249,18 @@ var EventService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "blipblop.services.containers.v1.EventService",
 	HandlerType: (*EventServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Get",
+			Handler:    _EventService_Get_Handler,
+		},
+		{
+			MethodName: "List",
+			Handler:    _EventService_List_Handler,
+		},
+		{
+			MethodName: "Delete",
+			Handler:    _EventService_Delete_Handler,
+		},
 		{
 			MethodName: "Publish",
 			Handler:    _EventService_Publish_Handler,
@@ -229,11 +271,6 @@ var EventService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Subscribe",
 			Handler:       _EventService_Subscribe_Handler,
 			ServerStreams: true,
-		},
-		{
-			StreamName:    "FireEvent",
-			Handler:       _EventService_FireEvent_Handler,
-			ClientStreams: true,
 		},
 	},
 	Metadata: "events.proto",

@@ -4,18 +4,36 @@ import (
 	"context"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/google/uuid"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"io"
 	"log"
 	"time"
 )
 
-var eventService *EventService
-
 type EventService struct {
 	channel map[string][]chan *events.Event
 	events.UnimplementedEventServiceServer
+	local events.EventServiceClient
+}
+
+func (n *EventService) Register(server *grpc.Server) error {
+	events.RegisterEventServiceServer(server, n)
+	return nil
+}
+
+func (n *EventService) RegisterHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+	return events.RegisterEventServiceHandler(ctx, mux, conn)
+}
+
+func (n *EventService) Get(ctx context.Context, req *events.GetEventRequest) (*events.GetEventResponse, error) {
+	return n.local.Get(ctx, req)
+}
+func (n *EventService) Delete(ctx context.Context, req *events.DeleteEventRequest) (*events.DeleteEventResponse, error) {
+	return n.local.Delete(ctx, req)
+}
+func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (*events.ListEventResponse, error) {
+	return n.local.List(ctx, req)
 }
 
 func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
@@ -35,49 +53,22 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 	}
 }
 
-func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*emptypb.Empty, error) {
+func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*events.PublishResponse, error) {
 	for k, _ := range n.channel {
 		for _, ch := range n.channel[k] {
 			ch <- req.Event
 		}
 	}
-	return nil, nil
+	return &events.PublishResponse{Event: req.GetEvent()}, nil
 }
 
-func (n *EventService) FireEvent(stream events.EventService_FireEventServer) error {
-	ev, err := stream.Recv()
-	if err == io.EOF {
-		log.Println("Got EOF while reading from stream")
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	ack := events.EventAck{Status: "SENT"}
-	stream.SendAndClose(&ack)
-
-	go func() {
-		streams := n.channel["asd"]
-		for _, evChan := range streams {
-			evChan <- ev
-		}
-	}()
-
-	return nil
-}
-
-func newEventService() *EventService {
+func NewService(repo Repo) *EventService {
 	return &EventService{
 		channel: make(map[string][]chan *events.Event),
+		local: &local{
+			repo: repo,
+		},
 	}
-}
-
-func NewEventService() *EventService {
-	if eventService == nil {
-		eventService = newEventService()
-	}
-	return eventService
 }
 
 func NewEventFor(id string, t events.EventType) *events.Event {

@@ -15,15 +15,6 @@ type NodeService struct {
 	local nodes.NodeServiceClient
 }
 
-func NewService(repo Repo, ev *event.EventService) *NodeService {
-	return &NodeService{
-		local: &local{
-			repo:        repo,
-			eventClient: ev,
-		},
-	}
-}
-
 func (n *NodeService) Register(server *grpc.Server) error {
 	nodes.RegisterNodeServiceServer(server, n)
 	return nil
@@ -59,4 +50,13 @@ func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.
 
 func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
 	return n.local.Forget(ctx, req)
+}
+
+func NewService(repo Repo, ev *event.EventService) *NodeService {
+	return &NodeService{
+		local: &local{
+			repo:        repo,
+			eventClient: ev,
+		},
+	}
 }
