@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/cache"
-	"log"
 	"time"
 )
 
@@ -40,7 +39,6 @@ func (u *inmemRepo) Get(ctx context.Context, key string) (*nodes.Node, error) {
 }
 
 func (u *inmemRepo) Create(ctx context.Context, node *nodes.Node) error {
-	log.Printf("Node %+v", node)
 	u.cache.Set(node.Name, node)
 	return nil
 }
@@ -55,7 +53,7 @@ func (u *inmemRepo) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func newRepo() Repo {
+func newInMemRepo() Repo {
 	c := cache.New()
 	c.TTL = time.Hour * 24
 	return &inmemRepo{
@@ -63,9 +61,9 @@ func newRepo() Repo {
 	}
 }
 
-func NewRepo() Repo {
+func NewInMemRepo() Repo {
 	if nodeRepo == nil {
-		nodeRepo = newRepo()
+		nodeRepo = newInMemRepo()
 	}
 	return nodeRepo
 }

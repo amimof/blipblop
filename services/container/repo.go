@@ -50,7 +50,7 @@ func (i *inmemRepo) Get(ctx context.Context, key string) (*containers.Container,
 	return c, nil
 }
 func (i *inmemRepo) Create(ctx context.Context, container *containers.Container) error {
-	i.cache.Set(container.Name, container)
+	i.cache.Set(container.GetName(), container)
 	return nil
 }
 func (i *inmemRepo) Delete(ctx context.Context, key string) error {

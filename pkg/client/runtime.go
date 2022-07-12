@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/pkg/event"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/util"
@@ -142,7 +141,7 @@ func (c *RuntimeClient) Set(ctx context.Context, unit *containers.Container) err
 	opts = append(opts, oci.WithImageConfig(image))
 
 	// Create container
-	container, err := c.client.NewContainer(
+	_, err = c.client.NewContainer(
 		ctx,
 		unit.Name,
 		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", unit.Name), image),
@@ -153,8 +152,6 @@ func (c *RuntimeClient) Set(ctx context.Context, unit *containers.Container) err
 		return err
 	}
 
-	log.Printf("Created container '%s'", container.ID())
-	event.MustFire("container-create")
 	return nil
 }
 

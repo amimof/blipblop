@@ -40,7 +40,11 @@ service ContainerService {
       delete: "/api/v1/container/{id}"
     };
 	}
-	rpc Start(StartContainerRequest) returns (StartContainerResponse) {}
+	rpc Start(StartContainerRequest) returns (StartContainerResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/container/{id}/start"
+    };
+	}
 	rpc Stop(StopContainerRequest) returns (StopContainerResponse) {}
 	rpc Kill(KillContainerRequest) returns (KillContainerResponse) {}
 }
