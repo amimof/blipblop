@@ -45,9 +45,15 @@ enum EventType {
   ContainerStart = 3;
   ContainerStop = 4;
   ContainerGet = 5;
-  ContainerGetAll = 6;
-  NodeJoin = 7;
-  NodeForget = 8;
+  ContainerList = 6;
+  ContainerKill = 7;
+  NodeGet = 8;
+  NodeCreate = 9;
+  NodeDelete = 10;
+  NodeList = 11;
+  NodeUpdate = 12;
+  NodeJoin = 13;
+  NodeForget = 14;
 }
 
 message GetEventRequest {

@@ -29,7 +29,7 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 	if container == nil {
 		return nil, errors.New(fmt.Sprintf("container not found %s", req.GetId()))
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerGetAll)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerGet)})
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +40,10 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
 	ctrs, err := l.Repo().GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor("", events.EventType_ContainerList)})
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +65,10 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	if err != nil {
 		return nil, err
 	}
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(container.GetName(), events.EventType_ContainerCreate)})
+	if err != nil {
+		return nil, err
+	}
 	return &containers.CreateContainerResponse{
 		Container: container,
 	}, nil
@@ -71,30 +79,50 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 	if err != nil {
 		return nil, err
 	}
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
+	if err != nil {
+		return nil, err
+	}
 	return &containers.DeleteContainerResponse{
 		Id: req.GetId(),
 	}, nil
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerKill)})
+	if err != nil {
+		return nil, err
+	}
 	return &containers.KillContainerResponse{
 		Id: "",
 	}, nil
 }
 
 func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerStart)})
+	if err != nil {
+		return nil, err
+	}
 	return &containers.StartContainerResponse{
 		Id: "",
 	}, nil
 }
 
 func (l *local) Stop(ctx context.Context, req *containers.StopContainerRequest, _ ...grpc.CallOption) (*containers.StopContainerResponse, error) {
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerStop)})
+	if err != nil {
+		return nil, err
+	}
 	return &containers.StopContainerResponse{
 		Id: "",
 	}, nil
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetContainer().GetName(), events.EventType_ContainerUpdate)})
+	if err != nil {
+		return nil, err
+	}
 	return &containers.UpdateContainerResponse{
 		Container: nil,
 	}, nil

@@ -15,7 +15,7 @@ type local struct {
 var _ events.EventServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *events.GetEventRequest, _ ...grpc.CallOption) (*events.GetEventResponse, error) {
-	event, err := l.Repo().Get(ctx, req.Id)
+	event, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -25,12 +25,12 @@ func (l *local) Get(ctx context.Context, req *events.GetEventRequest, _ ...grpc.
 }
 
 func (l *local) Delete(ctx context.Context, req *events.DeleteEventRequest, _ ...grpc.CallOption) (*events.DeleteEventResponse, error) {
-	err := l.Repo().Delete(ctx, req.Id)
+	err := l.Repo().Delete(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 	return &events.DeleteEventResponse{
-		Id: req.Id,
+		Id: req.GetId(),
 	}, nil
 }
 
@@ -44,11 +44,12 @@ func (l *local) List(ctx context.Context, req *events.ListEventRequest, _ ...grp
 	}, nil
 }
 
-func (*local) Subscribe(ctx context.Context, req *events.SubscribeRequest, _ ...grpc.CallOption) (events.EventService_SubscribeClient, error) {
+func (l *local) Subscribe(ctx context.Context, req *events.SubscribeRequest, _ ...grpc.CallOption) (events.EventService_SubscribeClient, error) {
 	return nil, nil
 }
 
-func (*local) Publish(ctx context.Context, req *events.PublishRequest, _ ...grpc.CallOption) (*events.PublishResponse, error) {
+func (l *local) Publish(ctx context.Context, req *events.PublishRequest, _ ...grpc.CallOption) (*events.PublishResponse, error) {
+	l.Repo().Create(ctx, req.GetEvent())
 	return nil, nil
 }
 

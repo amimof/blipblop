@@ -54,6 +54,10 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 }
 
 func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*events.PublishResponse, error) {
+	_, err := n.local.Publish(ctx, req)
+	if err != nil {
+		return nil, err
+	}
 	for k, _ := range n.channel {
 		for _, ch := range n.channel[k] {
 			ch <- req.Event
