@@ -34,7 +34,7 @@ message SubscribeRequest {
 message Event {
   google.protobuf.Timestamp timestamp = 1;
   string id = 2;
-  string eventId = 3;
+  string event_id = 3;
   EventType type = 4;
 }
 

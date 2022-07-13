@@ -61,6 +61,30 @@ func (c *Client) Close() error {
 	return nil
 }
 
+func (c *Client) SetContainerState(ctx context.Context, id, state string) error {
+	n := &containers.UpdateContainerRequest{
+		Container: &containers.Container{
+			Name: id,
+			Status: &containers.Status{
+				State: state,
+			},
+		},
+	}
+	fm, err := fieldmaskpb.New(n.Container, "status.state")
+	if err != nil {
+		return err
+	}
+	fm.Normalize()
+	n.UpdateMask = fm
+	if fm.IsValid(n.Container) {
+		_, err = c.containerService.Update(ctx, n)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Client) SetNodeReady(ctx context.Context, ready bool) error {
 	n := &nodes.UpdateNodeRequest{
 		Node: &nodes.Node{

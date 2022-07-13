@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/namespaces"
 	gocni "github.com/containerd/go-cni"
 	"log"
 )
@@ -18,17 +20,96 @@ type runtimeMiddleware struct {
 }
 
 func (r *runtimeMiddleware) exitHandler(e *events.TaskExit) {
-	// ctx := context.Background()
-	// err := r.repo.Kill(ctx, e.ID)
-	// if err != nil {
-	// 	log.Printf("Got an error while trying to kill task %s. The error was %s", e.ID, err.Error())
-	// }
-	// err = r.repo.Start(ctx, e.ContainerID)
-	log.Printf("Task %s just exited", e.ID)
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
 }
 
 func (r *runtimeMiddleware) createHandler(e *events.TaskCreate) {
-	log.Printf("Task was just created with PID %d", e.Pid)
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+
+func (r *runtimeMiddleware) startHandler(e *events.TaskStart) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) deleteHandler(e *events.TaskDelete) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) ioHandler(e *events.TaskIO) {
+}
+func (r *runtimeMiddleware) oomHandler(e *events.TaskOOM) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) execAddedHandler(e *events.TaskExecAdded) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) execStartedHandler(e *events.TaskExecStarted) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) pausedHandler(e *events.TaskPaused) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) resumedHandler(e *events.TaskResumed) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+func (r *runtimeMiddleware) checkpointedHandler(e *events.TaskCheckpointed) {
+	err := r.setContainerState(e.ContainerID)
+	if err != nil {
+		log.Printf("error setting container state: %s", err)
+	}
+}
+
+func (r *runtimeMiddleware) setContainerState(id string) error {
+	ns := "blipblop"
+	ctx := context.Background()
+	ctx = namespaces.WithNamespace(ctx, ns)
+	list, err := r.runtime.ContainerdClient().Containers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, container := range list {
+		if container.ID() == id {
+			task, err := container.Task(ctx, nil)
+			if err != nil {
+				return err
+			}
+			status, err := task.Status(ctx)
+			if err != nil {
+				return err
+			}
+			err = r.client.SetContainerState(ctx, id, fmt.Sprintf("%s", status.Status))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 func (r *runtimeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
@@ -70,10 +151,13 @@ func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, c := range currentContainers {
 		if !contains(containers, c) {
-			r.runtime.Kill(ctx, c.Name)
-			err := r.runtime.Delete(ctx, c.Name)
+			err := r.runtime.Stop(ctx, c.Name)
 			if err != nil {
-				log.Printf("error removing container: %s", err)
+				log.Printf("error stopping container: %s", err)
+			}
+			err = r.runtime.Delete(ctx, c.Name)
+			if err != nil {
+				log.Printf("error deleting container: %s", err)
 			}
 		}
 	}
@@ -97,8 +181,17 @@ func WithRuntime(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middlew
 	}
 	i := informer.NewRuntimeInformer(m.runtime.ContainerdClient())
 	i.AddHandler(&informer.RuntimeHandlerFuncs{
-		OnTaskExit:   m.exitHandler,
-		OnTaskCreate: m.createHandler,
+		OnTaskExit:         m.exitHandler,
+		OnTaskCreate:       m.createHandler,
+		OnTaskStart:        m.startHandler,
+		OnTaskDelete:       m.deleteHandler,
+		OnTaskIO:           m.ioHandler,
+		OnTaskOOM:          m.oomHandler,
+		OnTaskExecAdded:    m.execAddedHandler,
+		OnTaskExecStarted:  m.execStartedHandler,
+		OnTaskPaused:       m.pausedHandler,
+		OnTaskResumed:      m.resumedHandler,
+		OnTaskCheckpointed: m.checkpointedHandler,
 	})
 	m.informer = i
 	return m

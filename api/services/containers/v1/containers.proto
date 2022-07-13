@@ -37,16 +37,24 @@ service ContainerService {
 	}
 	rpc Delete(DeleteContainerRequest) returns (DeleteContainerResponse) {
     option (google.api.http) = {
-      delete: "/api/v1/container/{id}"
+      delete: "/api/v1/containers/{id}"
     };
 	}
 	rpc Start(StartContainerRequest) returns (StartContainerResponse) {
     option (google.api.http) = {
-      put: "/api/v1/container/{id}/start"
+      put: "/api/v1/containers/{id}/start"
     };
 	}
-	rpc Stop(StopContainerRequest) returns (StopContainerResponse) {}
-	rpc Kill(KillContainerRequest) returns (KillContainerResponse) {}
+	rpc Stop(StopContainerRequest) returns (StopContainerResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/containers/{id}/stop"
+    };
+	}
+	rpc Kill(KillContainerRequest) returns (KillContainerResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/containers/{id}/kill"
+    };
+	}
 }
 
 

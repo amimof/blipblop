@@ -99,7 +99,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		return nil, err
 	}
 	return &nodes.UpdateNodeResponse{
-		Node: req.GetNode(),
+		Node: existingNode,
 	}, nil
 }
 
