@@ -8,6 +8,7 @@ import (
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
@@ -119,12 +120,25 @@ func (l *local) Stop(ctx context.Context, req *containers.StopContainerRequest, 
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
-	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetContainer().GetName(), events.EventType_ContainerUpdate)})
+	updateMask := req.GetUpdateMask()
+	updateContainer := req.GetContainer()
+	existing, err := l.Repo().Get(ctx, updateContainer.GetName())
+	if err != nil {
+		return nil, err
+	}
+	if updateMask != nil && updateMask.IsValid(existing) {
+		proto.Merge(existing, updateContainer)
+	}
+	err = l.Repo().Update(ctx, existing)
+	if err != nil {
+		return nil, err
+	}
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetContainer().GetName(), events.EventType_ContainerUpdate)})
 	if err != nil {
 		return nil, err
 	}
 	return &containers.UpdateContainerResponse{
-		Container: nil,
+		Container: existing,
 	}, nil
 }
 

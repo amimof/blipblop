@@ -16,6 +16,7 @@ type Repo interface {
 	Get(ctx context.Context, key string) (*containers.Container, error)
 	Create(ctx context.Context, container *containers.Container) error
 	Delete(ctx context.Context, key string) error
+	Update(ctx context.Context, container *containers.Container) error
 	Start(ctx context.Context, key string) error
 	Stop(ctx context.Context, key string) error
 	Kill(ctx context.Context, key string) error
@@ -57,12 +58,19 @@ func (i *inmemRepo) Delete(ctx context.Context, key string) error {
 	i.cache.Delete(key)
 	return nil
 }
+func (i *inmemRepo) Update(ctx context.Context, container *containers.Container) error {
+	i.cache.Set(container.GetName(), container)
+	return nil
+}
+
 func (i *inmemRepo) Start(ctx context.Context, key string) error {
 	return nil
 }
+
 func (i *inmemRepo) Stop(ctx context.Context, key string) error {
 	return nil
 }
+
 func (i *inmemRepo) Kill(ctx context.Context, key string) error {
 	return nil
 }

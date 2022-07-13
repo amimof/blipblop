@@ -39,12 +39,12 @@ func (u *inmemRepo) Get(ctx context.Context, key string) (*events.Event, error) 
 }
 
 func (u *inmemRepo) Create(ctx context.Context, event *events.Event) error {
-	u.cache.Set(event.GetId(), event)
+	u.cache.Set(event.GetEventId(), event)
 	return nil
 }
 
 func (u *inmemRepo) Update(ctx context.Context, event *events.Event) error {
-	u.cache.Set(event.GetId(), event)
+	u.cache.Set(event.GetEventId(), event)
 	return nil
 }
 
