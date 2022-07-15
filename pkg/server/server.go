@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"github.com/go-openapi/swag"
 	"github.com/tylerb/graceful"
+	"google.golang.org/grpc"
 	"io/ioutil"
 	"log"
 	"net"
@@ -19,9 +20,10 @@ const (
 	schemeHTTP  = "http"
 	schemeHTTPS = "https"
 	schemeUnix  = "unix"
+	schemeGRPC  = "grpc"
 )
 
-// Server for the blipblop API
+// Server for the multikube API
 type Server struct {
 	EnabledListeners  []string
 	Host              string
@@ -45,10 +47,19 @@ type Server struct {
 	MaxHeaderSize     uint64
 	Handler           http.Handler
 
+	// GRPC
+	TCPTLSHost  string
+	TCPTLSPort  int
+	TCPTLSCA    string
+	TCPTLSCert  string
+	TCPTLSKey   string
+	GRPCHandler *grpc.Server
+
 	shutdown      chan struct{}
 	httpServerL   net.Listener
 	httpsServerL  net.Listener
 	domainSocketL net.Listener
+	grpcServerL   net.Listener
 	hasListeners  bool
 	shuttingDown  int32
 }
@@ -56,7 +67,7 @@ type Server struct {
 // NewServer returns a default non-tls server
 func NewServer() *Server {
 	return &Server{
-		EnabledListeners: []string{"http"},
+		EnabledListeners: []string{"http", "grpc"},
 		CleanupTimeout:   10 * time.Second,
 		MaxHeaderSize:    1000000,
 		Host:             "127.0.0.1",
@@ -71,7 +82,7 @@ func NewServer() *Server {
 // NewServerTLS returns a default TLS enabled server
 func NewServerTLS() *Server {
 	return &Server{
-		EnabledListeners:  []string{"https"},
+		EnabledListeners:  []string{"https", "grpc"},
 		CleanupTimeout:    10 * time.Second,
 		MaxHeaderSize:     1000000,
 		TLSHost:           "127.0.0.1",
@@ -167,6 +178,20 @@ func (s *Server) Listen() error {
 		s.httpsServerL = tlsListener
 	}
 
+	if s.hasScheme(schemeGRPC) {
+		grpcListener, err := net.Listen("tcp", net.JoinHostPort(s.TCPTLSHost, strconv.Itoa(s.TCPTLSPort)))
+		if err != nil {
+			return err
+		}
+		gh, gp, err := swag.SplitHostPort(grpcListener.Addr().String())
+		if err != nil {
+			return err
+		}
+		s.TCPTLSHost = gh
+		s.TCPTLSPort = gp
+		s.grpcServerL = grpcListener
+	}
+
 	s.hasListeners = true
 	return nil
 }
@@ -182,7 +207,7 @@ func (s *Server) Serve() error {
 	}
 
 	if s.Name == "" {
-		s.Name = "blipblop"
+		s.Name = "multikube"
 	}
 
 	var wg sync.WaitGroup
@@ -238,12 +263,11 @@ func (s *Server) Serve() error {
 	}
 
 	if s.hasScheme(schemeHTTPS) {
-
 		srv := http.Server{}
 		httpsServer := &graceful.Server{Server: &srv}
 		httpsServer.MaxHeaderBytes = int(s.MaxHeaderSize)
-		//httpsServer.ReadTimeout = s.TLSReadTimeout
-		//httpsServer.WriteTimeout = s.TLSWriteTimeout
+		httpsServer.ReadTimeout = s.TLSReadTimeout
+		httpsServer.WriteTimeout = s.TLSWriteTimeout
 		httpsServer.SetKeepAlivesEnabled(int64(s.TLSKeepAlive) > 0)
 		httpsServer.TCPKeepAlive = s.TLSKeepAlive
 		if s.TLSListenLimit > 0 {
@@ -323,6 +347,24 @@ func (s *Server) Serve() error {
 		go s.handleShutdown(&wg, httpsServer)
 	}
 
+	if s.hasScheme(schemeGRPC) {
+		if s.GRPCHandler == nil {
+			var opts []grpc.ServerOption
+			s.GRPCHandler = grpc.NewServer(opts...)
+		}
+
+		wg.Add(2)
+		log.Printf("Serving %s at %s:%s", s.Name, s.TCPTLSHost, s.TCPTLSPort)
+		go func(l net.Listener) {
+			defer wg.Done()
+			if err := s.GRPCHandler.Serve(l); err != nil {
+				log.Printf("%v", err)
+			}
+			log.Printf("Stopped serving %s at %s", s.Name, l.Addr())
+		}(s.grpcServerL)
+		go s.handleShutdownGRPC(&wg, s.GRPCHandler)
+	}
+
 	wg.Wait()
 	return nil
 }
@@ -340,6 +382,19 @@ func (s *Server) handleShutdown(wg *sync.WaitGroup, server *graceful.Server) {
 		case <-server.StopChan():
 			atomic.AddInt32(&s.shuttingDown, 1)
 			log.Printf("Shutting down")
+			return
+		}
+	}
+}
+
+func (s *Server) handleShutdownGRPC(wg *sync.WaitGroup, srv *grpc.Server) {
+	defer wg.Done()
+	for {
+		select {
+		case <-s.shutdown:
+			log.Printf("Shutting down GRPC server")
+			atomic.AddInt32(&s.shuttingDown, 1)
+			srv.GracefulStop()
 			return
 		}
 	}
