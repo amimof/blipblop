@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/services/event"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
 )
 
@@ -16,10 +15,6 @@ type ContainerService struct {
 func (c *ContainerService) Register(server *grpc.Server) error {
 	containers.RegisterContainerServiceServer(server, c)
 	return nil
-}
-
-func (c *ContainerService) RegisterHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
-	return containers.RegisterContainerServiceHandler(ctx, mux, conn)
 }
 
 func (c *ContainerService) Get(ctx context.Context, req *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {

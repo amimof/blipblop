@@ -7,6 +7,7 @@ import (
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
@@ -188,10 +189,10 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan er
 	return evc, errc
 }
 
-func New(server string) (*Client, error) {
+func New(ctx context.Context, server string) (*Client, error) {
 	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
-	conn, err := grpc.Dial(server, opts...)
+	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure(), grpc.WithKeepaliveParams(keepalive.ClientParameters{Timeout: 2 * time.Minute}))
+	conn, err := grpc.DialContext(ctx, server, opts...)
 	if err != nil {
 		return nil, err
 	}

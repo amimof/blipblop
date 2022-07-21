@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/services/event"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
 )
 
@@ -18,10 +17,6 @@ type NodeService struct {
 func (n *NodeService) Register(server *grpc.Server) error {
 	nodes.RegisterNodeServiceServer(server, n)
 	return nil
-}
-
-func (n *NodeService) RegisterHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
-	return nodes.RegisterNodeServiceHandler(ctx, mux, conn)
 }
 
 func (n *NodeService) Get(ctx context.Context, req *nodes.GetNodeRequest) (*nodes.GetNodeResponse, error) {

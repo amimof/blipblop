@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/amimof/blipblop/pkg/server"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"google.golang.org/grpc"
+	"strconv"
+	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	//"github.com/amimof/blipblop/pkg/server"
 	//"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -14,8 +14,10 @@ import (
 	//"github.com/uber/jaeger-client-go"
 	//"github.com/uber/jaeger-client-go/config"
 	"log"
-	//"net"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -121,7 +123,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, pflag.CommandLine.FlagUsages())
 	}
 
-	// parse the CLI flags
+	// Parse the CLI flags
 	pflag.Parse()
 
 	// Show version if requested
@@ -130,60 +132,52 @@ func main() {
 		return
 	}
 
-	// Setup listener for the grpc server
-	// endpoint := "0.0.0.0:5700"
-	// lis, err := net.Listen("tcp", endpoint)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "%s", err.Error())
-	// }
+	// Setup signal handlers
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-	// Setup our mux
+	// Setup server
+	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	s := server.New(":5701")
+	go func() {
+		log.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
+		if err := s.Serve(lis); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// Setup gateway
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	mux := runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{OrigName: true, EmitDefaults: true}))
-
-	// Setup GRPC server
-	var serverOpts []grpc.ServerOption
-	grpcServer := grpc.NewServer(serverOpts...)
-
-	// Register services to the grpc server and HTTP handler
-	err := server.RegisterServices(ctx, grpcServer, mux)
+	gw, err := server.NewGateway(ctx, "dns:///localhost:5701", server.DefaultMux)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Create the server
-	s := &server.Server{
-		EnabledListeners:  enabledListeners,
-		CleanupTimeout:    cleanupTimeout,
-		MaxHeaderSize:     maxHeaderSize,
-		SocketPath:        socketPath,
-		Host:              host,
-		Port:              port,
-		ListenLimit:       listenLimit,
-		KeepAlive:         keepAlive,
-		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
-		TCPTLSHost:        tcptlsHost,
-		TCPTLSPort:        tcptlsPort,
-		TLSHost:           tlsHost,
-		TLSPort:           tlsPort,
-		TLSCertificate:    tlsCertificate,
-		TLSCertificateKey: tlsCertificateKey,
-		TLSCACertificate:  tlsCACertificate,
-		TLSListenLimit:    tlsListenLimit,
-		TLSKeepAlive:      tlsKeepAlive,
-		TLSReadTimeout:    tlsReadTimeout,
-		TLSWriteTimeout:   tlsWriteTimeout,
-		Handler:           mux,
-		GRPCHandler:       grpcServer,
-	}
-
-	// Listen and serve!
-	err = s.Serve()
+	glis, err := net.Listen("tcp", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
 	if err != nil {
 		log.Fatal(err)
 	}
+	go func() {
+		log.Printf("Gateway listening on %s:%d", tlsHost, tlsPort)
+		if err := gw.Serve(glis); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// Wait for exit signal
+	<-exit
+
+	// Shut down
+	if err := gw.Shutdown(ctx); err != nil {
+		log.Printf("error shutting down gateway: %v", err)
+	}
+	log.Println("Shut down gateway")
+	s.Shutdown()
+	log.Println("Shut down server")
+	close(exit)
 
 }

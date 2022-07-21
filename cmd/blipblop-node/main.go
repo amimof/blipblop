@@ -6,13 +6,14 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/networking"
-	"github.com/amimof/blipblop/pkg/server"
+	//"github.com/amimof/blipblop/pkg/server"
 	"github.com/containerd/containerd"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	//"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/pflag"
 	"log"
 	"os"
 	"os/signal"
+	"syscall"
 )
 
 var (
@@ -87,14 +88,15 @@ func main() {
 	}
 
 	// Setup node service client
-	c, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	c, err := client.New(ctx, fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	defer c.Close()
+	//defer c.Close()
 
 	// Join node
-	ctx := context.Background()
 	err = c.JoinNode(ctx, client.NewNodeFromEnv(nodeName))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
@@ -106,6 +108,7 @@ func main() {
 	go func() {
 		select {
 		case <-done:
+			cancel()
 			err := c.ForgetNode(ctx, nodeName)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s", err.Error())
@@ -119,7 +122,7 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	defer cclient.Close()
+	//defer cclient.Close()
 
 	// Create networking
 	cni, err := networking.InitNetwork()
@@ -133,20 +136,19 @@ func main() {
 		middleware.WithEvents(c, cclient, cni),
 		middleware.WithNode(c, cclient, cni),
 	)
-	mdlwr.Run(ctx)
-	defer mdlwr.Stop()
 
-	// Metrics server
-	ms := server.NewServer()
-	ms.Port = metricsPort
-	ms.Host = metricsHost
-	ms.Name = "metrics"
-	ms.Handler = promhttp.Handler()
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-	// Listen and serve!
-	err = ms.Serve()
-	if err != nil {
-		log.Fatal(err)
-	}
+	go mdlwr.Run(ctx)
+	log.Println("Started middlwares")
+
+	<-exit
+
+	log.Println("Shutting down ...")
+	ctx.Done()
+	mdlwr.Stop()
+	c.Close()
+	cclient.Close()
 
 }
