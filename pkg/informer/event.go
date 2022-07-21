@@ -36,6 +36,7 @@ func (i *EventInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
 			log.Println("Done watching event informer")
 			return
 		case <-ctx.Done():
+			log.Println("Done, closing client")
 			i.client.Close()
 			return
 		}

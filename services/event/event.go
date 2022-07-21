@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
@@ -20,10 +19,6 @@ type EventService struct {
 func (n *EventService) Register(server *grpc.Server) error {
 	events.RegisterEventServiceServer(server, n)
 	return nil
-}
-
-func (n *EventService) RegisterHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
-	return events.RegisterEventServiceHandler(ctx, mux, conn)
 }
 
 func (n *EventService) Get(ctx context.Context, req *events.GetEventRequest) (*events.GetEventResponse, error) {

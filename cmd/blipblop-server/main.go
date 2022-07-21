@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/amimof/blipblop/internal/api"
+	"github.com/amimof/blipblop/pkg/server"
+	"strconv"
+	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	//"github.com/amimof/blipblop/pkg/server"
 	//"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,6 +16,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -41,6 +46,8 @@ var (
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 
+	tcptlsHost        string
+	tcptlsPort        int
 	tlsHost           string
 	tlsPort           int
 	tlsListenLimit    int
@@ -57,14 +64,16 @@ func init() {
 	pflag.StringVar(&socketPath, "socket-path", "/var/run/blipblop.sock", "the unix socket to listen on")
 	pflag.StringVar(&host, "host", "localhost", "The host address on which to listen for the --port port")
 	pflag.StringVar(&tlsHost, "tls-host", "localhost", "The host address on which to listen for the --tls-port port")
+	pflag.StringVar(&tcptlsHost, "tcp-tls-host", "localhost", "The host address on which to listen for the --tcp-tls-port port")
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
-	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
+	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
 	pflag.IntVar(&tlsPort, "tls-port", 8443, "the port to listen on for secure connections, defaults to 8443")
+	pflag.IntVar(&tcptlsPort, "tcp-tls-port", 5700, "the port to listen on for GRPC connections, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8888, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.IntVar(&listenLimit, "listen-limit", 0, "limit the number of outstanding requests")
 	pflag.IntVar(&tlsListenLimit, "tls-listen-limit", 0, "limit the number of outstanding requests")
@@ -114,7 +123,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, pflag.CommandLine.FlagUsages())
 	}
 
-	// parse the CLI flags
+	// Parse the CLI flags
 	pflag.Parse()
 
 	// Show version if requested
@@ -123,79 +132,52 @@ func main() {
 		return
 	}
 
-	// Setup listener for the grpc server
-	endpoint := "0.0.0.0:5700"
-	lis, err := net.Listen("tcp", endpoint)
+	// Setup signal handlers
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
+
+	// Setup server
+	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
-	}
-
-	// Setup the API and run the gRPC server
-	a := api.NewAPIv1()
-	go a.GrpcServer().Serve(lis)
-	log.Printf("Started gRPC server at %s", endpoint)
-
-	// Run HTTP server
-	log.Printf("Running HTTP Server at %s", "0.0.0.0:8443")
-	if err := a.Run(endpoint); err != nil {
 		log.Fatal(err)
 	}
+	s := server.New(":5701")
+	go func() {
+		log.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
+		if err := s.Serve(lis); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	// // Create the server
-	// s := &server.Server{
-	// 	EnabledListeners:  enabledListeners,
-	// 	CleanupTimeout:    cleanupTimeout,
-	// 	MaxHeaderSize:     maxHeaderSize,
-	// 	SocketPath:        socketPath,
-	// 	Host:              host,
-	// 	Port:              port,
-	// 	ListenLimit:       listenLimit,
-	// 	KeepAlive:         keepAlive,
-	// 	ReadTimeout:       readTimeout,
-	// 	WriteTimeout:      writeTimeout,
-	// 	TLSHost:           tlsHost,
-	// 	TLSPort:           tlsPort,
-	// 	TLSCertificate:    tlsCertificate,
-	// 	TLSCertificateKey: tlsCertificateKey,
-	// 	TLSCACertificate:  tlsCACertificate,
-	// 	TLSListenLimit:    tlsListenLimit,
-	// 	TLSKeepAlive:      tlsKeepAlive,
-	// 	TLSReadTimeout:    tlsReadTimeout,
-	// 	TLSWriteTimeout:   tlsWriteTimeout,
-	// 	Handler:           a.Handler(),
-	// }
+	// Setup gateway
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	gw, err := server.NewGateway(ctx, "dns:///localhost:5701", server.DefaultMux)
+	if err != nil {
+		log.Fatal(err)
+	}
+	glis, err := net.Listen("tcp", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		log.Printf("Gateway listening on %s:%d", tlsHost, tlsPort)
+		if err := gw.Serve(glis); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
-	// // Metrics server
-	// ms := server.NewServer()
-	// ms.Port = metricsPort
-	// ms.Host = metricsHost
-	// ms.Name = "metrics"
-	// ms.Handler = promhttp.Handler()
-	// go ms.Serve()
+	// Wait for exit signal
+	<-exit
 
-	// // Setup opentracing
-	// cfg := config.Configuration{
-	// 	ServiceName: "blipblop",
-	// 	Sampler: &config.SamplerConfig{
-	// 		Type:  "const",
-	// 		Param: 1,
-	// 	},
-	// 	Reporter: &config.ReporterConfig{
-	// 		LogSpans:            true,
-	// 		BufferFlushInterval: 1 * time.Second,
-	// 	},
-	// }
-	// tracer, closer, err := cfg.New("blipblop", config.Logger(jaeger.StdLogger))
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// opentracing.SetGlobalTracer(tracer)
-	// defer closer.Close()
-
-	// // Listen and serve!
-	// err = s.Serve()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	// Shut down
+	if err := gw.Shutdown(ctx); err != nil {
+		log.Printf("error shutting down gateway: %v", err)
+	}
+	log.Println("Shut down gateway")
+	s.Shutdown()
+	log.Println("Shut down server")
+	close(exit)
 
 }
