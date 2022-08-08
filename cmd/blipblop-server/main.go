@@ -141,7 +141,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := server.New(":5701")
+	s := server.New(net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	go func() {
 		log.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
 		if err := s.Serve(lis); err != nil {
@@ -153,7 +153,7 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	gw, err := server.NewGateway(ctx, "dns:///localhost:5701", server.DefaultMux)
+	gw, err := server.NewGateway(ctx, fmt.Sprintf("dns:///%s", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))), server.DefaultMux)
 	if err != nil {
 		log.Fatal(err)
 	}

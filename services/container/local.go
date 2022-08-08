@@ -95,7 +95,7 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 		return nil, err
 	}
 	return &containers.KillContainerResponse{
-		Id: "",
+		Id: req.GetId(),
 	}, nil
 }
 
@@ -105,7 +105,7 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 		return nil, err
 	}
 	return &containers.StartContainerResponse{
-		Id: "",
+		Id: req.GetId(),
 	}, nil
 }
 
@@ -115,7 +115,7 @@ func (l *local) Stop(ctx context.Context, req *containers.StopContainerRequest, 
 		return nil, err
 	}
 	return &containers.StopContainerResponse{
-		Id: "",
+		Id: req.GetId(),
 	}, nil
 }
 
