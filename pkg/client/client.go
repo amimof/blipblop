@@ -191,7 +191,6 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan er
 
 func New(ctx context.Context, server string) (*Client, error) {
 	var opts []grpc.DialOption
-	//opts = append(opts, grpc.WithBlock(), grpc.WithInsecure(), grpc.WithKeepaliveParams(keepalive.ClientParameters{Timeout: 2 * time.Minute}))
 	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
 	conn, err := grpc.DialContext(ctx, server, opts...)
 	if err != nil {
