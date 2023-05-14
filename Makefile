@@ -9,7 +9,7 @@ PKGS     = $(or $(PKG),$(shell env GO111MODULE=on $(GO) list ./...))
 TESTPKGS = $(shell env GO111MODULE=on $(GO) list -f \
 			'{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' \
 			$(PKGS))
-BUILDPATH ?= $(BIN)/$(shell basename $(MODULE))
+BUILDPATH ?= $(BIN)
 SRC_FILES=find . -name "*.go" -type f -not -path "./vendor/*" -not -path "./.git/*" -not -path "./.cache/*" -print0 | xargs -0 
 BIN      = $(CURDIR)/bin
 TBIN		 = $(CURDIR)/test/bin
@@ -20,18 +20,47 @@ TIMEOUT  = 15
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m➜\033[0m")
+MAKEFLAGS += -j2
 
 export GO111MODULE=on
 export CGO_ENABLED=0
 
+# Run
+
+.PHONY: run
+run: run-server run-node
+
+.PHONY: run-server
+run-server: ; $(info $(M) running server) @ ## Run a server on localhost
+	$Q $(GO) run cmd/blipblop-server/main.go \
+		--tls-key ./certs/server-key.pem \
+		--tls-certificate ./certs/server.pem \
+		--tls-host 0.0.0.0
+
+.PHONY: run-node
+run-node: ; $(info $(M) running node) @ ## Run a node on localhost
+	$Q $(GO) run cmd/blipblop-node/main.go --node-name devnode 
+
 # Build
 
 .PHONY: all
-all: | $(BIN) ; $(info $(M) building executable to $(BUILDPATH)) @ ## Build program binary
+all: server node
+
+SERVER_BIN ?= blipblop-server
+.PHONY: server
+server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(SERVER_BIN)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH) cmd/node/main.go
+		-o $(BUILDPATH)/$(SERVER_BIN) cmd/blipblop-server/main.go
+
+NODE_BIN ?= blipblop-node
+.PHONY: node
+node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(NODE_BIN)) @ ## Build program binary
+	$Q $(GO) build \
+		-tags release \
+		-ldflags '-X main.VERSION=${VERSION} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
+		-o $(BUILDPATH)/$(NODE_BIN) cmd/blipblop-node/main.go
 
 .PHONY: docker_build
 docker_build: ; $(info $(M) building docker image) @ ## Build docker image

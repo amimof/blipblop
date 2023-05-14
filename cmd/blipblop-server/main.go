@@ -171,11 +171,20 @@ func main() {
 	// Wait for exit signal
 	<-exit
 
-	// Shut down
+	// Shut down gateway
 	if err := gw.Shutdown(ctx); err != nil {
 		log.Printf("error shutting down gateway: %v", err)
 	}
 	log.Println("Shut down gateway")
+
+	// Shut down server
+	go func() {
+		select {
+		case <- time.After(time.Second * 2):
+			log.Println("Deadline exceeded, shutting down forcefully")
+			s.ForceShutdown()
+		}
+	}()
 	s.Shutdown()
 	log.Println("Shut down server")
 	close(exit)

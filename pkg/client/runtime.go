@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"syscall"
+	"time"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
@@ -15,9 +19,6 @@ import (
 	gocni "github.com/containerd/go-cni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"log"
-	"syscall"
-	"time"
 )
 
 const labelPrefix = "blipblop.io/"

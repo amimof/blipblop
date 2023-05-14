@@ -75,12 +75,10 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	}, nil
 }
 
+// Delete publishes a delete request and the subscribers are responsible for deleting resources.
+// Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
-	err := l.Repo().Delete(ctx, req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
 	if err != nil {
 		return nil, err
 	}

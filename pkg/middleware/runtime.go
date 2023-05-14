@@ -3,6 +3,8 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
@@ -10,7 +12,6 @@ import (
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/namespaces"
 	gocni "github.com/containerd/go-cni"
-	"log"
 )
 
 type runtimeMiddleware struct {
@@ -22,27 +23,44 @@ type runtimeMiddleware struct {
 func (r *runtimeMiddleware) exitHandler(e *events.TaskExit) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExit", err)
 	}
 }
 
 func (r *runtimeMiddleware) createHandler(e *events.TaskCreate) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskCreate", err)
+	}
+}
+
+func (r *runtimeMiddleware) containerCreateHandler(e *events.ContainerCreate) {
+	ns := "blipblop"
+	ctx := context.Background()
+	ctx = namespaces.WithNamespace(ctx, ns)
+	err := r.client.SetContainerState(ctx, e.ID, "created")
+	if err != nil {
+		log.Printf("%s: %s - error setting container state: %s", e.ID, "ContainerCreate", err)
+	}
+	err = r.client.SetContainerNode(ctx, e.ID, r.client.Name())
+	if err != nil {
+		log.Printf("%s: %s - error setting container node: %s", e.ID, "ContainerCreate", err)
 	}
 }
 
 func (r *runtimeMiddleware) startHandler(e *events.TaskStart) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskStart", err)
 	}
 }
+
+// TODO: Consider not updating container state on delete events since the container is already gone.
+// In other words, there will never be anything to update after a delete event. Keeping this as-is for verbosity
 func (r *runtimeMiddleware) deleteHandler(e *events.TaskDelete) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskDelete", err)
 	}
 }
 func (r *runtimeMiddleware) ioHandler(e *events.TaskIO) {
@@ -50,37 +68,37 @@ func (r *runtimeMiddleware) ioHandler(e *events.TaskIO) {
 func (r *runtimeMiddleware) oomHandler(e *events.TaskOOM) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskOOM", err)
 	}
 }
 func (r *runtimeMiddleware) execAddedHandler(e *events.TaskExecAdded) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecAdded", err)
 	}
 }
 func (r *runtimeMiddleware) execStartedHandler(e *events.TaskExecStarted) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecStarted", err)
 	}
 }
 func (r *runtimeMiddleware) pausedHandler(e *events.TaskPaused) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskPaused", err)
 	}
 }
 func (r *runtimeMiddleware) resumedHandler(e *events.TaskResumed) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskResumed", err)
 	}
 }
 func (r *runtimeMiddleware) checkpointedHandler(e *events.TaskCheckpointed) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("error setting container state: %s", err)
+		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskCheckpointed", err)
 	}
 }
 
@@ -192,6 +210,7 @@ func WithRuntime(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middlew
 		OnTaskPaused:       m.pausedHandler,
 		OnTaskResumed:      m.resumedHandler,
 		OnTaskCheckpointed: m.checkpointedHandler,
+		OnContainerCreate:  m.containerCreateHandler,
 	})
 	m.informer = i
 	return m
