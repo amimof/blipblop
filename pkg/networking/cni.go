@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/containerd/containerd"
-	gocni "github.com/containerd/go-cni"
 	"io/ioutil"
 	"log"
 	"net"
@@ -13,6 +11,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/containerd/containerd"
+	gocni "github.com/containerd/go-cni"
 )
 
 const (
@@ -100,7 +101,7 @@ func InitNetwork() (gocni.CNI, error) {
 	_, err := os.Stat(CNIConfDir)
 	if !os.IsNotExist(err) {
 		if err := os.MkdirAll(CNIConfDir, 0755); err != nil {
-			return nil, fmt.Errorf("cannot create directory: '%s'. error: %w", err)
+			return nil, fmt.Errorf("cannot create directory: '%s'. error: %w", CNIConfDir, err)
 		}
 	}
 
@@ -135,7 +136,7 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 	netns := netNamespace(task)
 	result, err := cni.Setup(ctx, id, netns, gocni.WithLabels(labels),
 		gocni.WithCapabilityPortMap([]gocni.PortMapping{
-			gocni.PortMapping{
+			{
 				HostPort:      9090,
 				ContainerPort: 9090,
 				Protocol:      "TCP",
@@ -156,7 +157,7 @@ func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 	netns := netNamespace(task)
 	err := cni.Remove(ctx, id, netns, gocni.WithLabels(labels),
 		gocni.WithCapabilityPortMap([]gocni.PortMapping{
-			gocni.PortMapping{
+			{
 				HostPort:      9090,
 				ContainerPort: 9090,
 				Protocol:      "TCP",
