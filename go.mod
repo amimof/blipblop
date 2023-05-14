@@ -14,7 +14,6 @@ require (
 )
 
 require (
-	github.com/containernetworking/plugins v1.1.1
 	github.com/google/uuid v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 )
@@ -36,7 +35,6 @@ require (
 	github.com/containerd/ttrpc v1.1.0 // indirect
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.0 // indirect
-	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -54,10 +52,7 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/safchain/ethtool v0.0.0-20210803160452-9aa261dae9b1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5 // indirect
-	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20220526153639-5463443f8c37 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
