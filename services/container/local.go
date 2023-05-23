@@ -2,16 +2,16 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"sync"
-	"time"
 )
 
 type local struct {
@@ -28,7 +28,7 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 		return nil, err
 	}
 	if container == nil {
-		return nil, errors.New(fmt.Sprintf("container not found %s", req.GetId()))
+		return nil, fmt.Errorf("container not found %s", req.GetId())
 	}
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerGet)})
 	if err != nil {

@@ -2,9 +2,10 @@ package event
 
 import (
 	"context"
+	"sync"
+
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"google.golang.org/grpc"
-	"sync"
 )
 
 type local struct {
@@ -49,8 +50,7 @@ func (l *local) Subscribe(ctx context.Context, req *events.SubscribeRequest, _ .
 }
 
 func (l *local) Publish(ctx context.Context, req *events.PublishRequest, _ ...grpc.CallOption) (*events.PublishResponse, error) {
-	l.Repo().Create(ctx, req.GetEvent())
-	return nil, nil
+	return nil, l.Repo().Create(ctx, req.GetEvent())
 }
 
 func (l *local) Repo() Repo {

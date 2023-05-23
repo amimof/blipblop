@@ -207,6 +207,9 @@ func (c *RuntimeClient) Stop(ctx context.Context, key string) error {
 		return err
 	}
 	wait, err := task.Wait(ctx)
+	if err != nil {
+		return err
+	}
 	select {
 	case status := <-wait:
 		log.Printf("Task %s exited with status %d", task.ID(), status.ExitCode())
@@ -216,7 +219,7 @@ func (c *RuntimeClient) Stop(ctx context.Context, key string) error {
 		}
 		return nil
 	case <-time.After(time.Second * 60):
-		return errors.New("Timeout waiting for task to exit gracefully")
+		return errors.New("timeout waiting for task to exit gracefully")
 	}
 }
 

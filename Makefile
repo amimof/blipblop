@@ -99,7 +99,7 @@ $(TBIN)/%: | $(TBIN) ; $(info $(M) building $(PACKAGE))
 	   #rm -rf $$tmp ; exit $$ret
 
 GOCILINT = $(TBIN)/golangci-lint
-$(TBIN)/golangci-lint: PACKAGE=github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+$(TBIN)/golangci-lint: PACKAGE=github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.2
 
 # Tests
 .PHONY: lint

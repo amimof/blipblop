@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/amimof/blipblop/pkg/server"
 	"strconv"
+
+	"github.com/amimof/blipblop/pkg/server"
+
 	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	//"github.com/amimof/blipblop/pkg/server"
 	//"github.com/opentracing/opentracing-go"
@@ -57,7 +59,6 @@ var (
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
-	containerdSocket  string
 )
 
 func init() {
@@ -179,12 +180,11 @@ func main() {
 
 	// Shut down server
 	go func() {
-		select {
-		case <- time.After(time.Second * 2):
-			log.Println("Deadline exceeded, shutting down forcefully")
-			s.ForceShutdown()
-		}
+		time.Sleep(time.Second * 10)
+		log.Println("deadline exceeded, shutting down forcefully")
+		s.ForceShutdown()
 	}()
+
 	s.Shutdown()
 	log.Println("Shut down server")
 	close(exit)

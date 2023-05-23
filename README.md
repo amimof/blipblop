@@ -6,6 +6,9 @@ Distributed `containerd` workloads
   * Go > 1.19
   * Containerd >= 1.4.13
   * Iptables
+  * Protoc v3
+  * protoc-gen-g >= @v1.28
+  * protoc-gen-go-grpc >= v1.2
 
   ## Try it out
   Run a server & node instance on localhost

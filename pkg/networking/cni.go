@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -107,7 +106,7 @@ func InitNetwork() (gocni.CNI, error) {
 
 	// Create network config file
 	netconfig := path.Join(CNIConfDir, defaultCNIConfFilename)
-	if err := ioutil.WriteFile(netconfig, []byte(defaultCNIConf), 644); err != nil {
+	if err := os.WriteFile(netconfig, []byte(defaultCNIConf), 0644); err != nil {
 		return nil, fmt.Errorf("cannot write network config: '%s'. error: %w", defaultCNIConfFilename, err)
 	}
 
@@ -131,7 +130,7 @@ func InitNetwork() (gocni.CNI, error) {
 }
 
 // CreateCNINetwork creates a CNI network interface and attaches it to the context
-func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, labels map[string]string) (*gocni.CNIResult, error) {
+func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, labels map[string]string) (*gocni.Result, error) {
 	id := netID(task)
 	netns := netNamespace(task)
 	result, err := cni.Setup(ctx, id, netns, gocni.WithLabels(labels),
@@ -145,7 +144,7 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 		}),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to setup network for task %q: %w", id, err)
+		return nil, fmt.Errorf("failed to setup network for task %q: %w", id, err)
 	}
 
 	return result, nil
@@ -166,14 +165,14 @@ func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 		}),
 	)
 	if err != nil {
-		return fmt.Errorf("Failed to remove network for task: %q, %v", id, err)
+		return fmt.Errorf("failed to remove network for task: %q, %v", id, err)
 	}
 	return nil
 }
 
 func GetIPAddress(id string) (net.IP, error) {
 	netdir := path.Join(CNIDataDir, defaultNetworkName)
-	fileinfos, err := ioutil.ReadDir(netdir)
+	fileinfos, err := os.ReadDir(netdir)
 	if err != nil {
 		return nil, err
 	}
@@ -195,5 +194,5 @@ func GetIPAddress(id string) (net.IP, error) {
 			return net.ParseIP(fileinfo.Name()), nil
 		}
 	}
-	return nil, fmt.Errorf("Couldn't find IP Address for %s", id)
+	return nil, fmt.Errorf("couldn't find IP Address for %s", id)
 }

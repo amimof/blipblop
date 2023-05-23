@@ -2,14 +2,15 @@ package client
 
 import (
 	"context"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	//"google.golang.org/grpc/keepalive"
-	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
 	"net"
@@ -17,6 +18,9 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type RESTClient struct {
@@ -28,8 +32,8 @@ type Client struct {
 	nodeService      nodes.NodeServiceClient
 	eventService     events.EventServiceClient
 	containerService containers.ContainerServiceClient
-	runtime          *RuntimeClient
-	mu               sync.Mutex
+	//runtime          *RuntimeClient
+	mu sync.Mutex
 }
 
 func getIpAddressesAsString() []string {
@@ -87,7 +91,7 @@ func (c *Client) SetContainerNode(ctx context.Context, id, node string) error {
 			return err
 		}
 	}
-	return nil	
+	return nil
 }
 
 func (c *Client) SetContainerState(ctx context.Context, id, state string) error {
@@ -231,7 +235,7 @@ func New(ctx context.Context, server string) (*Client, error) {
 			  "RetryableStatusCodes": [ "UNAVAILABLE" ]
 		  }
 		}]}`
-	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure(), grpc.WithDefaultServiceConfig(retryPolicy))
+	opts = append(opts, grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(retryPolicy))
 	conn, err := grpc.DialContext(ctx, server, opts...)
 	if err != nil {
 		return nil, err

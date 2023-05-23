@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -120,7 +119,7 @@ func (r *runtimeMiddleware) setContainerState(id string) error {
 			if err != nil {
 				return err
 			}
-			err = r.client.SetContainerState(ctx, id, fmt.Sprintf("%s", status.Status))
+			err = r.client.SetContainerState(ctx, id, string(status.Status))
 			if err != nil {
 				return err
 			}
