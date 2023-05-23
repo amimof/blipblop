@@ -9,7 +9,7 @@ PKGS     = $(or $(PKG),$(shell env GO111MODULE=on $(GO) list ./...))
 TESTPKGS = $(shell env GO111MODULE=on $(GO) list -f \
 			'{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' \
 			$(PKGS))
-BUILDPATH ?= $(BIN)/$(shell basename $(MODULE))
+BUILDPATH ?= $(BIN)
 SRC_FILES=find . -name "*.go" -type f -not -path "./vendor/*" -not -path "./.git/*" -not -path "./.cache/*" -print0 | xargs -0 
 BIN      = $(CURDIR)/bin
 TBIN		 = $(CURDIR)/test/bin
@@ -20,18 +20,47 @@ TIMEOUT  = 15
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m➜\033[0m")
+MAKEFLAGS += -j2
 
 export GO111MODULE=on
 export CGO_ENABLED=0
 
+# Run
+
+.PHONY: run
+run: run-server run-node
+
+.PHONY: run-server
+run-server: ; $(info $(M) running server) @ ## Run a server on localhost
+	$Q $(GO) run cmd/blipblop-server/main.go \
+		--tls-key ./certs/server-key.pem \
+		--tls-certificate ./certs/server.pem \
+		--tls-host 0.0.0.0
+
+.PHONY: run-node
+run-node: ; $(info $(M) running node) @ ## Run a node on localhost
+	$Q $(GO) run cmd/blipblop-node/main.go --node-name devnode 
+
 # Build
 
 .PHONY: all
-all: | $(BIN) ; $(info $(M) building executable to $(BUILDPATH)) @ ## Build program binary
+all: server node
+
+SERVER_BIN ?= blipblop-server
+.PHONY: server
+server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(SERVER_BIN)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH) cmd/node/main.go
+		-o $(BUILDPATH)/$(SERVER_BIN) cmd/blipblop-server/main.go
+
+NODE_BIN ?= blipblop-node
+.PHONY: node
+node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(NODE_BIN)) @ ## Build program binary
+	$Q $(GO) build \
+		-tags release \
+		-ldflags '-X main.VERSION=${VERSION} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
+		-o $(BUILDPATH)/$(NODE_BIN) cmd/blipblop-node/main.go
 
 .PHONY: docker_build
 docker_build: ; $(info $(M) building docker image) @ ## Build docker image
@@ -65,45 +94,17 @@ $(INTDIR):
 	@mkdir -p $@
 $(TBIN)/%: | $(TBIN) ; $(info $(M) building $(PACKAGE))
 	$Q tmp=$$(mktemp -d); \
-	   env GO111MODULE=off GOPATH=$$tmp GOBIN=$(TBIN) $(GO) get $(PACKAGE) \
+	   env GOBIN=$(TBIN) $(GO) install $(PACKAGE) \
 		|| ret=$$?; \
-	   rm -rf $$tmp ; exit $$ret
+	   #rm -rf $$tmp ; exit $$ret
 
-GOLINT = $(TBIN)/golint
-$(BIN)/golint: PACKAGE=golang.org/x/lint/golint
-
-GOCYCLO = $(TBIN)/gocyclo
-$(TBIN)/gocyclo: PACKAGE=github.com/fzipp/gocyclo/cmd/gocyclo
-
-INEFFASSIGN = $(TBIN)/ineffassign
-$(TBIN)/ineffassign: PACKAGE=github.com/gordonklaus/ineffassign
-
-MISSPELL = $(TBIN)/misspell
-$(TBIN)/misspell: PACKAGE=github.com/client9/misspell/cmd/misspell
-
-GOLINT = $(TBIN)/golint
-$(TBIN)/golint: PACKAGE=golang.org/x/lint/golint
-
-GOCOV = $(TBIN)/gocov
-$(TBIN)/gocov: PACKAGE=github.com/axw/gocov/...
+GOCILINT = $(TBIN)/golangci-lint
+$(TBIN)/golangci-lint: PACKAGE=github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.2
 
 # Tests
-
 .PHONY: lint
-lint: | $(GOLINT) ; $(info $(M) running golint) @ ## Runs the golint command
-	$Q $(GOLINT) -set_exit_status $(PKGS)
-
-.PHONY: gocyclo
-gocyclo: | $(GOCYCLO) ; $(info $(M) running gocyclo) @ ## Calculates cyclomatic complexities of functions in Go source code
-	$Q $(GOCYCLO) -over 25 .
-
-.PHONY: ineffassign
-ineffassign: | $(INEFFASSIGN) ; $(info $(M) running ineffassign) @ ## Detects ineffectual assignments in Go code
-	$Q $(INEFFASSIGN) ./...
-
-.PHONY: misspell
-misspell: | $(MISSPELL) ; $(info $(M) running misspell) @ ## Finds commonly misspelled English words
-	$Q $(MISSPELL) .
+lint: | $(GOCILINT) ; $(info $(M) running golangci-lint) @ ## Runs static code analysis using golangci-lint
+	$Q $(GOCILINT) run --timeout=5m
 
 .PHONY: test
 test: ; $(info $(M) running go test) @ ## Runs unit tests

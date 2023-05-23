@@ -2,12 +2,13 @@ package event
 
 import (
 	"context"
+	"log"
+	"time"
+
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"log"
-	"time"
 )
 
 type EventService struct {
@@ -43,7 +44,8 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 			return nil
 		case n := <-eventChan:
 			log.Printf("Got event %s (%s) from client %s", n.Type, n.Id, req.Id)
-			stream.Send(n)
+			err := stream.Send(n)
+			log.Printf("Unable to emit event to clients: %s", err)
 		}
 	}
 }
@@ -53,7 +55,7 @@ func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) 
 	if err != nil {
 		return nil, err
 	}
-	for k, _ := range n.channel {
+	for k := range n.channel {
 		for _, ch := range n.channel[k] {
 			ch <- req.Event
 		}

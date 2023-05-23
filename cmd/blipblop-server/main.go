@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/amimof/blipblop/pkg/server"
 	"strconv"
+
+	"github.com/amimof/blipblop/pkg/server"
+
 	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	//"github.com/amimof/blipblop/pkg/server"
 	//"github.com/opentracing/opentracing-go"
@@ -57,7 +59,6 @@ var (
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
-	containerdSocket  string
 )
 
 func init() {
@@ -171,11 +172,19 @@ func main() {
 	// Wait for exit signal
 	<-exit
 
-	// Shut down
+	// Shut down gateway
 	if err := gw.Shutdown(ctx); err != nil {
 		log.Printf("error shutting down gateway: %v", err)
 	}
 	log.Println("Shut down gateway")
+
+	// Shut down server
+	go func() {
+		time.Sleep(time.Second * 10)
+		log.Println("deadline exceeded, shutting down forcefully")
+		s.ForceShutdown()
+	}()
+
 	s.Shutdown()
 	log.Println("Shut down server")
 	close(exit)

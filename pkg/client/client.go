@@ -2,14 +2,15 @@ package client
 
 import (
 	"context"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	//"google.golang.org/grpc/keepalive"
-	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
 	"net"
@@ -17,6 +18,9 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type RESTClient struct {
@@ -28,8 +32,8 @@ type Client struct {
 	nodeService      nodes.NodeServiceClient
 	eventService     events.EventServiceClient
 	containerService containers.ContainerServiceClient
-	runtime          *RuntimeClient
-	mu               sync.Mutex
+	//runtime          *RuntimeClient
+	mu sync.Mutex
 }
 
 func getIpAddressesAsString() []string {
@@ -51,6 +55,10 @@ func getIpAddressesAsString() []string {
 	return i
 }
 
+func (c *Client) Name() string {
+	return c.name
+}
+
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -59,6 +67,30 @@ func (c *Client) Close() error {
 		return err
 	}
 	c.conn.Close()
+	return nil
+}
+
+func (c *Client) SetContainerNode(ctx context.Context, id, node string) error {
+	n := &containers.UpdateContainerRequest{
+		Container: &containers.Container{
+			Name: id,
+			Status: &containers.Status{
+				Node: node,
+			},
+		},
+	}
+	fm, err := fieldmaskpb.New(n.Container, "status.node")
+	if err != nil {
+		return err
+	}
+	fm.Normalize()
+	n.UpdateMask = fm
+	if fm.IsValid(n.Container) {
+		_, err = c.containerService.Update(ctx, n)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -191,7 +223,19 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan er
 
 func New(ctx context.Context, server string) (*Client, error) {
 	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithBlock(), grpc.WithInsecure())
+	retryPolicy := `{
+		"methodConfig": [{
+		  "name": [{"service": "grpc.examples.echo.Echo"}],
+		  "waitForReady": true,
+		  "retryPolicy": {
+			  "MaxAttempts": 4,
+			  "InitialBackoff": ".01s",
+			  "MaxBackoff": ".01s",
+			  "BackoffMultiplier": 1.0,
+			  "RetryableStatusCodes": [ "UNAVAILABLE" ]
+		  }
+		}]}`
+	opts = append(opts, grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(retryPolicy))
 	conn, err := grpc.DialContext(ctx, server, opts...)
 	if err != nil {
 		return nil, err

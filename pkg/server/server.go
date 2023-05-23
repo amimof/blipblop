@@ -59,6 +59,10 @@ func (s *Server) Shutdown() {
 	s.srv.GracefulStop()
 }
 
+func (s *Server) ForceShutdown() {
+	s.srv.Stop()
+}
+
 func registerServices(srv *grpc.Server) *services {
 	// Events
 	eventService := event.NewService(event.NewInMemRepo())

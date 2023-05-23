@@ -2,14 +2,14 @@ package node
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
-	"sync"
 )
 
 type local struct {
@@ -107,7 +107,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	if node, _ := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetName()}); node.GetNode() != nil {
 		return &nodes.JoinResponse{
 			Id: req.GetNode().GetName(),
-		}, errors.New(fmt.Sprintf("Node %s already joined to cluster", req.Node.Name))
+		}, fmt.Errorf("Node %s already joined to cluster", req.Node.Name)
 	}
 	_, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node})
 	if err != nil {

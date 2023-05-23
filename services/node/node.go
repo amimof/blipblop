@@ -2,12 +2,11 @@ package node
 
 import (
 	"context"
+
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 )
-
-var nodeService *NodeService
 
 type NodeService struct {
 	nodes.UnimplementedNodeServiceServer

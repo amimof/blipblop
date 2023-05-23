@@ -3,17 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/networking"
+
 	//"github.com/amimof/blipblop/pkg/server"
 	"github.com/containerd/containerd"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/pflag"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/spf13/pflag"
 )
 
 var (
@@ -89,12 +92,11 @@ func main() {
 
 	// Setup node service client
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
 	c, err := client.New(ctx, fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	//defer c.Close()
+	defer c.Close()
 
 	// Join node
 	err = c.JoinNode(ctx, client.NewNodeFromEnv(nodeName))
@@ -102,27 +104,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 
-	// Setup signal handler
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt)
-	go func() {
-		select {
-		case <-done:
-			cancel()
-			err := c.ForgetNode(ctx, nodeName)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%s", err.Error())
-			}
-			log.Printf("Unjoined %s", nodeName)
-		}
-	}()
-
 	// Create  containerd client
 	cclient, err := containerd.New(containerdSocket)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	//defer cclient.Close()
+	defer cclient.Close()
 
 	// Create networking
 	cni, err := networking.InitNetwork()
@@ -136,19 +123,20 @@ func main() {
 		middleware.WithEvents(c, cclient, cni),
 		middleware.WithNode(c, cclient, cni),
 	)
-
-	exit := make(chan os.Signal, 1)
-	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
+	defer mdlwr.Stop()
 
 	go mdlwr.Run(ctx)
 	log.Println("Started middlwares")
 
+	// Setup signal handler
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
 
-	log.Println("Shutting down ...")
+	log.Println("Shutting down")
 	ctx.Done()
-	mdlwr.Stop()
-	c.Close()
-	cclient.Close()
-
+	if err := c.ForgetNode(ctx, nodeName); err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err.Error())
+	}
+	log.Println("Successfully unjoined from cluster", nodeName)
 }

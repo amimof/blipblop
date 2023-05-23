@@ -2,16 +2,16 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"sync"
-	"time"
 )
 
 type local struct {
@@ -28,7 +28,7 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 		return nil, err
 	}
 	if container == nil {
-		return nil, errors.New(fmt.Sprintf("container not found %s", req.GetId()))
+		return nil, fmt.Errorf("container not found %s", req.GetId())
 	}
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerGet)})
 	if err != nil {
@@ -75,12 +75,10 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	}, nil
 }
 
+// Delete publishes a delete request and the subscribers are responsible for deleting resources.
+// Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
-	err := l.Repo().Delete(ctx, req.GetId())
-	if err != nil {
-		return nil, err
-	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
 	if err != nil {
 		return nil, err
 	}

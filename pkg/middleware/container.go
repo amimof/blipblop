@@ -46,11 +46,6 @@ func (c *containerMiddleware) onContainerDelete(obj *events.Event) {
 		log.Printf("error stopping container %s with error %s", obj.Id, err)
 		return
 	}
-	err = c.client.DeleteContainer(ctx, obj.Id)
-	if err != nil {
-		log.Printf("error deleting container %s with error", obj.Id, err)
-		return
-	}
 	log.Printf("successfully deleted container %s", obj.Id)
 }
 

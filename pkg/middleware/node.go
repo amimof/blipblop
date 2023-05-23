@@ -2,17 +2,18 @@ package middleware
 
 import (
 	"context"
+	"log"
+	"time"
+
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
-	"log"
-	"time"
 )
 
 type nodeMiddleware struct {
-	client   *client.Client
-	runtime  *client.RuntimeClient
-	interval int
+	client  *client.Client
+	runtime *client.RuntimeClient
+	//interval int
 }
 
 func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
@@ -30,16 +31,16 @@ func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 						err := n.client.SetNodeReady(ctx, false)
 						if err != nil {
 							log.Printf("error setting node ready status to false: %s", err)
-							lastStatus = false
+							//lastStatus = false
 						}
-						lastStatus = false
+						//lastStatus = false
 					}
 				}
 				if ok && !lastStatus {
 					err := n.client.SetNodeReady(ctx, true)
 					if err != nil {
 						log.Printf("error setting node ready status to true: %s", err)
-						lastStatus = false
+						//lastStatus = false
 					}
 					lastStatus = true
 				}

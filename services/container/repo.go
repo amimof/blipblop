@@ -2,11 +2,10 @@ package container
 
 import (
 	"context"
+	"time"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/cache"
-	"github.com/containerd/containerd"
-	gocni "github.com/containerd/go-cni"
-	"time"
 )
 
 var containerRepo Repo
@@ -20,12 +19,6 @@ type Repo interface {
 	Start(ctx context.Context, key string) error
 	Stop(ctx context.Context, key string) error
 	Kill(ctx context.Context, key string) error
-}
-
-// containerdRepo is a live containerd environment. Data is stored and fetched in and from the contaienrd runtime
-type containerdRepo struct {
-	client *containerd.Client
-	cni    gocni.CNI
 }
 
 type inmemRepo struct {
