@@ -7,6 +7,7 @@ import (
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -193,6 +194,15 @@ func (c *Client) ListContainers(ctx context.Context) ([]*containers.Container, e
 
 func (c *Client) DeleteContainer(ctx context.Context, id string) error {
 	_, err := c.containerService.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) Publish(ctx context.Context, id string, evt events.EventType) error {
+	req := &events.PublishRequest{Event: event.NewEventFor(id, evt)}
+	_, err := c.eventService.Publish(ctx, req)
 	if err != nil {
 		return err
 	}
