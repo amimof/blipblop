@@ -2,12 +2,13 @@ package middleware
 
 import (
 	"context"
+	"log"
+
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/informer"
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
-	"log"
 )
 
 type containerMiddleware struct {
@@ -54,6 +55,7 @@ func (c *containerMiddleware) onContainerStart(obj *events.Event) {
 	err := c.runtime.Start(ctx, obj.Id)
 	if err != nil {
 		log.Printf("error starting container %s with error %s", obj.Id, err)
+		c.client.Publish(ctx, obj.Id, events.EventType_ContainerStart)
 		return
 	}
 	log.Printf("successfully started container %s", obj.Id)
