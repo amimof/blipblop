@@ -41,7 +41,7 @@ jobs:
         GOOS=darwin GOARCH=amd64 BUILDPATH=./bin/blipblop-node-darwin-amd64 make node
         GOOS=darwin GOARCH=arm64 BUILDPATH=./bin/blipblop-node-darwin-arm64 make node
 
-    - name: Build bbctl Binaries
+    - name: Build CLI Binaries
       run: |
         GOOS=linux GOARCH=amd64 BUILDPATH=./bin/bbctl-linux-amd64 make bbctl
         GOOS=linux GOARCH=arm BUILDPATH=./bin/bbctl-linux-arm make bbctl
