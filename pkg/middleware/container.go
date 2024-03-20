@@ -55,7 +55,7 @@ func (c *containerMiddleware) onContainerStart(obj *events.Event) {
 	err := c.runtime.Start(ctx, obj.Id)
 	if err != nil {
 		log.Printf("error starting container %s with error %s", obj.Id, err)
-		c.client.EventV1().Publish(ctx, obj.Id, events.EventType_ContainerStart)
+		_ = c.client.EventV1().Publish(ctx, obj.Id, events.EventType_ContainerStart)
 		return
 	}
 	log.Printf("successfully started container %s", obj.Id)
