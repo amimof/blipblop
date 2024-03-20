@@ -12,7 +12,7 @@ import (
 )
 
 type containerMiddleware struct {
-	client   *client.Client
+	client   *client.ClientSet
 	runtime  *client.RuntimeClient
 	informer *informer.EventInformer
 }
@@ -23,7 +23,7 @@ func (c *containerMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 
 func (c *containerMiddleware) onContainerCreate(obj *events.Event) {
 	ctx := context.Background()
-	cont, err := c.client.GetContainer(ctx, obj.Id)
+	cont, err := c.client.ContainerV1().GetContainer(ctx, obj.Id)
 	if cont == nil {
 		log.Printf("container %s not found", obj.Id)
 		return
@@ -55,7 +55,7 @@ func (c *containerMiddleware) onContainerStart(obj *events.Event) {
 	err := c.runtime.Start(ctx, obj.Id)
 	if err != nil {
 		log.Printf("error starting container %s with error %s", obj.Id, err)
-		c.client.Publish(ctx, obj.Id, events.EventType_ContainerStart)
+		c.client.EventV1().Publish(ctx, obj.Id, events.EventType_ContainerStart)
 		return
 	}
 	log.Printf("successfully started container %s", obj.Id)
@@ -71,7 +71,7 @@ func (c *containerMiddleware) onContainerStop(obj *events.Event) {
 	log.Printf("successfully killed container %s", obj.Id)
 }
 
-func WithEvents(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {
+func WithEvents(c *client.ClientSet, cc *containerd.Client, cni gocni.CNI) Middleware {
 	e := &containerMiddleware{
 		client:  c,
 		runtime: client.NewContainerdRuntimeClient(cc, cni),

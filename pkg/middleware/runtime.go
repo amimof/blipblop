@@ -15,7 +15,7 @@ import (
 
 type runtimeMiddleware struct {
 	informer *informer.RuntimeInformer
-	client   *client.Client
+	client   *client.ClientSet
 	runtime  *client.RuntimeClient
 }
 
@@ -37,11 +37,11 @@ func (r *runtimeMiddleware) containerCreateHandler(e *events.ContainerCreate) {
 	ns := "blipblop"
 	ctx := context.Background()
 	ctx = namespaces.WithNamespace(ctx, ns)
-	err := r.client.SetContainerState(ctx, e.ID, "created")
+	err := r.client.ContainerV1().SetContainerState(ctx, e.ID, "created")
 	if err != nil {
 		log.Printf("%s: %s - error setting container state: %s", e.ID, "ContainerCreate", err)
 	}
-	err = r.client.SetContainerNode(ctx, e.ID, r.client.Name())
+	err = r.client.ContainerV1().SetContainerNode(ctx, e.ID, r.client.Name())
 	if err != nil {
 		log.Printf("%s: %s - error setting container node: %s", e.ID, "ContainerCreate", err)
 	}
@@ -119,7 +119,7 @@ func (r *runtimeMiddleware) setContainerState(id string) error {
 			if err != nil {
 				return err
 			}
-			err = r.client.SetContainerState(ctx, id, string(status.Status))
+			err = r.client.ContainerV1().SetContainerState(ctx, id, string(status.Status))
 			if err != nil {
 				return err
 			}
@@ -154,7 +154,7 @@ func contains(cs []*containers.Container, c *containers.Container) bool {
 // It is preferrably run early during startup of the controller.
 func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 	// Get containers from the server. Ultimately we want these to match with our runtime
-	containers, err := r.client.ListContainers(ctx)
+	containers, err := r.client.ContainerV1().ListContainers(ctx)
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 	return nil
 }
 
-func WithRuntime(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {
+func WithRuntime(c *client.ClientSet, cc *containerd.Client, cni gocni.CNI) Middleware {
 	m := &runtimeMiddleware{
 		client:  c,
 		runtime: client.NewContainerdRuntimeClient(cc, cni),

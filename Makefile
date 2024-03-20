@@ -44,14 +44,14 @@ run-node: ; $(info $(M) running node) @ ## Run a node on localhost
 # Build
 
 .PHONY: all
-all: server node
+all: server node bbctl
 
 SERVER_BIN ?= blipblop-server
 .PHONY: server
 server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(SERVER_BIN)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
-		-ldflags '-X main.VERSION=${VERSION} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
+		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
 		-o $(BUILDPATH)/$(SERVER_BIN) cmd/blipblop-server/main.go
 
 NODE_BIN ?= blipblop-node
@@ -59,8 +59,16 @@ NODE_BIN ?= blipblop-node
 node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(NODE_BIN)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
-		-ldflags '-X main.VERSION=${VERSION} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
+		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
 		-o $(BUILDPATH)/$(NODE_BIN) cmd/blipblop-node/main.go
+
+BBCTL_BIN ?= bbctl
+.PHONY: bbctl
+bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BBCTL_BIN)) @ ## Build program binary
+	$Q $(GO) build \
+		-tags release \
+		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
+		-o $(BUILDPATH)/$(BBCTL_BIN) main.go
 
 .PHONY: docker_build
 docker_build: ; $(info $(M) building docker image) @ ## Build docker image
