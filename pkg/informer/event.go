@@ -2,14 +2,15 @@ package informer
 
 import (
 	"context"
+	"log"
+
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"log"
 )
 
 type EventInformer struct {
 	handlers *EventHandlerFuncs
-	client   *client.Client
+	client   *client.ClientSet
 }
 
 type EventHandlerFuncs struct {
@@ -24,7 +25,7 @@ func (i *EventInformer) AddHandler(h *EventHandlerFuncs) {
 }
 
 func (i *EventInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
-	evc, errc := i.client.Subscribe(ctx)
+	evc, errc := i.client.EventV1().Subscribe(ctx)
 	for {
 		select {
 		case ev := <-evc:
@@ -68,7 +69,7 @@ func handleEventError(err error) {
 	// }
 }
 
-func NewEventInformer(client *client.Client) *EventInformer {
+func NewEventInformer(client *client.ClientSet) *EventInformer {
 	return &EventInformer{
 		client: client,
 	}

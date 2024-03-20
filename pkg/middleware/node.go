@@ -11,7 +11,7 @@ import (
 )
 
 type nodeMiddleware struct {
-	client  *client.Client
+	client  *client.ClientSet
 	runtime *client.RuntimeClient
 	//interval int
 }
@@ -28,7 +28,7 @@ func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 				if err != nil {
 					log.Printf("error checking if runtime is serving: %s", err)
 					if lastStatus {
-						err := n.client.SetNodeReady(ctx, false)
+						err := n.client.NodeV1().SetNodeReady(ctx, false)
 						if err != nil {
 							log.Printf("error setting node ready status to false: %s", err)
 							//lastStatus = false
@@ -37,7 +37,7 @@ func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 					}
 				}
 				if ok && !lastStatus {
-					err := n.client.SetNodeReady(ctx, true)
+					err := n.client.NodeV1().SetNodeReady(ctx, true)
 					if err != nil {
 						log.Printf("error setting node ready status to true: %s", err)
 						//lastStatus = false
@@ -58,7 +58,7 @@ func (n *nodeMiddleware) Recouncile(ctx context.Context) error {
 	return nil
 }
 
-func WithNode(c *client.Client, cc *containerd.Client, cni gocni.CNI) Middleware {
+func WithNode(c *client.ClientSet, cc *containerd.Client, cni gocni.CNI) Middleware {
 	m := &nodeMiddleware{
 		client:  c,
 		runtime: client.NewContainerdRuntimeClient(cc, cni),

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/amimof/blipblop/pkg/client"
+	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/networking"
 
@@ -90,16 +91,16 @@ func main() {
 		return
 	}
 
-	// Setup node service client
+	// Setup a clientset for this node
 	ctx := context.Background()
-	c, err := client.New(ctx, fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	cs, err := client.New(ctx, fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	defer c.Close()
+	defer cs.Close()
 
 	// Join node
-	err = c.JoinNode(ctx, client.NewNodeFromEnv(nodeName))
+	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -119,9 +120,9 @@ func main() {
 
 	// Setup controllers
 	mdlwr := middleware.NewManager(
-		middleware.WithRuntime(c, cclient, cni),
-		middleware.WithEvents(c, cclient, cni),
-		middleware.WithNode(c, cclient, cni),
+		middleware.WithRuntime(cs, cclient, cni),
+		middleware.WithEvents(cs, cclient, cni),
+		middleware.WithNode(cs, cclient, cni),
 	)
 	defer mdlwr.Stop()
 
@@ -135,7 +136,7 @@ func main() {
 
 	log.Println("Shutting down")
 	ctx.Done()
-	if err := c.ForgetNode(ctx, nodeName); err != nil {
+	if err := cs.NodeV1().ForgetNode(ctx, nodeName); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	log.Println("Successfully unjoined from cluster", nodeName)
