@@ -2,6 +2,9 @@ package v1
 
 import (
 	"context"
+	"net"
+	"os"
+	"runtime"
 	"time"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
@@ -13,6 +16,25 @@ import (
 type NodeV1Client struct {
 	name        string
 	nodeService nodes.NodeServiceClient
+}
+
+func getIpAddressesAsString() []string {
+	var i []string
+	inters, err := net.Interfaces()
+	if err != nil {
+		return i
+	}
+	for _, inter := range inters {
+		addrs, err := inter.Addrs()
+		if err != nil {
+			return i
+		}
+		for _, addr := range addrs {
+			a := addr.String()
+			i = append(i, a)
+		}
+	}
+	return i
 }
 
 func (c *NodeV1Client) NodeService() nodes.NodeServiceClient {
@@ -80,4 +102,22 @@ func NewNodeV1Client(conn *grpc.ClientConn) *NodeV1Client {
 	return &NodeV1Client{
 		nodeService: nodes.NewNodeServiceClient(conn),
 	}
+}
+
+// NewNodeFromEnv creates a new node from the current environment with the name s
+func NewNodeFromEnv(s string) *nodes.Node {
+	arch := runtime.GOARCH
+	oper := runtime.GOOS
+	hostname, _ := os.Hostname()
+	n := &nodes.Node{
+		Name: s,
+		Status: &nodes.Status{
+			Ips:      getIpAddressesAsString(),
+			Hostname: hostname,
+			Arch:     arch,
+			Os:       oper,
+			Ready:    false,
+		},
+	}
+	return n
 }

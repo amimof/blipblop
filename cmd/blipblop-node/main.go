@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/amimof/blipblop/pkg/client"
+	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/networking"
 
@@ -99,7 +100,7 @@ func main() {
 	defer cs.Close()
 
 	// Join node
-	err = cs.NodeV1().JoinNode(ctx, client.NewNodeFromEnv(nodeName))
+	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
