@@ -18,11 +18,13 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.1
 	github.com/spf13/cobra v1.0.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240125205218-1f4bbc51befe
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240125205218-1f4bbc51befe // indirect
 )
 
