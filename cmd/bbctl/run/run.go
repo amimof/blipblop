@@ -3,6 +3,8 @@ package run
 import (
 	"context"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -12,6 +14,7 @@ import (
 
 var (
 	image string
+	ports []string
 )
 
 func NewCmdRun(c *client.ClientSet) *cobra.Command {
@@ -26,10 +29,27 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		Run: func(_ *cobra.Command, args []string) {
 			cname := args[0]
 			ctx := context.Background()
+
+			// Setup ports
+			var cports []*containers.Port
+			for _, p := range ports {
+				sport := strings.Split(p, "")
+				source, err := strconv.Atoi(sport[0])
+				if err != nil {
+					log.Fatal(err)
+				}
+				dest, err := strconv.Atoi(sport[1])
+				if err != nil {
+					log.Fatal(err)
+				}
+				cports = append(cports, &containers.Port{Hostport: int32(source), Containerport: int32(dest)})
+			}
+
 			err := c.ContainerV1().CreateContainer(ctx, &containers.Container{
 				Name: cname,
 				Config: &containers.Config{
 					Image: image,
+					Ports: cports,
 				},
 			})
 			if err != nil {
@@ -48,6 +68,13 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"i",
 		"",
 		"Container image to run, must include the registry host",
+	)
+	runCmd.Flags().StringSliceVarP(
+		&ports,
+		"port",
+		"p",
+		[]string{},
+		"Forward a local port to the container",
 	)
 	if err := runCmd.MarkFlagRequired("image"); err != nil {
 		log.Fatal(err)

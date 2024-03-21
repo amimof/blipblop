@@ -12,6 +12,7 @@ import (
 	"github.com/amimof/blipblop/cmd/bbctl/delete"
 	"github.com/amimof/blipblop/cmd/bbctl/get"
 	"github.com/amimof/blipblop/cmd/bbctl/run"
+	"github.com/amimof/blipblop/cmd/bbctl/stop"
 )
 
 var rootCmd = &cobra.Command{
@@ -57,5 +58,6 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.AddCommand(run.NewCmdRun(c))
 	rootCmd.AddCommand(delete.NewCmdDelete(c))
 	rootCmd.AddCommand(get.NewCmdGet(c))
+	rootCmd.AddCommand(stop.NewCmdStop(c))
 	return rootCmd
 }
