@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"log"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -11,6 +10,7 @@ import (
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/namespaces"
 	gocni "github.com/containerd/go-cni"
+	"github.com/sirupsen/logrus"
 )
 
 type runtimeMiddleware struct {
@@ -22,14 +22,14 @@ type runtimeMiddleware struct {
 func (r *runtimeMiddleware) exitHandler(e *events.TaskExit) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExit", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExit", err)
 	}
 }
 
 func (r *runtimeMiddleware) createHandler(e *events.TaskCreate) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskCreate", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskCreate", err)
 	}
 }
 
@@ -39,18 +39,18 @@ func (r *runtimeMiddleware) containerCreateHandler(e *events.ContainerCreate) {
 	ctx = namespaces.WithNamespace(ctx, ns)
 	err := r.client.ContainerV1().SetContainerState(ctx, e.ID, "created")
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ID, "ContainerCreate", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ID, "ContainerCreate", err)
 	}
-	err = r.client.ContainerV1().SetContainerNode(ctx, e.ID, r.client.Name())
+	err = r.client.ContainerV1().SetContainerNode(ctx, e.ID, r.client.Id())
 	if err != nil {
-		log.Printf("%s: %s - error setting container node: %s", e.ID, "ContainerCreate", err)
+		logrus.Printf("%s: %s - error setting container node: %s", e.ID, "ContainerCreate", err)
 	}
 }
 
 func (r *runtimeMiddleware) startHandler(e *events.TaskStart) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskStart", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskStart", err)
 	}
 }
 
@@ -59,7 +59,7 @@ func (r *runtimeMiddleware) startHandler(e *events.TaskStart) {
 func (r *runtimeMiddleware) deleteHandler(e *events.TaskDelete) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskDelete", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskDelete", err)
 	}
 }
 func (r *runtimeMiddleware) ioHandler(e *events.TaskIO) {
@@ -67,37 +67,37 @@ func (r *runtimeMiddleware) ioHandler(e *events.TaskIO) {
 func (r *runtimeMiddleware) oomHandler(e *events.TaskOOM) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskOOM", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskOOM", err)
 	}
 }
 func (r *runtimeMiddleware) execAddedHandler(e *events.TaskExecAdded) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecAdded", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecAdded", err)
 	}
 }
 func (r *runtimeMiddleware) execStartedHandler(e *events.TaskExecStarted) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecStarted", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecStarted", err)
 	}
 }
 func (r *runtimeMiddleware) pausedHandler(e *events.TaskPaused) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskPaused", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskPaused", err)
 	}
 }
 func (r *runtimeMiddleware) resumedHandler(e *events.TaskResumed) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskResumed", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskResumed", err)
 	}
 }
 func (r *runtimeMiddleware) checkpointedHandler(e *events.TaskCheckpointed) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskCheckpointed", err)
+		logrus.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskCheckpointed", err)
 	}
 }
 
@@ -132,7 +132,7 @@ func (r *runtimeMiddleware) setContainerState(id string) error {
 func (r *runtimeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 	err := r.Recouncile(ctx)
 	if err != nil {
-		log.Printf("Error recounciling state with error %s", err)
+		logrus.Printf("Error recounciling state with error %s", err)
 		return
 	}
 	go r.informer.Watch(ctx, stop)
@@ -170,11 +170,11 @@ func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 		if !contains(containers, c) {
 			err := r.runtime.Stop(ctx, c.Name)
 			if err != nil {
-				log.Printf("error stopping container: %s", err)
+				logrus.Printf("error stopping container: %s", err)
 			}
 			err = r.runtime.Delete(ctx, c.Name)
 			if err != nil {
-				log.Printf("error deleting container: %s", err)
+				logrus.Printf("error deleting container: %s", err)
 			}
 		}
 	}
@@ -184,7 +184,7 @@ func (r *runtimeMiddleware) Recouncile(ctx context.Context) error {
 		if !contains(currentContainers, c) {
 			err := r.runtime.Set(ctx, c)
 			if err != nil {
-				log.Printf("error creating container: %s", err)
+				logrus.Printf("error creating container: %s", err)
 			}
 		}
 	}

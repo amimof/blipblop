@@ -2,10 +2,10 @@ package informer
 
 import (
 	"context"
-	"log"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/sirupsen/logrus"
 )
 
 type EventInformer struct {
@@ -25,7 +25,7 @@ func (i *EventInformer) AddHandler(h *EventHandlerFuncs) {
 }
 
 func (i *EventInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
-	evc, errc := i.client.EventV1().Subscribe(ctx)
+	evc, errc := i.client.EventV1().Subscribe(ctx, i.client.Id())
 	for {
 		select {
 		case ev := <-evc:
@@ -34,10 +34,10 @@ func (i *EventInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
 			handleEventError(err)
 		case <-stopCh:
 			ctx.Done()
-			log.Println("Done watching event informer")
+			logrus.Println("Done watching event informer")
 			return
 		case <-ctx.Done():
-			log.Println("Done, closing client")
+			logrus.Println("Done, closing client")
 			i.client.Close()
 			return
 		}
@@ -59,7 +59,7 @@ func handleEventEvent(h *EventHandlerFuncs, ev *events.Event) {
 	case events.EventType_ContainerStop:
 		h.OnContainerStop(ev)
 	default:
-		log.Printf("Handler not implemented for event type %s", t)
+		logrus.Printf("Handler not implemented for event type %s", t)
 	}
 }
 

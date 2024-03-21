@@ -5,6 +5,7 @@ Distributed `containerd` workloads
 * Linux
 * Containerd >= 1.4.13
 * Iptables
+* [CNI plugins](https://github.com/containernetworking/plugins)
 
 ## Try it out
 Run a server & node instance on localhost

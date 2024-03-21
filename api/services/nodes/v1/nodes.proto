@@ -12,7 +12,6 @@ service NodeService {
   rpc List(ListNodeRequest) returns (ListNodeResponse) {
     option (google.api.http) = {
       get: "/api/v1/nodes"
-      body: "nodes"
     };
   }
   rpc Get(GetNodeRequest) returns (GetNodeResponse) {

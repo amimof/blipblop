@@ -65,6 +65,22 @@ func (c *ContainerV1Client) SetContainerState(ctx context.Context, id, state str
 	return nil
 }
 
+func (c *ContainerV1Client) RunContainer(ctx context.Context, id string) error {
+	_, err := c.containerService.Start(ctx, &containers.StartContainerRequest{Id: id})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ContainerV1Client) CreateContainer(ctx context.Context, ctr *containers.Container) error {
+	_, err := c.containerService.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *ContainerV1Client) GetContainer(ctx context.Context, id string) (*containers.Container, error) {
 	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {

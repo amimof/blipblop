@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"math/rand"
 
 	containerv1 "github.com/amimof/blipblop/pkg/client/container/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
@@ -13,8 +14,25 @@ import (
 	"sync"
 )
 
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+)
+
+func RandStringBytesMask(n int) string {
+	b := make([]byte, n)
+	for i := 0; i < n; {
+		if idx := int(rand.Int63() & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i++
+		}
+	}
+	return string(b)
+}
+
 type ClientSet struct {
-	name              string
+	clientId          string
 	conn              *grpc.ClientConn
 	nodeV1Client      *nodev1.NodeV1Client
 	containerV1Client *containerv1.ContainerV1Client
@@ -34,14 +52,14 @@ func (c *ClientSet) EventV1() *eventv1.EventV1Client {
 	return c.eventV1Client
 }
 
-func (c *ClientSet) Name() string {
-	return c.name
+func (c *ClientSet) Id() string {
+	return c.clientId
 }
 
 func (c *ClientSet) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	err := c.NodeV1().ForgetNode(context.Background(), c.name)
+	err := c.NodeV1().ForgetNode(context.Background(), c.clientId)
 	if err != nil {
 		return err
 	}
@@ -69,6 +87,7 @@ func New(ctx context.Context, server string) (*ClientSet, error) {
 		return nil, err
 	}
 	c := &ClientSet{
+		clientId:          RandStringBytesMask(12),
 		conn:              conn,
 		nodeV1Client:      nodev1.NewNodeV1Client(conn),
 		containerV1Client: containerv1.NewContainerV1Client(conn),

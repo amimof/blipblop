@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"path"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -95,7 +95,7 @@ func netNamespace(task containerd.Task) string {
 // InitNetwork ...
 func InitNetwork() (gocni.CNI, error) {
 
-	log.Printf("Writing CNI network configuration to %s/%s", CNIConfDir, defaultCNIConfFilename)
+	logrus.Printf("Writing CNI network configuration to %s/%s", CNIConfDir, defaultCNIConfFilename)
 	// Create directories
 	_, err := os.Stat(CNIConfDir)
 	if !os.IsNotExist(err) {

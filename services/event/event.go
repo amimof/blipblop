@@ -35,17 +35,19 @@ func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (
 func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
 	eventChan := make(chan *events.Event)
 	n.channel[req.Id] = append(n.channel[req.Id], eventChan)
-	log.Printf("Node %s joined", req.Id)
+	log.Printf("Client %s joined", req.Id)
 	for {
 		select {
 		case <-stream.Context().Done():
-			log.Printf("Node %s left", req.Id)
+			log.Printf("Client %s left", req.Id)
 			delete(n.channel, req.Id)
 			return nil
 		case n := <-eventChan:
 			log.Printf("Got event %s (%s) from client %s", n.Type, n.Id, req.Id)
 			err := stream.Send(n)
-			log.Printf("Unable to emit event to clients: %s", err)
+			if err != nil {
+				log.Printf("Unable to emit event to clients: %s", err.Error())
+			}
 		}
 	}
 }
