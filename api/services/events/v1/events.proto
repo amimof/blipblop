@@ -54,6 +54,7 @@ enum EventType {
   NodeUpdate = 12;
   NodeJoin = 13;
   NodeForget = 14;
+  ContainerStartError = 15;
 }
 
 message GetEventRequest {

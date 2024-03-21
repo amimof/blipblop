@@ -2,17 +2,19 @@ package server
 
 import (
 	"context"
+	"net"
+	"net/http"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"net"
-	"net/http"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
-var DefaultMux = runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{OrigName: true, EmitDefaults: true}))
+var DefaultMux = runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true}}))
 
 type Gateway struct {
 	mux  *runtime.ServeMux

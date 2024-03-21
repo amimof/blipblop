@@ -11,7 +11,6 @@ import (
 )
 
 type EventV1Client struct {
-	name         string
 	eventService events.EventServiceClient
 }
 
@@ -28,10 +27,11 @@ func (c *EventV1Client) Publish(ctx context.Context, id string, evt events.Event
 	return nil
 }
 
-func (c *EventV1Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {
+// Subscribe to events as a client with the given name
+func (c *EventV1Client) Subscribe(ctx context.Context, n string) (<-chan *events.Event, <-chan error) {
 	evc := make(chan *events.Event)
 	errc := make(chan error)
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: c.name})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: n})
 	if err != nil {
 		log.Fatalf("subscribe error occurred %s", err.Error())
 	}

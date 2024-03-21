@@ -8,11 +8,11 @@ import (
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/middleware"
 	"github.com/amimof/blipblop/pkg/networking"
+	"github.com/sirupsen/logrus"
 
 	//"github.com/amimof/blipblop/pkg/server"
 	"github.com/containerd/containerd"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -43,6 +43,8 @@ var (
 	metricsHost string
 	metricsPort int
 
+	logLevel string
+
 	containerdSocket string
 )
 
@@ -54,6 +56,7 @@ func init() {
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
+	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.IntVar(&tlsPort, "tls-port", 5700, "the port to listen on for secure connections, defaults to 8443")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -85,6 +88,14 @@ func main() {
 		return
 	}
 
+	// Setup logging
+	lvl, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.SetReportCaller(true)
+	logrus.SetLevel(lvl)
+
 	// node-name is required
 	if nodeName == "" {
 		fmt.Fprintln(os.Stderr, "node name is required")
@@ -100,7 +111,9 @@ func main() {
 	defer cs.Close()
 
 	// Join node
-	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))
+	node := nodev1.NewNodeFromEnv(nodeName)
+	fmt.Println(node)
+	err = cs.NodeV1().JoinNode(ctx, node)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -122,22 +135,22 @@ func main() {
 	mdlwr := middleware.NewManager(
 		middleware.WithRuntime(cs, cclient, cni),
 		middleware.WithEvents(cs, cclient, cni),
-		middleware.WithNode(cs, cclient, cni),
+		middleware.WithNode(node, cs, cclient, cni),
 	)
 	defer mdlwr.Stop()
 
 	go mdlwr.Run(ctx)
-	log.Println("Started middlwares")
+	logrus.Println("Started middlwares")
 
 	// Setup signal handler
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
 
-	log.Println("Shutting down")
+	logrus.Println("Shutting down")
 	ctx.Done()
 	if err := cs.NodeV1().ForgetNode(ctx, nodeName); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	log.Println("Successfully unjoined from cluster", nodeName)
+	logrus.Println("Successfully unjoined from cluster", nodeName)
 }

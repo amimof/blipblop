@@ -82,6 +82,10 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 	if err != nil {
 		return nil, err
 	}
+	err = l.Repo().Delete(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
 	return &containers.DeleteContainerResponse{
 		Id: req.GetId(),
 	}, nil

@@ -3,15 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/amimof/blipblop/pkg/client"
 
+	"github.com/amimof/blipblop/cmd/bbctl/delete"
+	"github.com/amimof/blipblop/cmd/bbctl/get"
 	"github.com/amimof/blipblop/cmd/bbctl/run"
-	"github.com/amimof/blipblop/cmd/bbctl/version"
 )
 
 var rootCmd = &cobra.Command{
@@ -29,7 +29,6 @@ func SetVersionInfo(version, commit, date, branch, goversion string) {
 }
 
 func NewDefaultCommand() *cobra.Command {
-	stdOut := os.Stdout
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		lvl, err := logrus.ParseLevel(v)
 		if err != nil {
@@ -56,6 +55,7 @@ func NewDefaultCommand() *cobra.Command {
 
 	// Setup sub-commands
 	rootCmd.AddCommand(run.NewCmdRun(c))
-	rootCmd.AddCommand(version.NewCmdVersion(stdOut))
+	rootCmd.AddCommand(delete.NewCmdDelete(c))
+	rootCmd.AddCommand(get.NewCmdGet(c))
 	return rootCmd
 }

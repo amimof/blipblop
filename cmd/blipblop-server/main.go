@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/amimof/blipblop/pkg/server"
+	"github.com/sirupsen/logrus"
 
 	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	//"github.com/amimof/blipblop/pkg/server"
@@ -15,7 +16,6 @@ import (
 	"github.com/spf13/pflag"
 	//"github.com/uber/jaeger-client-go"
 	//"github.com/uber/jaeger-client-go/config"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -47,6 +47,7 @@ var (
 	keepAlive    time.Duration
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	logLevel     string
 
 	tcptlsHost        string
 	tcptlsPort        int
@@ -70,6 +71,7 @@ func init() {
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
+	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
@@ -102,7 +104,7 @@ func init() {
 		},
 		func() float64 { return 1 },
 	)); err != nil {
-		log.Printf("Unable to register 'blipblop_build_info metric %s'", err.Error())
+		logrus.Printf("Unable to register 'blipblop_build_info metric %s'", err.Error())
 	}
 
 }
@@ -133,6 +135,13 @@ func main() {
 		return
 	}
 
+	// Setup logging
+	lvl, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.SetLevel(lvl)
+
 	// Setup signal handlers
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
@@ -140,13 +149,13 @@ func main() {
 	// Setup server
 	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 	s := server.New(net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	go func() {
-		log.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
+		logrus.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
 		if err := s.Serve(lis); err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 		}
 	}()
 
@@ -156,16 +165,16 @@ func main() {
 	defer cancel()
 	gw, err := server.NewGateway(ctx, fmt.Sprintf("dns:///%s", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))), server.DefaultMux)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 	glis, err := net.Listen("tcp", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 	go func() {
-		log.Printf("Gateway listening on %s:%d", tlsHost, tlsPort)
+		logrus.Printf("Gateway listening on %s:%d", tlsHost, tlsPort)
 		if err := gw.Serve(glis); err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 		}
 	}()
 
@@ -174,19 +183,19 @@ func main() {
 
 	// Shut down gateway
 	if err := gw.Shutdown(ctx); err != nil {
-		log.Printf("error shutting down gateway: %v", err)
+		logrus.Printf("error shutting down gateway: %v", err)
 	}
-	log.Println("Shut down gateway")
+	logrus.Println("Shut down gateway")
 
 	// Shut down server
 	go func() {
 		time.Sleep(time.Second * 10)
-		log.Println("deadline exceeded, shutting down forcefully")
+		logrus.Println("deadline exceeded, shutting down forcefully")
 		s.ForceShutdown()
 	}()
 
 	s.Shutdown()
-	log.Println("Shut down server")
+	logrus.Println("Shut down server")
 	close(exit)
 
 }

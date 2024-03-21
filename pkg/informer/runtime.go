@@ -3,10 +3,11 @@ package informer
 import (
 	//"os"
 	"context"
+
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/typeurl"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
 type ContainerdEvent interface {
@@ -56,12 +57,12 @@ func (i *RuntimeInformer) Watch(ctx context.Context, stopCh <-chan struct{}) {
 		case e := <-ch:
 			ev, err := typeurl.UnmarshalAny(e.Event)
 			if err != nil {
-				log.Printf("Error: %s", err.Error())
+				logrus.Printf("Error: %s", err.Error())
 			}
 			handleEvent(i.handlers, ev)
 		case err := <-errs:
 			if err != nil {
-				log.Printf("Error %s", err)
+				logrus.Printf("Error %s", err)
 			}
 		case <-ctx.Done():
 			return
@@ -171,7 +172,7 @@ func handleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
 			handlers.OnContainerDelete(t)
 		}
 	default:
-		log.Printf("No handler exists for event %s", t)
+		logrus.Printf("No handler exists for event %s", t)
 	}
 }
 
