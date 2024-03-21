@@ -9,10 +9,6 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 )
 
-var (
-	image string
-)
-
 func NewCmdDelete(c *client.ClientSet) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "delete",

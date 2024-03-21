@@ -49,6 +49,8 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"",
 		"Container image to run, must include the registry host",
 	)
-	runCmd.MarkFlagRequired("image")
+	if err := runCmd.MarkFlagRequired("image"); err != nil {
+		log.Fatal(err)
+	}
 	return runCmd
 }
