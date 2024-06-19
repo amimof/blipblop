@@ -1,4 +1,4 @@
-package middleware
+package controller
 
 import (
 	"context"
@@ -6,19 +6,16 @@ import (
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/containerd/containerd"
-	gocni "github.com/containerd/go-cni"
-	"github.com/sirupsen/logrus"
+	"github.com/amimof/blipblop/pkg/runtime"
 )
 
-type nodeMiddleware struct {
-	node    *nodes.Node
+type NodeController struct {
 	client  *client.ClientSet
-	runtime *client.RuntimeClient
+	runtime runtime.Runtime
 	//interval int
 }
 
-func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
+func (n *NodeController) Run(ctx context.Context, stop <-chan struct{}) {
 	go func() {
 		var lastStatus bool
 		for {
@@ -26,7 +23,7 @@ func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 			case <-stop:
 				return
 			default:
-				ok, err := n.runtime.ContainerdClient().IsServing(ctx)
+				ok, err := n.runtime.IsServing(ctx)
 				if err != nil {
 					logrus.Printf("error checking if runtime is serving: %s", err.Error())
 					if lastStatus {
@@ -56,15 +53,14 @@ func (n *nodeMiddleware) Run(ctx context.Context, stop <-chan struct{}) {
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (n *nodeMiddleware) Recouncile(ctx context.Context) error {
+func (n *NodeController) Recouncile(ctx context.Context) error {
 	return nil
 }
 
-func WithNode(n *nodes.Node, c *client.ClientSet, cc *containerd.Client, cni gocni.CNI) Middleware {
-	m := &nodeMiddleware{
-		node:    n,
+func NewNodeController(c *client.ClientSet, rt runtime.Runtime) *NodeController {
+	m := &NodeController{
 		client:  c,
-		runtime: client.NewContainerdRuntimeClient(cc, cni),
+		runtime: rt,
 	}
 	return m
 }
