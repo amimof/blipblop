@@ -1,4 +1,4 @@
-package client
+package runtime
 
 import (
 	"context"
@@ -23,9 +23,10 @@ import (
 
 const labelPrefix = "blipblop.io/"
 
-type RuntimeClient struct {
+type ContainerdRuntime struct {
 	client *containerd.Client
 	cni    gocni.CNI
+	// eh     *handler.ContainerdEventHandler
 }
 
 func buildMounts(m []*containers.Mount) []specs.Mount {
@@ -72,7 +73,7 @@ func buildContainerLabels(container *containers.Container) labels.Label {
 	return l
 }
 
-func (c *RuntimeClient) List(ctx context.Context) ([]*containers.Container, error) {
+func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	ctrs, err := c.client.Containers(ctx)
 	if err != nil {
@@ -111,7 +112,7 @@ func (c *RuntimeClient) List(ctx context.Context) ([]*containers.Container, erro
 	return result, nil
 }
 
-func (c *RuntimeClient) Get(ctx context.Context, key string) (*containers.Container, error) {
+func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Container, error) {
 	units, err := c.List(ctx)
 	if err != nil {
 		return nil, err
@@ -124,7 +125,7 @@ func (c *RuntimeClient) Get(ctx context.Context, key string) (*containers.Contai
 	return nil, nil
 }
 
-func (c *RuntimeClient) Create(ctx context.Context, unit *containers.Container) error {
+func (c *ContainerdRuntime) Create(ctx context.Context, unit *containers.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
 	image, err := c.client.Pull(ctx, unit.Config.Image, containerd.WithPullUnpack)
@@ -156,7 +157,7 @@ func (c *RuntimeClient) Create(ctx context.Context, unit *containers.Container) 
 	return nil
 }
 
-func (c *RuntimeClient) Delete(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
@@ -172,7 +173,7 @@ func (c *RuntimeClient) Delete(ctx context.Context, key string) error {
 	return container.Delete(ctx)
 }
 
-func (c *RuntimeClient) Kill(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
@@ -185,7 +186,7 @@ func (c *RuntimeClient) Kill(ctx context.Context, key string) error {
 	return task.Kill(ctx, syscall.SIGINT)
 }
 
-func (c *RuntimeClient) Stop(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Stop(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
@@ -223,7 +224,7 @@ func (c *RuntimeClient) Stop(ctx context.Context, key string) error {
 	}
 }
 
-func (c *RuntimeClient) Start(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Start(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {
@@ -263,10 +264,10 @@ func (c *RuntimeClient) Start(ctx context.Context, key string) error {
 	return nil
 }
 
-func (r *RuntimeClient) ContainerdClient() *containerd.Client {
-	return r.client
+func (c *ContainerdRuntime) IsServing(ctx context.Context) (bool, error) {
+	return c.client.IsServing(ctx)
 }
 
-func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI) *RuntimeClient {
-	return &RuntimeClient{client, cni}
+func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI) *ContainerdRuntime {
+	return &ContainerdRuntime{client, cni}
 }

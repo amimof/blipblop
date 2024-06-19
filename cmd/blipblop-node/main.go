@@ -6,8 +6,9 @@ import (
 
 	"github.com/amimof/blipblop/pkg/client"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
-	"github.com/amimof/blipblop/pkg/middleware"
+	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/networking"
+	"github.com/amimof/blipblop/pkg/runtime"
 
 	//"github.com/amimof/blipblop/pkg/server"
 	"github.com/containerd/containerd"
@@ -118,21 +119,27 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 
-	// Setup controllers
-	mdlwr := middleware.NewManager(
-		middleware.WithRuntime(cs, cclient, cni),
-		middleware.WithEvents(cs, cclient, cni),
-		middleware.WithNode(cs, cclient, cni),
-	)
-	defer mdlwr.Stop()
+	// // Setup and run controllers
+	runtime := runtime.NewContainerdRuntimeClient(cclient, cni)
+	stopCh := make(chan struct{})
 
-	go mdlwr.Run(ctx)
-	log.Println("Started middlwares")
+	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime)
+	go containerdCtrl.Run(ctx, stopCh)
+	log.Println("Started Containerd Controller")
+
+	containerCtrl := controller.NewContainerController(cs, runtime)
+	go containerCtrl.Run(ctx, stopCh)
+	log.Println("Started Container Controller")
+
+	nodeCtrl := controller.NewNodeController(cs, runtime)
+	go nodeCtrl.Run(ctx, stopCh)
+	log.Println("Started Node Controller")
 
 	// Setup signal handler
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
+	<-stopCh
 
 	log.Println("Shutting down")
 	ctx.Done()
