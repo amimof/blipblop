@@ -5,9 +5,13 @@ Distributed `containerd` workloads
 ## System Requirements
 
 - Linux
-- Containerd >= 1.4.13
+- [Containerd](https://containerd.io/downloads/) >= 1.4.13
 - Iptables
+<<<<<<< Updated upstream
 - [CNI plugins](https://github.com/containernetworking/plugins)
+=======
+- [CNI Plugins](https://github.com/containernetworking/plugins/releases)
+>>>>>>> Stashed changes
 
 ## Try it out
 

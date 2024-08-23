@@ -2,11 +2,9 @@ package get
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/amimof/blipblop/pkg/client"
 )
 
-func NewCmdGet(c *client.ClientSet) *cobra.Command {
+func NewCmdGet() *cobra.Command {
 	getCmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get a resource",
@@ -25,8 +23,8 @@ bbctl get nodes
 		Args: cobra.ExactArgs(1),
 	}
 
-	getCmd.AddCommand(NewCmdGetNode(c))
-	getCmd.AddCommand(NewCmdGetContainer(c))
+	getCmd.AddCommand(NewCmdGetNode())
+	getCmd.AddCommand(NewCmdGetContainer())
 
 	return getCmd
 }
