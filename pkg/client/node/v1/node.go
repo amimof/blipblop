@@ -41,6 +41,14 @@ func (c *NodeV1Client) NodeService() nodes.NodeServiceClient {
 	return c.nodeService
 }
 
+func (c *NodeV1Client) ListNodes(ctx context.Context) ([]*nodes.Node, error) {
+	n, err := c.nodeService.List(ctx, &nodes.ListNodeRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return n.Nodes, nil
+}
+
 func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
 	node.Updated = timestamppb.New(time.Now())
 	node.Revision = node.Revision + 1
