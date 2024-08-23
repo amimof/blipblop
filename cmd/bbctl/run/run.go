@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -17,7 +19,7 @@ var (
 	ports []string
 )
 
-func NewCmdRun(c *client.ClientSet) *cobra.Command {
+func NewCmdRun() *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run a container",
@@ -26,6 +28,12 @@ func NewCmdRun(c *client.ClientSet) *cobra.Command {
 # Run a prometheus container
 bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		Args: cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := viper.BindPFlags(cmd.Flags()); err != nil {
+				return err
+			}
+			return nil
+		},
 		Run: func(_ *cobra.Command, args []string) {
 			cname := args[0]
 			ctx := context.Background()
@@ -45,7 +53,15 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				cports = append(cports, &containers.Port{Hostport: int32(source), Containerport: int32(dest)})
 			}
 
-			err := c.ContainerV1().CreateContainer(ctx, &containers.Container{
+			server := viper.GetString("server")
+
+			// Setup our client
+			c, err := client.New(ctx, server)
+			if err != nil {
+				logrus.Fatal(err)
+			}
+
+			err = c.ContainerV1().CreateContainer(ctx, &containers.Container{
 				Name: cname,
 				Config: &containers.Config{
 					Image: image,
