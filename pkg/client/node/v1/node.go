@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"runtime"
@@ -15,6 +14,7 @@ import (
 )
 
 type NodeV1Client struct {
+	name        string
 	nodeService nodes.NodeServiceClient
 }
 
@@ -41,14 +41,6 @@ func (c *NodeV1Client) NodeService() nodes.NodeServiceClient {
 	return c.nodeService
 }
 
-func (c *NodeV1Client) ListNodes(ctx context.Context) ([]*nodes.Node, error) {
-	n, err := c.nodeService.List(ctx, &nodes.ListNodeRequest{})
-	if err != nil {
-		return nil, err
-	}
-	return n.Nodes, nil
-}
-
 func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
 	node.Updated = timestamppb.New(time.Now())
 	node.Revision = node.Revision + 1
@@ -60,6 +52,7 @@ func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
 }
 
 func (c *NodeV1Client) JoinNode(ctx context.Context, node *nodes.Node) error {
+	c.name = node.Name
 	node.Created = timestamppb.New(time.Now())
 	node.Updated = timestamppb.New(time.Now())
 	node.Revision = 1
@@ -81,24 +74,23 @@ func (c *NodeV1Client) ForgetNode(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *NodeV1Client) SetNodeReady(ctx context.Context, n string, ready bool) error {
-	node := &nodes.UpdateNodeRequest{
+func (c *NodeV1Client) SetNodeReady(ctx context.Context, ready bool) error {
+	n := &nodes.UpdateNodeRequest{
 		Node: &nodes.Node{
-			Name: n,
+			Name: c.name,
 			Status: &nodes.Status{
 				Ready: ready,
 			},
 		},
 	}
-	fmt.Println(node)
-	fm, err := fieldmaskpb.New(node.Node, "status.ready")
+	fm, err := fieldmaskpb.New(n.Node, "status.ready")
 	if err != nil {
 		return err
 	}
 	fm.Normalize()
-	node.UpdateMask = fm
-	if fm.IsValid(node.Node) {
-		_, err = c.nodeService.Update(ctx, node)
+	n.UpdateMask = fm
+	if fm.IsValid(n.Node) {
+		_, err = c.nodeService.Update(ctx, n)
 		if err != nil {
 			return err
 		}

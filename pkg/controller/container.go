@@ -138,5 +138,4 @@ func NewContainerController(cs *client.ClientSet, rt runtime.Runtime) *Container
 	eh.handlers = handlers
 
 	return eh
-
 }

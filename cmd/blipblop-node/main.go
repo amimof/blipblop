@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/amimof/blipblop/pkg/client"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
@@ -13,9 +17,6 @@ import (
 	//"github.com/amimof/blipblop/pkg/server"
 	"github.com/containerd/containerd"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/spf13/pflag"
 )
@@ -43,8 +44,6 @@ var (
 	metricsHost string
 	metricsPort int
 
-	logLevel string
-
 	containerdSocket string
 )
 
@@ -56,14 +55,12 @@ func init() {
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
-	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.IntVar(&tlsPort, "tls-port", 5700, "the port to listen on for secure connections, defaults to 8443")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
 }
 
 func main() {
-
 	showver := pflag.Bool("version", false, "Print version")
 
 	pflag.Usage = func() {
@@ -88,14 +85,6 @@ func main() {
 		return
 	}
 
-	// Setup logging
-	lvl, err := logrus.ParseLevel(logLevel)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	logrus.SetReportCaller(true)
-	logrus.SetLevel(lvl)
-
 	// node-name is required
 	if nodeName == "" {
 		fmt.Fprintln(os.Stderr, "node name is required")
@@ -111,9 +100,7 @@ func main() {
 	defer cs.Close()
 
 	// Join node
-	node := nodev1.NewNodeFromEnv(nodeName)
-	fmt.Println(node)
-	err = cs.NodeV1().JoinNode(ctx, node)
+	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -153,10 +140,10 @@ func main() {
 	<-exit
 	<-stopCh
 
-	logrus.Println("Shutting down")
+	log.Println("Shutting down")
 	ctx.Done()
 	if err := cs.NodeV1().ForgetNode(ctx, nodeName); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	logrus.Println("Successfully unjoined from cluster", nodeName)
+	log.Println("Successfully unjoined from cluster", nodeName)
 }

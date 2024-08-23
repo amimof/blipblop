@@ -2,9 +2,9 @@ package controller
 
 import (
 	"context"
+	"log"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/runtime"
 )
@@ -12,7 +12,7 @@ import (
 type NodeController struct {
 	client  *client.ClientSet
 	runtime runtime.Runtime
-	//interval int
+	// interval int
 }
 
 func (n *NodeController) Run(ctx context.Context, stop <-chan struct{}) {
@@ -25,21 +25,21 @@ func (n *NodeController) Run(ctx context.Context, stop <-chan struct{}) {
 			default:
 				ok, err := n.runtime.IsServing(ctx)
 				if err != nil {
-					logrus.Printf("error checking if runtime is serving: %s", err.Error())
+					log.Printf("error checking if runtime is serving: %s", err)
 					if lastStatus {
-						err := n.client.NodeV1().SetNodeReady(ctx, n.node.GetName(), false)
+						err := n.client.NodeV1().SetNodeReady(ctx, false)
 						if err != nil {
-							logrus.Printf("error setting node ready status to false: %s", err)
-							//lastStatus = false
+							log.Printf("error setting node ready status to false: %s", err)
+							// lastStatus = false
 						}
-						//lastStatus = false
+						// lastStatus = false
 					}
 				}
 				if ok && !lastStatus {
-					err := n.client.NodeV1().SetNodeReady(ctx, n.node.GetName(), true)
+					err := n.client.NodeV1().SetNodeReady(ctx, true)
 					if err != nil {
-						logrus.Printf("error setting node ready status to true: %s", err.Error())
-						//lastStatus = false
+						log.Printf("error setting node ready status to true: %s", err)
+						// lastStatus = false
 					}
 					lastStatus = true
 				}

@@ -230,38 +230,45 @@ func (r *ContainerdController) deleteHandler(e *events.TaskDelete) {
 		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskDelete", err)
 	}
 }
+
 func (r *ContainerdController) ioHandler(e *events.TaskIO) {
 }
+
 func (r *ContainerdController) oomHandler(e *events.TaskOOM) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
 		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskOOM", err)
 	}
 }
+
 func (r *ContainerdController) execAddedHandler(e *events.TaskExecAdded) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
 		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecAdded", err)
 	}
 }
+
 func (r *ContainerdController) execStartedHandler(e *events.TaskExecStarted) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
 		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskExecStarted", err)
 	}
 }
+
 func (r *ContainerdController) pausedHandler(e *events.TaskPaused) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
 		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskPaused", err)
 	}
 }
+
 func (r *ContainerdController) resumedHandler(e *events.TaskResumed) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
 		log.Printf("%s: %s - error setting container state: %s", e.ContainerID, "TaskResumed", err)
 	}
 }
+
 func (r *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 	err := r.setContainerState(e.ContainerID)
 	if err != nil {
@@ -375,5 +382,4 @@ func NewContainerdController(client *containerd.Client, cs *client.ClientSet, rt
 	eh.handlers = handlers
 
 	return eh
-
 }
