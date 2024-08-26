@@ -90,8 +90,8 @@ message Mount {
 }
 
 message Port {
-	int32 hostport = 1;
-	int32 containerport = 2;
+	uint32 hostport = 1;
+	uint32 containerport = 2;
 	string protocol = 3;
 	string hostip = 4;
 }

@@ -94,7 +94,6 @@ func netNamespace(task containerd.Task) string {
 
 // InitNetwork ...
 func InitNetwork() (gocni.CNI, error) {
-
 	logrus.Printf("Writing CNI network configuration to %s/%s", CNIConfDir, defaultCNIConfFilename)
 	// Create directories
 	_, err := os.Stat(CNIConfDir)
@@ -139,7 +138,7 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 				HostPort:      9090,
 				ContainerPort: 9090,
 				Protocol:      "TCP",
-				HostIP:        "192.168.13.19",
+				HostIP:        "192.168.13.123",
 			},
 		}),
 	)

@@ -118,8 +118,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 
-	// // Setup and run controllers
+	// Setup and run controllers
 	runtime := runtime.NewContainerdRuntimeClient(cclient, cni)
+	exit := make(chan os.Signal, 1)
 	stopCh := make(chan struct{})
 
 	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime)
@@ -135,10 +136,10 @@ func main() {
 	log.Println("Started Node Controller")
 
 	// Setup signal handler
-	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
-	<-stopCh
+
+	stopCh <- struct{}{}
 
 	log.Println("Shutting down")
 	ctx.Done()

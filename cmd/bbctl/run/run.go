@@ -3,14 +3,13 @@ package run
 import (
 	"context"
 	"log"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,16 +40,12 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			// Setup ports
 			var cports []*containers.Port
 			for _, p := range ports {
-				sport := strings.Split(p, "")
-				source, err := strconv.Atoi(sport[0])
+
+				pm, err := networking.ParsePorts(p)
 				if err != nil {
 					log.Fatal(err)
 				}
-				dest, err := strconv.Atoi(sport[1])
-				if err != nil {
-					log.Fatal(err)
-				}
-				cports = append(cports, &containers.Port{Hostport: int32(source), Containerport: int32(dest)})
+				cports = append(cports, &containers.Port{Hostport: pm.Source, Containerport: pm.Destination})
 			}
 
 			server := viper.GetString("server")
