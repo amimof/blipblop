@@ -1,7 +1,6 @@
 package networking
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"testing"
@@ -25,9 +24,9 @@ func TestPortMapping(t *testing.T) {
 		log.Fatal(err)
 	}
 	if !assert.Equal(t, uint32(9090), pm.Source) {
-		log.Fatal(errors.New(fmt.Sprintf("expected source port to be %d, got %d", 9090, pm.Source)))
+		fmt.Errorf("expected source port to be %d, got %d", 9090, pm.Source)
 	}
 	if !assert.Equal(t, uint32(443), pm.Destination) {
-		log.Fatal(errors.New(fmt.Sprintf("expected destination port to be %d, got %d", 443, pm.Destination)))
+		fmt.Errorf("expected destination port to be %d, got %d", 443, pm.Destination)
 	}
 }
