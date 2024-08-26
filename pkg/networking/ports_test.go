@@ -24,9 +24,9 @@ func TestPortMapping(t *testing.T) {
 		log.Fatal(err)
 	}
 	if !assert.Equal(t, uint32(9090), pm.Source) {
-		fmt.Errorf("expected source port to be %d, got %d", 9090, pm.Source)
+		log.Println(fmt.Errorf("expected source port to be %d, got %d", 9090, pm.Source))
 	}
 	if !assert.Equal(t, uint32(443), pm.Destination) {
-		fmt.Errorf("expected destination port to be %d, got %d", 443, pm.Destination)
+		log.Println(fmt.Errorf("expected destination port to be %d, got %d", 443, pm.Destination))
 	}
 }
