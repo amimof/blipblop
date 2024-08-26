@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
@@ -39,10 +40,6 @@ func (c *ContainerService) Kill(ctx context.Context, req *containers.KillContain
 
 func (c *ContainerService) Start(ctx context.Context, req *containers.StartContainerRequest) (*containers.StartContainerResponse, error) {
 	return c.local.Start(ctx, req)
-}
-
-func (c *ContainerService) Stop(ctx context.Context, req *containers.StopContainerRequest) (*containers.StopContainerResponse, error) {
-	return c.local.Stop(ctx, req)
 }
 
 func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateContainerRequest) (*containers.UpdateContainerResponse, error) {
