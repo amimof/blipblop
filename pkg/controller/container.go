@@ -103,10 +103,15 @@ func (c *ContainerController) onContainerDelete(obj *events.Event) {
 
 func (c *ContainerController) onContainerStart(obj *events.Event) {
 	ctx := context.Background()
-	err := c.runtime.Start(ctx, obj.Id)
+	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.Id)
 	if err != nil {
-		log.Printf("error starting container %s with error %s", obj.Id, err)
-		_ = c.clientset.EventV1().Publish(ctx, obj.Id, events.EventType_ContainerStart)
+		log.Printf("error getting container %s", err)
+	}
+	err = c.runtime.Start(ctx, ctr.GetName())
+	if err != nil {
+		log.Printf("error starting container %s with error %s", ctr.GetName(), err)
+		// _ = c.clientset.EventV1().Publish(ctx, obj.Id, events.EventType_ContainerStart)
+		_ = c.clientset.ContainerV1().SetContainerState(ctx, ctr.GetName(), err.Error())
 		return
 	}
 	log.Printf("successfully started container %s", obj.Id)
