@@ -79,7 +79,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 	if err != nil {
 		return nil, err
 	}
-	var result = make([]*containers.Container, len(ctrs))
+	result := make([]*containers.Container, len(ctrs))
 	for i, c := range ctrs {
 		l, err := parseContainerLabels(ctx, c)
 		if err != nil {
@@ -173,20 +173,20 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
 	return container.Delete(ctx)
 }
 
-func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, key)
-	if err != nil {
-		return err
-	}
-	task, err := container.Task(ctx, nil)
-	if err != nil {
-		return err
-	}
-	return task.Kill(ctx, syscall.SIGINT)
-}
+// func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
+// 	ctx = namespaces.WithNamespace(ctx, "blipblop")
+// 	container, err := c.client.LoadContainer(ctx, key)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	task, err := container.Task(ctx, nil)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return task.Kill(ctx, syscall.SIGINT)
+// }
 
-func (c *ContainerdRuntime) Stop(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	container, err := c.client.LoadContainer(ctx, key)
 	if err != nil {

@@ -111,16 +111,6 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 	}, nil
 }
 
-func (l *local) Stop(ctx context.Context, req *containers.StopContainerRequest, _ ...grpc.CallOption) (*containers.StopContainerResponse, error) {
-	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerStop)})
-	if err != nil {
-		return nil, err
-	}
-	return &containers.StopContainerResponse{
-		Id: req.GetId(),
-	}, nil
-}
-
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()

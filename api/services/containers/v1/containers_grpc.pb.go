@@ -28,7 +28,6 @@ type ContainerServiceClient interface {
 	Update(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error)
 	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error)
 	Start(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*StartContainerResponse, error)
-	Stop(ctx context.Context, in *StopContainerRequest, opts ...grpc.CallOption) (*StopContainerResponse, error)
 	Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error)
 }
 
@@ -94,15 +93,6 @@ func (c *containerServiceClient) Start(ctx context.Context, in *StartContainerRe
 	return out, nil
 }
 
-func (c *containerServiceClient) Stop(ctx context.Context, in *StopContainerRequest, opts ...grpc.CallOption) (*StopContainerResponse, error) {
-	out := new(StopContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Stop", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *containerServiceClient) Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error) {
 	out := new(KillContainerResponse)
 	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Kill", in, out, opts...)
@@ -122,7 +112,6 @@ type ContainerServiceServer interface {
 	Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error)
 	Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error)
 	Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error)
-	Stop(context.Context, *StopContainerRequest) (*StopContainerResponse, error)
 	Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error)
 	mustEmbedUnimplementedContainerServiceServer()
 }
@@ -148,9 +137,6 @@ func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteContai
 }
 func (UnimplementedContainerServiceServer) Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Start not implemented")
-}
-func (UnimplementedContainerServiceServer) Stop(context.Context, *StopContainerRequest) (*StopContainerResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
 }
 func (UnimplementedContainerServiceServer) Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Kill not implemented")
@@ -276,24 +262,6 @@ func _ContainerService_Start_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ContainerService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StopContainerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ContainerServiceServer).Stop(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Stop",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Stop(ctx, req.(*StopContainerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _ContainerService_Kill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(KillContainerRequest)
 	if err := dec(in); err != nil {
@@ -342,10 +310,6 @@ var ContainerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Start",
 			Handler:    _ContainerService_Start_Handler,
-		},
-		{
-			MethodName: "Stop",
-			Handler:    _ContainerService_Stop_Handler,
 		},
 		{
 			MethodName: "Kill",

@@ -20,7 +20,7 @@ type ContainerEventHandlerFuncs struct {
 	OnContainerCreate func(obj *events.Event)
 	OnContainerDelete func(obj *events.Event)
 	OnContainerStart  func(obj *events.Event)
-	OnContainerStop   func(obj *events.Event)
+	OnContainerKill   func(obj *events.Event)
 }
 
 func (i *ContainerController) AddHandler(h *ContainerEventHandlerFuncs) {
@@ -59,8 +59,8 @@ func handleEventEvent(h *ContainerEventHandlerFuncs, ev *events.Event) {
 		h.OnContainerDelete(ev)
 	case events.EventType_ContainerStart:
 		h.OnContainerStart(ev)
-	case events.EventType_ContainerStop:
-		h.OnContainerStop(ev)
+	case events.EventType_ContainerKill:
+		h.OnContainerKill(ev)
 	default:
 		log.Printf("Handler not implemented for event type %s", t)
 	}
@@ -137,7 +137,7 @@ func NewContainerController(cs *client.ClientSet, rt runtime.Runtime) *Container
 		OnContainerCreate: eh.onContainerCreate,
 		OnContainerDelete: eh.onContainerDelete,
 		OnContainerStart:  eh.onContainerStart,
-		OnContainerStop:   eh.onContainerStop,
+		OnContainerKill:   eh.onContainerStop,
 	}
 
 	eh.handlers = handlers

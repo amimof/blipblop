@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"text/tabwriter"
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/sirupsen/logrus"
@@ -30,6 +32,9 @@ func NewCmdGetContainer() *cobra.Command {
 			server := viper.GetString("server")
 			ctx := context.Background()
 
+			// Setup writer
+			wr := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', tabwriter.AlignRight)
+
 			// Setup our client
 			c, err := client.New(ctx, server)
 			if err != nil {
@@ -40,11 +45,13 @@ func NewCmdGetContainer() *cobra.Command {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Printf("%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "NODE")
+				fmt.Fprintln(wr, fmt.Sprintf("%s\t%s\t%s\t%s\t", "NAME", "REVISION", "STATE", "NODE"))
 				for _, c := range containers {
-					fmt.Printf("%s\t%d\t%s\t%s\n", c.GetName(), c.GetRevision(), c.GetStatus().GetState(), c.GetStatus().GetNode())
+					fmt.Fprintln(wr, fmt.Sprintf("%s\t%d\t%s\t%s\t", c.GetName(), c.GetRevision(), c.GetStatus().GetState(), c.GetStatus().GetNode()))
 				}
 			}
+
+			wr.Flush()
 
 			if len(args) == 1 {
 				var b bytes.Buffer

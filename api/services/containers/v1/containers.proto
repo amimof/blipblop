@@ -45,11 +45,6 @@ service ContainerService {
       put: "/api/v1/containers/{id}/start"
     };
 	}
-	rpc Stop(StopContainerRequest) returns (StopContainerResponse) {
-    option (google.api.http) = {
-      put: "/api/v1/containers/{id}/stop"
-    };
-	}
 	rpc Kill(KillContainerRequest) returns (KillContainerResponse) {
     option (google.api.http) = {
       put: "/api/v1/containers/{id}/kill"

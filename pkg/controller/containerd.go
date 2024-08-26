@@ -334,7 +334,7 @@ func (r *ContainerdController) Recouncile(ctx context.Context) error {
 	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, c := range currentContainers {
 		if !contains(clist, c) {
-			err := r.runtime.Stop(ctx, c.Name)
+			err := r.runtime.Kill(ctx, c.Name)
 			if err != nil {
 				log.Printf("error stopping container: %s", err)
 			}
