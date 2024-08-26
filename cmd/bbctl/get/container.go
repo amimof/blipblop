@@ -33,7 +33,7 @@ func NewCmdGetContainer() *cobra.Command {
 			ctx := context.Background()
 
 			// Setup writer
-			wr := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', tabwriter.AlignRight)
+			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
 			// Setup our client
 			c, err := client.New(ctx, server)
@@ -45,9 +45,9 @@ func NewCmdGetContainer() *cobra.Command {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Fprintln(wr, fmt.Sprintf("%s\t%s\t%s\t%s\t", "NAME", "REVISION", "STATE", "NODE"))
+				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "NODE")
 				for _, c := range containers {
-					fmt.Fprintln(wr, fmt.Sprintf("%s\t%d\t%s\t%s\t", c.GetName(), c.GetRevision(), c.GetStatus().GetState(), c.GetStatus().GetNode()))
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n", c.GetName(), c.GetRevision(), c.GetStatus().GetState(), c.GetStatus().GetNode())
 				}
 			}
 
