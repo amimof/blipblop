@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -58,7 +57,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	container := req.GetContainer()
 
 	if existing, _ := l.Repo().Get(ctx, container.GetName()); existing != nil {
-		return nil, errors.New(fmt.Sprintf("container %s already exists", existing.GetName()))
+		return nil, fmt.Errorf("container %s already exists", existing.GetName())
 	}
 
 	container.Created = timestamppb.New(time.Now())

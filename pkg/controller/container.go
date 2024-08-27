@@ -67,14 +67,13 @@ func handleEventEvent(h *ContainerEventHandlerFuncs, ev *events.Event) {
 	}
 }
 
-func (r *ContainerController) handleError(e error, id, msg string) error {
+func (r *ContainerController) handleError(e error, id, msg string) {
 	log.Printf("%s", msg)
 	ctx := context.Background()
 	err := r.clientset.ContainerV1().SetContainerCondition(ctx, id, e.Error())
 	if err != nil {
 		log.Printf("error setting condition for container %s: %s", id, err)
 	}
-	return nil
 }
 
 func (c *ContainerController) onContainerCreate(obj *events.Event) {
