@@ -84,6 +84,9 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
 	container, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
 	if container.GetStatus().GetPhase() == "running" {
 		return nil, fmt.Errorf("unable to delete running container %s", req.GetId())
 	}
