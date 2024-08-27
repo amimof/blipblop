@@ -64,9 +64,13 @@ message Container {
 }
 
 message Status {
-	string state = 1;
+	string phase = 1;
 	string node = 2;
 	string ip = 3;
+  uint32 pid = 4;
+  uint32 exitStatus = 5;
+  google.protobuf.Timestamp exitTime = 6;
+  string condition = 7;
 }
 
 message Config {

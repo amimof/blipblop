@@ -4,6 +4,7 @@ import (
 	//"os"
 	"context"
 	"log"
+	"os"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -202,14 +203,7 @@ func (r *ContainerdController) createHandler(e *events.TaskCreate) {
 }
 
 func (r *ContainerdController) containerCreateHandler(e *events.ContainerCreate) {
-	ns := "blipblop"
-	ctx := context.Background()
-	ctx = namespaces.WithNamespace(ctx, ns)
-	err := r.clientset.ContainerV1().SetContainerState(ctx, e.ID, "created")
-	if err != nil {
-		log.Printf("%s: %s - error setting container state: %s", e.ID, "ContainerCreate", err)
-	}
-	err = r.clientset.ContainerV1().SetContainerNode(ctx, e.ID, r.clientset.Name())
+	err := r.setContainerState(e.ID)
 	if err != nil {
 		log.Printf("%s: %s - error setting container node: %s", e.ID, "ContainerCreate", err)
 	}
@@ -294,11 +288,22 @@ func (r *ContainerdController) setContainerState(id string) error {
 			if err != nil {
 				return err
 			}
-			err = r.clientset.ContainerV1().SetContainerState(ctx, id, string(status.Status))
+
+			hostname, _ := os.Hostname()
+
+			err = r.clientset.ContainerV1().SetContainerNode(ctx, id, hostname)
 			if err != nil {
 				return err
 			}
-			return nil
+			st := &containers.Status{
+				Node:       hostname,
+				Ip:         "192.168.13.123",
+				Pid:        task.Pid(),
+				Phase:      string(status.Status),
+				ExitStatus: status.ExitStatus,
+				Condition:  "healthy",
+			}
+			return r.clientset.ContainerV1().SetContainerStatus(ctx, id, st)
 		}
 	}
 	return nil

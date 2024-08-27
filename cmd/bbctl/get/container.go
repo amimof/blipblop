@@ -45,9 +45,9 @@ func NewCmdGetContainer() *cobra.Command {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "NODE")
+				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "CONDITION", "NODE")
 				for _, c := range containers {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n", c.GetName(), c.GetRevision(), c.GetStatus().GetState(), c.GetStatus().GetNode())
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n", c.GetName(), c.GetRevision(), c.GetStatus().GetPhase(), c.GetStatus().GetCondition(), c.GetStatus().GetNode())
 				}
 			}
 

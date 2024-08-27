@@ -55,6 +55,11 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 
 func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
 	container := req.GetContainer()
+
+	if existing, _ := l.Repo().Get(ctx, container.GetName()); existing != nil {
+		return nil, fmt.Errorf("container %s already exists", existing.GetName())
+	}
+
 	container.Created = timestamppb.New(time.Now())
 	container.Updated = timestamppb.New(time.Now())
 	container.Revision = 1

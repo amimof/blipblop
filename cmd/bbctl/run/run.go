@@ -70,7 +70,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("Container %s created", cname)
+			log.Printf("request to run container %s successful", cname)
 		},
 	}
 	runCmd.Flags().StringVarP(

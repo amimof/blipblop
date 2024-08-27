@@ -35,7 +35,7 @@ run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 	$Q $(GO) run cmd/blipblop-server/main.go \
 		--tls-key ./certs/server-key.pem \
 		--tls-certificate ./certs/server.pem \
-		--tls-host 0.0.0.0
+		--tls-host 0.0.0.0 \
 		--tcp-tls-host 0.0.0.0
 
 .PHONY: run-node
