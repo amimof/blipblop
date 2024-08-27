@@ -13,7 +13,7 @@ func NewCmdDelete() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 	}
 
-	deleteCmd.AddCommand()
+	deleteCmd.AddCommand(NewCmdDeleteContainer())
 
 	return deleteCmd
 }

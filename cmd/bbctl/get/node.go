@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/sirupsen/logrus"
@@ -42,9 +43,9 @@ func NewCmdGetNode() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Fprintf(wr, "%s\t%s\t%s\n", "NAME", "REVISION", "READY")
+			fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "AGE")
 			for _, n := range nodes {
-				fmt.Fprintf(wr, "%s\t%d\t%t\n", n.GetName(), n.GetRevision(), n.GetStatus().GetReady())
+				fmt.Fprintf(wr, "%s\t%d\t%t\t%s\n", n.GetName(), n.GetRevision(), n.GetStatus().GetReady(), time.Since(n.Created.AsTime()).Round(1*time.Second))
 			}
 
 			wr.Flush()

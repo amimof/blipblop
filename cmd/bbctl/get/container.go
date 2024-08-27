@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/sirupsen/logrus"
@@ -45,9 +46,9 @@ func NewCmdGetContainer() *cobra.Command {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "CONDITION", "NODE")
+				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "CONDITION", "NODE", "AGE")
 				for _, c := range containers {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n", c.GetName(), c.GetRevision(), c.GetStatus().GetPhase(), c.GetStatus().GetCondition(), c.GetStatus().GetNode())
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n", c.GetName(), c.GetRevision(), c.GetStatus().GetPhase(), c.GetStatus().GetCondition(), c.GetStatus().GetNode(), time.Since(c.GetCreated().AsTime()).Round(1*time.Second))
 				}
 			}
 
