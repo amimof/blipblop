@@ -66,7 +66,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().RunContainer(ctx, cname)
+			err = c.ContainerV1().StartContainer(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}

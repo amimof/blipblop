@@ -12,7 +12,6 @@ type Runtime interface {
 	Create(context.Context, *containers.Container) error
 	Delete(context.Context, string) error
 	Kill(context.Context, string) error
-	// Stop(context.Context, string) error
-	Start(context.Context, string) error
+	Start(context.Context, *containers.Container) error
 	IsServing(context.Context) (bool, error)
 }

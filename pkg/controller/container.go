@@ -99,7 +99,7 @@ func (c *ContainerController) onContainerDelete(obj *events.Event) {
 	ctx := context.Background()
 	err := c.runtime.Delete(ctx, obj.Id)
 	if err != nil {
-		c.handleError(err, obj.GetId(), fmt.Sprintf("error deleting container %s: %s", obj.GetId(), err))
+		log.Printf("error deleting container %s from runtime: %s", obj.GetId(), err)
 		return
 	}
 	log.Printf("successfully deleted container %s", obj.Id)
@@ -111,7 +111,7 @@ func (c *ContainerController) onContainerStart(obj *events.Event) {
 	if err != nil {
 		log.Printf("error getting container %s", err)
 	}
-	err = c.runtime.Start(ctx, ctr.GetName())
+	err = c.runtime.Start(ctx, ctr)
 	if err != nil {
 		c.handleError(err, obj.GetId(), fmt.Sprintf("error starting container %s: %s", ctr.GetName(), err))
 		return

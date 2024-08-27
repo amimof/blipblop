@@ -25,6 +25,9 @@ MAKEFLAGS += -j2
 export GO111MODULE=on
 export CGO_ENABLED=0
 
+.PHONY: all
+all: server node bbctl
+
 # Run
 
 .PHONY: run
@@ -43,9 +46,6 @@ run-node: ; $(info $(M) running node) @ ## Run a node on localhost
 	$Q $(GO) run cmd/blipblop-node/main.go --node-name devnode 
 
 # Build
-
-.PHONY: all
-all: server node bbctl
 
 SERVER_BIN ?= blipblop-server
 .PHONY: server

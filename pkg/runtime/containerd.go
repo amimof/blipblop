@@ -173,19 +173,6 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
 	return container.Delete(ctx)
 }
 
-// func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
-// 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-// 	container, err := c.client.LoadContainer(ctx, key)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	task, err := container.Task(ctx, nil)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return task.Kill(ctx, syscall.SIGINT)
-// }
-
 func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	container, err := c.client.LoadContainer(ctx, key)
@@ -224,9 +211,9 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
 	}
 }
 
-func (c *ContainerdRuntime) Start(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, ctr.GetName())
 	if err != nil {
 		return err
 	}
@@ -238,7 +225,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, key string) error {
 	// Setup network for namespace.
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	result, err := networking.CreateCNINetwork(ctx, c.cni, task, cniLabels)
+	result, err := networking.CreateCNINetwork(ctx, c.cni, task, ctr, cniLabels)
 	if err != nil {
 		return err
 	}

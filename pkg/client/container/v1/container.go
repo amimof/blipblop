@@ -87,14 +87,6 @@ func (c *ContainerV1Client) SetContainerStatus(ctx context.Context, id string, s
 	return nil
 }
 
-func (c *ContainerV1Client) RunContainer(ctx context.Context, id string) error {
-	_, err := c.containerService.Start(ctx, &containers.StartContainerRequest{Id: id})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *ContainerV1Client) KillContainer(ctx context.Context, id string) error {
 	_, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id})
 	if err != nil {

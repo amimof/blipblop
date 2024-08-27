@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
 	"github.com/sirupsen/logrus"
@@ -129,18 +130,24 @@ func InitNetwork() (gocni.CNI, error) {
 }
 
 // CreateCNINetwork creates a CNI network interface and attaches it to the context
-func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, labels map[string]string) (*gocni.Result, error) {
+func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, ctr *containers.Container, labels map[string]string) (*gocni.Result, error) {
 	id := netID(task)
 	netns := netNamespace(task)
+
+	// Setup port-mappings
+	mappings := make([]gocni.PortMapping, len(ctr.GetConfig().GetPorts()))
+
+	for i, port := range ctr.GetConfig().GetPorts() {
+		mappings[i] = gocni.PortMapping{
+			HostPort:      int32(port.GetHostport()),
+			ContainerPort: int32(port.GetContainerport()),
+			Protocol:      "TCP",
+			HostIP:        "192.168.13.123",
+		}
+	}
+
 	result, err := cni.Setup(ctx, id, netns, gocni.WithLabels(labels),
-		gocni.WithCapabilityPortMap([]gocni.PortMapping{
-			{
-				HostPort:      9090,
-				ContainerPort: 9090,
-				Protocol:      "TCP",
-				HostIP:        "192.168.13.123",
-			},
-		}),
+		gocni.WithCapabilityPortMap(mappings),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup network for task %q: %w", id, err)
