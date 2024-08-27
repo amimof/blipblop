@@ -78,7 +78,7 @@ func (c *RuntimeClient) List(ctx context.Context) ([]*containers.Container, erro
 	if err != nil {
 		return nil, err
 	}
-	var result = make([]*containers.Container, len(ctrs))
+	result := make([]*containers.Container, len(ctrs))
 	for i, c := range ctrs {
 		l, err := parseContainerLabels(ctx, c)
 		if err != nil {
@@ -223,9 +223,9 @@ func (c *RuntimeClient) Stop(ctx context.Context, key string) error {
 	}
 }
 
-func (c *RuntimeClient) Start(ctx context.Context, key string) error {
+func (c *RuntimeClient) Start(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, ctr.GetName())
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (c *RuntimeClient) Start(ctx context.Context, key string) error {
 	// Setup network for namespace.
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	result, err := networking.CreateCNINetwork(ctx, c.cni, task, cniLabels)
+	result, err := networking.CreateCNINetwork(ctx, c.cni, task, ctr, cniLabels)
 	if err != nil {
 		return err
 	}
