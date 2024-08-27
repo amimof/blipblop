@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
@@ -34,7 +35,7 @@ func (i *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 		case ev := <-evc:
 			handleEventEvent(i.handlers, ev)
 		case err := <-errc:
-			handleEventError(err)
+			log.Printf("error received on channel: %s", err)
 		case <-stopCh:
 			ctx.Done()
 			log.Println("Done watching event informer")
@@ -66,10 +67,14 @@ func handleEventEvent(h *ContainerEventHandlerFuncs, ev *events.Event) {
 	}
 }
 
-func handleEventError(err error) {
-	// if err != nil && err != io.EOF {
-	// 	log.Printf("error occurred handling error %s", err.Error())
-	// }
+func (r *ContainerController) handleError(e error, id, msg string) error {
+	log.Printf("%s", msg)
+	ctx := context.Background()
+	err := r.clientset.ContainerV1().SetContainerCondition(ctx, id, e.Error())
+	if err != nil {
+		log.Printf("error setting condition for container %s: %s", id, err)
+	}
+	return nil
 }
 
 func (c *ContainerController) onContainerCreate(obj *events.Event) {
@@ -85,7 +90,7 @@ func (c *ContainerController) onContainerCreate(obj *events.Event) {
 	}
 	err = c.runtime.Create(ctx, cont)
 	if err != nil {
-		log.Printf("error creating container %s with error: %s", cont.Name, err)
+		c.handleError(err, cont.GetName(), fmt.Sprintf("error creating container %s: %s", cont.GetName(), err))
 		return
 	}
 	log.Printf("successfully created container: %s", cont.Name)
@@ -95,7 +100,7 @@ func (c *ContainerController) onContainerDelete(obj *events.Event) {
 	ctx := context.Background()
 	err := c.runtime.Delete(ctx, obj.Id)
 	if err != nil {
-		log.Printf("error stopping container %s with error %s", obj.Id, err)
+		c.handleError(err, obj.GetId(), fmt.Sprintf("error deleting container %s: %s", obj.GetId(), err))
 		return
 	}
 	log.Printf("successfully deleted container %s", obj.Id)
@@ -109,9 +114,7 @@ func (c *ContainerController) onContainerStart(obj *events.Event) {
 	}
 	err = c.runtime.Start(ctx, ctr.GetName())
 	if err != nil {
-		log.Printf("error starting container %s with error %s", ctr.GetName(), err)
-		// _ = c.clientset.EventV1().Publish(ctx, obj.Id, events.EventType_ContainerStart)
-		_ = c.clientset.ContainerV1().SetContainerState(ctx, ctr.GetName(), err.Error())
+		c.handleError(err, obj.GetId(), fmt.Sprintf("error starting container %s: %s", ctr.GetName(), err))
 		return
 	}
 	log.Printf("successfully started container %s", obj.Id)
@@ -121,7 +124,7 @@ func (c *ContainerController) onContainerStop(obj *events.Event) {
 	ctx := context.Background()
 	err := c.runtime.Kill(ctx, obj.Id)
 	if err != nil {
-		log.Printf("error killing container %s with error %s", obj.Id, err)
+		c.handleError(err, obj.GetId(), fmt.Sprintf("error stopping container %s: %s", obj.GetId(), err))
 		return
 	}
 	log.Printf("successfully killed container %s", obj.Id)

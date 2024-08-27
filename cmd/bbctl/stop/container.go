@@ -38,11 +38,11 @@ func NewCmdStopContainer() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Println(ctr)
 			err = c.ContainerV1().KillContainer(context.Background(), ctr.Name)
 			if err != nil {
 				log.Fatal(err)
 			}
+			log.Printf("request to stop container %s successful", cname)
 		},
 	}
 

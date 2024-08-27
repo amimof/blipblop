@@ -41,16 +41,38 @@ func (c *ContainerV1Client) SetContainerNode(ctx context.Context, id, node strin
 	return nil
 }
 
-func (c *ContainerV1Client) SetContainerState(ctx context.Context, id, state string) error {
+func (c *ContainerV1Client) SetContainerCondition(ctx context.Context, id, condition string) error {
 	n := &containers.UpdateContainerRequest{
 		Container: &containers.Container{
 			Name: id,
 			Status: &containers.Status{
-				State: state,
+				Condition: condition,
 			},
 		},
 	}
-	fm, err := fieldmaskpb.New(n.Container, "status.state")
+	fm, err := fieldmaskpb.New(n.Container, "status.condition")
+	if err != nil {
+		return err
+	}
+	fm.Normalize()
+	n.UpdateMask = fm
+	if fm.IsValid(n.Container) {
+		_, err = c.containerService.Update(ctx, n)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *ContainerV1Client) SetContainerStatus(ctx context.Context, id string, status *containers.Status) error {
+	n := &containers.UpdateContainerRequest{
+		Container: &containers.Container{
+			Name:   id,
+			Status: status,
+		},
+	}
+	fm, err := fieldmaskpb.New(n.Container, "status")
 	if err != nil {
 		return err
 	}

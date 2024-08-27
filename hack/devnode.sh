@@ -18,15 +18,12 @@ __run_role() {
     'node')
       __run_node $REMOTE_HOST
       ;;
-    'debug')
-      __run_debug $REMOTE_HOST
-      ;;
     'all')
       __run_master $REMOTE_HOST
       __run_node $REMOTE_HOST
       ;;
     *)
-      echo "role must be one of [all,master,node,debug]"
+      echo "role must be one of [all,master,node]"
   esac
 }
 
@@ -40,9 +37,17 @@ __run_node() {
   tmux new-window -c "#{pane_curent_path}" -n devnode-node ssh $REMOTE_HOST "cd go/blipblop; sudo /usr/local/go/bin/go run /home/amir/go/blipblop/cmd/blipblop-node/main.go --node-name devnode"
 }
 
-__run_debug() {
+__debug() {
+  if [[ $# < 2 ]]; then {
+    echo "not enough arguments, got $# need 2"
+    return
+  } >&2
+  fi
   local REMOTE_HOST=$1
-  tmux new-window -c "#{pane_curent_path}" -n devnode-debug ssh $REMOTE_HOST "cd go/blipblop; sudo -i"
+  local END=$2
+  for i in $(seq 1 $END); do
+    tmux new-window -c "#{pane_curent_path}" -n devnode-debug-$i ssh -t $REMOTE_HOST "cd go/blipblop; sudo -s; exec \$SHELL"
+  done
 }
 
 __sync() {
@@ -57,17 +62,20 @@ __killall() {
 
 __usage() {
     p="$(basename $0)"
-    echo "usage:  $p [run|sync]"
+    echo "usage:  $p HOST [run|sync|killall]"
 }
-case "$1" in
+case "$2" in
   'run')
-    __run_role $2 $3
+    __run_role $1 $3
     ;;
   'sync')
-    __sync $2
+    __sync $1
     ;;
   'killall')
-    __killall $2
+    __killall $1
+    ;;
+  'debug')
+    __debug $1 $3
     ;;
   *) 
   __usage
