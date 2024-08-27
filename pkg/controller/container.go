@@ -29,13 +29,13 @@ func (i *ContainerController) AddHandler(h *ContainerEventHandlerFuncs) {
 }
 
 func (i *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
-	evc, errc := i.clientset.EventV1().Subscribe(ctx)
+	evc, _ := i.clientset.EventV1().Subscribe(ctx)
 	for {
 		select {
 		case ev := <-evc:
 			handleEventEvent(i.handlers, ev)
-		case err := <-errc:
-			log.Printf("error received on channel: %s", err)
+		// case err := <-errc:
+		// log.Printf("error received on channel: %s", err)
 		case <-stopCh:
 			ctx.Done()
 			log.Println("Done watching event informer")
