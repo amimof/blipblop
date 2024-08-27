@@ -83,7 +83,11 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
-	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
+	container, err := l.Repo().Get(ctx, req.GetId())
+	if container.GetStatus().GetPhase() == "running" {
+		return nil, fmt.Errorf("unable to delete running container %s", req.GetId())
+	}
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
 	if err != nil {
 		return nil, err
 	}

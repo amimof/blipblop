@@ -45,7 +45,7 @@ func NewCmdGetNode() *cobra.Command {
 			}
 			fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "AGE")
 			for _, n := range nodes {
-				fmt.Fprintf(wr, "%s\t%d\t%t\t%s\n", n.GetName(), n.GetRevision(), n.GetStatus().GetReady(), time.Now().Sub(n.Created.AsTime()).Round(1*time.Second))
+				fmt.Fprintf(wr, "%s\t%d\t%t\t%s\n", n.GetName(), n.GetRevision(), n.GetStatus().GetReady(), time.Since(n.Created.AsTime()).Round(1*time.Second))
 			}
 
 			wr.Flush()
