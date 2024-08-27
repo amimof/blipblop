@@ -137,13 +137,13 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 	// Setup port-mappings
 	mappings := make([]gocni.PortMapping, len(ctr.GetConfig().GetPorts()))
 
-	for _, port := range ctr.GetConfig().GetPorts() {
-		mappings = append(mappings, gocni.PortMapping{
+	for i, port := range ctr.GetConfig().GetPorts() {
+		mappings[i] = gocni.PortMapping{
 			HostPort:      int32(port.GetHostport()),
 			ContainerPort: int32(port.GetContainerport()),
 			Protocol:      "TCP",
 			HostIP:        "192.168.13.123",
-		})
+		}
 	}
 
 	result, err := cni.Setup(ctx, id, netns, gocni.WithLabels(labels),
