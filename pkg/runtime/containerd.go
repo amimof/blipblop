@@ -89,16 +89,6 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 		if err != nil {
 			return nil, err
 		}
-		// var netstatus models.NetworkStatus
-		// var runstatus models.RuntimeStatus
-		// if task, _ := c.Task(ctx, nil); task != nil {
-		// 	if ip, _ := networking.GetIPAddress(fmt.Sprintf("%s-%d", task.ID(), task.Pid())); ip != nil {
-		// 		netstatus.IP = ip
-		// 	}
-		// 	if status, _ := task.Status(ctx); &status != nil {
-		// 		runstatus.Status = status.Status
-		// 	}
-		// }
 		result[i] = &containers.Container{
 			Name:     info.ID,
 			Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
@@ -272,23 +262,17 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 		if err != nil {
 			log.Printf("error waiting for task: %v", err)
 		}
-		for {
-			select {
-			case status := <-exitChan:
-				log.Printf("task exited with status %d: %v", status.ExitCode(), status.Error())
-				_, err = task.Delete(ctx)
-				if err != nil {
-					log.Printf("error deleting task: %v", err)
-				}
+		status := <-exitChan
+		log.Printf("task exited with status %d: %v", status.ExitCode(), status.Error())
+		_, err = task.Delete(ctx)
+		if err != nil {
+			log.Printf("error deleting task: %v", err)
+		}
 
-				log.Printf("tearing down network for task %s", task.ID())
-				err = networking.DeleteCNINetwork(ctx, c.cni, task, gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
-				if err != nil {
-					log.Printf("error tearing down network: %v", err)
-				}
-
-				return
-			}
+		log.Printf("tearing down network for task %s", task.ID())
+		err = networking.DeleteCNINetwork(ctx, c.cni, task, gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+		if err != nil {
+			log.Printf("error tearing down network: %v", err)
 		}
 	}()
 

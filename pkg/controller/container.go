@@ -78,6 +78,7 @@ func (r *ContainerController) handleError(id string, evtType events.EventType, m
 		Description: msg,
 		Type:        evtType,
 	})
+	log.Printf("error adding container event: %v", err)
 }
 
 func (c *ContainerController) onContainerCreate(obj *events.Event) {
