@@ -2,11 +2,18 @@ package v1
 
 import (
 	"context"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+var (
+	ContainerHealthHealthy   = "healthy"
+	ContainerHealthUnhealthy = "unhealthy"
 )
 
 type ContainerV1Client struct {
@@ -41,16 +48,16 @@ func (c *ContainerV1Client) SetContainerNode(ctx context.Context, id, node strin
 	return nil
 }
 
-func (c *ContainerV1Client) SetContainerCondition(ctx context.Context, id, condition string) error {
+func (c *ContainerV1Client) SetContainerHealth(ctx context.Context, id, health string) error {
 	n := &containers.UpdateContainerRequest{
 		Container: &containers.Container{
 			Name: id,
 			Status: &containers.Status{
-				Condition: condition,
+				Health: health,
 			},
 		},
 	}
-	fm, err := fieldmaskpb.New(n.Container, "status.condition")
+	fm, err := fieldmaskpb.New(n.Container, "status.health")
 	if err != nil {
 		return err
 	}
@@ -80,6 +87,35 @@ func (c *ContainerV1Client) SetContainerStatus(ctx context.Context, id string, s
 	n.UpdateMask = fm
 	if fm.IsValid(n.Container) {
 		_, err = c.containerService.Update(ctx, n)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *ContainerV1Client) AddContainerEvent(ctx context.Context, id string, evt *containers.Event) error {
+	ctr, err := c.GetContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+	evt.Created = timestamppb.New(time.Now())
+	events := ctr.GetEvents()
+	events = append(events, evt)
+	req := &containers.UpdateContainerRequest{
+		Container: &containers.Container{
+			Name:   id,
+			Events: events,
+		},
+	}
+	fm, err := fieldmaskpb.New(req.Container, "events")
+	if err != nil {
+		return err
+	}
+	fm.Normalize()
+	req.UpdateMask = fm
+	if fm.IsValid(req.Container) {
+		_, err = c.containerService.Update(ctx, req)
 		if err != nil {
 			return err
 		}

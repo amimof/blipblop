@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package blipblop.services.containers.v1;
+package blipblop.services.events.v1;
 
 import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";

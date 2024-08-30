@@ -301,7 +301,7 @@ func (r *ContainerdController) setContainerState(id string) error {
 				Pid:        task.Pid(),
 				Phase:      string(status.Status),
 				ExitStatus: status.ExitStatus,
-				Condition:  "healthy",
+				Health:     "healthy",
 			}
 			return r.clientset.ContainerV1().SetContainerStatus(ctx, id, st)
 		}
@@ -339,7 +339,7 @@ func (r *ContainerdController) Recouncile(ctx context.Context) error {
 	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, c := range currentContainers {
 		if !contains(clist, c) {
-			err := r.runtime.Kill(ctx, c.Name)
+			err := r.runtime.Kill(ctx, c)
 			if err != nil {
 				log.Printf("error stopping container: %s", err)
 			}
