@@ -60,6 +60,11 @@ __killall() {
   ssh $REMOTE_HOST "sudo killall go; sudo killall main"
 }
 
+__build() {
+  local REMOTE_HOST=$1
+  ssh $REMOTE_HOST "cd go/blipblop; make; sudo mv bin/* /usr/local/bin/"
+}
+
 __usage() {
     p="$(basename $0)"
     echo "usage:  $p HOST [run|sync|killall]"
@@ -76,6 +81,9 @@ case "$2" in
     ;;
   'debug')
     __debug $1 $3
+    ;;
+  'build')
+    __build $1
     ;;
   *) 
   __usage

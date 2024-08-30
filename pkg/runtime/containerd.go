@@ -89,16 +89,6 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 		if err != nil {
 			return nil, err
 		}
-		// var netstatus models.NetworkStatus
-		// var runstatus models.RuntimeStatus
-		// if task, _ := c.Task(ctx, nil); task != nil {
-		// 	if ip, _ := networking.GetIPAddress(fmt.Sprintf("%s-%d", task.ID(), task.Pid())); ip != nil {
-		// 		netstatus.IP = ip
-		// 	}
-		// 	if status, _ := task.Status(ctx); &status != nil {
-		// 		runstatus.Status = status.Status
-		// 	}
-		// }
 		result[i] = &containers.Container{
 			Name:     info.ID,
 			Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
@@ -125,28 +115,29 @@ func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Co
 	return nil, nil
 }
 
-func (c *ContainerdRuntime) Create(ctx context.Context, unit *containers.Container) error {
+func (c *ContainerdRuntime) Create(ctx context.Context, ctr *containers.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
-	image, err := c.client.Pull(ctx, unit.Config.Image, containerd.WithPullUnpack)
+	image, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
 	}
 
 	// Configure labels
-	l := buildContainerLabels(unit)
-	m := buildMounts(unit.Config.Mounts)
+	l := buildContainerLabels(ctr)
+	m := buildMounts(ctr.Config.Mounts)
 
 	// Build OCI specification
-	opts := buildSpec(unit.Config.Envvars, m, unit.Config.Args)
-	opts = append(opts, oci.WithHostname(unit.Name))
+	opts := buildSpec(ctr.Config.Envvars, m, ctr.Config.Args)
+	opts = append(opts, oci.WithHostname(ctr.Name))
 	opts = append(opts, oci.WithImageConfig(image))
+	opts = append(opts, oci.WithEnv(ctr.GetConfig().GetEnvvars()))
 
 	// Create container
 	_, err = c.client.NewContainer(
 		ctx,
-		unit.Name,
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", unit.Name), image),
+		ctr.Name,
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.Name), image),
 		containerd.WithNewSpec(opts...),
 		containerd.WithContainerLabels(l),
 	)
@@ -173,9 +164,9 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
 	return container.Delete(ctx)
 }
 
-func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
+func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, key)
+	container, err := c.client.LoadContainer(ctx, ctr.GetName())
 	if err != nil {
 		return err
 	}
@@ -183,10 +174,11 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
+
 	// Tear down network
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err = networking.DeleteCNINetwork(ctx, c.cni, task, cniLabels)
+	err = networking.DeleteCNINetwork(ctx, c.cni, task)
 	if err != nil {
 		log.Printf("Unable to tear down network: %s", err)
 	}
@@ -222,10 +214,29 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	if err != nil {
 		return err
 	}
+
+	// Start the task
+	err = task.Start(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Setup port-mappings
+	mappings := make([]gocni.PortMapping, len(ctr.GetConfig().GetPorts()))
+
+	for i, port := range ctr.GetConfig().GetPorts() {
+		mappings[i] = gocni.PortMapping{
+			HostPort:      int32(port.GetHostport()),
+			ContainerPort: int32(port.GetContainerport()),
+			Protocol:      "TCP",
+			HostIP:        "192.168.13.123",
+		}
+	}
+
 	// Setup network for namespace.
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	result, err := networking.CreateCNINetwork(ctx, c.cni, task, ctr, cniLabels)
+	result, err := networking.CreateCNINetwork(ctx, c.cni, task, gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -238,16 +249,33 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	containerLabels.Set("blipblop.io/ip-address", ip.String())
 	containerLabels.Set("blipblop.io/gateway", gw.String())
 	containerLabels.Set("blipblop.io/mac", mac)
+	containerLabels.Set("blipblop.io/container", ctr.GetName())
 	_, err = container.SetLabels(ctx, containerLabels)
 	if err != nil {
 		return nil
 	}
 
-	// Start the task
-	err = task.Start(ctx)
-	if err != nil {
-		return err
-	}
+	// Testing
+	go func() {
+		log.Printf("waiting for task to exit %s", task.ID())
+		exitChan, err := task.Wait(ctx)
+		if err != nil {
+			log.Printf("error waiting for task: %v", err)
+		}
+		status := <-exitChan
+		log.Printf("task exited with status %d: %v", status.ExitCode(), status.Error())
+		_, err = task.Delete(ctx)
+		if err != nil {
+			log.Printf("error deleting task: %v", err)
+		}
+
+		log.Printf("tearing down network for task %s", task.ID())
+		err = networking.DeleteCNINetwork(ctx, c.cni, task, gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+		if err != nil {
+			log.Printf("error tearing down network: %v", err)
+		}
+	}()
+
 	return nil
 }
 

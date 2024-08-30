@@ -185,7 +185,7 @@ func RegisterEventServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.EventService/Get", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.events.v1.EventService/Get", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -210,7 +210,7 @@ func RegisterEventServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.EventService/List", runtime.WithHTTPPathPattern("/api/v1/events"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.events.v1.EventService/List", runtime.WithHTTPPathPattern("/api/v1/events"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -235,7 +235,7 @@ func RegisterEventServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.EventService/Delete", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.events.v1.EventService/Delete", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -299,7 +299,7 @@ func RegisterEventServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.EventService/Get", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.events.v1.EventService/Get", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -321,7 +321,7 @@ func RegisterEventServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.EventService/List", runtime.WithHTTPPathPattern("/api/v1/events"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.events.v1.EventService/List", runtime.WithHTTPPathPattern("/api/v1/events"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -343,7 +343,7 @@ func RegisterEventServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.EventService/Delete", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.events.v1.EventService/Delete", runtime.WithHTTPPathPattern("/api/v1/events/{id}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
