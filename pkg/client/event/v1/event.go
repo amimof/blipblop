@@ -14,7 +14,7 @@ import (
 )
 
 type EventV1Client struct {
-	name         string
+	// name         string
 	eventService events.EventServiceClient
 }
 
@@ -33,7 +33,7 @@ func (c *EventV1Client) Publish(ctx context.Context, id string, evt events.Event
 
 func (c *EventV1Client) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
 	// Create stream
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: c.name})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{})
 	if err != nil {
 		return fmt.Errorf("subscribe failed: %v", err)
 	}
@@ -45,31 +45,24 @@ func (c *EventV1Client) Subscribe(ctx context.Context, receiveChan chan<- *event
 		// Stream closed by server
 		if err == io.EOF {
 			errChan <- fmt.Errorf("server stream closed")
-			// return fmt.Errorf("stream closed by server")
 			break
 		}
 
 		// Handle transient errors
 		if err != nil {
 			if grpcErr, ok := status.FromError(err); ok {
-				// log.Printf("gRPC stream error %v, code %v", grpcErr.Message(), grpcErr.Code())
 				errChan <- fmt.Errorf("gRPC stream error %v, code %v", grpcErr.Message(), grpcErr.Code())
 				if grpcErr.Code() == status.Code(err) {
-					// log.Printf("transiet error occured, attempting to reconnect")
 					errChan <- errors.New("transient error occured, attempting to reconnect")
 					time.Sleep(2 * time.Second)
 				}
 			}
-			// errc <- fmt.Errorf("non-gRPC error: %v", err)
-			// log.Printf("non-gRPC error: %v", err)
 			errChan <- fmt.Errorf("non-gRPC error: %v", err)
 			break
 		}
 		receiveChan <- response
 	}
-	// return nil
-	// }()
-	// return evc, errc
+
 	return nil
 }
 

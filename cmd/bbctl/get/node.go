@@ -35,11 +35,11 @@ func NewCmdGetNode() *cobra.Command {
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
 			// Setup our client
-			c, err := client.New(ctx, server)
+			c, err := client.New(server)
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			nodes, err := c.NodeV1().ListNodes(context.Background())
+			nodes, err := c.NodeV1().ListNodes(ctx)
 			if err != nil {
 				log.Fatal(err)
 			}
