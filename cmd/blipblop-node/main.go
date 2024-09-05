@@ -94,15 +94,16 @@ func main() {
 	// Setup a clientset for this node
 	// ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second) // define how long you want to wait for connection to be restored before giving up
 	// defer cancel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// ctx := context.Background()
-	cs, err := client.New(ctx, fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	cs, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	defer cs.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Join node
 	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))

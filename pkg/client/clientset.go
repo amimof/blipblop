@@ -50,9 +50,7 @@ func (c *ClientSet) Close() error {
 	return nil
 }
 
-func New(ctx context.Context, server string) (*ClientSet, error) {
-	var opts []grpc.DialOption
-
+func New(server string, opts ...grpc.DialOption) (*ClientSet, error) {
 	// Define connection backoff policy
 	backoffConfig := backoff.Config{
 		BaseDelay:  time.Second,       // Initial delay before retry
@@ -62,12 +60,13 @@ func New(ctx context.Context, server string) (*ClientSet, error) {
 
 	// Define keepalive parameters
 	keepAliveParams := keepalive.ClientParameters{
-		Time:                2 * time.Minute,  // Ping the server if no activity
+		Time:                10 * time.Minute, // Ping the server if no activity
 		Timeout:             20 * time.Second, // Timeout for server response
 		PermitWithoutStream: true,             // Ping even without active streams
 	}
 
-	opts = append(opts,
+	// Default options
+	defaultOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(keepAliveParams),
 		grpc.WithConnectParams(
@@ -77,8 +76,12 @@ func New(ctx context.Context, server string) (*ClientSet, error) {
 			},
 		),
 		grpc.WithBlock(),
-	)
-	conn, err := grpc.DialContext(ctx, server, opts...)
+	}
+
+	// Allow passing in custom dial options
+	opts = append(defaultOpts, opts...)
+
+	conn, err := grpc.Dial(server, opts...)
 	if err != nil {
 		return nil, err
 	}

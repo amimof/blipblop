@@ -43,6 +43,10 @@ func (i *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 				handleEventEvent(i.handlers, ev)
 			case err := <-errChan:
 				log.Printf("recevied error on channel: %v", err)
+			case <-stopCh:
+				log.Println("done watching, closing controller")
+				ctx.Done()
+				return
 			}
 		}
 	}()
