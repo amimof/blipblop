@@ -39,7 +39,8 @@ run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 		--tls-key ./certs/server-key.pem \
 		--tls-certificate ./certs/server.pem \
 		--tls-host 0.0.0.0 \
-		--tcp-tls-host 0.0.0.0
+		--tcp-tls-host 0.0.0.0 \
+		--tls-port 8443
 
 .PHONY: run-node
 run-node: ; $(info $(M) running node) @ ## Run a node on localhost

@@ -3,13 +3,15 @@ package client
 import (
 	"context"
 	"sync"
+	"time"
 
 	containerv1 "github.com/amimof/blipblop/pkg/client/container/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
-
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 type ClientSet struct {
@@ -48,22 +50,38 @@ func (c *ClientSet) Close() error {
 	return nil
 }
 
-func New(ctx context.Context, server string) (*ClientSet, error) {
-	var opts []grpc.DialOption
-	retryPolicy := `{
-		"methodConfig": [{
-		  "name": [{"service": "grpc.examples.echo.Echo"}],
-		  "waitForReady": true,
-		  "retryPolicy": {
-			  "MaxAttempts": 4,
-			  "InitialBackoff": ".01s",
-			  "MaxBackoff": ".01s",
-			  "BackoffMultiplier": 1.0,
-			  "RetryableStatusCodes": [ "UNAVAILABLE" ]
-		  }
-		}]}`
-	opts = append(opts, grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultServiceConfig(retryPolicy))
-	conn, err := grpc.DialContext(ctx, server, opts...)
+func New(server string, opts ...grpc.DialOption) (*ClientSet, error) {
+	// Define connection backoff policy
+	backoffConfig := backoff.Config{
+		BaseDelay:  time.Second,       // Initial delay before retry
+		Multiplier: 1.6,               // Multiplier for successive retries
+		MaxDelay:   120 * time.Second, // Maximum delay
+	}
+
+	// Define keepalive parameters
+	keepAliveParams := keepalive.ClientParameters{
+		Time:                10 * time.Minute, // Ping the server if no activity
+		Timeout:             20 * time.Second, // Timeout for server response
+		PermitWithoutStream: true,             // Ping even without active streams
+	}
+
+	// Default options
+	defaultOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepAliveParams),
+		grpc.WithConnectParams(
+			grpc.ConnectParams{
+				Backoff:           backoffConfig,
+				MinConnectTimeout: 20 * time.Second,
+			},
+		),
+		grpc.WithBlock(),
+	}
+
+	// Allow passing in custom dial options
+	opts = append(defaultOpts, opts...)
+
+	conn, err := grpc.Dial(server, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -51,7 +51,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			server := viper.GetString("server")
 
 			// Setup our client
-			c, err := client.New(ctx, server)
+			c, err := client.New(server)
 			if err != nil {
 				logrus.Fatal(err)
 			}

@@ -2,16 +2,19 @@ package v1
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
-	"log"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/status"
 )
 
 type EventV1Client struct {
-	name         string
+	// name         string
 	eventService events.EventServiceClient
 }
 
@@ -28,26 +31,39 @@ func (c *EventV1Client) Publish(ctx context.Context, id string, evt events.Event
 	return nil
 }
 
-func (c *EventV1Client) Subscribe(ctx context.Context) (<-chan *events.Event, <-chan error) {
-	evc := make(chan *events.Event)
-	errc := make(chan error)
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{Id: c.name})
+func (c *EventV1Client) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
+	// Create stream
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{})
 	if err != nil {
-		log.Fatalf("subscribe error occurred %s", err.Error())
+		return fmt.Errorf("subscribe failed: %v", err)
 	}
-	go func() {
-		for {
-			in, err := stream.Recv()
-			if err == io.EOF {
-				errc <- err
-			}
-			if err != nil {
-				errc <- err
-			}
-			evc <- in
+
+	// Read from the stream
+	for {
+		response, err := stream.Recv()
+
+		// Stream closed by server
+		if err == io.EOF {
+			errChan <- fmt.Errorf("server stream closed")
+			break
 		}
-	}()
-	return evc, errc
+
+		// Handle transient errors
+		if err != nil {
+			if grpcErr, ok := status.FromError(err); ok {
+				errChan <- fmt.Errorf("gRPC stream error %v, code %v", grpcErr.Message(), grpcErr.Code())
+				if grpcErr.Code() == status.Code(err) {
+					errChan <- errors.New("transient error occured, attempting to reconnect")
+					time.Sleep(2 * time.Second)
+				}
+			}
+			errChan <- fmt.Errorf("non-gRPC error: %v", err)
+			break
+		}
+		receiveChan <- response
+	}
+
+	return nil
 }
 
 func NewEventV1Client(conn *grpc.ClientConn) *EventV1Client {

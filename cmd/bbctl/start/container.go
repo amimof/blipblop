@@ -28,7 +28,7 @@ func NewCmdStartContainer() *cobra.Command {
 			ctx := context.Background()
 
 			// Setup our client
-			c, err := client.New(ctx, server)
+			c, err := client.New(server)
 			if err != nil {
 				logrus.Fatal(err)
 			}
