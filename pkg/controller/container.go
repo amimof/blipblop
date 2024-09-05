@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
@@ -30,22 +31,30 @@ func (i *ContainerController) AddHandler(h *ContainerEventHandlerFuncs) {
 }
 
 func (i *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
-	evc, _ := i.clientset.EventV1().Subscribe(ctx)
-	for {
-		select {
-		case ev := <-evc:
-			handleEventEvent(i.handlers, ev)
-		// case err := <-errc:
-		// log.Printf("error received on channel: %s", err)
-		case <-stopCh:
-			ctx.Done()
-			log.Println("Done watching event informer")
-			return
-		case <-ctx.Done():
-			log.Println("Done, closing client")
-			i.clientset.Close()
-			return
+	// Setup channels
+	evt := make(chan *events.Event)
+	errChan := make(chan error)
+
+	go func() {
+		for {
+			select {
+			case ev := <-evt:
+				log.Printf("got event %v", ev)
+				handleEventEvent(i.handlers, ev)
+			case err := <-errChan:
+				log.Printf("recevied error on channel: %v", err)
+			}
 		}
+	}()
+
+	for {
+		if err := i.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
+			log.Printf("got error from stream: %v", err)
+		}
+
+		log.Println("attempting reconnect")
+		time.Sleep(5 * time.Second)
+
 	}
 }
 

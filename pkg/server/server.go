@@ -3,7 +3,6 @@ package server
 import (
 	"io"
 	"net"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
@@ -36,7 +35,7 @@ type services struct {
 
 func New(addr string) *Server {
 	opts := []grpc.ServerOption{
-		grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 2 * time.Minute}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{}),
 	}
 	srv := grpc.NewServer(opts...)
 	svc := registerServices(srv)
@@ -81,5 +80,4 @@ func registerServices(srv *grpc.Server) *services {
 		eventService:     eventService,
 		containerService: containerService,
 	}
-
 }
