@@ -30,6 +30,9 @@ func (l *local) Get(ctx context.Context, req *events.GetEventRequest, _ ...grpc.
 
 	event := &events.Event{}
 	err = proto.Unmarshal(data, event)
+	if err != nil {
+		return nil, err
+	}
 	return &events.GetEventResponse{
 		Event: event,
 	}, nil
