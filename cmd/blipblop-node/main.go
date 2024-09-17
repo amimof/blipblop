@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
@@ -92,10 +93,6 @@ func main() {
 	}
 
 	// Setup a clientset for this node
-	// ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second) // define how long you want to wait for connection to be restored before giving up
-	// defer cancel()
-
-	// ctx := context.Background()
 	cs, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
@@ -111,10 +108,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 
-	// Create  containerd client
-	cclient, err := containerd.New(containerdSocket)
+	// Create containerd client
+	cclient, err := reconnectWithBackoff(containerdSocket)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		log.Fatalf("could not establish connection to containerd: %v", err)
 	}
 	defer cclient.Close()
 
@@ -137,9 +134,9 @@ func main() {
 	go containerCtrl.Run(ctx, stopCh)
 	log.Println("Started Container Controller")
 
-	nodeCtrl := controller.NewNodeController(cs, runtime)
-	go nodeCtrl.Run(ctx, stopCh)
-	log.Println("Started Node Controller")
+	// nodeCtrl := controller.NewNodeController(cs, runtime)
+	// go nodeCtrl.Run(ctx, stopCh)
+	// log.Println("Started Node Controller")
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
@@ -153,4 +150,32 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	log.Println("Successfully unjoined from cluster", nodeName)
+}
+
+func connectContainerd(address string) (*containerd.Client, error) {
+	client, err := containerd.New(address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
+	}
+	return client, nil
+}
+
+func reconnectWithBackoff(address string) (*containerd.Client, error) {
+	var (
+		client *containerd.Client
+		err    error
+	)
+
+	// TODO: Parameterize the backoff time
+	backoff := 2 * time.Second
+	for {
+		client, err = connectContainerd(address)
+		if err == nil {
+			return client, nil
+		}
+
+		log.Printf("Reconnection failed: %v, retrying in %v...", err, backoff)
+		time.Sleep(backoff)
+
+	}
 }

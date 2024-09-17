@@ -45,9 +45,13 @@ __debug() {
   fi
   local REMOTE_HOST=$1
   local END=$2
-  for i in $(seq 1 $END); do
-    tmux new-window -c "#{pane_curent_path}" -n devnode-debug-$i ssh -t $REMOTE_HOST "cd go/blipblop; sudo -s; exec \$SHELL"
-  done
+  local CURRENT_SESSION=$(tmux display-message -p '#S')
+  tmux new-window -c "#{pane_current_path}" -n devnode-debug \; split-window -h
+  # for i in $(seq 1 $END); do
+    tmux send-keys -t $CURRENT_SESSION:devnode-debug.0 "ssh -t $REMOTE_HOST 'cd go/blipblop; sudo -s; exec \$SHELL'" C-m
+    tmux send-keys -t $CURRENT_SESSION:devnode-debug.1 "ssh -t $REMOTE_HOST 'cd go/blipblop; sudo -s; exec \$SHELL'" C-m
+    # tmux new-window -c "#{pane_current_path}" -n devnode-debug-$i ssh -t $REMOTE_HOST "cd go/blipblop; sudo -s; exec \$SHELL"
+  # done
 }
 
 __sync() {

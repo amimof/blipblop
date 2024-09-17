@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 )
@@ -46,7 +47,7 @@ func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateCon
 	return c.local.Update(ctx, req)
 }
 
-func NewService(repo Repo, ev *event.EventService) *ContainerService {
+func NewService(repo repository.Repository, ev *event.EventService) *ContainerService {
 	return &ContainerService{
 		local: &local{
 			repo:        repo,

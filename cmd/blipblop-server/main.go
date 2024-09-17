@@ -3,9 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"net"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
+	"github.com/dgraph-io/badger/v4"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
 	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -16,11 +25,6 @@ import (
 	"github.com/spf13/pflag"
 	//"github.com/uber/jaeger-client-go"
 	//"github.com/uber/jaeger-client-go/config"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 var (
@@ -106,11 +110,9 @@ func init() {
 	)); err != nil {
 		logrus.Printf("Unable to register 'blipblop_build_info metric %s'", err.Error())
 	}
-
 }
 
 func main() {
-
 	showver := pflag.Bool("version", false, "Print version")
 
 	pflag.Usage = func() {
@@ -146,12 +148,29 @@ func main() {
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
+	// Setup Redis client
+	// rdb, err := reconnectWithBackoff(&redis.Options{
+	// 	Addr:     "localhost:6379",
+	// 	Password: "",
+	// 	DB:       0,
+	// })
+	// if err != nil {
+	// 	logrus.Fatalf("couldn't connect to redis: %v", err)
+	// }
+	// defer rdb.Close()
+	db, err := badger.Open(badger.DefaultOptions("/var/lib/blipblop"))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	defer db.Close()
+
 	// Setup server
 	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	s := server.New(net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
+	srvAddr := net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
+	s := server.New(srvAddr, server.WithContainerServiceRepo(repository.NewBadgerRepository(db)))
 	go func() {
 		logrus.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
 		if err := s.Serve(lis); err != nil {
@@ -197,5 +216,32 @@ func main() {
 	s.Shutdown()
 	logrus.Println("Shut down server")
 	close(exit)
+}
 
+func connectRedis(opt *redis.Options) (*redis.Client, error) {
+	rdb := redis.NewClient(opt)
+	if _, err := rdb.Ping(context.Background()).Result(); err != nil {
+		return nil, fmt.Errorf("error connecting to redis: %v", err)
+	}
+	return rdb, nil
+}
+
+func reconnectWithBackoff(opt *redis.Options) (*redis.Client, error) {
+	var (
+		client *redis.Client
+		err    error
+	)
+
+	// TODO: Parameterize the backoff time
+	backoff := 2 * time.Second
+	for {
+		client, err = connectRedis(opt)
+		if err == nil {
+			return client, nil
+		}
+
+		log.Printf("Reconnection failed: %v, retrying in %v...", err, backoff)
+		time.Sleep(backoff)
+
+	}
 }
