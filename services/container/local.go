@@ -8,6 +8,7 @@ import (
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -15,7 +16,7 @@ import (
 )
 
 type local struct {
-	repo        Repo
+	repo        repository.Repository
 	mu          sync.Mutex
 	eventClient *event.EventService
 }
@@ -23,13 +24,20 @@ type local struct {
 var _ containers.ContainerServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
-	container, err := l.Repo().Get(ctx, req.GetId())
+	data, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	if container == nil {
+	if data == nil {
 		return nil, fmt.Errorf("container not found %s", req.GetId())
 	}
+
+	container := &containers.Container{}
+	err = proto.Unmarshal(data, container)
+	if err != nil {
+		return nil, err
+	}
+
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerGet)})
 	if err != nil {
 		return nil, err
@@ -40,10 +48,22 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
-	ctrs, err := l.Repo().GetAll(ctx)
+	data, err := l.Repo().GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	ctrs := []*containers.Container{}
+
+	for _, b := range data {
+		container := &containers.Container{}
+		err = proto.Unmarshal(b, container)
+		if err != nil {
+			return nil, err
+		}
+		ctrs = append(ctrs, container)
+	}
+
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor("", events.EventType_ContainerList)})
 	if err != nil {
 		return nil, err
@@ -57,20 +77,23 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	container := req.GetContainer()
 
 	if existing, _ := l.Repo().Get(ctx, container.GetName()); existing != nil {
-		return nil, fmt.Errorf("container %s already exists", existing.GetName())
+		return nil, fmt.Errorf("container %s already exists", container.GetName())
 	}
 
 	container.Created = timestamppb.New(time.Now())
 	container.Updated = timestamppb.New(time.Now())
 	container.Revision = 1
-	err := l.Repo().Create(ctx, container)
+
+	data, err := proto.Marshal(container)
 	if err != nil {
 		return nil, err
 	}
-	container, err = l.Repo().Get(ctx, container.GetName())
+
+	err = l.Repo().Create(ctx, container.GetName(), data)
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(container.GetName(), events.EventType_ContainerCreate)})
 	if err != nil {
 		return nil, err
@@ -83,7 +106,12 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
-	container, err := l.Repo().Get(ctx, req.GetId())
+	data, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	container := &containers.Container{}
+	err = proto.Unmarshal(data, container)
 	if err != nil {
 		return nil, err
 	}
@@ -126,14 +154,27 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
-	existing, err := l.Repo().Get(ctx, updateContainer.GetName())
+	data, err := l.Repo().Get(ctx, updateContainer.GetName())
 	if err != nil {
 		return nil, err
 	}
+
+	existing := &containers.Container{}
+	err = proto.Unmarshal(data, existing)
+	if err != nil {
+		return nil, err
+	}
+
 	if updateMask != nil && updateMask.IsValid(existing) {
 		proto.Merge(existing, updateContainer)
 	}
-	err = l.Repo().Update(ctx, existing)
+
+	data, err = proto.Marshal(existing)
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.Repo().Update(ctx, existing.GetName(), data)
 	if err != nil {
 		return nil, err
 	}
@@ -146,11 +187,11 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	}, nil
 }
 
-func (l *local) Repo() Repo {
+func (l *local) Repo() repository.Repository {
 	if l.repo != nil {
 		return l.repo
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return NewInMemRepo()
+	return repository.NewInMemRepo()
 }

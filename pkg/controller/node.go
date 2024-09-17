@@ -49,11 +49,11 @@ func (n *NodeController) Run(ctx context.Context, stop <-chan struct{}) {
 	}()
 }
 
-// Recouncile ensures that desired containers matches with containers
+// Reconcile ensures that desired containers matches with containers
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (n *NodeController) Recouncile(ctx context.Context) error {
+func (n *NodeController) Reconcile(ctx context.Context) error {
 	return nil
 }
 

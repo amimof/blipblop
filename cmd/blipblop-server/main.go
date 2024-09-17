@@ -3,9 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/sirupsen/logrus"
 
 	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -16,11 +23,6 @@ import (
 	"github.com/spf13/pflag"
 	//"github.com/uber/jaeger-client-go"
 	//"github.com/uber/jaeger-client-go/config"
-	"net"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 var (
@@ -106,11 +108,9 @@ func init() {
 	)); err != nil {
 		logrus.Printf("Unable to register 'blipblop_build_info metric %s'", err.Error())
 	}
-
 }
 
 func main() {
-
 	showver := pflag.Bool("version", false, "Print version")
 
 	pflag.Usage = func() {
@@ -146,12 +146,25 @@ func main() {
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
+	// Setup badgerdb
+	db, err := badger.Open(badger.DefaultOptions("/var/lib/blipblop"))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	defer db.Close()
+
 	// Setup server
 	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	s := server.New(net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
+	srvAddr := net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
+	repo := repository.NewBadgerRepository(db)
+	s := server.New(srvAddr,
+		server.WithContainerServiceRepo(repo),
+		server.WithEventServiceRepo(repo),
+		server.WithNodeServiceRepo(repo),
+	)
 	go func() {
 		logrus.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
 		if err := s.Serve(lis); err != nil {
@@ -197,5 +210,4 @@ func main() {
 	s.Shutdown()
 	logrus.Println("Shut down server")
 	close(exit)
-
 }

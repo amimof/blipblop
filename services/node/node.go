@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 )
@@ -46,7 +47,7 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 	return n.local.Forget(ctx, req)
 }
 
-func NewService(repo Repo, ev *event.EventService) *NodeService {
+func NewService(repo repository.Repository, ev *event.EventService) *NodeService {
 	return &NodeService{
 		local: &local{
 			repo:        repo,

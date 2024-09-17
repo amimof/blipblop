@@ -18,7 +18,7 @@ type Cache struct {
 // Item represents a unit stored in the cache
 type Item struct {
 	Key     string
-	Value   interface{}
+	Value   []byte
 	expires time.Time
 	created time.Time
 }
@@ -45,7 +45,7 @@ func (c *Cache) Get(key string) *Item {
 	}
 
 	item := c.Store[key]
-	if !item.expires.IsZero() && item.Age() > c.TTL {
+	if !item.expires.IsZero() && item.Age() > c.TTL && c.TTL > 0 {
 		// Item age exceeded time to live
 		delete(c.Store, key)
 		return nil
@@ -54,7 +54,7 @@ func (c *Cache) Get(key string) *Item {
 }
 
 // Set instantiates and allocates a key in the cache and overwrites any previously set item
-func (c *Cache) Set(key string, val interface{}) *Item {
+func (c *Cache) Set(key string, val []byte) *Item {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 

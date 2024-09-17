@@ -4,16 +4,19 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type local struct {
-	repo        Repo
+	repo        repository.Repository
 	mu          sync.Mutex
 	eventClient *event.EventService
 }
@@ -21,7 +24,16 @@ type local struct {
 var _ nodes.NodeServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
-	node, err := l.Repo().Get(ctx, req.Id)
+	data, err := l.Repo().Get(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, fmt.Errorf("node not found %s", req.GetId())
+	}
+
+	node := &nodes.Node{}
+	err = proto.Unmarshal(data, node)
 	if err != nil {
 		return nil, err
 	}
@@ -35,11 +47,21 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 }
 
 func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
-	err := l.Repo().Create(ctx, req.Node)
+	node := req.GetNode()
+	if existing, _ := l.Repo().Get(ctx, node.GetName()); existing != nil {
+		return nil, fmt.Errorf("node %s already exists", node.GetName())
+	}
+
+	node.Created = timestamppb.New(time.Now())
+	node.Updated = timestamppb.New(time.Now())
+	node.Revision = 1
+
+	data, err := proto.Marshal(node)
 	if err != nil {
 		return nil, err
 	}
-	node, err := l.Repo().Get(ctx, req.Node.Name)
+
+	err = l.Repo().Create(ctx, node.GetName(), data)
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +89,22 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 }
 
 func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
-	res, err := l.Repo().List(ctx)
+	data, err := l.Repo().GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	res := []*nodes.Node{}
+
+	for _, b := range data {
+		node := &nodes.Node{}
+		err = proto.Unmarshal(b, node)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, node)
+	}
+
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor("", events.EventType_NodeList)})
 	if err != nil {
 		return nil, err
@@ -83,14 +117,27 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
-	existingNode, err := l.Repo().Get(ctx, updateNode.GetName())
+	data, err := l.Repo().Get(ctx, updateNode.GetName())
 	if err != nil {
 		return nil, err
 	}
-	if updateMask != nil && updateMask.IsValid(existingNode) {
-		proto.Merge(existingNode, updateNode)
+
+	existing := &nodes.Node{}
+	err = proto.Unmarshal(data, existing)
+	if err != nil {
+		return nil, err
 	}
-	err = l.Repo().Update(ctx, existingNode)
+
+	if updateMask != nil && updateMask.IsValid(existing) {
+		proto.Merge(existing, updateNode)
+	}
+
+	data, err = proto.Marshal(existing)
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.Repo().Update(ctx, existing.GetName(), data)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +146,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		return nil, err
 	}
 	return &nodes.UpdateNodeResponse{
-		Node: existingNode,
+		Node: existing,
 	}, nil
 }
 
@@ -136,11 +183,11 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	}, nil
 }
 
-func (l *local) Repo() Repo {
+func (l *local) Repo() repository.Repository {
 	if l.repo != nil {
 		return l.repo
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return NewInMemRepo()
+	return repository.NewInMemRepo()
 }

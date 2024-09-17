@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -25,9 +26,11 @@ func (n *EventService) Register(server *grpc.Server) error {
 func (n *EventService) Get(ctx context.Context, req *events.GetEventRequest) (*events.GetEventResponse, error) {
 	return n.local.Get(ctx, req)
 }
+
 func (n *EventService) Delete(ctx context.Context, req *events.DeleteEventRequest) (*events.DeleteEventResponse, error) {
 	return n.local.Delete(ctx, req)
 }
+
 func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (*events.ListEventResponse, error) {
 	return n.local.List(ctx, req)
 }
@@ -65,7 +68,7 @@ func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) 
 	return &events.PublishResponse{Event: req.GetEvent()}, nil
 }
 
-func NewService(repo Repo) *EventService {
+func NewService(repo repository.Repository) *EventService {
 	return &EventService{
 		channel: make(map[string][]chan *events.Event),
 		local: &local{

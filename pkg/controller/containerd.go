@@ -3,16 +3,21 @@ package controller
 import (
 	//"os"
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/typeurl"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type ContainerdController struct {
@@ -57,32 +62,92 @@ func (i *ContainerdController) AddHandler(h *RuntimeHandlerFuncs) {
 	i.handlers = h
 }
 
+func connectContainerd(address string) (*containerd.Client, error) {
+	client, err := containerd.New(address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
+	}
+	return client, nil
+}
+
+func reconnectWithBackoff(address string) (*containerd.Client, error) {
+	var (
+		client *containerd.Client
+		err    error
+	)
+
+	// Exponential backoff
+	// TODO: Parameterize the backoff so it's not hardcoded
+	backoff := 2 * time.Second
+	for {
+		client, err = connectContainerd(address)
+		if err == nil {
+			log.Println("successfully connected to containerd")
+			return client, nil
+		}
+
+		log.Printf("reconnection failed: %v, retrying in %v...", err, backoff)
+		time.Sleep(backoff)
+	}
+}
+
 func (i *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) {
-	err := i.Recouncile(ctx)
+	err := i.Reconcile(ctx)
 	if err != nil {
 		log.Printf("Error recounciling state with error %s", err)
 		return
 	}
-	ch, errs := i.client.Subscribe(ctx)
+	for {
+		err := i.streamEvents(ctx, stopCh)
+		if err != nil {
+			log.Println("Reconnecting stream")
+			i.client, err = reconnectWithBackoff("/run/containerd/containerd.sock")
+			if err != nil {
+				log.Fatalf("Reconnection failed: %v", err)
+				_ = i.clientset.NodeV1().SetNodeReady(ctx, false)
+			}
+			_ = i.clientset.NodeV1().SetNodeReady(ctx, true)
+		}
+	}
+}
+
+// TODO: Set node status to unhealthy whenever runtime is unavailable here.
+// Therefore consider removing `IsServing()` check in node controller which really doesn't do much.
+func (i *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan struct{}) error {
+	eventCh, errCh := i.client.Subscribe(ctx)
+
 	for {
 		select {
-		case e := <-ch:
-			ev, err := typeurl.UnmarshalAny(e.Event)
+		case event := <-eventCh:
+			ev, err := typeurl.UnmarshalAny(event.Event)
 			if err != nil {
-				log.Printf("Error: %s", err.Error())
+				log.Printf("error unmarshaling event: %v", err)
 			}
 			i.HandleEvent(i.handlers, ev)
-		case err := <-errs:
-			if err != nil {
-				log.Printf("Error %s", err)
+		case err := <-errCh:
+			if err == nil || isConnectionError(err) {
+				log.Println("stream disconnected, attempting reconnect")
+				_ = i.clientset.NodeV1().SetNodeReady(ctx, false)
+				return err
 			}
+			log.Fatalf("stream error:  %v", err)
 		case <-ctx.Done():
-			return
+			return nil
 		case <-stopCh:
 			i.client.Close()
 			ctx.Done()
 		}
 	}
+}
+
+func isConnectionError(err error) bool {
+	if errdefs.IsUnavailable(err) || errdefs.IsNotFound(err) {
+		return true
+	}
+	if st, ok := status.FromError(err); ok {
+		return st.Code() == codes.Unavailable
+	}
+	return false
 }
 
 func (i *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
@@ -323,7 +388,8 @@ func contains(cs []*containers.Container, c *containers.Container) bool {
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (r *ContainerdController) Recouncile(ctx context.Context) error {
+func (r *ContainerdController) Reconcile(ctx context.Context) error {
+	log.Printf("reconciling containers in containerd runtime")
 	// Get containers from the server. Ultimately we want these to match with our runtime
 	clist, err := r.clientset.ContainerV1().ListContainers(ctx)
 	if err != nil {
