@@ -34,7 +34,7 @@ func (r *BadgerRepository) Get(ctx context.Context, id string) ([]byte, error) {
 			return err
 		}
 		return item.Value(func(val []byte) error {
-			res = val
+			res = append([]byte{}, val...)
 			return nil
 		})
 	})

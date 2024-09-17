@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -14,7 +13,6 @@ import (
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
 	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -148,16 +146,7 @@ func main() {
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-	// Setup Redis client
-	// rdb, err := reconnectWithBackoff(&redis.Options{
-	// 	Addr:     "localhost:6379",
-	// 	Password: "",
-	// 	DB:       0,
-	// })
-	// if err != nil {
-	// 	logrus.Fatalf("couldn't connect to redis: %v", err)
-	// }
-	// defer rdb.Close()
+	// Setup badgerdb
 	db, err := badger.Open(badger.DefaultOptions("/var/lib/blipblop"))
 	if err != nil {
 		logrus.Fatal(err)
@@ -170,7 +159,12 @@ func main() {
 		logrus.Fatal(err)
 	}
 	srvAddr := net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
-	s := server.New(srvAddr, server.WithContainerServiceRepo(repository.NewBadgerRepository(db)))
+	repo := repository.NewBadgerRepository(db)
+	s := server.New(srvAddr,
+		server.WithContainerServiceRepo(repo),
+		server.WithEventServiceRepo(repo),
+		server.WithNodeServiceRepo(repo),
+	)
 	go func() {
 		logrus.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
 		if err := s.Serve(lis); err != nil {
@@ -216,32 +210,4 @@ func main() {
 	s.Shutdown()
 	logrus.Println("Shut down server")
 	close(exit)
-}
-
-func connectRedis(opt *redis.Options) (*redis.Client, error) {
-	rdb := redis.NewClient(opt)
-	if _, err := rdb.Ping(context.Background()).Result(); err != nil {
-		return nil, fmt.Errorf("error connecting to redis: %v", err)
-	}
-	return rdb, nil
-}
-
-func reconnectWithBackoff(opt *redis.Options) (*redis.Client, error) {
-	var (
-		client *redis.Client
-		err    error
-	)
-
-	// TODO: Parameterize the backoff time
-	backoff := 2 * time.Second
-	for {
-		client, err = connectRedis(opt)
-		if err == nil {
-			return client, nil
-		}
-
-		log.Printf("Reconnection failed: %v, retrying in %v...", err, backoff)
-		time.Sleep(backoff)
-
-	}
 }
