@@ -7,31 +7,25 @@ import (
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/repository"
+	"github.com/google/uuid"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 )
 
 type local struct {
-	repo repository.Repository
+	repo repository.EventRepository
 	mu   sync.Mutex
 }
 
 var _ events.EventServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *events.GetEventRequest, _ ...grpc.CallOption) (*events.GetEventResponse, error) {
-	data, err := l.Repo().Get(ctx, req.GetId())
+	event, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	if data == nil {
+	if event == nil {
 		return nil, fmt.Errorf("event not found %s", req.GetId())
-	}
-
-	event := &events.Event{}
-	err = proto.Unmarshal(data, event)
-	if err != nil {
-		return nil, err
 	}
 	return &events.GetEventResponse{
 		Event: event,
@@ -49,22 +43,12 @@ func (l *local) Delete(ctx context.Context, req *events.DeleteEventRequest, _ ..
 }
 
 func (l *local) List(ctx context.Context, req *events.ListEventRequest, _ ...grpc.CallOption) (*events.ListEventResponse, error) {
-	data, err := l.Repo().GetAll(ctx)
+	eventList, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	res := []*events.Event{}
-
-	for _, b := range data {
-		event := &events.Event{}
-		err = proto.Unmarshal(b, event)
-		if err != nil {
-			return nil, err
-		}
-		res = append(res, event)
-	}
 	return &events.ListEventResponse{
-		Events: res,
+		Events: eventList,
 	}, nil
 }
 
@@ -74,19 +58,17 @@ func (l *local) Subscribe(ctx context.Context, req *events.SubscribeRequest, _ .
 
 func (l *local) Publish(ctx context.Context, req *events.PublishRequest, _ ...grpc.CallOption) (*events.PublishResponse, error) {
 	event := req.GetEvent()
-	data, err := proto.Marshal(event)
-	if err != nil {
-		return nil, err
+	if event.GetId() == "" {
+		event.Id = uuid.New().String()
 	}
-
-	return nil, l.Repo().Create(ctx, event.GetId(), data)
+	return nil, l.Repo().Create(ctx, event)
 }
 
-func (l *local) Repo() repository.Repository {
+func (l *local) Repo() repository.EventRepository {
 	if l.repo != nil {
 		return l.repo
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return repository.NewInMemRepo()
+	return repository.NewEventInMemRepo()
 }

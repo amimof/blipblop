@@ -3,26 +3,24 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
+	"github.com/amimof/blipblop/services/container"
+	"github.com/amimof/blipblop/services/event"
+	"github.com/amimof/blipblop/services/node"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/sirupsen/logrus"
-
-	//"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	//"github.com/amimof/blipblop/pkg/server"
-	//"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	//"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
-	//"github.com/uber/jaeger-client-go"
-	//"github.com/uber/jaeger-client-go/config"
 )
 
 var (
@@ -110,6 +108,22 @@ func init() {
 	}
 }
 
+func parseSlogLevel(lvl string) (slog.Level, error) {
+	switch strings.ToLower(lvl) {
+	case "error":
+		return slog.LevelError, nil
+	case "warn", "warning":
+		return slog.LevelWarn, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "debug":
+		return slog.LevelDebug, nil
+	}
+
+	var l slog.Level
+	return l, fmt.Errorf("not a valid log level: %q", lvl)
+}
+
 func main() {
 	showver := pflag.Bool("version", false, "Print version")
 
@@ -136,39 +150,50 @@ func main() {
 	}
 
 	// Setup logging
-	lvl, err := logrus.ParseLevel(logLevel)
+	lvl, err := parseSlogLevel(logLevel)
 	if err != nil {
-		logrus.Fatal(err)
+		fmt.Printf("error parsing log level: %v", err)
+		os.Exit(1)
 	}
-	logrus.SetLevel(lvl)
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
 	// Setup signal handlers
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-	// Setup badgerdb
+	// Setup badgerdb and repo
 	db, err := badger.Open(badger.DefaultOptions("/var/lib/blipblop"))
 	if err != nil {
-		logrus.Fatal(err)
+		log.Error("error opening badger database", "error", err.Error())
+		os.Exit(1)
 	}
 	defer db.Close()
+
+	// Setup services
+	eventService := event.NewService(repository.NewEventBadgerRepository(db))
+	nodeService := node.NewService(repository.NewNodeBadgerRepository(db), eventService)
+	containerService := container.NewService(repository.NewContainerBadgerRepository(db), eventService, container.WithLogger(log))
 
 	// Setup server
 	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
 	if err != nil {
-		logrus.Fatal(err)
+		log.Error("error setting up server listener", "error", err.Error())
+		os.Exit(1)
 	}
 	srvAddr := net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
-	repo := repository.NewBadgerRepository(db)
-	s := server.New(srvAddr,
-		server.WithContainerServiceRepo(repo),
-		server.WithEventServiceRepo(repo),
-		server.WithNodeServiceRepo(repo),
-	)
+	s := server.New(srvAddr)
+
+	err = s.RegisterService(eventService, nodeService, containerService)
+	if err != nil {
+		log.Error("error registering services to server", "error", err)
+		os.Exit(1)
+	}
 	go func() {
-		logrus.Printf("Server listening on %s:%d", tcptlsHost, tcptlsPort)
+		log.Info("server listening", "host", tcptlsHost, "port", tcptlsPort)
 		if err := s.Serve(lis); err != nil {
-			logrus.Fatal(err)
+			log.Error("error serving server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -178,16 +203,19 @@ func main() {
 	defer cancel()
 	gw, err := server.NewGateway(ctx, fmt.Sprintf("dns:///%s", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))), server.DefaultMux)
 	if err != nil {
-		logrus.Fatal(err)
+		log.Error("error setting up gateway", "error", err)
+		os.Exit(1)
 	}
 	glis, err := net.Listen("tcp", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
 	if err != nil {
-		logrus.Fatal(err)
+		log.Error("error setting up listener for gateway", "error", err)
+		os.Exit(1)
 	}
 	go func() {
-		logrus.Printf("Gateway listening on %s:%d", tlsHost, tlsPort)
+		log.Info("gateway listening", "host", tlsHost, "port", tlsPort)
 		if err := gw.Serve(glis); err != nil {
-			logrus.Fatal(err)
+			log.Error("error serving gateway", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -196,18 +224,18 @@ func main() {
 
 	// Shut down gateway
 	if err := gw.Shutdown(ctx); err != nil {
-		logrus.Printf("error shutting down gateway: %v", err)
+		log.Error("error shutting down gateway", "error", err)
 	}
-	logrus.Println("Shut down gateway")
+	log.Info("shutting down gateway")
 
 	// Shut down server
 	go func() {
 		time.Sleep(time.Second * 10)
-		logrus.Println("deadline exceeded, shutting down forcefully")
+		log.Info("deadline exceeded, shutting down forcefully")
 		s.ForceShutdown()
 	}()
 
 	s.Shutdown()
-	logrus.Println("Shut down server")
+	log.Info("shutting down server")
 	close(exit)
 }

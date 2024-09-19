@@ -4,18 +4,29 @@ import (
 	"context"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 )
 
+type NewServiceOption func(s *NodeService)
+
+func WithLogger(l logger.Logger) NewServiceOption {
+	return func(s *NodeService) {
+		s.logger = l
+	}
+}
+
 type NodeService struct {
 	nodes.UnimplementedNodeServiceServer
-	local nodes.NodeServiceClient
+	local  nodes.NodeServiceClient
+	logger logger.Logger
 }
 
 func (n *NodeService) Register(server *grpc.Server) error {
-	nodes.RegisterNodeServiceServer(server, n)
+	server.RegisterService(&nodes.NodeService_ServiceDesc, n)
+	// nodes.RegisterNodeServiceServer(server, n)
 	return nil
 }
 
@@ -47,11 +58,18 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 	return n.local.Forget(ctx, req)
 }
 
-func NewService(repo repository.Repository, ev *event.EventService) *NodeService {
-	return &NodeService{
+func NewService(repo repository.NodeRepository, ev *event.EventService, opts ...NewServiceOption) *NodeService {
+	s := &NodeService{
 		local: &local{
 			repo:        repo,
 			eventClient: ev,
 		},
+		logger: logger.ConsoleLogger{},
 	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
