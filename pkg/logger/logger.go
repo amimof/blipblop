@@ -15,10 +15,21 @@ type Logger interface {
 
 type ConsoleLogger struct{}
 
-func (c ConsoleLogger) Debug(msg string, fields ...interface{}) {}
-func (c ConsoleLogger) Info(msg string, fields ...interface{})  {}
-func (c ConsoleLogger) Warn(msg string, fields ...interface{})  {}
-func (c ConsoleLogger) Error(msg string, fields ...interface{}) {}
+func (c ConsoleLogger) Debug(msg string, fields ...interface{}) {
+	c.log("DEBUG", msg, fields...)
+}
+
+func (c ConsoleLogger) Info(msg string, fields ...interface{}) {
+	c.log("INFO", msg, fields...)
+}
+
+func (c ConsoleLogger) Warn(msg string, fields ...interface{}) {
+	c.log("WARN", msg, fields...)
+}
+
+func (c ConsoleLogger) Error(msg string, fields ...interface{}) {
+	c.log("ERROR", msg, fields...)
+}
 
 func (c *ConsoleLogger) log(level, msg string, fields ...interface{}) {
 	file, line, funcName := getCallerInfo(2)

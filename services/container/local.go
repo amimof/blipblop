@@ -27,9 +27,7 @@ var _ containers.ContainerServiceClient = &local{}
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
-	for _, v := range keysAndValues {
-		def = append(def, v)
-	}
+	def = append(def, keysAndValues...)
 	l.logger.Error(msg, def...)
 	return err
 }
