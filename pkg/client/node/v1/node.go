@@ -41,6 +41,14 @@ func (c *NodeV1Client) NodeService() nodes.NodeServiceClient {
 	return c.nodeService
 }
 
+func (c *NodeV1Client) GetNode(ctx context.Context, id string) (*nodes.Node, error) {
+	n, err := c.nodeService.Get(ctx, &nodes.GetNodeRequest{Id: id})
+	if err != nil {
+		return nil, err
+	}
+	return n.GetNode(), nil
+}
+
 func (c *NodeV1Client) ListNodes(ctx context.Context) ([]*nodes.Node, error) {
 	n, err := c.nodeService.List(ctx, &nodes.ListNodeRequest{})
 	if err != nil {

@@ -16,7 +16,7 @@ import (
 )
 
 type local struct {
-	repo        repository.Repository
+	repo        repository.NodeRepository
 	mu          sync.Mutex
 	eventClient *event.EventService
 }
@@ -24,18 +24,12 @@ type local struct {
 var _ nodes.NodeServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
-	data, err := l.Repo().Get(ctx, req.Id)
+	node, err := l.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
-	if data == nil {
+	if node == nil {
 		return nil, fmt.Errorf("node not found %s", req.GetId())
-	}
-
-	node := &nodes.Node{}
-	err = proto.Unmarshal(data, node)
-	if err != nil {
-		return nil, err
 	}
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_NodeGet)})
 	if err != nil {
@@ -56,12 +50,7 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 	node.Updated = timestamppb.New(time.Now())
 	node.Revision = 1
 
-	data, err := proto.Marshal(node)
-	if err != nil {
-		return nil, err
-	}
-
-	err = l.Repo().Create(ctx, node.GetName(), data)
+	err := l.Repo().Create(ctx, node)
 	if err != nil {
 		return nil, err
 	}
@@ -89,41 +78,24 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 }
 
 func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
-	data, err := l.Repo().GetAll(ctx)
+	nodeList, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	res := []*nodes.Node{}
-
-	for _, b := range data {
-		node := &nodes.Node{}
-		err = proto.Unmarshal(b, node)
-		if err != nil {
-			return nil, err
-		}
-		res = append(res, node)
-	}
-
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor("", events.EventType_NodeList)})
 	if err != nil {
 		return nil, err
 	}
+
 	return &nodes.ListNodeResponse{
-		Nodes: res,
+		Nodes: nodeList,
 	}, nil
 }
 
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
-	data, err := l.Repo().Get(ctx, updateNode.GetName())
-	if err != nil {
-		return nil, err
-	}
-
-	existing := &nodes.Node{}
-	err = proto.Unmarshal(data, existing)
+	existing, err := l.Repo().Get(ctx, updateNode.GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +104,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		proto.Merge(existing, updateNode)
 	}
 
-	data, err = proto.Marshal(existing)
-	if err != nil {
-		return nil, err
-	}
-
-	err = l.Repo().Update(ctx, existing.GetName(), data)
+	err = l.Repo().Update(ctx, existing)
 	if err != nil {
 		return nil, err
 	}
@@ -183,11 +150,11 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	}, nil
 }
 
-func (l *local) Repo() repository.Repository {
+func (l *local) Repo() repository.NodeRepository {
 	if l.repo != nil {
 		return l.repo
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return repository.NewInMemRepo()
+	return repository.NewNodeInMemRepo()
 }

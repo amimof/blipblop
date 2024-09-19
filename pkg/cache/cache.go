@@ -18,7 +18,7 @@ type Cache struct {
 // Item represents a unit stored in the cache
 type Item struct {
 	Key     string
-	Value   []byte
+	Value   interface{}
 	expires time.Time
 	created time.Time
 }
@@ -54,7 +54,7 @@ func (c *Cache) Get(key string) *Item {
 }
 
 // Set instantiates and allocates a key in the cache and overwrites any previously set item
-func (c *Cache) Set(key string, val []byte) *Item {
+func (c *Cache) Set(key string, val interface{}) *Item {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 

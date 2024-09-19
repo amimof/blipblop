@@ -6,20 +6,31 @@ import (
 	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+type NewServiceOption func(s *EventService)
+
+func WithLogger(l logger.Logger) NewServiceOption {
+	return func(s *EventService) {
+		s.logger = l
+	}
+}
+
 type EventService struct {
 	channel map[string][]chan *events.Event
 	events.UnimplementedEventServiceServer
-	local events.EventServiceClient
+	local  events.EventServiceClient
+	logger logger.Logger
 }
 
 func (n *EventService) Register(server *grpc.Server) error {
-	events.RegisterEventServiceServer(server, n)
+	server.RegisterService(&events.EventService_ServiceDesc, n)
+	// events.RegisterEventServiceServer(server, n)
 	return nil
 }
 
@@ -68,13 +79,18 @@ func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) 
 	return &events.PublishResponse{Event: req.GetEvent()}, nil
 }
 
-func NewService(repo repository.Repository) *EventService {
-	return &EventService{
+func NewService(repo repository.EventRepository, opts ...NewServiceOption) *EventService {
+	s := &EventService{
 		channel: make(map[string][]chan *events.Event),
 		local: &local{
 			repo: repo,
 		},
+		logger: logger.ConsoleLogger{},
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func NewEventFor(id string, t events.EventType) *events.Event {

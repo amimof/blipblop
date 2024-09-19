@@ -2,58 +2,58 @@ name: Go
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   staticcheck:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.19
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
 
-    - name: Lint
-      run: make lint
-    - name: Go Vet
-      run: make vet
-      
+      - name: Lint
+        run: make lint
+      - name: Go Vet
+        run: make vet
+
   test:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.19
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
 
-    - name: Test
-      run: make test
-    - name: Race
-      run: make race
-    - name: Benchmark
-      run: make benchmark
-    - name: Coverage
-      run: make coverage
-      
+      - name: Test
+        run: make test
+      - name: Race
+        run: make race
+      - name: Benchmark
+        run: make benchmark
+      - name: Coverage
+        run: make coverage
+
   build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.19
-    
-    - name: Compile Server
-      run: make server
-    - name: Compile Node
-      run: make node
-    - name: Compile CLI
-      run: make bbctl   
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Compile Server
+        run: make server
+      - name: Compile Node
+        run: make node
+      - name: Compile CLI
+        run: make bbctl

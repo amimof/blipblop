@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -46,6 +47,8 @@ var (
 	metricsPort int
 
 	containerdSocket string
+
+	logLevel string
 )
 
 func init() {
@@ -56,9 +59,26 @@ func init() {
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
+	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.IntVar(&tlsPort, "tls-port", 5700, "the port to listen on for secure connections, defaults to 8443")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
+}
+
+func parseSlogLevel(lvl string) (slog.Level, error) {
+	switch strings.ToLower(lvl) {
+	case "error":
+		return slog.LevelError, nil
+	case "warn", "warning":
+		return slog.LevelWarn, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "debug":
+		return slog.LevelDebug, nil
+	}
+
+	var l slog.Level
+	return l, fmt.Errorf("not a valid log level %q", lvl)
 }
 
 func main() {
@@ -92,6 +112,14 @@ func main() {
 		return
 	}
 
+	// Setup logging
+	lvl, err := parseSlogLevel(logLevel)
+	if err != nil {
+		fmt.Printf("error parsing log level: %v", err)
+		os.Exit(1)
+	}
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+
 	// Setup a clientset for this node
 	cs, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
 	if err != nil {
@@ -105,20 +133,23 @@ func main() {
 	// Join node
 	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		log.Error("error joining node to server", "error", err)
+		return
 	}
 
 	// Create containerd client
-	cclient, err := reconnectWithBackoff(containerdSocket)
+	cclient, err := reconnectWithBackoff(containerdSocket, log)
 	if err != nil {
-		log.Fatalf("could not establish connection to containerd: %v", err)
+		log.Error("could not establish connection to containerd: %v", "error", err)
+		return
 	}
 	defer cclient.Close()
 
 	// Create networking
 	cni, err := networking.InitNetwork()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		log.Error("error initializing networking", "error", err)
+		return
 	}
 
 	// Setup and run controllers
@@ -128,11 +159,11 @@ func main() {
 
 	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime)
 	go containerdCtrl.Run(ctx, stopCh)
-	log.Println("Started Containerd Controller")
+	log.Info("Started Containerd Controller")
 
 	containerCtrl := controller.NewContainerController(cs, runtime)
 	go containerCtrl.Run(ctx, stopCh)
-	log.Println("Started Container Controller")
+	log.Info("Started Container Controller")
 
 	// nodeCtrl := controller.NewNodeController(cs, runtime)
 	// go nodeCtrl.Run(ctx, stopCh)
@@ -144,12 +175,12 @@ func main() {
 
 	stopCh <- struct{}{}
 
-	log.Println("Shutting down")
+	log.Info("Shutting down")
 	ctx.Done()
 	if err := cs.NodeV1().ForgetNode(ctx, nodeName); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	log.Println("Successfully unjoined from cluster", nodeName)
+	log.Info("Successfully unjoined from cluster", "node", nodeName)
 }
 
 func connectContainerd(address string) (*containerd.Client, error) {
@@ -160,7 +191,7 @@ func connectContainerd(address string) (*containerd.Client, error) {
 	return client, nil
 }
 
-func reconnectWithBackoff(address string) (*containerd.Client, error) {
+func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, error) {
 	var (
 		client *containerd.Client
 		err    error
@@ -174,7 +205,7 @@ func reconnectWithBackoff(address string) (*containerd.Client, error) {
 			return client, nil
 		}
 
-		log.Printf("Reconnection failed: %v, retrying in %v...", err, backoff)
+		l.Error("reconnection to containerd failed", "error", err, "retry_in", backoff)
 		time.Sleep(backoff)
 
 	}
