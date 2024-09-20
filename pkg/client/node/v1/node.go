@@ -41,6 +41,14 @@ func (c *NodeV1Client) NodeService() nodes.NodeServiceClient {
 	return c.nodeService
 }
 
+func (c *NodeV1Client) DeleteNode(ctx context.Context, id string) error {
+	_, err := c.nodeService.Delete(ctx, &nodes.DeleteNodeRequest{Id: id})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *NodeV1Client) GetNode(ctx context.Context, id string) (*nodes.Node, error) {
 	n, err := c.nodeService.Get(ctx, &nodes.GetNodeRequest{Id: id})
 	if err != nil {

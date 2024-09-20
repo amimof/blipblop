@@ -51,8 +51,7 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
 
-		prefixKey := []byte(nodePrefix)
-		for it.Seek(prefixKey); it.ValidForPrefix(prefixKey); it.Next() {
+		for it.Seek(nodePrefix); it.ValidForPrefix(nodePrefix); it.Next() {
 			item := it.Item()
 			return item.Value(func(val []byte) error {
 				ctr := &nodes.Node{}

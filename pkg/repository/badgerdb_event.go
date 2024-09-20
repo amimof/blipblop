@@ -51,8 +51,7 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
 
-		prefixKey := []byte(eventPrefix)
-		for it.Seek(prefixKey); it.ValidForPrefix(prefixKey); it.Next() {
+		for it.Seek(eventPrefix); it.ValidForPrefix(eventPrefix); it.Next() {
 			item := it.Item()
 			return item.Value(func(val []byte) error {
 				ctr := &events.Event{}
