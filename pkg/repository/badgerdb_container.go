@@ -58,7 +58,7 @@ func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container
 		for it.ValidForPrefix(containerPrefix) {
 			item := it.Item()
 			ctr := &containers.Container{}
-			item.Value(func(val []byte) error {
+			err := item.Value(func(val []byte) error {
 				log.Printf("Key: %s, Value: %x", item.Key(), val)
 				err := proto.Unmarshal(val, ctr)
 				if err != nil {
@@ -66,6 +66,9 @@ func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container
 				}
 				return nil
 			})
+			if err != nil {
+				return err
+			}
 			result = append(result, ctr)
 			it.Next()
 		}
