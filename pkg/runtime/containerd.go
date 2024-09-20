@@ -158,7 +158,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
 	if task != nil {
 		_, err = task.Delete(ctx)
 		if err != nil {
-			log.Printf("Can't delete task for container %s: %s", key, err)
+			return err
 		}
 	}
 	return container.Delete(ctx)
@@ -180,7 +180,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	cniLabels.Set("IgnoreUnknown", "1")
 	err = networking.DeleteCNINetwork(ctx, c.cni, task)
 	if err != nil {
-		log.Printf("Unable to tear down network: %s", err)
+		return err
 	}
 	err = task.Kill(ctx, syscall.SIGINT)
 	if err != nil {

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/dgraph-io/badger/v4"
@@ -48,21 +49,25 @@ func (r *containerBadgerRepo) Get(ctx context.Context, id string) (*containers.C
 func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container, error) {
 	var result []*containers.Container
 	err := r.db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = containerPrefix
+		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		prefixKey := []byte(containerPrefix)
-		for it.Seek(prefixKey); it.ValidForPrefix(prefixKey); it.Next() {
+		it.Seek(containerPrefix)
+		for it.ValidForPrefix(containerPrefix) {
 			item := it.Item()
-			return item.Value(func(val []byte) error {
-				ctr := &containers.Container{}
+			ctr := &containers.Container{}
+			item.Value(func(val []byte) error {
+				log.Printf("Key: %s, Value: %x", item.Key(), val)
 				err := proto.Unmarshal(val, ctr)
 				if err != nil {
 					return err
 				}
-				result = append(result, ctr)
 				return nil
 			})
+			result = append(result, ctr)
+			it.Next()
 		}
 		return nil
 	})
@@ -79,6 +84,7 @@ func (r *containerBadgerRepo) Create(ctx context.Context, container *containers.
 		if err != nil {
 			return err
 		}
+		log.Printf("Key: %s, Value: %x", key, b)
 		return txn.Set([]byte(key), b)
 	})
 }

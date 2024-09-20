@@ -157,11 +157,11 @@ func main() {
 	exit := make(chan os.Signal, 1)
 	stopCh := make(chan struct{})
 
-	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime)
+	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime, controller.WithContainerdControllerLogger(log))
 	go containerdCtrl.Run(ctx, stopCh)
 	log.Info("Started Containerd Controller")
 
-	containerCtrl := controller.NewContainerController(cs, runtime)
+	containerCtrl := controller.NewContainerController(cs, runtime, controller.WithContainerControllerLogger(log))
 	go containerCtrl.Run(ctx, stopCh)
 	log.Info("Started Container Controller")
 

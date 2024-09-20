@@ -14,6 +14,7 @@ func NewCmdDelete() *cobra.Command {
 	}
 
 	deleteCmd.AddCommand(NewCmdDeleteContainer())
+	deleteCmd.AddCommand(NewCmdDeleteNode())
 
 	return deleteCmd
 }

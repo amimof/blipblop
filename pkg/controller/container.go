@@ -9,6 +9,7 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 )
 
@@ -17,6 +18,7 @@ type ContainerController struct {
 	// runtime   *client.RuntimeClient
 	runtime  runtime.Runtime
 	handlers *ContainerEventHandlerFuncs
+	logger   logger.Logger
 }
 
 type ContainerEventHandlerFuncs struct {
@@ -24,6 +26,15 @@ type ContainerEventHandlerFuncs struct {
 	OnContainerDelete func(obj *events.Event)
 	OnContainerStart  func(obj *events.Event)
 	OnContainerKill   func(obj *events.Event)
+	OnNodeDelete      func(obj *events.Event)
+}
+
+type NewContainerControllerOption func(c *ContainerController)
+
+func WithContainerControllerLogger(l logger.Logger) NewContainerControllerOption {
+	return func(c *ContainerController) {
+		c.logger = l
+	}
 }
 
 func (i *ContainerController) AddHandler(h *ContainerEventHandlerFuncs) {
@@ -39,12 +50,13 @@ func (i *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 		for {
 			select {
 			case ev := <-evt:
-				log.Printf("got event %v", ev)
-				handleEventEvent(i.handlers, ev)
+				i.logger.Info("received event", "id", ev.GetId(), "type", ev.GetType().String())
+				handleEventEvent(i.handlers, ev, i.logger)
 			case err := <-errChan:
-				log.Printf("recevied error on channel: %v", err)
+				i.logger.Error("recevied error on channel", "error", err)
+				return
 			case <-stopCh:
-				log.Println("done watching, closing controller")
+				i.logger.Info("done watching, closing controller")
 				ctx.Done()
 				return
 			}
@@ -53,16 +65,16 @@ func (i *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 
 	for {
 		if err := i.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
-			log.Printf("got error from stream: %v", err)
+			i.logger.Error("error occured during subscribe", "error", err)
 		}
 
-		log.Println("attempting reconnect")
+		i.logger.Info("attempting to re-subscribe to event server")
 		time.Sleep(5 * time.Second)
 
 	}
 }
 
-func handleEventEvent(h *ContainerEventHandlerFuncs, ev *events.Event) {
+func handleEventEvent(h *ContainerEventHandlerFuncs, ev *events.Event, l logger.Logger) {
 	if ev == nil {
 		return
 	}
@@ -76,8 +88,10 @@ func handleEventEvent(h *ContainerEventHandlerFuncs, ev *events.Event) {
 		h.OnContainerStart(ev)
 	case events.EventType_ContainerKill:
 		h.OnContainerKill(ev)
+	case events.EventType_NodeDelete:
+		h.OnNodeDelete(ev)
 	default:
-		log.Printf("Handler not implemented for event type %s", t)
+		l.Warn("Handler not implemented for event", "type", t)
 	}
 }
 
@@ -85,24 +99,26 @@ func (r *ContainerController) handleError(id string, evtType events.EventType, m
 	ctx := context.Background()
 	err := r.clientset.ContainerV1().SetContainerHealth(ctx, id, "unhealthy")
 	if err != nil {
-		log.Printf("error setting condition for container %s: %s", id, err)
+		r.logger.Error("error setting condition on container", "id", id, "error", err)
 	}
 	err = r.clientset.ContainerV1().AddContainerEvent(ctx, id, &containers.Event{
 		Description: msg,
 		Type:        evtType,
 	})
-	log.Printf("error adding container event: %v", err)
+	if err != nil {
+		r.logger.Error("error adding container event", "id", id, "error", err)
+	}
 }
 
 func (c *ContainerController) onContainerCreate(obj *events.Event) {
 	ctx := context.Background()
 	cont, err := c.clientset.ContainerV1().GetContainer(ctx, obj.Id)
 	if cont == nil {
-		log.Printf("container %s not found", obj.Id)
+		c.logger.Error("container not found", "id", obj.Id)
 		return
 	}
 	if err != nil {
-		log.Printf("error occurred: %s", err.Error())
+		c.logger.Error("error getting container", "error", err, "id", obj.Id)
 		return
 	}
 	err = c.runtime.Create(ctx, cont)
@@ -121,6 +137,16 @@ func (c *ContainerController) onContainerDelete(obj *events.Event) {
 		return
 	}
 	log.Printf("successfully deleted container %s", obj.Id)
+}
+
+func (c *ContainerController) onNodeDelete(obj *events.Event) {
+	ctx := context.Background()
+	err := c.clientset.NodeV1().ForgetNode(ctx, obj.GetId())
+	if err != nil {
+		log.Printf("error unjoining node %s: %v", obj.GetId(), err)
+		return
+	}
+	log.Printf("successfully unjoined node %s", obj.GetId())
 }
 
 func (c *ContainerController) onContainerStart(obj *events.Event) {
@@ -151,10 +177,11 @@ func (c *ContainerController) onContainerStop(obj *events.Event) {
 	log.Printf("successfully killed container %s", obj.Id)
 }
 
-func NewContainerController(cs *client.ClientSet, rt runtime.Runtime) *ContainerController {
+func NewContainerController(cs *client.ClientSet, rt runtime.Runtime, opts ...NewContainerControllerOption) *ContainerController {
 	eh := &ContainerController{
 		clientset: cs,
 		runtime:   rt,
+		logger:    logger.ConsoleLogger{},
 	}
 
 	handlers := &ContainerEventHandlerFuncs{
@@ -162,9 +189,14 @@ func NewContainerController(cs *client.ClientSet, rt runtime.Runtime) *Container
 		OnContainerDelete: eh.onContainerDelete,
 		OnContainerStart:  eh.onContainerStart,
 		OnContainerKill:   eh.onContainerStop,
+		OnNodeDelete:      eh.onNodeDelete,
 	}
 
 	eh.handlers = handlers
+
+	for _, opt := range opts {
+		opt(eh)
+	}
 
 	return eh
 }
