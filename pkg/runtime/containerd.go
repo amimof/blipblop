@@ -73,6 +73,22 @@ func buildContainerLabels(container *containers.Container) labels.Label {
 	return l
 }
 
+// GC performs any tasks necessary to clean up the environment from danglig configuration. Such as tearing down the network
+func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) error {
+	ctx = namespaces.WithNamespace(ctx, "blipblop")
+
+	// Setup port-mappings
+	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
+	cniLabels := labels.New()
+	cniLabels.Set("IgnoreUnknown", "1")
+	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetName(), string(ctr.GetStatus().GetPid()), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	ctrs, err := c.client.Containers(ctx)
@@ -176,9 +192,10 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	}
 
 	// Tear down network
+	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err = networking.DeleteCNINetwork(ctx, c.cni, task)
+	err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), string(task.Pid()), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -222,16 +239,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	}
 
 	// Setup port-mappings
-	mappings := make([]gocni.PortMapping, len(ctr.GetConfig().GetPorts()))
-
-	for i, port := range ctr.GetConfig().GetPorts() {
-		mappings[i] = gocni.PortMapping{
-			HostPort:      int32(port.GetHostport()),
-			ContainerPort: int32(port.GetContainerport()),
-			Protocol:      "TCP",
-			HostIP:        "192.168.13.123",
-		}
-	}
+	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 
 	// Setup network for namespace.
 	cniLabels := labels.New()
@@ -263,17 +271,19 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 			log.Printf("error waiting for task: %v", err)
 		}
 		status := <-exitChan
-		log.Printf("task exited with status %d: %v", status.ExitCode(), status.Error())
-		_, err = task.Delete(ctx)
-		if err != nil {
-			log.Printf("error deleting task: %v", err)
-		}
+		defer func() {
+			log.Printf("task exited with status %d: %v", status.ExitCode(), status.Error())
+			_, err = task.Delete(ctx)
+			if err != nil {
+				log.Printf("error deleting task: %v", err)
+			}
 
-		log.Printf("tearing down network for task %s", task.ID())
-		err = networking.DeleteCNINetwork(ctx, c.cni, task, gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
-		if err != nil {
-			log.Printf("error tearing down network: %v", err)
-		}
+			log.Printf("tearing down network for task %s", task.ID())
+			err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), string(task.Pid()), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+			if err != nil {
+				log.Printf("error tearing down network: %v", err)
+			}
+		}()
 	}()
 
 	return nil

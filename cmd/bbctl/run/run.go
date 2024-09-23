@@ -38,14 +38,14 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			ctx := context.Background()
 
 			// Setup ports
-			var cports []*containers.Port
+			var cports []*containers.PortMapping
 			for _, p := range ports {
 
 				pm, err := networking.ParsePorts(p)
 				if err != nil {
 					log.Fatal(err)
 				}
-				cports = append(cports, &containers.Port{Hostport: pm.Source, Containerport: pm.Destination})
+				cports = append(cports, &containers.PortMapping{HostPort: pm.Source, ContainerPort: pm.Destination})
 			}
 
 			server := viper.GetString("server")
@@ -59,8 +59,8 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			err = c.ContainerV1().CreateContainer(ctx, &containers.Container{
 				Name: cname,
 				Config: &containers.Config{
-					Image: image,
-					Ports: cports,
+					Image:        image,
+					PortMappings: cports,
 				},
 			})
 			if err != nil {

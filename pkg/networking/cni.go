@@ -141,10 +141,18 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 }
 
 // DeleteCNINetwork deletes a CNI network based on task ID and Pid
-func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, opts ...gocni.NamespaceOpts) error {
-	id := netID(task)
-	netns := netNamespace(task)
+// func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, opts ...gocni.NamespaceOpts) error {
+// 	id := netID(task)
+// 	netns := netNamespace(task)
+//
+// 	err := cni.Remove(ctx, id, netns, opts...)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to teardown network for task: %q, %v", id, err)
+// 	}
+// 	return nil
+// }
 
+func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, id, netns string, opts ...gocni.NamespaceOpts) error {
 	err := cni.Remove(ctx, id, netns, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to teardown network for task: %q, %v", id, err)

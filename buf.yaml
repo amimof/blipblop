@@ -2,3 +2,4 @@ version: v1
 name: buf.build/yourorg/myprotos
 deps:
   - buf.build/googleapis/googleapis
+
