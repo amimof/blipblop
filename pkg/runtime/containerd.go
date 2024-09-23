@@ -81,7 +81,7 @@ func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) e
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetName(), string(ctr.GetStatus().GetPid()), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetName(), ctr.GetStatus().GetPid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), string(task.Pid()), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	// Setup network for namespace.
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	result, err := networking.CreateCNINetwork(ctx, c.cni, task, gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	result, err := networking.CreateCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 			}
 
 			log.Printf("tearing down network for task %s", task.ID())
-			err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), string(task.Pid()), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+			err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 			if err != nil {
 				log.Printf("error tearing down network: %v", err)
 			}

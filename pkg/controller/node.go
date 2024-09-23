@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -85,7 +84,7 @@ func (c *NodeController) handleEvent(ev *events.Event) {
 	case events.EventType_NodeDelete:
 		c.handlers.OnNodeDelete(ev)
 	default:
-		c.logger.Warn("Node handler not implemented for event", "type", fmt.Sprintf("%s", t))
+		c.logger.Warn("Node handler not implemented for event", "type", t.String())
 	}
 }
 
