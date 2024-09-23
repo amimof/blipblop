@@ -14,4 +14,5 @@ type Runtime interface {
 	Kill(context.Context, *containers.Container) error
 	Start(context.Context, *containers.Container) error
 	IsServing(context.Context) (bool, error)
+	GC(context.Context, *containers.Container) error
 }

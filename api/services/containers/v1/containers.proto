@@ -80,7 +80,7 @@ message Config {
 	repeated string args = 2;
 	repeated string envvars = 3;
 	repeated Mount mounts = 4;
-	repeated Port ports = 5;
+	repeated PortMapping portMappings = 5;
 }
 
 message Mount {
@@ -90,11 +90,11 @@ message Mount {
 	repeated string options = 4;
 }
 
-message Port {
-	uint32 hostport = 1;
-	uint32 containerport = 2;
+message PortMapping {
+	uint32 hostPort = 1;
+	uint32 containerPort = 2;
 	string protocol = 3;
-	string hostip = 4;
+	string hostIP = 4;
 }
 
 message Event {

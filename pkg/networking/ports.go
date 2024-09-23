@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/amimof/blipblop/api/services/containers/v1"
+	gocni "github.com/containerd/go-cni"
 )
 
 type PortMapping struct {
@@ -34,4 +37,24 @@ func ParsePorts(p string) (*PortMapping, error) {
 
 func (p *PortMapping) String() {
 	fmt.Printf("%d:%d", p.Source, p.Destination)
+}
+
+func ParseCNIPortMapping(pm *containers.PortMapping) gocni.PortMapping {
+	return gocni.PortMapping{
+		HostPort:      int32(pm.GetHostPort()),
+		ContainerPort: int32(pm.GetContainerPort()),
+		Protocol:      pm.GetProtocol(),
+		HostIP:        pm.GetHostIP(),
+	}
+}
+
+func ParseCNIPortMappings(pm ...*containers.PortMapping) []gocni.PortMapping {
+	mappings := make([]gocni.PortMapping, len(pm))
+	for i, mapping := range pm {
+		if mapping.Protocol == "" {
+			mapping.Protocol = "TCP"
+		}
+		mappings[i] = ParseCNIPortMapping(mapping)
+	}
+	return mappings
 }

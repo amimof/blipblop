@@ -67,8 +67,8 @@ type RuntimeHandlerFuncs struct {
 	OnContainerDelete  func(*events.ContainerDelete)
 }
 
-func (i *ContainerdController) AddHandler(h *RuntimeHandlerFuncs) {
-	i.handlers = h
+func (c *ContainerdController) AddHandler(h *RuntimeHandlerFuncs) {
+	c.handlers = h
 }
 
 func connectContainerd(address string) (*containerd.Client, error) {
@@ -100,48 +100,48 @@ func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, 
 	}
 }
 
-func (i *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) {
-	err := i.Reconcile(ctx)
+func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) {
+	err := c.Reconcile(ctx)
 	if err != nil {
-		i.logger.Error("error reconciling state", "error", err)
+		c.logger.Error("error reconciling state", "error", err)
 		return
 	}
-	err = i.streamEvents(ctx, stopCh)
+	err = c.streamEvents(ctx, stopCh)
 	if err != nil {
-		i.logger.Info("Reconnecting stream")
-		i.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", i.logger)
+		c.logger.Info("Reconnecting stream")
+		c.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", c.logger)
 		if err != nil {
-			i.logger.Error("error reconnection to stream", "error", err)
-			_ = i.clientset.NodeV1().SetNodeReady(ctx, false)
+			c.logger.Error("error reconnection to stream", "error", err)
+			_ = c.clientset.NodeV1().SetNodeReady(ctx, false)
 		}
-		_ = i.clientset.NodeV1().SetNodeReady(ctx, true)
+		_ = c.clientset.NodeV1().SetNodeReady(ctx, true)
 	}
 }
 
 // TODO: Set node status to unhealthy whenever runtime is unavailable here.
 // Therefore consider removing `IsServing()` check in node controller which really doesn't do much.
-func (i *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan struct{}) error {
-	eventCh, errCh := i.client.Subscribe(ctx)
+func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan struct{}) error {
+	eventCh, errCh := c.client.Subscribe(ctx)
 	for {
 		select {
 		case event := <-eventCh:
 			ev, err := typeurl.UnmarshalAny(event.Event)
 			if err != nil {
-				i.logger.Error("error unmarshaling event received from stream", "error", err)
+				c.logger.Error("error unmarshaling event received from stream", "error", err)
 			}
-			i.HandleEvent(i.handlers, ev)
+			c.HandleEvent(c.handlers, ev)
 		case err := <-errCh:
 			if err == nil || isConnectionError(err) {
-				i.logger.Error("received stream disconnect, attempting to reconnect")
-				_ = i.clientset.NodeV1().SetNodeReady(ctx, false)
+				c.logger.Error("received stream disconnect, attempting to reconnect")
+				_ = c.clientset.NodeV1().SetNodeReady(ctx, false)
 				return err
 			}
 			return err
 		case <-ctx.Done():
 			return nil
 		case <-stopCh:
-			i.client.Close()
-			i.clientset.Close()
+			c.client.Close()
+			c.clientset.Close()
 			ctx.Done()
 		}
 	}
@@ -157,7 +157,7 @@ func isConnectionError(err error) bool {
 	return false
 }
 
-func (i *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
+func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
 	switch t := obj.(type) {
 	case *events.TaskExit:
 		if handlers.OnTaskExit != nil {
@@ -256,97 +256,121 @@ func (i *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 			handlers.OnContainerDelete(t)
 		}
 	default:
-		i.logger.Warn("No handler exists for event", "event", t)
+		c.logger.Warn("No handler exists for event", "event", fmt.Sprintf("%s", t))
 	}
 }
 
-func (r *ContainerdController) exitHandler(e *events.TaskExit) {
-	err := r.setContainerState(e.ContainerID)
+// TODO: Experimental, might remove later
+func (c *ContainerdController) teardownNetworkForContainer(id string) error {
+	ctx := context.Background()
+	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, id)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExit", "error", err)
+		return err
+	}
+	err = c.runtime.GC(context.Background(), ctr)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ContainerdController) exitHandler(e *events.TaskExit) {
+	id := e.ContainerID
+	err := c.setContainerState(id)
+	if err != nil {
+		c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
+	}
+	err = c.teardownNetworkForContainer(id)
+	if err != nil {
+		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 	}
 }
 
-func (r *ContainerdController) createHandler(e *events.TaskCreate) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) createHandler(e *events.TaskCreate) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
 	}
 }
 
-func (r *ContainerdController) containerCreateHandler(e *events.ContainerCreate) {
-	err := r.setContainerState(e.ID)
+func (c *ContainerdController) containerCreateHandler(e *events.ContainerCreate) {
+	err := c.setContainerState(e.ID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
+		c.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
 	}
 }
 
-func (r *ContainerdController) startHandler(e *events.TaskStart) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) startHandler(e *events.TaskStart) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskStart", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskStart", "error", err)
 	}
 }
 
 // TODO: Consider not updating container state on delete events since the container is already gone.
 // In other words, there will never be anything to update after a delete event. Keeping this as-is for verbosity
-func (r *ContainerdController) deleteHandler(e *events.TaskDelete) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) deleteHandler(e *events.TaskDelete) {
+	id := e.ContainerID
+	err := c.setContainerState(id)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskDelete", "error", err)
+		c.logger.Error("error setting container state", "id", id, "event", "TaskDelete", "error", err)
+	}
+	err = c.teardownNetworkForContainer(id)
+	if err != nil {
+		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 	}
 }
 
-func (r *ContainerdController) ioHandler(e *events.TaskIO) {
+func (c *ContainerdController) ioHandler(e *events.TaskIO) {
 }
 
-func (r *ContainerdController) oomHandler(e *events.TaskOOM) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) oomHandler(e *events.TaskOOM) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskOOM", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskOOM", "error", err)
 	}
 }
 
-func (r *ContainerdController) execAddedHandler(e *events.TaskExecAdded) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) execAddedHandler(e *events.TaskExecAdded) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecAdded", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecAdded", "error", err)
 	}
 }
 
-func (r *ContainerdController) execStartedHandler(e *events.TaskExecStarted) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) execStartedHandler(e *events.TaskExecStarted) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecStarted", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecStarted", "error", err)
 	}
 }
 
-func (r *ContainerdController) pausedHandler(e *events.TaskPaused) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) pausedHandler(e *events.TaskPaused) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskPaused", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskPaused", "error", err)
 	}
 }
 
-func (r *ContainerdController) resumedHandler(e *events.TaskResumed) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) resumedHandler(e *events.TaskResumed) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskResumed", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskResumed", "error", err)
 	}
 }
 
-func (r *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
-	err := r.setContainerState(e.ContainerID)
+func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
+	err := c.setContainerState(e.ContainerID)
 	if err != nil {
-		r.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCheckpointed", "error", err)
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCheckpointed", "error", err)
 	}
 }
 
-func (r *ContainerdController) setContainerState(id string) error {
+func (c *ContainerdController) setContainerState(id string) error {
 	ns := "blipblop"
 	ctx := context.Background()
 	ctx = namespaces.WithNamespace(ctx, ns)
-	list, err := r.client.Containers(ctx)
+	list, err := c.client.Containers(ctx)
 	if err != nil {
 		return err
 	}
@@ -364,7 +388,7 @@ func (r *ContainerdController) setContainerState(id string) error {
 
 			hostname, _ := os.Hostname()
 
-			err = r.clientset.ContainerV1().SetContainerNode(ctx, id, hostname)
+			err = c.clientset.ContainerV1().SetContainerNode(ctx, id, hostname)
 			if err != nil {
 				return err
 			}
@@ -376,7 +400,7 @@ func (r *ContainerdController) setContainerState(id string) error {
 				ExitStatus: exitStatus,
 				Health:     "healthy",
 			}
-			return r.clientset.ContainerV1().SetContainerStatus(ctx, id, st)
+			return c.clientset.ContainerV1().SetContainerStatus(ctx, id, st)
 		}
 	}
 	return nil
@@ -425,40 +449,46 @@ func contains(cs []*containers.Container, c *containers.Container) bool {
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (r *ContainerdController) Reconcile(ctx context.Context) error {
-	r.logger.Info("reconciling containers in containerd runtime")
+func (c *ContainerdController) Reconcile(ctx context.Context) error {
+	c.logger.Info("reconciling containers in containerd runtime")
 	// Get containers from the server. Ultimately we want these to match with our runtime
-	clist, err := r.clientset.ContainerV1().ListContainers(ctx)
+	clist, err := c.clientset.ContainerV1().ListContainers(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Get containers from containerd
-	currentContainers, err := r.runtime.List(ctx)
+	currentContainers, err := c.runtime.List(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Check if there are containers in our runtime that doesn't exist on the server.
-	for _, c := range currentContainers {
-		if !contains(clist, c) {
-			err := r.runtime.Kill(ctx, c)
+	for _, currentContainer := range currentContainers {
+		if !contains(clist, currentContainer) {
+			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetName())
+			err := c.runtime.Kill(ctx, currentContainer)
 			if err != nil {
-				r.logger.Error("error stopping container", "error", err, "name", c.GetName())
+				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetName())
 			}
-			err = r.runtime.Delete(ctx, c.Name)
+			err = c.runtime.Delete(ctx, currentContainer.Name)
 			if err != nil {
-				r.logger.Error("error deleting container", "error", err, "name", c.GetName())
+				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetName())
 			}
 		}
 	}
 
 	// Check if  there are containers on the server that doesn't exist in our runtime
-	for _, c := range clist {
-		if !contains(currentContainers, c) {
-			err := r.runtime.Create(ctx, c)
+	for _, container := range clist {
+		if !contains(currentContainers, container) {
+			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetName())
+			err := c.runtime.Create(ctx, container)
 			if err != nil {
-				r.logger.Error("error creating container", "error", err, "name", c.GetName())
+				c.logger.Error("error creating container", "error", err, "name", container.GetName())
+			}
+			err = c.runtime.Start(ctx, container)
+			if err != nil {
+				c.logger.Error("error starting container", "error", err, "name", container.GetName())
 			}
 		}
 	}

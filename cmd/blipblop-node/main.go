@@ -165,9 +165,9 @@ func main() {
 	go containerCtrl.Run(ctx, stopCh)
 	log.Info("Started Container Controller")
 
-	// nodeCtrl := controller.NewNodeController(cs, runtime)
-	// go nodeCtrl.Run(ctx, stopCh)
-	// log.Println("Started Node Controller")
+	nodeCtrl := controller.NewNodeController(cs, runtime, controller.WithNodeControllerLogger(log))
+	go nodeCtrl.Run(ctx, stopCh)
+	log.Info("Started Node Controller")
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)

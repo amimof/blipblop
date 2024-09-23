@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/containerd/containerd"
 	gocni "github.com/containerd/go-cni"
 	"github.com/sirupsen/logrus"
 )
@@ -83,13 +82,13 @@ var defaultCNIConf = fmt.Sprintf(`
 `, defaultNetworkName, defaultBridgeName, CNIDataDir, defaultSubnet, defaultSubnetGw)
 
 // netID generates the network IF based on task name and task PID
-func netID(task containerd.Task) string {
-	return fmt.Sprintf("%s-%d", task.ID(), task.Pid())
+func netID(id string, pid uint32) string {
+	return fmt.Sprintf("%s-%d", id, pid)
 }
 
 // netNamespace generates the namespace path based on task PID.
-func netNamespace(task containerd.Task) string {
-	return fmt.Sprintf(NetNSPathFmt, task.Pid())
+func netNamespace(pid uint32) string {
+	return fmt.Sprintf(NetNSPathFmt, pid)
 }
 
 // InitNetwork ...
@@ -129,10 +128,10 @@ func InitNetwork() (gocni.CNI, error) {
 }
 
 // CreateCNINetwork creates a CNI network interface and attaches it to the context
-func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
-	id := netID(task)
-	netns := netNamespace(task)
-	result, err := cni.Setup(ctx, id, netns, opts...)
+func CreateCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
+	i := netID(id, pid)
+	n := netNamespace(pid)
+	result, err := cni.Setup(ctx, i, n, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup network for task %q: %w", id, err)
 	}
@@ -141,11 +140,18 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, 
 }
 
 // DeleteCNINetwork deletes a CNI network based on task ID and Pid
-func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, opts ...gocni.NamespaceOpts) error {
-	id := netID(task)
-	netns := netNamespace(task)
+// func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, task containerd.Task, opts ...gocni.NamespaceOpts) error {
+// 	err := cni.Remove(ctx, id, netns, opts...)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to teardown network for task: %q, %v", id, err)
+// 	}
+// 	return nil
+// }
 
-	err := cni.Remove(ctx, id, netns, opts...)
+func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32, opts ...gocni.NamespaceOpts) error {
+	i := netID(id, pid)
+	n := netNamespace(pid)
+	err := cni.Remove(ctx, i, n, opts...)
 	if err != nil {
 		return fmt.Errorf("failed to teardown network for task: %q, %v", id, err)
 	}

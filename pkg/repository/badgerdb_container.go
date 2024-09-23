@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/dgraph-io/badger/v4"
@@ -59,7 +58,6 @@ func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container
 			item := it.Item()
 			ctr := &containers.Container{}
 			err := item.Value(func(val []byte) error {
-				log.Printf("Key: %s, Value: %x", item.Key(), val)
 				err := proto.Unmarshal(val, ctr)
 				if err != nil {
 					return err
@@ -87,7 +85,6 @@ func (r *containerBadgerRepo) Create(ctx context.Context, container *containers.
 		if err != nil {
 			return err
 		}
-		log.Printf("Key: %s, Value: %x", key, b)
 		return txn.Set([]byte(key), b)
 	})
 }
