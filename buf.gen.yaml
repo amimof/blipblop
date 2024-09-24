@@ -12,3 +12,5 @@ plugins:
     out: ./
     opt:
       - paths=source_relative
+  - plugin: openapiv2
+    out: ./

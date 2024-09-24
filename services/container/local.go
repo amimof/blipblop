@@ -70,6 +70,9 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	}
 
 	err := services.EnsureMetaForContainer(container)
+	if err != nil {
+		return nil, err
+	}
 
 	err = l.Repo().Create(ctx, container)
 	if err != nil {

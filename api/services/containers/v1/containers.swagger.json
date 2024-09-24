@@ -1,0 +1,642 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "api/services/containers/v1/containers.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "ContainerService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/containers": {
+      "get": {
+        "operationId": "ContainerService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "selector",
+            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      },
+      "post": {
+        "operationId": "ContainerService_Create",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "container",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Container"
+            }
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      }
+    },
+    "/api/v1/containers/{container.meta.name}": {
+      "put": {
+        "operationId": "ContainerService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "container.meta.name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "container",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "format": "uint64"
+                    }
+                  }
+                },
+                "config": {
+                  "$ref": "#/definitions/v1Config"
+                },
+                "status": {
+                  "$ref": "#/definitions/containersv1Status"
+                },
+                "events": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/servicescontainersv1Event"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      },
+      "patch": {
+        "operationId": "ContainerService_Update2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "container.meta.name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "container",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "format": "uint64"
+                    }
+                  }
+                },
+                "config": {
+                  "$ref": "#/definitions/v1Config"
+                },
+                "status": {
+                  "$ref": "#/definitions/containersv1Status"
+                },
+                "events": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/servicescontainersv1Event"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      }
+    },
+    "/api/v1/containers/{id}": {
+      "get": {
+        "operationId": "ContainerService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      },
+      "delete": {
+        "operationId": "ContainerService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/kill": {
+      "put": {
+        "operationId": "ContainerService_Kill",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1KillContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      }
+    },
+    "/api/v1/containers/{id}/start": {
+      "put": {
+        "operationId": "ContainerService_Start",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1StartContainerResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "containersv1Status": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "ip": {
+          "type": "string"
+        },
+        "pid": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "exitStatus": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "exitTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "health": {
+          "type": "string"
+        }
+      }
+    },
+    "googlerpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "servicescontainersv1Event": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "$ref": "#/definitions/v1EventType"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Config": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "envvars": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Mount"
+          }
+        },
+        "portMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PortMapping"
+          }
+        }
+      }
+    },
+    "v1Container": {
+      "type": "object",
+      "properties": {
+        "meta": {
+          "$ref": "#/definitions/v1Meta"
+        },
+        "config": {
+          "$ref": "#/definitions/v1Config"
+        },
+        "status": {
+          "$ref": "#/definitions/containersv1Status"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/servicescontainersv1Event"
+          }
+        }
+      }
+    },
+    "v1CreateContainerResponse": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/definitions/v1Container"
+        }
+      }
+    },
+    "v1DeleteContainerResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1EventType": {
+      "type": "string",
+      "enum": [
+        "ContainerCreate",
+        "ContainerDelete",
+        "ContainerUpdate",
+        "ContainerStart",
+        "ContainerGet",
+        "ContainerList",
+        "ContainerKill",
+        "NodeGet",
+        "NodeCreate",
+        "NodeDelete",
+        "NodeList",
+        "NodeUpdate",
+        "NodeJoin",
+        "NodeForget",
+        "ContainerStartError"
+      ],
+      "default": "ContainerCreate"
+    },
+    "v1GetContainerResponse": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/definitions/v1Container"
+        }
+      }
+    },
+    "v1KillContainerResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListContainerResponse": {
+      "type": "object",
+      "properties": {
+        "containers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Container"
+          }
+        }
+      }
+    },
+    "v1Meta": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "created": {
+          "type": "string",
+          "format": "date"
+        },
+        "updated": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
+    "v1Mount": {
+      "type": "object",
+      "properties": {
+        "destination": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1PortMapping": {
+      "type": "object",
+      "properties": {
+        "hostPort": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "containerPort": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "hostIP": {
+          "type": "string"
+        }
+      }
+    },
+    "v1StartContainerResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1UpdateContainerResponse": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/definitions/v1Container"
+        }
+      }
+    }
+  }
+}
