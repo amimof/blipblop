@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
@@ -11,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 )
+
+var ErrClientExists = errors.New("client already exists")
 
 type NewServiceOption func(s *EventService)
 
@@ -47,16 +50,19 @@ func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (
 
 func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
 	eventChan := make(chan *events.Event)
-	n.channel[req.Id] = append(n.channel[req.Id], eventChan)
-	log.Printf("Client %s joined", req.Id)
+	if _, ok := n.channel[req.ClientId]; ok {
+		return ErrClientExists
+	}
+	n.channel[req.ClientId] = append(n.channel[req.ClientId], eventChan)
+	log.Printf("Client %s joined", req.ClientId)
 	for {
 		select {
 		case <-stream.Context().Done():
-			log.Printf("Client %s left", req.Id)
-			delete(n.channel, req.Id)
+			log.Printf("Client %s left", req.ClientId)
+			delete(n.channel, req.ClientId)
 			return nil
 		case n := <-eventChan:
-			log.Printf("Got event %s (%s) from client %s", n.Type, n.GetMeta().GetName(), req.Id)
+			log.Printf("Got event %s (%s) from client %s", n.Type, n.GetMeta().GetName(), req.ClientId)
 			err := stream.Send(n)
 			if err != nil {
 				log.Printf("Unable to emit event to clients: %s", err.Error())

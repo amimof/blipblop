@@ -29,8 +29,7 @@ service EventService {
 }
 
 message SubscribeRequest {
-  // TODO: Remove this
-  string id = 1; 
+  string clientId = 1; 
 
   // TODO: This is just a placeholder. 
   // Implement something to allow clients to filter which events to listen for using selector
@@ -59,6 +58,7 @@ enum EventType {
   NodeJoin = 13;
   NodeForget = 14;
   ContainerStartError = 15;
+  ContainerStarted = 16;
 }
 
 message GetEventRequest {

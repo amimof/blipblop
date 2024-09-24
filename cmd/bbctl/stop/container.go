@@ -25,7 +25,7 @@ func NewCmdStopContainer() *cobra.Command {
 		},
 		Run: func(_ *cobra.Command, args []string) {
 			server := viper.GetString("server")
-			ctx := context.Background()
+			// ctx := context.Background()
 
 			// Setup our client
 			c, err := client.New(server)
@@ -34,11 +34,11 @@ func NewCmdStopContainer() *cobra.Command {
 			}
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().GetContainer(ctx, cname)
-			if err != nil {
-				log.Fatal(err)
-			}
-			err = c.ContainerV1().KillContainer(context.Background(), ctr.GetMeta().GetName())
+			// ctr, err := c.ContainerV1().GetContainer(ctx, cname)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			err = c.ContainerV1().KillContainer(context.Background(), cname)
 			if err != nil {
 				log.Fatal(err)
 			}

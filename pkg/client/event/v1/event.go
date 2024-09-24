@@ -31,9 +31,9 @@ func (c *EventV1Client) Publish(ctx context.Context, id string, evt events.Event
 	return nil
 }
 
-func (c *EventV1Client) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
+func (c *EventV1Client) Subscribe(ctx context.Context, clientId string, receiveChan chan<- *events.Event, errChan chan<- error) error {
 	// Create stream
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: clientId})
 	if err != nil {
 		return fmt.Errorf("subscribe failed: %v", err)
 	}

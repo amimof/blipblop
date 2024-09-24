@@ -174,7 +174,8 @@
         "NodeUpdate",
         "NodeJoin",
         "NodeForget",
-        "ContainerStartError"
+        "ContainerStartError",
+        "ContainerStarted"
       ],
       "default": "ContainerCreate"
     },

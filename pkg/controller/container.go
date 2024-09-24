@@ -11,6 +11,7 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
+	"github.com/google/uuid"
 )
 
 type ContainerController struct {
@@ -45,6 +46,8 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	evt := make(chan *events.Event)
 	errChan := make(chan error)
 
+	clientId := fmt.Sprintf("%s:%s", "containerd-controller", uuid.New())
+
 	go func() {
 		for {
 			select {
@@ -63,7 +66,7 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	}()
 
 	for {
-		if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
+		if err := c.clientset.EventV1().Subscribe(ctx, clientId, evt, errChan); err != nil {
 			c.logger.Error("error occured during subscribe", "error", err)
 		}
 
@@ -151,7 +154,13 @@ func (c *ContainerController) onContainerStart(obj *events.Event) {
 		c.handleError(obj.GetMeta().GetName(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetMeta().GetName(), err))
 		return
 	}
+	// Emit event that the container has started
+
 	log.Printf("successfully started container %s", obj.GetObjectId())
+	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStarted)
+	if err != nil {
+		log.Printf("%v", err)
+	}
 }
 
 func (c *ContainerController) onContainerStop(obj *events.Event) {
