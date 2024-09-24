@@ -39,11 +39,11 @@ func NewCmdDeleteNode() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.NodeV1().DeleteNode(context.Background(), ctr.Name)
+			err = c.NodeV1().DeleteNode(context.Background(), ctr.GetMeta().GetName())
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to delete node %s successful", ctr.GetName())
+			log.Printf("request to delete node %s successful", ctr.GetMeta().GetName())
 		},
 	}
 

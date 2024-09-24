@@ -5,12 +5,12 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/types/v1"
+	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type NodeV1Client struct {
@@ -66,9 +66,13 @@ func (c *NodeV1Client) ListNodes(ctx context.Context) ([]*nodes.Node, error) {
 }
 
 func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
-	node.Updated = timestamppb.New(time.Now())
-	node.Revision = node.Revision + 1
-	_, err := c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Node: node})
+	err := services.EnsureMeta(node)
+	if err != nil {
+		return err
+	}
+	// node.Updated = timestamppb.New(time.Now())
+	// node.Revision = node.Revision + 1
+	_, err = c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Node: node})
 	if err != nil {
 		return err
 	}
@@ -76,11 +80,15 @@ func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
 }
 
 func (c *NodeV1Client) JoinNode(ctx context.Context, node *nodes.Node) error {
-	c.name = node.Name
-	node.Created = timestamppb.New(time.Now())
-	node.Updated = timestamppb.New(time.Now())
-	node.Revision = 1
-	_, err := c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
+	// node.Created = timestamppb.New(time.Now())
+	// node.Updated = timestamppb.New(time.Now())
+	// node.Revision = 1
+	err := services.EnsureMeta(node)
+	if err != nil {
+		return err
+	}
+	c.name = node.GetMeta().GetName()
+	_, err = c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err
 	}
@@ -101,7 +109,6 @@ func (c *NodeV1Client) ForgetNode(ctx context.Context, n string) error {
 func (c *NodeV1Client) SetNodeReady(ctx context.Context, ready bool) error {
 	n := &nodes.UpdateNodeRequest{
 		Node: &nodes.Node{
-			Name: c.name,
 			Status: &nodes.Status{
 				Ready: ready,
 			},
@@ -134,7 +141,9 @@ func NewNodeFromEnv(s string) *nodes.Node {
 	oper := runtime.GOOS
 	hostname, _ := os.Hostname()
 	n := &nodes.Node{
-		Name: s,
+		Meta: &types.Meta{
+			Name: s,
+		},
 		Status: &nodes.Status{
 			Ips:      getIpAddressesAsString(),
 			Hostname: hostname,

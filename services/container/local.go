@@ -131,7 +131,7 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
-	existing, err := l.Repo().Get(ctx, updateContainer.GetMeta().GetName())
+	existing, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainer.GetMeta().GetName())
 	}

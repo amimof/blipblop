@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/repository"
+	"github.com/amimof/blipblop/services"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type local struct {
@@ -24,7 +23,7 @@ type local struct {
 var _ nodes.NodeServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
-	node, err := l.Repo().Get(ctx, req.Id)
+	node, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -42,19 +41,24 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 
 func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
 	node := req.GetNode()
-	if existing, _ := l.Repo().Get(ctx, node.GetName()); existing != nil {
-		return nil, fmt.Errorf("node %s already exists", node.GetName())
+	if existing, _ := l.Repo().Get(ctx, node.GetMeta().GetName()); existing != nil {
+		return nil, fmt.Errorf("node %s already exists", node.GetMeta().GetName())
 	}
 
-	node.Created = timestamppb.New(time.Now())
-	node.Updated = timestamppb.New(time.Now())
-	node.Revision = 1
-
-	err := l.Repo().Create(ctx, node)
+	err := services.EnsureMeta(node)
 	if err != nil {
 		return nil, err
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetNode().GetName(), events.EventType_NodeCreate)})
+
+	// node.Created = timestamppb.New(time.Now())
+	// node.Updated = timestamppb.New(time.Now())
+	// node.Revision = 1
+
+	err = l.Repo().Create(ctx, node)
+	if err != nil {
+		return nil, err
+	}
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetNode().GetMeta().GetName(), events.EventType_NodeCreate)})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +99,7 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
-	existing, err := l.Repo().Get(ctx, updateNode.GetName())
+	existing, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +112,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 	if err != nil {
 		return nil, err
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(updateNode.GetName(), events.EventType_NodeUpdate)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(updateNode.GetMeta().GetName(), events.EventType_NodeUpdate)})
 	if err != nil {
 		return nil, err
 	}
@@ -118,21 +122,21 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 }
 
 func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
-	if node, _ := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetName()}); node.GetNode() != nil {
+	if node, _ := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetMeta().GetName()}); node.GetNode() != nil {
 		return &nodes.JoinResponse{
-			Id: req.GetNode().GetName(),
-		}, fmt.Errorf("Node %s already joined to cluster", req.Node.Name)
+			Id: req.GetNode().GetMeta().GetName(),
+		}, fmt.Errorf("Node %s already joined to cluster", req.GetNode().GetMeta().GetName())
 	}
 	_, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node})
 	if err != nil {
 		return nil, err
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetNode().GetName(), events.EventType_NodeJoin)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetNode().GetMeta().GetName(), events.EventType_NodeJoin)})
 	if err != nil {
 		return nil, err
 	}
 	return &nodes.JoinResponse{
-		Id: req.GetNode().GetName(),
+		Id: req.GetNode().GetMeta().GetName(),
 	}, nil
 }
 
