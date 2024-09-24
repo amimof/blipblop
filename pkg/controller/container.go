@@ -49,7 +49,7 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 		for {
 			select {
 			case ev := <-evt:
-				c.logger.Info("received event", "id", ev.GetId(), "type", ev.GetType().String())
+				c.logger.Info("received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
 				handleEventEvent(c.handlers, ev, c.logger)
 			case err := <-errChan:
 				c.logger.Error("recevied error on channel", "error", err)
@@ -113,59 +113,59 @@ func (c *ContainerController) handleError(id string, evtType events.EventType, m
 
 func (c *ContainerController) onContainerCreate(obj *events.Event) {
 	ctx := context.Background()
-	cont, err := c.clientset.ContainerV1().GetContainer(ctx, obj.Id)
+	cont, err := c.clientset.ContainerV1().GetContainer(ctx, obj.GetObjectId())
 	if cont == nil {
-		c.logger.Error("container not found", "id", obj.Id)
+		c.logger.Error("container not found", "id", obj.GetObjectId())
 		return
 	}
 	if err != nil {
-		c.logger.Error("error getting container", "error", err, "id", obj.Id)
+		c.logger.Error("error getting container", "error", err, "id", obj.GetObjectId())
 		return
 	}
 	err = c.runtime.Create(ctx, cont)
 	if err != nil {
-		c.handleError(cont.GetName(), events.EventType_ContainerCreate, fmt.Sprintf("error creating container %s: %s", cont.GetName(), err))
+		c.handleError(cont.GetMeta().GetName(), events.EventType_ContainerCreate, fmt.Sprintf("error creating container %s: %s", cont.GetMeta().GetName(), err))
 		return
 	}
-	log.Printf("successfully created container: %s", cont.Name)
+	log.Printf("successfully created container: %s", cont.GetMeta().GetName())
 }
 
 func (c *ContainerController) onContainerDelete(obj *events.Event) {
 	ctx := context.Background()
-	err := c.runtime.Delete(ctx, obj.Id)
+	err := c.runtime.Delete(ctx, obj.GetObjectId())
 	if err != nil {
-		log.Printf("error deleting container %s from runtime: %s", obj.GetId(), err)
+		log.Printf("error deleting container %s from runtime: %s", obj.GetMeta().GetName(), err)
 		return
 	}
-	log.Printf("successfully deleted container %s", obj.Id)
+	log.Printf("successfully deleted container %s", obj.GetObjectId())
 }
 
 func (c *ContainerController) onContainerStart(obj *events.Event) {
 	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.Id)
+	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.GetObjectId())
 	if err != nil {
 		log.Printf("error getting container %s", err)
 	}
 	err = c.runtime.Start(ctx, ctr)
 	if err != nil {
-		c.handleError(obj.GetId(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetName(), err))
+		c.handleError(obj.GetMeta().GetName(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetMeta().GetName(), err))
 		return
 	}
-	log.Printf("successfully started container %s", obj.Id)
+	log.Printf("successfully started container %s", obj.GetObjectId())
 }
 
 func (c *ContainerController) onContainerStop(obj *events.Event) {
 	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.Id)
+	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.GetObjectId())
 	if err != nil {
 		log.Printf("error getting container %s", err)
 	}
 	err = c.runtime.Kill(ctx, ctr)
 	if err != nil {
-		c.handleError(obj.GetId(), events.EventType_ContainerKill, fmt.Sprintf("error stopping container %s: %s", obj.GetId(), err))
+		c.handleError(obj.GetMeta().GetName(), events.EventType_ContainerKill, fmt.Sprintf("error stopping container %s: %s", obj.GetMeta().GetName(), err))
 		return
 	}
-	log.Printf("successfully killed container %s", obj.Id)
+	log.Printf("successfully killed container %s", obj.GetObjectId())
 }
 
 func NewContainerController(cs *client.ClientSet, rt runtime.Runtime, opts ...NewContainerControllerOption) *ContainerController {

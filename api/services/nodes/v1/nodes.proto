@@ -5,6 +5,7 @@ package blipblop.services.nodes.v1;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
+import "api/types/v1/meta.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 
@@ -27,10 +28,10 @@ service NodeService {
   }
   rpc Update(UpdateNodeRequest) returns (UpdateNodeResponse) {
     option (google.api.http) = {
-      put: "/api/v1/nodes/{node.name}"
+      put: "/api/v1/nodes/{node.meta.name}"
       body: "node"
       additional_bindings {
-        patch: "/api/v1/nodes/{node.name}"
+        patch: "/api/v1/nodes/{node.meta.name}"
         body: "node"
       }
     };
@@ -45,12 +46,8 @@ service NodeService {
 }
 
 message Node {
-  string name = 1;
-  map<string, string> labels = 2;
-	google.protobuf.Timestamp created = 3;
-	google.protobuf.Timestamp updated = 4;
-	uint64 revision = 5;
-  Status status = 6;
+  blipblop.types.v1.Meta meta = 1;
+  Status status = 2;
 }
 
 message Status {
@@ -86,8 +83,9 @@ message DeleteNodeResponse {
 }
 
 message UpdateNodeRequest {
-  Node node = 1;
-  google.protobuf.FieldMask update_mask = 2;
+  string id = 1;
+  Node node = 2;
+  google.protobuf.FieldMask update_mask = 3;
 }
 
 message UpdateNodeResponse {

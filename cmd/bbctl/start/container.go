@@ -38,11 +38,11 @@ func NewCmdStartContainer() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().StartContainer(context.Background(), ctr.GetName())
+			err = c.ContainerV1().StartContainer(context.Background(), ctr.GetMeta().GetName())
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to start container %s successful", ctr.GetName())
+			log.Printf("request to start container %s successful", ctr.GetMeta().GetName())
 		},
 	}
 

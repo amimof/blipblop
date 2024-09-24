@@ -38,7 +38,7 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 		for {
 			select {
 			case ev := <-evt:
-				c.logger.Debug("node controller received event", "id", ev.GetId(), "type", ev.GetType().String())
+				c.logger.Debug("node controller received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
 				c.handleEvent(ev)
 			case err := <-errChan:
 				c.logger.Error("node controller recevied error on channel", "error", err)
@@ -67,12 +67,12 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 // the specific node unregisters itself from the server
 func (c *NodeController) onNodeDelete(obj *events.Event) {
 	ctx := context.Background()
-	err := c.clientset.NodeV1().ForgetNode(ctx, obj.GetId())
+	err := c.clientset.NodeV1().ForgetNode(ctx, obj.GetMeta().GetName())
 	if err != nil {
-		log.Printf("error unjoining node %s: %v", obj.GetId(), err)
+		log.Printf("error unjoining node %s: %v", obj.GetMeta().GetName(), err)
 		return
 	}
-	log.Printf("successfully unjoined node %s", obj.GetId())
+	log.Printf("successfully unjoined node %s", obj.GetMeta().GetName())
 }
 
 func (c *NodeController) handleEvent(ev *events.Event) {

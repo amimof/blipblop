@@ -4,6 +4,7 @@ package blipblop.services.events.v1;
 
 import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
+import "api/types/v1/meta.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
 
@@ -37,10 +38,9 @@ message SubscribeRequest {
 }
 
 message Event {
-  google.protobuf.Timestamp timestamp = 1;
-  string id = 2;
-  string event_id = 3;
-  EventType type = 4;
+  blipblop.types.v1.Meta meta = 1;
+  string objectId = 4;
+  EventType type = 5;
 }
 
 enum EventType {

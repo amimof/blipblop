@@ -73,7 +73,7 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 
 func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodes.Node) error {
 	return r.db.Update(func(txn *badger.Txn) error {
-		key := NodeID(node.GetName()).String()
+		key := NodeID(node.GetMeta().GetName()).String()
 		b, err := proto.Marshal(node)
 		if err != nil {
 			return err

@@ -73,7 +73,7 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
 
 func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error {
 	return r.db.Update(func(txn *badger.Txn) error {
-		key := EventID(event.GetId()).String()
+		key := EventID(event.GetMeta().GetName()).String()
 		b, err := proto.Marshal(event)
 		if err != nil {
 			return err

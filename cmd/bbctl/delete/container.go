@@ -39,11 +39,11 @@ func NewCmdDeleteContainer() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().DeleteContainer(context.Background(), ctr.Name)
+			err = c.ContainerV1().DeleteContainer(context.Background(), ctr.GetMeta().GetName())
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to delete container %s successful", ctr.GetName())
+			log.Printf("request to delete container %s successful", ctr.GetMeta().GetName())
 		},
 	}
 

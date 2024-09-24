@@ -438,7 +438,7 @@ func getTaskStatus(ctx context.Context, t containerd.Task) containerd.Status {
 // Checks to see if c is present in cs
 func contains(cs []*containers.Container, c *containers.Container) bool {
 	for _, container := range cs {
-		if container.Revision == c.Revision && container.Name == c.Name {
+		if container.GetMeta().GetRevision() == c.GetMeta().GetRevision() && container.GetMeta().GetName() == c.GetMeta().GetName() {
 			return true
 		}
 	}
@@ -466,14 +466,14 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, currentContainer := range currentContainers {
 		if !contains(clist, currentContainer) {
-			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetName())
+			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetMeta().GetName())
 			err := c.runtime.Kill(ctx, currentContainer)
 			if err != nil {
-				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetName())
+				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
-			err = c.runtime.Delete(ctx, currentContainer.Name)
+			err = c.runtime.Delete(ctx, currentContainer.GetMeta().GetName())
 			if err != nil {
-				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetName())
+				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
 		}
 	}
@@ -481,14 +481,14 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	// Check if  there are containers on the server that doesn't exist in our runtime
 	for _, container := range clist {
 		if !contains(currentContainers, container) {
-			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetName())
+			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
 			err := c.runtime.Create(ctx, container)
 			if err != nil {
-				c.logger.Error("error creating container", "error", err, "name", container.GetName())
+				c.logger.Error("error creating container", "error", err, "name", container.GetMeta().GetName())
 			}
 			err = c.runtime.Start(ctx, container)
 			if err != nil {
-				c.logger.Error("error starting container", "error", err, "name", container.GetName())
+				c.logger.Error("error starting container", "error", err, "name", container.GetMeta().GetName())
 			}
 		}
 	}

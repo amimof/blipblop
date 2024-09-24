@@ -80,7 +80,7 @@ func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container
 
 func (r *containerBadgerRepo) Create(ctx context.Context, container *containers.Container) error {
 	return r.db.Update(func(txn *badger.Txn) error {
-		key := ContainerID(container.GetName()).String()
+		key := ContainerID(container.GetMeta().GetName()).String()
 		b, err := proto.Marshal(container)
 		if err != nil {
 			return err

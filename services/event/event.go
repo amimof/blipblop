@@ -3,14 +3,13 @@ package event
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type NewServiceOption func(s *EventService)
@@ -57,7 +56,7 @@ func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 			delete(n.channel, req.Id)
 			return nil
 		case n := <-eventChan:
-			log.Printf("Got event %s (%s) from client %s", n.Type, n.Id, req.Id)
+			log.Printf("Got event %s (%s) from client %s", n.Type, n.GetMeta().GetName(), req.Id)
 			err := stream.Send(n)
 			if err != nil {
 				log.Printf("Unable to emit event to clients: %s", err.Error())
@@ -95,9 +94,10 @@ func NewService(repo repository.EventRepository, opts ...NewServiceOption) *Even
 
 func NewEventFor(id string, t events.EventType) *events.Event {
 	return &events.Event{
-		Type:      t,
-		Id:        id,
-		EventId:   uuid.New().String(),
-		Timestamp: timestamppb.New(time.Now()),
+		Meta: &types.Meta{
+			Name: uuid.New().String(),
+		},
+		Type:     t,
+		ObjectId: id,
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/util"
@@ -66,10 +67,10 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 
 func buildContainerLabels(container *containers.Container) labels.Label {
 	l := labels.New()
-	l.Set(fmt.Sprintf("%s%s", labelPrefix, "revision"), util.Uint64ToString(container.Revision))
-	l.Set(fmt.Sprintf("%s%s", labelPrefix, "created"), container.Created.String())
-	l.Set(fmt.Sprintf("%s%s", labelPrefix, "updated"), container.Updated.String())
-	l.AppendMap(container.Labels)
+	l.Set(fmt.Sprintf("%s%s", labelPrefix, "revision"), util.Uint64ToString(container.GetMeta().GetRevision()))
+	l.Set(fmt.Sprintf("%s%s", labelPrefix, "created"), container.GetMeta().GetCreated().String())
+	l.Set(fmt.Sprintf("%s%s", labelPrefix, "updated"), container.GetMeta().GetUpdated().String())
+	l.AppendMap(container.GetMeta().GetLabels())
 	return l
 }
 
@@ -81,7 +82,7 @@ func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) e
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetName(), ctr.GetStatus().GetPid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetMeta().GetName(), ctr.GetStatus().GetPid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -106,10 +107,12 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 			return nil, err
 		}
 		result[i] = &containers.Container{
-			Name:     info.ID,
-			Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
-			Created:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "created")))),
-			Updated:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "updated")))),
+			Meta: &types.Meta{
+				Name:     info.ID,
+				Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
+				Created:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "created")))),
+				Updated:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "updated")))),
+			},
 			Config: &containers.Config{
 				Image: info.Image,
 			},
@@ -119,13 +122,13 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 }
 
 func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Container, error) {
-	units, err := c.List(ctx)
+	ctrs, err := c.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, unit := range units {
-		if key == unit.Name {
-			return unit, nil
+	for _, ctr := range ctrs {
+		if key == ctr.GetMeta().GetName() {
+			return ctr, nil
 		}
 	}
 	return nil, nil
@@ -145,15 +148,15 @@ func (c *ContainerdRuntime) Create(ctx context.Context, ctr *containers.Containe
 
 	// Build OCI specification
 	opts := buildSpec(ctr.Config.Envvars, m, ctr.Config.Args)
-	opts = append(opts, oci.WithHostname(ctr.Name))
+	opts = append(opts, oci.WithHostname(ctr.GetMeta().GetName()))
 	opts = append(opts, oci.WithImageConfig(image))
 	opts = append(opts, oci.WithEnv(ctr.GetConfig().GetEnvvars()))
 
 	// Create container
 	_, err = c.client.NewContainer(
 		ctx,
-		ctr.Name,
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.Name), image),
+		ctr.GetMeta().GetName(),
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.GetMeta().GetName()), image),
 		containerd.WithNewSpec(opts...),
 		containerd.WithContainerLabels(l),
 	)
@@ -182,7 +185,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
 
 func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, ctr.GetName())
+	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		return err
 	}
@@ -222,7 +225,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 
 func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, ctr.GetName())
+	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		return err
 	}
@@ -257,7 +260,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	containerLabels.Set("blipblop.io/ip-address", ip.String())
 	containerLabels.Set("blipblop.io/gateway", gw.String())
 	containerLabels.Set("blipblop.io/mac", mac)
-	containerLabels.Set("blipblop.io/container", ctr.GetName())
+	containerLabels.Set("blipblop.io/container", ctr.GetMeta().GetName())
 	_, err = container.SetLabels(ctx, containerLabels)
 	if err != nil {
 		return nil

@@ -6,6 +6,8 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
 import "api/services/events/v1/events.proto";
+import "api/types/v1/meta.proto";
+
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
@@ -28,10 +30,10 @@ service ContainerService {
 	}
 	rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse) {
     option (google.api.http) = {
-      put: "/api/v1/containers/{container.name}"
+      put: "/api/v1/containers/{container.meta.name}"
       body: "container"
       additional_bindings {
-        patch: "/api/v1/containers/{container.name}"
+        patch: "/api/v1/containers/{container.meta.name}"
         body: "container"
       }
     };
@@ -55,14 +57,10 @@ service ContainerService {
 
 
 message Container {
-  string name = 1;
-  map<string, string> labels = 2;
-	google.protobuf.Timestamp created = 3;
-	google.protobuf.Timestamp updated = 4;
-	uint64 revision = 5;
-	Config config = 6;
-	Status status = 7;
-  repeated Event events = 8;
+  blipblop.types.v1.Meta meta = 1;
+	Config config = 2;
+	Status status = 3;
+  repeated Event events = 4;
 }
 
 message Status {
@@ -120,8 +118,9 @@ message CreateContainerResponse {
 }
 
 message UpdateContainerRequest {
-  Container container = 1;
-  google.protobuf.FieldMask update_mask = 2;
+  string id = 1;
+  Container container = 2;
+  google.protobuf.FieldMask update_mask = 3;
 }
 
 message UpdateContainerResponse {

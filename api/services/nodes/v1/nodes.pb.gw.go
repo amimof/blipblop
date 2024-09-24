@@ -146,7 +146,7 @@ func local_request_NodeService_Create_0(ctx context.Context, marshaler runtime.M
 }
 
 var (
-	filter_NodeService_Update_0 = &utilities.DoubleArray{Encoding: map[string]int{"node": 0, "name": 1}, Base: []int{1, 2, 1, 0, 0}, Check: []int{0, 1, 2, 3, 2}}
+	filter_NodeService_Update_0 = &utilities.DoubleArray{Encoding: map[string]int{"node": 0, "meta": 1, "name": 2}, Base: []int{1, 2, 1, 1, 0, 0}, Check: []int{0, 1, 2, 3, 4, 2}}
 )
 
 func request_NodeService_Update_0(ctx context.Context, marshaler runtime.Marshaler, client NodeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -164,14 +164,14 @@ func request_NodeService_Update_0(ctx context.Context, marshaler runtime.Marshal
 		_   = err
 	)
 
-	val, ok = pathParams["node.name"]
+	val, ok = pathParams["node.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "node.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "node.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -201,14 +201,14 @@ func local_request_NodeService_Update_0(ctx context.Context, marshaler runtime.M
 		_   = err
 	)
 
-	val, ok = pathParams["node.name"]
+	val, ok = pathParams["node.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "node.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "node.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -224,7 +224,7 @@ func local_request_NodeService_Update_0(ctx context.Context, marshaler runtime.M
 }
 
 var (
-	filter_NodeService_Update_1 = &utilities.DoubleArray{Encoding: map[string]int{"node": 0, "name": 1}, Base: []int{1, 2, 1, 0, 0}, Check: []int{0, 1, 2, 3, 2}}
+	filter_NodeService_Update_1 = &utilities.DoubleArray{Encoding: map[string]int{"node": 0, "meta": 1, "name": 2}, Base: []int{1, 2, 1, 1, 0, 0}, Check: []int{0, 1, 2, 3, 4, 2}}
 )
 
 func request_NodeService_Update_1(ctx context.Context, marshaler runtime.Marshaler, client NodeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -253,14 +253,14 @@ func request_NodeService_Update_1(ctx context.Context, marshaler runtime.Marshal
 		_   = err
 	)
 
-	val, ok = pathParams["node.name"]
+	val, ok = pathParams["node.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "node.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "node.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -301,14 +301,14 @@ func local_request_NodeService_Update_1(ctx context.Context, marshaler runtime.M
 		_   = err
 	)
 
-	val, ok = pathParams["node.name"]
+	val, ok = pathParams["node.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "node.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "node.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "node.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "node.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -464,7 +464,7 @@ func RegisterNodeServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.name}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -489,7 +489,7 @@ func RegisterNodeServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.name}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -644,7 +644,7 @@ func RegisterNodeServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.name}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -666,7 +666,7 @@ func RegisterNodeServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.name}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.nodes.v1.NodeService/Update", runtime.WithHTTPPathPattern("/api/v1/nodes/{node.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -714,9 +714,9 @@ var (
 
 	pattern_NodeService_Create_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"api", "v1", "nodes"}, ""))
 
-	pattern_NodeService_Update_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "nodes", "node.name"}, ""))
+	pattern_NodeService_Update_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "nodes", "node.meta.name"}, ""))
 
-	pattern_NodeService_Update_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "nodes", "node.name"}, ""))
+	pattern_NodeService_Update_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "nodes", "node.meta.name"}, ""))
 
 	pattern_NodeService_Delete_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "nodes", "id"}, ""))
 )
