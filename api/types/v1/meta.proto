@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package blipblop.types.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/amimof/blipblop/api/types/v1;types";
+
+message Meta {
+  string name = 1;
+  map<string, string> labels = 2;
+	google.protobuf.Timestamp created = 3;
+	google.protobuf.Timestamp updated = 4;
+	uint64 revision = 5;
+}
+

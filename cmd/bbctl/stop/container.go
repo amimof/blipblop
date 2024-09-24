@@ -38,7 +38,7 @@ func NewCmdStopContainer() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().KillContainer(context.Background(), ctr.Name)
+			err = c.ContainerV1().KillContainer(context.Background(), ctr.GetMeta().GetName())
 			if err != nil {
 				log.Fatal(err)
 			}

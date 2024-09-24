@@ -146,7 +146,7 @@ func local_request_ContainerService_Create_0(ctx context.Context, marshaler runt
 }
 
 var (
-	filter_ContainerService_Update_0 = &utilities.DoubleArray{Encoding: map[string]int{"container": 0, "name": 1}, Base: []int{1, 2, 1, 0, 0}, Check: []int{0, 1, 2, 3, 2}}
+	filter_ContainerService_Update_0 = &utilities.DoubleArray{Encoding: map[string]int{"container": 0, "meta": 1, "name": 2}, Base: []int{1, 2, 1, 1, 0, 0}, Check: []int{0, 1, 2, 3, 4, 2}}
 )
 
 func request_ContainerService_Update_0(ctx context.Context, marshaler runtime.Marshaler, client ContainerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -164,14 +164,14 @@ func request_ContainerService_Update_0(ctx context.Context, marshaler runtime.Ma
 		_   = err
 	)
 
-	val, ok = pathParams["container.name"]
+	val, ok = pathParams["container.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "container.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "container.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -201,14 +201,14 @@ func local_request_ContainerService_Update_0(ctx context.Context, marshaler runt
 		_   = err
 	)
 
-	val, ok = pathParams["container.name"]
+	val, ok = pathParams["container.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "container.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "container.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -224,7 +224,7 @@ func local_request_ContainerService_Update_0(ctx context.Context, marshaler runt
 }
 
 var (
-	filter_ContainerService_Update_1 = &utilities.DoubleArray{Encoding: map[string]int{"container": 0, "name": 1}, Base: []int{1, 2, 1, 0, 0}, Check: []int{0, 1, 2, 3, 2}}
+	filter_ContainerService_Update_1 = &utilities.DoubleArray{Encoding: map[string]int{"container": 0, "meta": 1, "name": 2}, Base: []int{1, 2, 1, 1, 0, 0}, Check: []int{0, 1, 2, 3, 4, 2}}
 )
 
 func request_ContainerService_Update_1(ctx context.Context, marshaler runtime.Marshaler, client ContainerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -253,14 +253,14 @@ func request_ContainerService_Update_1(ctx context.Context, marshaler runtime.Ma
 		_   = err
 	)
 
-	val, ok = pathParams["container.name"]
+	val, ok = pathParams["container.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "container.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "container.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -301,14 +301,14 @@ func local_request_ContainerService_Update_1(ctx context.Context, marshaler runt
 		_   = err
 	)
 
-	val, ok = pathParams["container.name"]
+	val, ok = pathParams["container.meta.name"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.name")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "container.meta.name")
 	}
 
-	err = runtime.PopulateFieldFromPath(&protoReq, "container.name", val)
+	err = runtime.PopulateFieldFromPath(&protoReq, "container.meta.name", val)
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.name", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "container.meta.name", err)
 	}
 
 	if err := req.ParseForm(); err != nil {
@@ -568,7 +568,7 @@ func RegisterContainerServiceHandlerServer(ctx context.Context, mux *runtime.Ser
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.name}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -593,7 +593,7 @@ func RegisterContainerServiceHandlerServer(ctx context.Context, mux *runtime.Ser
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.name}"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -798,7 +798,7 @@ func RegisterContainerServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.name}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -820,7 +820,7 @@ func RegisterContainerServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.name}"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/blipblop.services.containers.v1.ContainerService/Update", runtime.WithHTTPPathPattern("/api/v1/containers/{container.meta.name}"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -912,9 +912,9 @@ var (
 
 	pattern_ContainerService_Create_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"api", "v1", "containers"}, ""))
 
-	pattern_ContainerService_Update_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "containers", "container.name"}, ""))
+	pattern_ContainerService_Update_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "containers", "container.meta.name"}, ""))
 
-	pattern_ContainerService_Update_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "containers", "container.name"}, ""))
+	pattern_ContainerService_Update_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "containers", "container.meta.name"}, ""))
 
 	pattern_ContainerService_Delete_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "containers", "id"}, ""))
 

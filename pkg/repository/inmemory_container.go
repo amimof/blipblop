@@ -40,7 +40,7 @@ func (i *containerInMemRepo) Get(ctx context.Context, key string) (*containers.C
 }
 
 func (i *containerInMemRepo) Create(ctx context.Context, container *containers.Container) error {
-	i.cache.Set(container.GetName(), container)
+	i.cache.Set(container.GetMeta().GetName(), container)
 	return nil
 }
 
@@ -50,6 +50,6 @@ func (i *containerInMemRepo) Delete(ctx context.Context, key string) error {
 }
 
 func (i *containerInMemRepo) Update(ctx context.Context, container *containers.Container) error {
-	i.cache.Set(container.GetName(), container)
+	i.cache.Set(container.GetMeta().GetName(), container)
 	return nil
 }

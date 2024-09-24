@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/sirupsen/logrus"
@@ -57,7 +58,9 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			}
 
 			err = c.ContainerV1().CreateContainer(ctx, &containers.Container{
-				Name: cname,
+				Meta: &types.Meta{
+					Name: cname,
+				},
 				Config: &containers.Config{
 					Image:        image,
 					PortMappings: cports,

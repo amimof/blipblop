@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
+	"github.com/amimof/blipblop/services"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type local struct {
@@ -66,22 +65,20 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
 	container := req.GetContainer()
 
-	if existing, _ := l.Repo().Get(ctx, container.GetName()); existing != nil {
-		return nil, fmt.Errorf("container %s already exists", container.GetName())
+	if existing, _ := l.Repo().Get(ctx, container.GetMeta().GetName()); existing != nil {
+		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
 	}
 
-	container.Created = timestamppb.New(time.Now())
-	container.Updated = timestamppb.New(time.Now())
-	container.Revision = 1
+	err := services.EnsureMetaForContainer(container)
 
-	err := l.Repo().Create(ctx, container)
+	err = l.Repo().Create(ctx, container)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", container.GetName())
+		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", container.GetMeta().GetName())
 	}
 
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(container.GetName(), events.EventType_ContainerCreate)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(container.GetMeta().GetName(), events.EventType_ContainerCreate)})
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetName(), "event", "ContainerCreate")
+		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
 	}
 	return &containers.CreateContainerResponse{
 		Container: container,
@@ -104,7 +101,7 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 	}
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetName(), "event", "ContainerDelete")
+		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "ContainerDelete")
 	}
 	return &containers.DeleteContainerResponse{
 		Id: req.GetId(),
@@ -134,9 +131,9 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
-	existing, err := l.Repo().Get(ctx, updateContainer.GetName())
+	existing, err := l.Repo().Get(ctx, updateContainer.GetMeta().GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainer.GetName())
+		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainer.GetMeta().GetName())
 	}
 
 	if updateMask != nil && updateMask.IsValid(existing) {
@@ -145,11 +142,11 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetName())
+		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetContainer().GetName(), events.EventType_ContainerUpdate)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetContainer().GetMeta().GetName(), events.EventType_ContainerUpdate)})
 	if err != nil {
-		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetName(), "event", "ContainerUpdate")
+		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}
 	return &containers.UpdateContainerResponse{
 		Container: existing,

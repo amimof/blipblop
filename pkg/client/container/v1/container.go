@@ -26,8 +26,8 @@ func (c *ContainerV1Client) NodeService() containers.ContainerServiceClient {
 
 func (c *ContainerV1Client) SetContainerNode(ctx context.Context, id, node string) error {
 	n := &containers.UpdateContainerRequest{
+		Id: id,
 		Container: &containers.Container{
-			Name: id,
 			Status: &containers.Status{
 				Node: node,
 			},
@@ -50,8 +50,8 @@ func (c *ContainerV1Client) SetContainerNode(ctx context.Context, id, node strin
 
 func (c *ContainerV1Client) SetContainerHealth(ctx context.Context, id, health string) error {
 	n := &containers.UpdateContainerRequest{
+		Id: id,
 		Container: &containers.Container{
-			Name: id,
 			Status: &containers.Status{
 				Health: health,
 			},
@@ -74,8 +74,8 @@ func (c *ContainerV1Client) SetContainerHealth(ctx context.Context, id, health s
 
 func (c *ContainerV1Client) SetContainerStatus(ctx context.Context, id string, status *containers.Status) error {
 	n := &containers.UpdateContainerRequest{
+		Id: id,
 		Container: &containers.Container{
-			Name:   id,
 			Status: status,
 		},
 	}
@@ -103,8 +103,8 @@ func (c *ContainerV1Client) AddContainerEvent(ctx context.Context, id string, ev
 	events := ctr.GetEvents()
 	events = append(events, evt)
 	req := &containers.UpdateContainerRequest{
+		Id: id,
 		Container: &containers.Container{
-			Name:   id,
 			Events: events,
 		},
 	}
