@@ -137,7 +137,7 @@ func (c *ContainerController) onContainerDelete(obj *events.Event) {
 	ctx := context.Background()
 	err := c.runtime.Delete(ctx, obj.GetObjectId())
 	if err != nil {
-		log.Printf("error deleting container %s from runtime: %s", obj.GetMeta().GetName(), err)
+		log.Printf("error deleting container %s from runtime: %s", obj.GetObjectId(), err)
 		return
 	}
 	log.Printf("successfully deleted container %s", obj.GetObjectId())
@@ -151,11 +151,11 @@ func (c *ContainerController) onContainerStart(obj *events.Event) {
 	}
 	err = c.runtime.Start(ctx, ctr)
 	if err != nil {
-		c.handleError(obj.GetMeta().GetName(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetMeta().GetName(), err))
+		c.handleError(ctr.GetMeta().GetName(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetMeta().GetName(), err))
 		return
 	}
-	// Emit event that the container has started
 
+	// Emit event that the container has started
 	log.Printf("successfully started container %s", obj.GetObjectId())
 	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStarted)
 	if err != nil {
@@ -171,10 +171,15 @@ func (c *ContainerController) onContainerStop(obj *events.Event) {
 	}
 	err = c.runtime.Kill(ctx, ctr)
 	if err != nil {
-		c.handleError(obj.GetMeta().GetName(), events.EventType_ContainerKill, fmt.Sprintf("error stopping container %s: %s", obj.GetMeta().GetName(), err))
+		c.handleError(ctr.GetMeta().GetName(), events.EventType_ContainerKill, fmt.Sprintf("error stopping container %s: %s", ctr.GetMeta().GetName(), err))
 		return
 	}
+	// Emit event that the container has started
 	log.Printf("successfully killed container %s", obj.GetObjectId())
+	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerKilled)
+	if err != nil {
+		log.Printf("error emitting killed event %v", err)
+	}
 }
 
 func NewContainerController(cs *client.ClientSet, rt runtime.Runtime, opts ...NewContainerControllerOption) *ContainerController {

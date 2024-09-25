@@ -59,6 +59,7 @@ enum EventType {
   NodeForget = 14;
   ContainerStartError = 15;
   ContainerStarted = 16;
+  ContainerKilled = 17;
 }
 
 message GetEventRequest {

@@ -139,13 +139,6 @@ func (c *ContainerV1Client) StartContainer(ctx context.Context, id string) error
 	return nil
 }
 
-// func (c *ContainerV1Client) StartContainerAndWait(ctx context.Context, id string) error {
-//   err := c.StartContainer(ctx, id)
-//   if err != nil {
-//     return err
-//   }
-// }
-
 func (c *ContainerV1Client) CreateContainer(ctx context.Context, ctr *containers.Container) error {
 	_, err := c.containerService.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
 	if err != nil {

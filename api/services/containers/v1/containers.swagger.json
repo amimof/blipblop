@@ -526,7 +526,8 @@
         "NodeJoin",
         "NodeForget",
         "ContainerStartError",
-        "ContainerStarted"
+        "ContainerStarted",
+        "ContainerKilled"
       ],
       "default": "ContainerCreate"
     },
