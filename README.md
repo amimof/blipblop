@@ -1,93 +1,55 @@
+[![Release](https://github.com/amimof/blipblop/actions/workflows/release.yaml/badge.svg)](https://github.com/amimof/blipblop/actions/workflows/release.yaml) [![Go](https://github.com/amimof/blipblop/actions/workflows/go.yaml/badge.svg)](https://github.com/amimof/blipblop/actions/workflows/go.yaml)
+
 # blipblop
 
-Distributed `containerd` workloads
+Distributed `containerd` workloads - an alternative to modern full-featured container orchestrators.
+
+## What is it?
+
+Code name `blipblop` is a very simple container distribution plattform that allows you to run containerized workload on arbitrary Linux hosts. The architecture is very simple by design and contains only two components. Nodes, which are run on the Linux hosts that run the containers. And the server that clients, including the Nodes interact with.
+
+Blipblop is an event-driven system which means that any interactions made with the server emits an event that clients within the cluster may react to. For example using `bbctl` you can `run` a container. The run command will publish a `ContainerCreate` event to the server. All nodes in the cluser may choose to react to that event, based on labels etc, to start the container on the host.
 
 ## System Requirements
 
 - Linux
 - [Containerd](https://containerd.io/downloads/) >= 1.4.13
 - Iptables
-<<<<<<< Updated upstream
 - [CNI plugins](https://github.com/containernetworking/plugins)
-=======
-- [CNI Plugins](https://github.com/containernetworking/plugins/releases)
->>>>>>> Stashed changes
+
+## Installing
+
+Download the latest binaries under [relases](https://github.com/amimof/blipblop/releases)
 
 ## Try it out
 
-Run a server & node instance on localhost
+Run the server.
 
 ```shell
-make run
+blipblop-server \
+    --tls-key ./certs/server-key.pem \
+    --tls-certificate ./certs/server.pem \
+    --tls-host 0.0.0.0 \
+    --tcp-tls-host 0.0.0.0 \
+    --tls-port 8443
 ```
 
-List nodes in the cluster
+Run any number of node instances
 
 ```json
-curl http://localhost:8443/api/v1/nodes
-{
-  "node": {
-    "name": "devnode",
-    "labels": {},
-    "created": "2023-05-14T09:08:08.074716028Z",
-    "updated": "2023-05-14T09:08:08.074716294Z",
-    "revision": "1",
-    "status": {
-      "ips": [
-        "127.0.0.1/8",
-        "::1/128",
-        "192.168.13.19/24",
-        "fe80::526b:8dff:feee:b3b5/64",
-        "10.69.0.1/16",
-        "fe80::c87:deff:fec5:777b/64"
-      ],
-      "hostname": "amir-lab",
-      "arch": "amd64",
-      "os": "linux",
-      "ready": true
-    }
-  }
-}
+blipblop-node \
+    --node-name node-01 \
+    --tls-host server-hostname.foo.com
 ```
 
-## Development Environment
+Use `bbctl` to interact with the cluster
 
-To start developing you need to install following on a `Linux` host.
-
-- [Go](https://go.dev/doc/install) > 1.19
-- [protoc](https://grpc.io/docs/protoc-installation/) v3
-- [protoc-gen-go](https://grpc.io/docs/languages/go/quickstart/) >= @v1.28
-
-  ```shell
-  go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
-  ```
-
-- [protoc-gen-go-grpc](https://grpc.io/docs/languages/go/quickstart/) >= v1.2
-
-  ```shell
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
-  ```
-
-- [protoc-gen-grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway) >= v2.19.1
-
-  ```shell
-  go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.19.1
-  ```
-
-- [protoc-gen-openapiv2](https://github.com/grpc-ecosystem/grpc-gateway) >= v2.19.1
-
-  ```shell
-  go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.19.1
-  ```
-
-- [buf](https://buf.build/docs/installation) => v1.30.0
-
-  ```
-  go install github.com/bufbuild/buf/cmd/buf@v1.30.0
-  ```
-
-Update your `PATH` so that the `protoc` compiler can find the plugins
-
-```shell
-export PATH="$PATH:$(go env GOPATH)/bin"
 ```
+bbctl -s server-hostname.foo.com:5700 get nodes
+```
+
+## Contributing
+
+You are welcome to contribute to this project by opening PR's. Create an Issue if you have feedback
+
+NOTE: Run make help for more information on all potential make targets
