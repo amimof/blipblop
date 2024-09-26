@@ -49,30 +49,32 @@ run-node: ; $(info $(M) running node) @ ## Run a node on localhost
 # Build
 
 .PHONY: server
-server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(SERVER_BIN)) @ ## Build program binary
+server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
+	BIN_NAME=${BIN_NAME:=blipblop-server}
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH)/blipblop-server cmd/blipblop-server/main.go
+		-o $(BUILDPATH)/$${BINARY_NAME:=blipblop-server} cmd/blipblop-server/main.go
 
 .PHONY: node
-node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(NODE_BIN)) @ ## Build program binary
+node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
+	BIN_NAME=${BIN_NAME:=blipblop-node}
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH)/blipblop-node cmd/blipblop-node/main.go
+		-o $(BUILDPATH)/$${BINARY_NAME:=blipblop-node} cmd/blipblop-node/main.go
 
 .PHONY: bbctl
-bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BBCTL_BIN)) @ ## Build program binary
+bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH)/bbctl main.go
+		-o $(BUILDPATH)/$${BINARY_NAME:=bbctl} main.go
 
 .PHONY: docker_build
 docker_build: ; $(info $(M) building docker image) @ ## Build docker image
 	docker build -t amimof/blipblop:${VERSION} .
-	docker tag amimof/blipblop:${VERSION} amimof/blipblop:latest
+	dcker tag amimof/blipblop:${VERSION} amimof/blipblop:latest
 
 .PHONY: protos
 protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos
