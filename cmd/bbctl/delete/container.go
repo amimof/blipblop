@@ -33,6 +33,7 @@ func NewCmdDeleteContainer() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
 
 			cname := args[0]
 			ctr, err := c.ContainerV1().Get(ctx, cname)

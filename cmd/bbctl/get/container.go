@@ -41,6 +41,8 @@ func NewCmdGetContainer() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
+
 			if len(args) == 0 {
 				containers, err := c.ContainerV1().List(ctx)
 				if err != nil {

@@ -41,6 +41,7 @@ func NewCmdGetNode() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
 
 			if len(args) == 1 {
 				var b bytes.Buffer

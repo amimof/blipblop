@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -42,10 +41,10 @@ func (c *ClientSet) Name() string {
 func (c *ClientSet) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	err := c.NodeV1().Forget(context.Background(), c.name)
-	if err != nil {
-		return err
-	}
+	// err := c.NodeV1().Forget(context.Background(), c.name)
+	// if err != nil {
+	// 	return err
+	// }
 	c.conn.Close()
 	return nil
 }
