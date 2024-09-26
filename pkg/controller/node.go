@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
+	"github.com/google/uuid"
 )
 
 type NodeController struct {
@@ -33,7 +35,7 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	// Setup channels
 	evt := make(chan *events.Event)
 	errChan := make(chan error)
-
+	clientId := fmt.Sprintf("%s:%s", "node-controller", uuid.New())
 	go func() {
 		for {
 			select {
@@ -52,7 +54,7 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	}()
 
 	for {
-		if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
+		if err := c.clientset.EventV1().Subscribe(ctx, clientId, evt, errChan); err != nil {
 			c.logger.Error("error occured during subscribe", "error", err)
 		}
 
@@ -67,7 +69,7 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 // the specific node unregisters itself from the server
 func (c *NodeController) onNodeDelete(obj *events.Event) {
 	ctx := context.Background()
-	err := c.clientset.NodeV1().ForgetNode(ctx, obj.GetMeta().GetName())
+	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
 	if err != nil {
 		log.Printf("error unjoining node %s: %v", obj.GetMeta().GetName(), err)
 		return

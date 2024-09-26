@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -32,17 +33,28 @@ func NewCmdStopContainer() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().GetContainer(ctx, cname)
+			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().KillContainer(context.Background(), ctr.GetMeta().GetName())
+
+			log.Printf("requested to stop container %s", ctr.GetMeta().GetName())
+
+			_, err = c.ContainerV1().Kill(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to stop container %s successful", cname)
+
+			if viper.GetBool("wait") {
+				err = c.EventV1().Wait(events.EventType_ContainerKilled, cname)
+				if err != nil {
+					log.Fatal(err)
+				}
+				log.Printf("successfully stopped container %s", cname)
+			}
 		},
 	}
 

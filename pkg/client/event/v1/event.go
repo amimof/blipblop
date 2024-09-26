@@ -9,20 +9,21 @@ import (
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/services/event"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
 
-type EventV1Client struct {
+type ClientV1 struct {
 	// name         string
 	eventService events.EventServiceClient
 }
 
-func (c *EventV1Client) EventService() events.EventServiceClient {
+func (c *ClientV1) EventService() events.EventServiceClient {
 	return c.eventService
 }
 
-func (c *EventV1Client) Publish(ctx context.Context, id string, evt events.EventType) error {
+func (c *ClientV1) Publish(ctx context.Context, id string, evt events.EventType) error {
 	req := &events.PublishRequest{Event: event.NewEventFor(id, evt)}
 	_, err := c.eventService.Publish(ctx, req)
 	if err != nil {
@@ -31,9 +32,9 @@ func (c *EventV1Client) Publish(ctx context.Context, id string, evt events.Event
 	return nil
 }
 
-func (c *EventV1Client) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
+func (c *ClientV1) Subscribe(ctx context.Context, clientId string, receiveChan chan<- *events.Event, errChan chan<- error) error {
 	// Create stream
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: clientId})
 	if err != nil {
 		return fmt.Errorf("subscribe failed: %v", err)
 	}
@@ -66,8 +67,35 @@ func (c *EventV1Client) Subscribe(ctx context.Context, receiveChan chan<- *event
 	return nil
 }
 
-func NewEventV1Client(conn *grpc.ClientConn) *EventV1Client {
-	return &EventV1Client{
+func (c *ClientV1) Wait(t events.EventType, id string) error {
+	evt := make(chan *events.Event)
+	errChan := make(chan error)
+	clientId := fmt.Sprintf("%s:%s", "bbctl", uuid.New())
+
+	go func() {
+		err := c.Subscribe(context.Background(), clientId, evt, errChan)
+		if err != nil {
+			errChan <- fmt.Errorf("error subscribing to events as %s: %v", clientId, err)
+			return
+		}
+	}()
+
+	for {
+		select {
+		case e := <-evt:
+			if e.Type == t && e.GetObjectId() == id {
+				return nil
+			}
+		case err := <-errChan:
+			return fmt.Errorf("error waiting for condition %s: %v", t, err)
+		case <-time.After(30 * time.Second):
+			return errors.New("timout waiting for event")
+		}
+	}
+}
+
+func NewClientV1(conn *grpc.ClientConn) *ClientV1 {
+	return &ClientV1{
 		eventService: events.NewEventServiceClient(conn),
 	}
 }

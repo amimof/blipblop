@@ -33,13 +33,14 @@ func NewCmdDeleteContainer() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().GetContainer(ctx, cname)
+			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().DeleteContainer(context.Background(), ctr.GetMeta().GetName())
+			err = c.ContainerV1().Delete(context.Background(), ctr.GetMeta().GetName())
 			if err != nil {
 				log.Fatal(err)
 			}

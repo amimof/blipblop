@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -17,21 +16,21 @@ import (
 type ClientSet struct {
 	name              string
 	conn              *grpc.ClientConn
-	nodeV1Client      *nodev1.NodeV1Client
-	containerV1Client *containerv1.ContainerV1Client
-	eventV1Client     *eventv1.EventV1Client
+	nodeV1Client      *nodev1.ClientV1
+	containerV1Client *containerv1.ClientV1
+	eventV1Client     *eventv1.ClientV1
 	mu                sync.Mutex
 }
 
-func (c *ClientSet) NodeV1() *nodev1.NodeV1Client {
+func (c *ClientSet) NodeV1() *nodev1.ClientV1 {
 	return c.nodeV1Client
 }
 
-func (c *ClientSet) ContainerV1() *containerv1.ContainerV1Client {
+func (c *ClientSet) ContainerV1() *containerv1.ClientV1 {
 	return c.containerV1Client
 }
 
-func (c *ClientSet) EventV1() *eventv1.EventV1Client {
+func (c *ClientSet) EventV1() *eventv1.ClientV1 {
 	return c.eventV1Client
 }
 
@@ -42,10 +41,10 @@ func (c *ClientSet) Name() string {
 func (c *ClientSet) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	err := c.NodeV1().ForgetNode(context.Background(), c.name)
-	if err != nil {
-		return err
-	}
+	// err := c.NodeV1().Forget(context.Background(), c.name)
+	// if err != nil {
+	// 	return err
+	// }
 	c.conn.Close()
 	return nil
 }
@@ -87,9 +86,9 @@ func New(server string, opts ...grpc.DialOption) (*ClientSet, error) {
 	}
 	c := &ClientSet{
 		conn:              conn,
-		nodeV1Client:      nodev1.NewNodeV1Client(conn),
-		containerV1Client: containerv1.NewContainerV1Client(conn),
-		eventV1Client:     eventv1.NewEventV1Client(conn),
+		nodeV1Client:      nodev1.NewClientV1(conn),
+		containerV1Client: containerv1.NewClientV1(conn),
+		eventV1Client:     eventv1.NewClientV1(conn),
 	}
 	return c, nil
 }

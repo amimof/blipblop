@@ -202,14 +202,17 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	if err != nil {
 		return err
 	}
+
 	err = task.Kill(ctx, syscall.SIGINT)
 	if err != nil {
 		return err
 	}
+
 	wait, err := task.Wait(ctx)
 	if err != nil {
 		return err
 	}
+
 	select {
 	case status := <-wait:
 		log.Printf("Task %s exited with status %d", task.ID(), status.ExitCode())

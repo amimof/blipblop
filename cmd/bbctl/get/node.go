@@ -41,13 +41,14 @@ func NewCmdGetNode() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
 
 			if len(args) == 1 {
 				var b bytes.Buffer
 				enc := yaml.NewEncoder(&b)
 				enc.SetIndent(2)
 				cname := args[0]
-				node, err := c.NodeV1().GetNode(context.Background(), cname)
+				node, err := c.NodeV1().Get(context.Background(), cname)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -57,7 +58,7 @@ func NewCmdGetNode() *cobra.Command {
 				}
 				fmt.Printf("%s\n", b.String())
 			} else {
-				nodes, err := c.NodeV1().ListNodes(ctx)
+				nodes, err := c.NodeV1().List(ctx)
 				if err != nil {
 					log.Fatal(err)
 				}

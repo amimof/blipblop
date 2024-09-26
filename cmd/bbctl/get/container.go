@@ -41,8 +41,10 @@ func NewCmdGetContainer() *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
+
 			if len(args) == 0 {
-				containers, err := c.ContainerV1().ListContainers(ctx)
+				containers, err := c.ContainerV1().List(ctx)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -59,7 +61,7 @@ func NewCmdGetContainer() *cobra.Command {
 				enc := yaml.NewEncoder(&b)
 				enc.SetIndent(2)
 				cname := args[0]
-				container, err := c.ContainerV1().GetContainer(context.Background(), cname)
+				container, err := c.ContainerV1().Get(context.Background(), cname)
 				if err != nil {
 					log.Fatal(err)
 				}

@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
-type NodeV1Client struct {
+type ClientV1 struct {
 	name        string
 	nodeService nodes.NodeServiceClient
 }
@@ -37,11 +37,11 @@ func getIpAddressesAsString() []string {
 	return i
 }
 
-func (c *NodeV1Client) NodeService() nodes.NodeServiceClient {
+func (c *ClientV1) NodeService() nodes.NodeServiceClient {
 	return c.nodeService
 }
 
-func (c *NodeV1Client) DeleteNode(ctx context.Context, id string) error {
+func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	_, err := c.nodeService.Delete(ctx, &nodes.DeleteNodeRequest{Id: id})
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func (c *NodeV1Client) DeleteNode(ctx context.Context, id string) error {
 	return nil
 }
 
-func (c *NodeV1Client) GetNode(ctx context.Context, id string) (*nodes.Node, error) {
+func (c *ClientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
 	n, err := c.nodeService.Get(ctx, &nodes.GetNodeRequest{Id: id})
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (c *NodeV1Client) GetNode(ctx context.Context, id string) (*nodes.Node, err
 	return n.GetNode(), nil
 }
 
-func (c *NodeV1Client) ListNodes(ctx context.Context) ([]*nodes.Node, error) {
+func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
 	n, err := c.nodeService.List(ctx, &nodes.ListNodeRequest{})
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (c *NodeV1Client) ListNodes(ctx context.Context) ([]*nodes.Node, error) {
 	return n.Nodes, nil
 }
 
-func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
+func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 	err := services.EnsureMeta(node)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (c *NodeV1Client) UpdateNode(ctx context.Context, node *nodes.Node) error {
 	return nil
 }
 
-func (c *NodeV1Client) JoinNode(ctx context.Context, node *nodes.Node) error {
+func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
 	// node.Created = timestamppb.New(time.Now())
 	// node.Updated = timestamppb.New(time.Now())
 	// node.Revision = 1
@@ -95,7 +95,7 @@ func (c *NodeV1Client) JoinNode(ctx context.Context, node *nodes.Node) error {
 	return nil
 }
 
-func (c *NodeV1Client) ForgetNode(ctx context.Context, n string) error {
+func (c *ClientV1) Forget(ctx context.Context, n string) error {
 	req := &nodes.ForgetRequest{
 		Id: n,
 	}
@@ -106,7 +106,7 @@ func (c *NodeV1Client) ForgetNode(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *NodeV1Client) SetNodeReady(ctx context.Context, ready bool) error {
+func (c *ClientV1) SetReady(ctx context.Context, ready bool) error {
 	n := &nodes.UpdateNodeRequest{
 		Node: &nodes.Node{
 			Status: &nodes.Status{
@@ -129,8 +129,8 @@ func (c *NodeV1Client) SetNodeReady(ctx context.Context, ready bool) error {
 	return nil
 }
 
-func NewNodeV1Client(conn *grpc.ClientConn) *NodeV1Client {
-	return &NodeV1Client{
+func NewClientV1(conn *grpc.ClientConn) *ClientV1 {
+	return &ClientV1{
 		nodeService: nodes.NewNodeServiceClient(conn),
 	}
 }

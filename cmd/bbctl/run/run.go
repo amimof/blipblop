@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/networking"
@@ -15,8 +16,10 @@ import (
 )
 
 var (
-	image string
-	ports []string
+	image              string
+	ports              []string
+	wait               bool
+	waitTimeoutSeconds uint64
 )
 
 func NewCmdRun() *cobra.Command {
@@ -56,8 +59,9 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				logrus.Fatal(err)
 			}
+			defer c.Close()
 
-			err = c.ContainerV1().CreateContainer(ctx, &containers.Container{
+			err = c.ContainerV1().Create(ctx, &containers.Container{
 				Meta: &types.Meta{
 					Name: cname,
 				},
@@ -69,11 +73,21 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().StartContainer(ctx, cname)
+			_, err = c.ContainerV1().Start(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to run container %s successful", cname)
+
+			log.Printf("requested to run container %s", cname)
+
+			if viper.GetBool("wait") {
+				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+
+			log.Printf("successfully started container %s", cname)
 		},
 	}
 	runCmd.Flags().StringVarP(
@@ -89,6 +103,20 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"p",
 		[]string{},
 		"Forward a local port to the container",
+	)
+	runCmd.PersistentFlags().BoolVarP(
+		&wait,
+		"wait",
+		"w",
+		true,
+		"Wait for command to finish",
+	)
+	runCmd.PersistentFlags().Uint64VarP(
+		&waitTimeoutSeconds,
+		"timeout",
+		"",
+		30,
+		"How long in seconds to wait for container to start before giving up",
 	)
 	if err := runCmd.MarkFlagRequired("image"); err != nil {
 		log.Fatal(err)
