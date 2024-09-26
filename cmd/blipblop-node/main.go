@@ -131,7 +131,7 @@ func main() {
 	defer cancel()
 
 	// Join node
-	err = cs.NodeV1().JoinNode(ctx, nodev1.NewNodeFromEnv(nodeName))
+	err = cs.NodeV1().Join(ctx, nodev1.NewNodeFromEnv(nodeName))
 	if err != nil {
 		log.Error("error joining node to server", "error", err)
 		return
@@ -177,7 +177,7 @@ func main() {
 
 	log.Info("Shutting down")
 	ctx.Done()
-	if err := cs.NodeV1().ForgetNode(ctx, nodeName); err != nil {
+	if err := cs.NodeV1().Forget(ctx, nodeName); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	log.Info("Successfully unjoined from cluster", "node", nodeName)

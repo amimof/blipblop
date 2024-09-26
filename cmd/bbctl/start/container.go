@@ -2,19 +2,14 @@ package start
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-var wait bool
 
 func NewCmdStartContainer() *cobra.Command {
 	runCmd := &cobra.Command{
@@ -40,49 +35,26 @@ func NewCmdStartContainer() *cobra.Command {
 			}
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().GetContainer(ctx, cname)
+			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to start container %s successful", ctr.GetMeta().GetName())
-			evt := make(chan *events.Event)
-			errChan := make(chan error)
 
-			clientId := fmt.Sprintf("%s:%s", "bbctl", uuid.New())
+			log.Printf("requested to start container %s", ctr.GetMeta().GetName())
 
-			go func() {
-				err = c.EventV1().Subscribe(ctx, clientId, evt, errChan)
+			_, err = c.ContainerV1().Start(context.Background(), ctr.GetMeta().GetName())
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if viper.GetBool("wait") {
+				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)
 				if err != nil {
-					log.Printf("error subscribing to events")
+					log.Fatal(err)
 				}
-			}()
-
-			err = c.ContainerV1().StartContainer(context.Background(), ctr.GetMeta().GetName())
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			for {
-				select {
-				case e := <-evt:
-					if e.Type == events.EventType_ContainerStarted && e.GetObjectId() == ctr.GetMeta().GetName() {
-						log.Printf("successfully started container %s", ctr.GetMeta().GetName())
-						return
-					}
-				case <-time.After(30 * time.Second):
-					fmt.Println("timeout waiting for container to start")
-					return
-				}
+				log.Printf("successfully started container %s", cname)
 			}
 		},
 	}
-
-	runCmd.PersistentFlags().BoolVarP(
-		&wait,
-		"wait",
-		"w",
-		true,
-		"Wait for command to finish",
-	)
 	return runCmd
 }

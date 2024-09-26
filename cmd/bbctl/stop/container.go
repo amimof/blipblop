@@ -2,13 +2,10 @@ package stop
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"time"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -38,40 +35,24 @@ func NewCmdStopContainer() *cobra.Command {
 			}
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().GetContainer(ctx, cname)
+			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Printf("request to stop container %s successful", ctr.GetMeta().GetName())
-			evt := make(chan *events.Event)
-			errChan := make(chan error)
 
-			clientId := fmt.Sprintf("%s:%s", "bbctl", uuid.New())
+			log.Printf("requested to stop container %s", ctr.GetMeta().GetName())
 
-			go func() {
-				err = c.EventV1().Subscribe(context.Background(), clientId, evt, errChan)
+			_, err = c.ContainerV1().Kill(ctx, cname)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if viper.GetBool("wait") {
+				err = c.EventV1().Wait(events.EventType_ContainerKilled, cname)
 				if err != nil {
-					log.Printf("error subscribing to events")
+					log.Fatal(err)
 				}
-			}()
-
-			err = c.ContainerV1().KillContainer(ctx, cname)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			for {
-				select {
-				case e := <-evt:
-					log.Printf("event: %s", e)
-					if e.Type == events.EventType_ContainerKilled && e.GetObjectId() == ctr.GetMeta().GetName() {
-						log.Printf("successfully stopped container %s", ctr.GetMeta().GetName())
-						return
-					}
-				case <-time.After(30 * time.Second):
-					fmt.Println("timeout waiting for container to stop")
-					return
-				}
+				log.Printf("successfully stopped container %s", cname)
 			}
 		},
 	}

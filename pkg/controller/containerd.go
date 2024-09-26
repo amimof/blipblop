@@ -112,9 +112,9 @@ func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) 
 		c.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", c.logger)
 		if err != nil {
 			c.logger.Error("error reconnection to stream", "error", err)
-			_ = c.clientset.NodeV1().SetNodeReady(ctx, false)
+			_ = c.clientset.NodeV1().SetReady(ctx, false)
 		}
-		_ = c.clientset.NodeV1().SetNodeReady(ctx, true)
+		_ = c.clientset.NodeV1().SetReady(ctx, true)
 	}
 }
 
@@ -133,7 +133,7 @@ func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan s
 		case err := <-errCh:
 			if err == nil || isConnectionError(err) {
 				c.logger.Error("received stream disconnect, attempting to reconnect")
-				_ = c.clientset.NodeV1().SetNodeReady(ctx, false)
+				_ = c.clientset.NodeV1().SetReady(ctx, false)
 				return err
 			}
 			return err
@@ -263,7 +263,7 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 // TODO: Experimental, might remove later
 func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, id)
+	ctr, err := c.clientset.ContainerV1().Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -388,7 +388,7 @@ func (c *ContainerdController) setContainerState(id string) error {
 
 			hostname, _ := os.Hostname()
 
-			err = c.clientset.ContainerV1().SetContainerNode(ctx, id, hostname)
+			err = c.clientset.ContainerV1().SetNode(ctx, id, hostname)
 			if err != nil {
 				return err
 			}
@@ -400,7 +400,7 @@ func (c *ContainerdController) setContainerState(id string) error {
 				ExitStatus: exitStatus,
 				Health:     "healthy",
 			}
-			return c.clientset.ContainerV1().SetContainerStatus(ctx, id, st)
+			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 		}
 	}
 	return nil
@@ -452,7 +452,7 @@ func contains(cs []*containers.Container, c *containers.Container) bool {
 func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	c.logger.Info("reconciling containers in containerd runtime")
 	// Get containers from the server. Ultimately we want these to match with our runtime
-	clist, err := c.clientset.ContainerV1().ListContainers(ctx)
+	clist, err := c.clientset.ContainerV1().List(ctx)
 	if err != nil {
 		return err
 	}

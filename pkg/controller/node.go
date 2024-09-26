@@ -69,7 +69,7 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 // the specific node unregisters itself from the server
 func (c *NodeController) onNodeDelete(obj *events.Event) {
 	ctx := context.Background()
-	err := c.clientset.NodeV1().ForgetNode(ctx, obj.GetMeta().GetName())
+	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
 	if err != nil {
 		log.Printf("error unjoining node %s: %v", obj.GetMeta().GetName(), err)
 		return

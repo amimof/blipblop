@@ -101,11 +101,11 @@ func handleEventEvent(funcs *ContainerEventHandlerFuncs, ev *events.Event, l log
 
 func (c *ContainerController) handleError(id string, evtType events.EventType, msg string) {
 	ctx := context.Background()
-	err := c.clientset.ContainerV1().SetContainerHealth(ctx, id, "unhealthy")
+	err := c.clientset.ContainerV1().SetHealth(ctx, id, "unhealthy")
 	if err != nil {
 		c.logger.Error("error setting condition on container", "id", id, "error", err)
 	}
-	err = c.clientset.ContainerV1().AddContainerEvent(ctx, id, &containers.Event{
+	err = c.clientset.ContainerV1().AddEvent(ctx, id, &containers.Event{
 		Description: msg,
 		Type:        evtType,
 	})
@@ -116,7 +116,7 @@ func (c *ContainerController) handleError(id string, evtType events.EventType, m
 
 func (c *ContainerController) onContainerCreate(obj *events.Event) {
 	ctx := context.Background()
-	cont, err := c.clientset.ContainerV1().GetContainer(ctx, obj.GetObjectId())
+	cont, err := c.clientset.ContainerV1().Get(ctx, obj.GetObjectId())
 	if cont == nil {
 		c.logger.Error("container not found", "id", obj.GetObjectId())
 		return
@@ -145,7 +145,7 @@ func (c *ContainerController) onContainerDelete(obj *events.Event) {
 
 func (c *ContainerController) onContainerStart(obj *events.Event) {
 	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.GetObjectId())
+	ctr, err := c.clientset.ContainerV1().Get(ctx, obj.GetObjectId())
 	if err != nil {
 		log.Printf("error getting container %s", err)
 	}
@@ -165,7 +165,7 @@ func (c *ContainerController) onContainerStart(obj *events.Event) {
 
 func (c *ContainerController) onContainerStop(obj *events.Event) {
 	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().GetContainer(ctx, obj.GetObjectId())
+	ctr, err := c.clientset.ContainerV1().Get(ctx, obj.GetObjectId())
 	if err != nil {
 		log.Printf("error getting container %s", err)
 	}

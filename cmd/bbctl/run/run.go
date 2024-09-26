@@ -57,7 +57,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				logrus.Fatal(err)
 			}
 
-			err = c.ContainerV1().CreateContainer(ctx, &containers.Container{
+			err = c.ContainerV1().Create(ctx, &containers.Container{
 				Meta: &types.Meta{
 					Name: cname,
 				},
@@ -69,7 +69,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = c.ContainerV1().StartContainer(ctx, cname)
+			_, err = c.ContainerV1().Start(ctx, cname)
 			if err != nil {
 				log.Fatal(err)
 			}
