@@ -36,7 +36,7 @@ blipblop-server \
 
 Run any number of node instances
 
-```json
+```
 blipblop-node \
     --node-name node-01 \
     --tls-host server-hostname.foo.com
