@@ -50,7 +50,6 @@ run-node: ; $(info $(M) running node) @ ## Run a node on localhost
 
 .PHONY: server
 server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
-	BIN_NAME=${BIN_NAME:=blipblop-server}
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
@@ -58,7 +57,6 @@ server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(BINA
 
 .PHONY: node
 node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
-	BIN_NAME=${BIN_NAME:=blipblop-node}
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
