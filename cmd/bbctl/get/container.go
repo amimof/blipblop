@@ -3,6 +3,7 @@ package get
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"os"
@@ -31,13 +32,20 @@ func NewCmdGetContainer() *cobra.Command {
 		},
 		Run: func(_ *cobra.Command, args []string) {
 			server := viper.GetString("server")
-			ctx := context.Background()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
 
 			// Setup writer
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
+			var opts []client.NewClientOption
+			if viper.GetBool("insecure") {
+				opts = append(opts, client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
+			}
+
 			// Setup our client
-			c, err := client.New(server)
+			c, err := client.New(ctx, server, opts...)
 			if err != nil {
 				logrus.Fatal(err)
 			}

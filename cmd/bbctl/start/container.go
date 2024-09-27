@@ -26,10 +26,12 @@ func NewCmdStartContainer() *cobra.Command {
 		},
 		Run: func(_ *cobra.Command, args []string) {
 			server := viper.GetString("server")
-			ctx := context.Background()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			// Setup our client
-			c, err := client.New(server)
+			c, err := client.New(ctx, server)
 			if err != nil {
 				logrus.Fatal(err)
 			}

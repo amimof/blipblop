@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 
@@ -17,13 +18,32 @@ import (
 var DefaultMux = runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true}}))
 
 type Gateway struct {
-	mux  *runtime.ServeMux
-	srv  *http.Server
-	conn *grpc.ClientConn
+	mux      *runtime.ServeMux
+	srv      *http.Server
+	conn     *grpc.ClientConn
+	grpcOpts []grpc.DialOption
+}
+
+type NewGatewayOption func(g *Gateway)
+
+func WithGrpcDialOption(opts ...grpc.DialOption) NewGatewayOption {
+	return func(g *Gateway) {
+		g.grpcOpts = opts
+	}
+}
+
+func WithTLSConfig(t *tls.Config) NewGatewayOption {
+	return func(g *Gateway) {
+		g.srv.TLSConfig = t
+	}
 }
 
 func (g *Gateway) Serve(lis net.Listener) error {
 	return g.srv.Serve(lis)
+}
+
+func (g *Gateway) ServeTLS(lis net.Listener, certFile, keyFile string) error {
+	return g.srv.ServeTLS(lis, certFile, keyFile)
 }
 
 func (g *Gateway) Shutdown(ctx context.Context) error {
@@ -36,12 +56,29 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux) (*Gateway, error) {
+func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux, opts ...NewGatewayOption) (*Gateway, error) {
+	grpcOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		// grpc.WithBlock(),
+	}
+
+	g := &Gateway{
+		mux: mux,
+		srv: &http.Server{
+			Addr:    addr,
+			Handler: mux,
+		},
+		grpcOpts: grpcOpts,
+	}
+
+	for _, opt := range opts {
+		opt(g)
+	}
+
 	conn, err := grpc.DialContext(
 		ctx,
 		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
+		g.grpcOpts...,
 	)
 	if err != nil {
 		return nil, err
@@ -58,12 +95,8 @@ func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux) (*Gatew
 	if err != nil {
 		return nil, err
 	}
-	return &Gateway{
-		mux:  mux,
-		conn: conn,
-		srv: &http.Server{
-			Addr:    addr,
-			Handler: mux,
-		},
-	}, nil
+
+	g.conn = conn
+
+	return g, nil
 }

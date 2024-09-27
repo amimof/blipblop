@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -21,6 +22,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -49,6 +52,8 @@ var (
 	writeTimeout time.Duration
 	logLevel     string
 
+	tcpHost           string
+	tcpPort           int
 	tcptlsHost        string
 	tcptlsPort        int
 	tlsHost           string
@@ -60,11 +65,14 @@ var (
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
+
+	log *slog.Logger
 )
 
 func init() {
 	pflag.StringVar(&socketPath, "socket-path", "/var/run/blipblop.sock", "the unix socket to listen on")
 	pflag.StringVar(&host, "host", "localhost", "The host address on which to listen for the --port port")
+	pflag.StringVar(&tcpHost, "tcp-host", "localhost", "The host address on which to listen for the --tcp-port port")
 	pflag.StringVar(&tlsHost, "tls-host", "localhost", "The host address on which to listen for the --tls-port port")
 	pflag.StringVar(&tcptlsHost, "tcp-tls-host", "localhost", "The host address on which to listen for the --tcp-tls-port port")
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
@@ -75,8 +83,9 @@ func init() {
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
+	pflag.IntVar(&tcpPort, "tcp-port", 5700, "the port to listen on for insecure connections, defaults to 8080")
 	pflag.IntVar(&tlsPort, "tls-port", 8443, "the port to listen on for secure connections, defaults to 8443")
-	pflag.IntVar(&tcptlsPort, "tcp-tls-port", 5700, "the port to listen on for GRPC connections, defaults to 5700")
+	pflag.IntVar(&tcptlsPort, "tcp-tls-port", 5743, "the port to listen on for GRPC connections, defaults to 5743")
 	pflag.IntVar(&metricsPort, "metrics-port", 8888, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.IntVar(&listenLimit, "listen-limit", 0, "limit the number of outstanding requests")
 	pflag.IntVar(&tlsListenLimit, "tls-listen-limit", 0, "limit the number of outstanding requests")
@@ -155,8 +164,36 @@ func main() {
 		fmt.Printf("error parsing log level: %v", err)
 		os.Exit(1)
 	}
+	log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	// Setup TLS configuration based on flags
+	var serverOpts []server.NewServerOption
+	var gatewayOpts []server.NewGatewayOption
+	serverAddr := fmt.Sprintf("%s", net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort)))
+	if tlsCertificate != "" && tlsCertificateKey != "" {
+		serverAddr = fmt.Sprintf("%s", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
+
+		creds, err := credentials.NewServerTLSFromFile(tlsCertificate, tlsCertificateKey)
+		if err != nil {
+			log.Error("error loading tls certificate pair", "error", err)
+			os.Exit(1)
+		}
+		serverOpts = append(serverOpts, server.WithGrpcOption(grpc.Creds(creds)))
+
+		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
+		if err != nil {
+			log.Error("error loading x509 cert key pair", "error", err)
+			os.Exit(1)
+		}
+		gatewayOpts = append(gatewayOpts,
+			server.WithGrpcDialOption(
+				grpc.WithTransportCredentials(creds),
+			),
+			server.WithTLSConfig(&tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}),
+		)
+	}
 
 	// Setup signal handlers
 	exit := make(chan os.Signal, 1)
@@ -171,55 +208,39 @@ func main() {
 	defer db.Close()
 
 	// Setup services
-	eventService := event.NewService(repository.NewEventBadgerRepository(db))
-	nodeService := node.NewService(repository.NewNodeBadgerRepository(db), eventService)
+	eventService := event.NewService(repository.NewEventBadgerRepository(db), event.WithLogger(log))
+	nodeService := node.NewService(repository.NewNodeBadgerRepository(db), eventService, node.WithLogger(log))
 	containerService := container.NewService(repository.NewContainerBadgerRepository(db), eventService, container.WithLogger(log))
 
 	// Setup server
-	lis, err := net.Listen("tcp", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
-	if err != nil {
-		log.Error("error setting up server listener", "error", err.Error())
-		os.Exit(1)
-	}
-	srvAddr := net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
-	s := server.New(srvAddr)
+	s := server.New(serverOpts...)
 
 	err = s.RegisterService(eventService, nodeService, containerService)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)
 	}
-	go func() {
-		log.Info("server listening", "host", tcptlsHost, "port", tcptlsPort)
-		if err := s.Serve(lis); err != nil {
-			log.Error("error serving server", "error", err)
-			os.Exit(1)
-		}
-	}()
+	go serveServer(s)
 
 	// Setup gateway
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	gw, err := server.NewGateway(ctx, fmt.Sprintf("dns:///%s", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))), server.DefaultMux)
+
+	gw, err := server.NewGateway(
+		ctx,
+		serverAddr,
+		server.DefaultMux,
+		gatewayOpts...,
+	)
 	if err != nil {
 		log.Error("error setting up gateway", "error", err)
 		os.Exit(1)
 	}
-	glis, err := net.Listen("tcp", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
-	if err != nil {
-		log.Error("error setting up listener for gateway", "error", err)
-		os.Exit(1)
-	}
-	go func() {
-		log.Info("gateway listening", "host", tlsHost, "port", tlsPort)
-		if err := gw.Serve(glis); err != nil {
-			log.Error("error serving gateway", "error", err)
-			os.Exit(1)
-		}
-	}()
 
-	// Wait for exit signal
+	go serveGateway(gw)
+
+	// Wait for exit signal, begin shutdown process after this point
 	<-exit
 
 	// Shut down gateway
@@ -238,4 +259,51 @@ func main() {
 	s.Shutdown()
 	log.Info("shutting down server")
 	close(exit)
+}
+
+func serveGateway(gw *server.Gateway) error {
+	if tlsCertificate != "" && tlsCertificateKey != "" {
+		addr := fmt.Sprintf("%s", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Error("error creating gateway listener", "error", err)
+		}
+		log.Info("gateway listening securely", "address", addr)
+		if err := gw.ServeTLS(l, tlsCertificate, tlsCertificateKey); err != nil {
+			log.Error("error serving gateway", "error", err)
+			os.Exit(1)
+		}
+		return nil
+	}
+
+	addr := fmt.Sprintf("%s", net.JoinHostPort(host, strconv.Itoa(port)))
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Error("error creating gateway listener", "error", err)
+	}
+	log.Info("gateway listening", "address", addr)
+	if err := gw.Serve(l); err != nil {
+		log.Error("error serving gateway", "error", err)
+		os.Exit(1)
+	}
+	return nil
+}
+
+func serveServer(s *server.Server) error {
+	addr := net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort))
+	if tlsCertificate != "" && tlsCertificateKey != "" {
+		addr = net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
+	}
+
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Error("error setting up server listener", "error", err.Error())
+		os.Exit(1)
+	}
+	log.Info("server listening", "address", addr)
+	if err := s.Serve(l); err != nil {
+		log.Error("error serving server", "error", err)
+		os.Exit(1)
+	}
+	return nil
 }

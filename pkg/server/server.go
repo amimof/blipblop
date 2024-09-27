@@ -19,8 +19,8 @@ func init() {
 type Server struct {
 	grpcOpts   []grpc.ServerOption
 	grpcServer *grpc.Server
-	addr       *string
-	logger     logger.Logger
+	// addr       *string
+	logger logger.Logger
 }
 
 type NewServerOption func(*Server)
@@ -37,7 +37,7 @@ func WithGrpcOption(opts ...grpc.ServerOption) NewServerOption {
 	}
 }
 
-func New(addr string, opts ...NewServerOption) *Server {
+func New(opts ...NewServerOption) *Server {
 	grpcOpts := []grpc.ServerOption{
 		grpc.KeepaliveParams(keepalive.ServerParameters{}),
 	}
@@ -45,8 +45,8 @@ func New(addr string, opts ...NewServerOption) *Server {
 	// Setup server
 	server := &Server{
 		grpcOpts: grpcOpts,
-		addr:     &addr,
-		logger:   logger.ConsoleLogger{},
+		// addr:     &addr,
+		logger: logger.ConsoleLogger{},
 	}
 
 	// Apply options
@@ -63,9 +63,9 @@ func (s *Server) Serve(lis net.Listener) error {
 	return s.grpcServer.Serve(lis)
 }
 
-func (s *Server) Addr() string {
-	return *s.addr
-}
+// func (s *Server) Addr() string {
+// 	return *s.addr
+// }
 
 func (s *Server) Shutdown() {
 	s.grpcServer.GracefulStop()

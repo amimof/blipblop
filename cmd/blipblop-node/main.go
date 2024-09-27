@@ -2,21 +2,27 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/networking"
-	"github.com/amimof/blipblop/pkg/runtime"
+	rt "github.com/amimof/blipblop/pkg/runtime"
 
 	//"github.com/amimof/blipblop/pkg/server"
+
 	"github.com/containerd/containerd"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -120,18 +126,42 @@ func main() {
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// Read CA certificte
+	caCert, err := os.ReadFile(tlsCACertificate)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
+		return
+	}
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(caCert) {
+		fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
+	}
+
 	// Setup a clientset for this node
-	cs, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	serverAddr := fmt.Sprintf("%s:%d", tlsHost, tlsPort)
+	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(&tls.Config{RootCAs: certPool}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	defer cs.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Join node
-	err = cs.NodeV1().Join(ctx, nodev1.NewNodeFromEnv(nodeName))
+	nodeName, err := os.Hostname()
+	if err != nil {
+		log.Error("error getting hostname from env", "error", err)
+		return
+	}
+
+	n, err := newNodeFromEnv()
+	if err != nil {
+		log.Error("error creating a node from environment", "error", err)
+		return
+	}
+
+	err = cs.NodeV1().Join(ctx, n)
 	if err != nil {
 		log.Error("error joining node to server", "error", err)
 		return
@@ -153,7 +183,7 @@ func main() {
 	}
 
 	// Setup and run controllers
-	runtime := runtime.NewContainerdRuntimeClient(cclient, cni)
+	runtime := rt.NewContainerdRuntimeClient(cclient, cni)
 	exit := make(chan os.Signal, 1)
 	stopCh := make(chan struct{})
 
@@ -209,4 +239,46 @@ func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, e
 		time.Sleep(backoff)
 
 	}
+}
+
+// NewNodeFromEnv creates a new node from the current environment with the name s
+func newNodeFromEnv() (*nodes.Node, error) {
+	arch := runtime.GOARCH
+	oper := runtime.GOOS
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+	n := &nodes.Node{
+		Meta: &types.Meta{
+			Name: hostname,
+		},
+		Status: &nodes.Status{
+			Ips:      getIpAddressesAsString(),
+			Hostname: hostname,
+			Arch:     arch,
+			Os:       oper,
+			Ready:    false,
+		},
+	}
+	return n, err
+}
+
+func getIpAddressesAsString() []string {
+	var i []string
+	inters, err := net.Interfaces()
+	if err != nil {
+		return i
+	}
+	for _, inter := range inters {
+		addrs, err := inter.Addrs()
+		if err != nil {
+			return i
+		}
+		for _, addr := range addrs {
+			a := addr.String()
+			i = append(i, a)
+		}
+	}
+	return i
 }

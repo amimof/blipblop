@@ -39,7 +39,8 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		},
 		Run: func(_ *cobra.Command, args []string) {
 			cname := args[0]
-			ctx := context.Background()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			// Setup ports
 			var cports []*containers.PortMapping
@@ -55,7 +56,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			server := viper.GetString("server")
 
 			// Setup our client
-			c, err := client.New(server)
+			c, err := client.New(ctx, server)
 			if err != nil {
 				logrus.Fatal(err)
 			}

@@ -27,6 +27,8 @@ var (
 	v string
 	// Server
 	s string
+	// Insecure
+	i bool
 )
 
 func SetVersionInfo(version, commit, date, branch, goversion string) {
@@ -50,6 +52,13 @@ func NewDefaultCommand() *cobra.Command {
 		"s",
 		"https://localhost:5700",
 		"Address of the API Server",
+	)
+	rootCmd.PersistentFlags().BoolVarP(
+		&i,
+		"insecure",
+		"i",
+		false,
+		"Skip TLS certificate verification",
 	)
 	rootCmd.PersistentFlags().StringVarP(
 		&v,

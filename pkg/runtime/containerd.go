@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"syscall"
 	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/containerd/containerd"
@@ -27,7 +27,16 @@ const labelPrefix = "blipblop.io/"
 type ContainerdRuntime struct {
 	client *containerd.Client
 	cni    gocni.CNI
+	logger logger.Logger
 	// eh     *handler.ContainerdEventHandler
+}
+
+type NewContainerdRuntimeOption func(c *ContainerdRuntime)
+
+func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
+	return func(c *ContainerdRuntime) {
+		c.logger = l
+	}
 }
 
 func buildMounts(m []*containers.Mount) []specs.Mount {
@@ -215,7 +224,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 
 	select {
 	case status := <-wait:
-		log.Printf("Task %s exited with status %d", task.ID(), status.ExitCode())
+		c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
 		_, err = task.Delete(ctx)
 		if err != nil {
 			return err
@@ -271,23 +280,23 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 
 	// Testing
 	go func() {
-		log.Printf("waiting for task to exit %s", task.ID())
-		exitChan, err := task.Wait(ctx)
+		st, err := task.Wait(ctx)
 		if err != nil {
-			log.Printf("error waiting for task: %v", err)
+			c.logger.Error("error waiting for task", "container", ctr.GetMeta().GetName(), "error", err)
+			return
 		}
-		status := <-exitChan
+		status := <-st
 		defer func() {
-			log.Printf("task exited with status %d: %v", status.ExitCode(), status.Error())
+			c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
 			_, err = task.Delete(ctx)
 			if err != nil {
-				log.Printf("error deleting task: %v", err)
+				c.logger.Error("error deleting task", "task", task.ID(), "container", ctr.GetMeta().GetName(), "error", err)
 			}
 
-			log.Printf("tearing down network for task %s", task.ID())
+			c.logger.Info("tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid())
 			err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 			if err != nil {
-				log.Printf("error tearing down network: %v", err)
+				c.logger.Error("error tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid(), "error", err)
 			}
 		}()
 	}()
@@ -300,5 +309,5 @@ func (c *ContainerdRuntime) IsServing(ctx context.Context) (bool, error) {
 }
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI) *ContainerdRuntime {
-	return &ContainerdRuntime{client, cni}
+	return &ContainerdRuntime{client: client, cni: cni}
 }

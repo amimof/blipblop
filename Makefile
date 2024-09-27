@@ -44,7 +44,7 @@ run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 
 .PHONY: run-node
 run-node: ; $(info $(M) running node) @ ## Run a node on localhost
-	$Q $(GO) run cmd/blipblop-node/main.go --node-name devnode 
+	$Q $(GO) run cmd/blipblop-node/main.go --node-name devnode --tls-ca ./certs/ca.pem
 
 # Build
 

@@ -95,7 +95,7 @@ func handleEventEvent(funcs *ContainerEventHandlerFuncs, ev *events.Event, l log
 	case events.EventType_ContainerKill:
 		funcs.OnContainerKill(ev)
 	default:
-		l.Warn("Container handler not implemented for event", "type", t.String())
+		l.Debug("ontainer handler not implemented for event", "type", t.String())
 	}
 }
 
