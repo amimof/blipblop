@@ -39,12 +39,10 @@ var (
 	// GOVERSION used to compile. Is set when project is built and should never be set manually
 	GOVERSION string
 
-	nodeName string
-
 	insecureSkipVerify bool
 
-	tlsHost           string
-	tlsPort           int
+	host              string
+	port              int
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
@@ -58,15 +56,14 @@ var (
 )
 
 func init() {
-	pflag.StringVar(&nodeName, "node-name", "", "a name that uniquely identifies this node in the cluster")
-	pflag.StringVar(&tlsHost, "tls-host", "localhost", "The host address on which to listen for the --tls-port port")
+	pflag.StringVar(&host, "host", "localhost", "The host address to connect to, defaults to localhost")
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
-	pflag.IntVar(&tlsPort, "tls-port", 5700, "the port to listen on for secure connections, defaults to 8443")
+	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
 }
@@ -112,12 +109,6 @@ func main() {
 		return
 	}
 
-	// node-name is required
-	if nodeName == "" {
-		fmt.Fprintln(os.Stderr, "node name is required")
-		return
-	}
-
 	// Setup logging
 	lvl, err := parseSlogLevel(logLevel)
 	if err != nil {
@@ -126,23 +117,37 @@ func main() {
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
+	// Setup TLS for the client
+	var opts []client.NewClientOption
+	if tlsCACertificate != "" {
+		caCert, err := os.ReadFile(tlsCACertificate)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
+			return
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(caCert) {
+			fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
+		}
+		opts = append(opts, client.WithTLSConfig(&tls.Config{RootCAs: certPool}))
+	}
+
+	// Setup mTLS
+	if tlsCertificate != "" && tlsCertificateKey != "" {
+		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
+		if err != nil {
+			log.Error("error loading x509 cert key pair", "error", err)
+			os.Exit(1)
+		}
+		opts = append(opts, client.WithTLSConfig(&tls.Config{Certificates: []tls.Certificate{cert}}))
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	// Read CA certificte
-	caCert, err := os.ReadFile(tlsCACertificate)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
-		return
-	}
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(caCert) {
-		fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
-	}
-
 	// Setup a clientset for this node
-	serverAddr := fmt.Sprintf("%s:%d", tlsHost, tlsPort)
-	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(&tls.Config{RootCAs: certPool}))
+	serverAddr := fmt.Sprintf("%s:%d", host, port)
+	cs, err := client.New(ctx, serverAddr, opts...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
