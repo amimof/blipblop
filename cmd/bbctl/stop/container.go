@@ -2,7 +2,6 @@ package stop
 
 import (
 	"context"
-	"log"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -11,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdStopContainer() *cobra.Command {
+func NewCmdStopContainer(c *client.ClientSet) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Stop a container",
@@ -24,38 +23,35 @@ func NewCmdStopContainer() *cobra.Command {
 			}
 			return nil
 		},
-		Run: func(_ *cobra.Command, args []string) {
-			server := viper.GetString("server")
-
+		Run: func(cmd *cobra.Command, args []string) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Setup our client
-			c, err := client.New(ctx, server)
+			// Setup client
+			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
 			if err != nil {
-				logrus.Fatal(err)
+				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
 
 			cname := args[0]
 			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
 
-			log.Printf("requested to stop container %s", ctr.GetMeta().GetName())
+			logrus.Infof("requested to stop container %s", ctr.GetMeta().GetName())
 
 			_, err = c.ContainerV1().Kill(ctx, cname)
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
 
 			if viper.GetBool("wait") {
 				err = c.EventV1().Wait(events.EventType_ContainerKilled, cname)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
-				log.Printf("successfully stopped container %s", cname)
+				logrus.Infof("successfully stopped container %s", cname)
 			}
 		},
 	}

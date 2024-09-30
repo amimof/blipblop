@@ -2,16 +2,14 @@ package delete
 
 import (
 	"context"
-	"log"
 
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/sirupsen/logrus"
 )
 
-func NewCmdDeleteContainer() *cobra.Command {
+func NewCmdDeleteContainer(c *client.ClientSet) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Delete a container",
@@ -24,28 +22,26 @@ func NewCmdDeleteContainer() *cobra.Command {
 			}
 			return nil
 		},
-		Run: func(_ *cobra.Command, args []string) {
-			server := viper.GetString("server")
+		Run: func(cmd *cobra.Command, args []string) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Setup our client
-			c, err := client.New(ctx, server)
+			// Setup client
+			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
 			if err != nil {
-				logrus.Fatal(err)
+				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
 
 			cname := args[0]
 			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
 			err = c.ContainerV1().Delete(context.Background(), ctr.GetMeta().GetName())
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
-			log.Printf("request to delete container %s successful", ctr.GetMeta().GetName())
+			logrus.Infof("request to delete container %s successful", ctr.GetMeta().GetName())
 		},
 	}
 

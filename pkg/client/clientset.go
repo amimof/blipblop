@@ -3,17 +3,25 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	containerv1 "github.com/amimof/blipblop/pkg/client/container/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
+	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
+
+var DefaultTLSConfig = &tls.Config{
+	InsecureSkipVerify: false,
+}
 
 type ClientSet struct {
 	conn              *grpc.ClientConn
@@ -25,17 +33,54 @@ type ClientSet struct {
 	tlsConfig         *tls.Config
 }
 
-type NewClientOption func(c *ClientSet)
+type NewClientOption func(c *ClientSet) error
 
 func WithGrpcDialOption(opts ...grpc.DialOption) NewClientOption {
-	return func(c *ClientSet) {
+	return func(c *ClientSet) error {
 		c.grpcOpts = opts
+		return nil
 	}
 }
 
 func WithTLSConfig(t *tls.Config) NewClientOption {
-	return func(c *ClientSet) {
+	return func(c *ClientSet) error {
 		c.tlsConfig = t
+		return nil
+	}
+}
+
+func WithTLSConfigFromFlags(f *pflag.FlagSet) NewClientOption {
+	insecure, _ := f.GetBool("insecure")
+	tlsCertificate, _ := f.GetString("tls-certificate")
+	tlsCertificateKey, _ := f.GetString("tls-certificate-key")
+	tlsCaCertificate, _ := f.GetString("tls-ca-certificate")
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecure,
+	}
+	return func(c *ClientSet) error {
+		// Add CA cert to tls config
+		if tlsCaCertificate != "" {
+			caCert, err := os.ReadFile(tlsCaCertificate)
+			if err != nil {
+				return fmt.Errorf("error reading ca cert file: %v", err)
+			}
+			certPool := x509.NewCertPool()
+			if !certPool.AppendCertsFromPEM(caCert) {
+				return fmt.Errorf("error appending CA certitifacte to pool: %v", err)
+			}
+			tlsConfig.RootCAs = certPool
+		}
+
+		// Add certificate pair to tls config
+		if tlsCertificate != "" && tlsCertificateKey != "" {
+			cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
+			if err != nil {
+				return fmt.Errorf("error loading x509 cert key pair: %v", err)
+			}
+			tlsConfig.Certificates = []tls.Certificate{cert}
+		}
+		return nil
 	}
 }
 
@@ -98,7 +143,10 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 
 	// Allow passing in custom dial options
 	for _, opt := range opts {
-		opt(c)
+		err := opt(c)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// We always want TLS but TLSConfig might be changed by the user so that's why do this here

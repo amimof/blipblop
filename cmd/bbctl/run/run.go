@@ -2,8 +2,8 @@ package run
 
 import (
 	"context"
-	"log"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -12,7 +12,6 @@ import (
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/networking"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -22,7 +21,7 @@ var (
 	waitTimeoutSeconds uint64
 )
 
-func NewCmdRun() *cobra.Command {
+func NewCmdRun(c *client.ClientSet) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run a container",
@@ -37,10 +36,16 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			}
 			return nil
 		},
-		Run: func(_ *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, args []string) {
 			cname := args[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+
+			// Setup client
+			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			if err != nil {
+				logrus.Fatalf("error setting up client: %v", err)
+			}
 
 			// Setup ports
 			var cports []*containers.PortMapping
@@ -48,19 +53,10 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 
 				pm, err := networking.ParsePorts(p)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
 				cports = append(cports, &containers.PortMapping{HostPort: pm.Source, ContainerPort: pm.Destination})
 			}
-
-			server := viper.GetString("server")
-
-			// Setup our client
-			c, err := client.New(ctx, server)
-			if err != nil {
-				logrus.Fatal(err)
-			}
-			defer c.Close()
 
 			err = c.ContainerV1().Create(ctx, &containers.Container{
 				Meta: &types.Meta{
@@ -72,23 +68,23 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				},
 			})
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
 			_, err = c.ContainerV1().Start(ctx, cname)
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
 
-			log.Printf("requested to run container %s", cname)
+			logrus.Infof("requested to run container %s", cname)
 
 			if viper.GetBool("wait") {
 				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
 			}
 
-			log.Printf("successfully started container %s", cname)
+			logrus.Infof("successfully started container %s", cname)
 		},
 	}
 	runCmd.Flags().StringVarP(
@@ -120,7 +116,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"How long in seconds to wait for container to start before giving up",
 	)
 	if err := runCmd.MarkFlagRequired("image"); err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 	return runCmd
 }
