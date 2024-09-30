@@ -275,7 +275,7 @@ func serveGateway(gw *server.Gateway) {
 		}
 	}
 
-	addr := fmt.Sprintf("%s", net.JoinHostPort(host, strconv.Itoa(port)))
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Error("error creating gateway listener", "error", err)
