@@ -13,21 +13,30 @@ import (
 	"github.com/amimof/blipblop/cmd/bbctl/stop"
 )
 
-var rootCmd = &cobra.Command{
-	SilenceUsage:  true,
-	SilenceErrors: true,
-	Use:           "bbctl",
-	Short:         "Distributed containerd workloads",
-	Long: `bbctl is a command line tool for interacting with blipblop-server.
-`,
-}
-
 var (
+	rootCmd = &cobra.Command{
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Use:           "bbctl",
+		Short:         "Distributed containerd workloads",
+		Long:          `bbctl is a command line tool for interacting with blipblop-server.`,
+	}
+
 	// Verbosity
-	v string
+	verbosity string
 	// Server
-	s string
+	server string
+	// Insecure
+	insecure bool
+
+	tlsCACert  string
+	tlsCert    string
+	tlsCertKey string
 )
+
+func init() {
+	// Setup flags
+}
 
 func SetVersionInfo(version, commit, date, branch, goversion string) {
 	rootCmd.Version = fmt.Sprintf("Version:\t%s\nCommit:\t%v\nBuilt:\t%s\nBranch:\t%s\nGo Version:\t%s\n", version, commit, date, branch, goversion)
@@ -35,7 +44,7 @@ func SetVersionInfo(version, commit, date, branch, goversion string) {
 
 func NewDefaultCommand() *cobra.Command {
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		lvl, err := logrus.ParseLevel(v)
+		lvl, err := logrus.ParseLevel(verbosity)
 		if err != nil {
 			return err
 		}
@@ -44,19 +53,12 @@ func NewDefaultCommand() *cobra.Command {
 	}
 
 	// Setup flags
-	rootCmd.PersistentFlags().StringVarP(
-		&s,
-		"server",
-		"s",
-		"https://localhost:5700",
-		"Address of the API Server",
-	)
-	rootCmd.PersistentFlags().StringVarP(
-		&v,
-		"v",
-		"v",
-		"info",
-		"number for the log level verbosity (debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "localhost:5700", "Address of the API Server")
+	rootCmd.PersistentFlags().StringVarP(&tlsCACert, "tls-ca-certificate", "", "", "CA Certificate file path")
+	rootCmd.PersistentFlags().StringVarP(&tlsCert, "tls-certificate", "", "", "Certificate file path")
+	rootCmd.PersistentFlags().StringVarP(&tlsCertKey, "tls-certificate-key", "", "", "Certificate key file path")
+	rootCmd.PersistentFlags().BoolVarP(&insecure, "insecure", "i", false, "Skip TLS certificate verification")
+	rootCmd.PersistentFlags().StringVarP(&verbosity, "v", "v", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
 
 	// Setup sub-commands
 	rootCmd.AddCommand(run.NewCmdRun())

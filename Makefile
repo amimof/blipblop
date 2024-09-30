@@ -36,15 +36,14 @@ run: run-server run-node
 .PHONY: run-server
 run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 	$Q $(GO) run cmd/blipblop-server/main.go \
-		--tls-key ./certs/server-key.pem \
-		--tls-certificate ./certs/server.pem \
+		--tls-key ./certs/server.key \
+		--tls-certificate ./certs/server.crt \
 		--tls-host 0.0.0.0 \
-		--tcp-tls-host 0.0.0.0 \
-		--tls-port 8443
+		--tcp-tls-host 0.0.0.0
 
 .PHONY: run-node
 run-node: ; $(info $(M) running node) @ ## Run a node on localhost
-	$Q $(GO) run cmd/blipblop-node/main.go --node-name devnode 
+	$Q $(GO) run cmd/blipblop-node/main.go --tls-ca ./certs/ca.crt --port 5743
 
 # Build
 

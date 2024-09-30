@@ -2,39 +2,15 @@ package v1
 
 import (
 	"context"
-	"net"
-	"os"
-	"runtime"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 type ClientV1 struct {
-	name        string
 	nodeService nodes.NodeServiceClient
-}
-
-func getIpAddressesAsString() []string {
-	var i []string
-	inters, err := net.Interfaces()
-	if err != nil {
-		return i
-	}
-	for _, inter := range inters {
-		addrs, err := inter.Addrs()
-		if err != nil {
-			return i
-		}
-		for _, addr := range addrs {
-			a := addr.String()
-			i = append(i, a)
-		}
-	}
-	return i
 }
 
 func (c *ClientV1) NodeService() nodes.NodeServiceClient {
@@ -87,7 +63,7 @@ func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
 	if err != nil {
 		return err
 	}
-	c.name = node.GetMeta().GetName()
+	// c.name = node.GetMeta().GetName()
 	_, err = c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err
@@ -106,8 +82,9 @@ func (c *ClientV1) Forget(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *ClientV1) SetReady(ctx context.Context, ready bool) error {
+func (c *ClientV1) SetReady(ctx context.Context, nodeName string, ready bool) error {
 	n := &nodes.UpdateNodeRequest{
+		Id: nodeName,
 		Node: &nodes.Node{
 			Status: &nodes.Status{
 				Ready: ready,
@@ -133,24 +110,4 @@ func NewClientV1(conn *grpc.ClientConn) *ClientV1 {
 	return &ClientV1{
 		nodeService: nodes.NewNodeServiceClient(conn),
 	}
-}
-
-// NewNodeFromEnv creates a new node from the current environment with the name s
-func NewNodeFromEnv(s string) *nodes.Node {
-	arch := runtime.GOARCH
-	oper := runtime.GOOS
-	hostname, _ := os.Hostname()
-	n := &nodes.Node{
-		Meta: &types.Meta{
-			Name: s,
-		},
-		Status: &nodes.Status{
-			Ips:      getIpAddressesAsString(),
-			Hostname: hostname,
-			Arch:     arch,
-			Os:       oper,
-			Ready:    false,
-		},
-	}
-	return n
 }

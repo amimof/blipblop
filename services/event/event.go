@@ -3,7 +3,6 @@ package event
 import (
 	"context"
 	"errors"
-	"log"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
@@ -48,24 +47,24 @@ func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (
 	return n.local.List(ctx, req)
 }
 
-func (n *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
+func (s *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
 	eventChan := make(chan *events.Event)
-	if _, ok := n.channel[req.ClientId]; ok {
+	if _, ok := s.channel[req.ClientId]; ok {
 		return ErrClientExists
 	}
-	n.channel[req.ClientId] = append(n.channel[req.ClientId], eventChan)
-	log.Printf("Client %s joined", req.ClientId)
+	s.channel[req.ClientId] = append(s.channel[req.ClientId], eventChan)
+	s.logger.Info("client joined", "id", req.ClientId)
 	for {
 		select {
 		case <-stream.Context().Done():
-			log.Printf("Client %s left", req.ClientId)
-			delete(n.channel, req.ClientId)
+			s.logger.Info("client left", "id", req.ClientId)
+			delete(s.channel, req.ClientId)
 			return nil
 		case n := <-eventChan:
-			log.Printf("Got event %s (%s) from client %s", n.Type, n.GetMeta().GetName(), req.ClientId)
+			s.logger.Debug("got event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
 			err := stream.Send(n)
 			if err != nil {
-				log.Printf("Unable to emit event to clients: %s", err.Error())
+				s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
 			}
 		}
 	}

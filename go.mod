@@ -1,6 +1,6 @@
 module github.com/amimof/blipblop
 
-go 1.19
+go 1.21
 
 require (
 	github.com/containerd/go-cni v1.1.4

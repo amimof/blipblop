@@ -4,6 +4,8 @@
 
 Distributed `containerd` workloads - an alternative to modern full-featured container orchestrators.
 
+**Work in progress** _blipblop is still under active development and most features are still in an idéa phase. Please check in from time to time to follow the progress_ 🧡
+
 ## What is it?
 
 Code name `blipblop` is a very simple container distribution plattform that allows you to run containerized workload on arbitrary Linux hosts. The architecture is very simple by design and contains only two components. Nodes, which are run on the Linux hosts that run the containers. And the server that clients, including the Nodes interact with.
@@ -30,16 +32,15 @@ blipblop-server \
     --tls-key ./certs/server-key.pem \
     --tls-certificate ./certs/server.pem \
     --tls-host 0.0.0.0 \
-    --tcp-tls-host 0.0.0.0 \
-    --tls-port 8443
+    --tcp-tls-host 0.0.0.0
 ```
 
 Run any number of node instances
 
 ```
 blipblop-node \
-    --node-name node-01 \
-    --tls-host server-hostname.foo.com
+    --tls-ca ./certs/ca.crt \
+    --port 5743
 ```
 
 Use `bbctl` to interact with the cluster

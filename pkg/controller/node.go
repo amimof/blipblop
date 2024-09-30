@@ -86,7 +86,7 @@ func (c *NodeController) handleEvent(ev *events.Event) {
 	case events.EventType_NodeDelete:
 		c.handlers.OnNodeDelete(ev)
 	default:
-		c.logger.Warn("Node handler not implemented for event", "type", t.String())
+		c.logger.Debug("node handler not implemented for event", "type", t.String())
 	}
 }
 

@@ -2,7 +2,6 @@ package start
 
 import (
 	"context"
-	"log"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -24,36 +23,38 @@ func NewCmdStartContainer() *cobra.Command {
 			}
 			return nil
 		},
-		Run: func(_ *cobra.Command, args []string) {
-			server := viper.GetString("server")
-			ctx := context.Background()
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-			// Setup our client
-			c, err := client.New(server)
+			// Setup client
+			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
 			if err != nil {
-				logrus.Fatal(err)
+				logrus.Fatalf("error setting up client: %v", err)
 			}
 			defer c.Close()
 
 			cname := args[0]
 			ctr, err := c.ContainerV1().Get(ctx, cname)
 			if err != nil {
-				log.Fatal(err)
+				logrus.Fatal(err)
 			}
 
-			log.Printf("requested to start container %s", ctr.GetMeta().GetName())
+			logrus.Infof("requested to start container %s", ctr.GetMeta().GetName())
 
-			_, err = c.ContainerV1().Start(context.Background(), ctr.GetMeta().GetName())
-			if err != nil {
-				log.Fatal(err)
-			}
+			go func() {
+				_, err = c.ContainerV1().Start(context.Background(), ctr.GetMeta().GetName())
+				if err != nil {
+					logrus.Fatal(err)
+				}
+			}()
 
 			if viper.GetBool("wait") {
 				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
-				log.Printf("successfully started container %s", cname)
+				logrus.Infof("successfully started container %s", cname)
 			}
 		},
 	}

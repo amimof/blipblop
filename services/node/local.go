@@ -23,7 +23,7 @@ type local struct {
 var _ nodes.NodeServiceClient = &local{}
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
-	node, err := l.Repo().Get(ctx, req.GetId())
+	node, err := l.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
-	existing, err := l.Repo().Get(ctx, req.GetId())
+	existing, err := l.Repo().Get(ctx, updateNode.GetMeta().GetName())
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +122,9 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 }
 
 func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
+	if req.GetNode().GetMeta().GetName() == "" {
+		return nil, fmt.Errorf("node name cannot be empty")
+	}
 	if node, _ := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetMeta().GetName()}); node.GetNode() != nil {
 		return &nodes.JoinResponse{
 			Id: req.GetNode().GetMeta().GetName(),

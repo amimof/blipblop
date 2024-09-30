@@ -2,21 +2,27 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/networking"
-	"github.com/amimof/blipblop/pkg/runtime"
+	rt "github.com/amimof/blipblop/pkg/runtime"
 
 	//"github.com/amimof/blipblop/pkg/server"
+
 	"github.com/containerd/containerd"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -33,12 +39,10 @@ var (
 	// GOVERSION used to compile. Is set when project is built and should never be set manually
 	GOVERSION string
 
-	nodeName string
-
 	insecureSkipVerify bool
 
-	tlsHost           string
-	tlsPort           int
+	host              string
+	port              int
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
@@ -52,15 +56,14 @@ var (
 )
 
 func init() {
-	pflag.StringVar(&nodeName, "node-name", "", "a name that uniquely identifies this node in the cluster")
-	pflag.StringVar(&tlsHost, "tls-host", "localhost", "The host address on which to listen for the --tls-port port")
+	pflag.StringVar(&host, "host", "localhost", "The host address to connect to, defaults to localhost")
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
-	pflag.IntVar(&tlsPort, "tls-port", 5700, "the port to listen on for secure connections, defaults to 8443")
+	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
 }
@@ -106,12 +109,6 @@ func main() {
 		return
 	}
 
-	// node-name is required
-	if nodeName == "" {
-		fmt.Fprintln(os.Stderr, "node name is required")
-		return
-	}
-
 	// Setup logging
 	lvl, err := parseSlogLevel(logLevel)
 	if err != nil {
@@ -120,18 +117,56 @@ func main() {
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
+	// Setup TLS for the client
+	tlsConfig := &tls.Config{InsecureSkipVerify: insecureSkipVerify}
+	if tlsCACertificate != "" {
+		caCert, err := os.ReadFile(tlsCACertificate)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
+			return
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(caCert) {
+			fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
+		}
+		tlsConfig.RootCAs = certPool
+	}
+
+	// Setup mTLS
+	if tlsCertificate != "" && tlsCertificateKey != "" {
+		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
+		if err != nil {
+			log.Error("error loading x509 cert key pair", "error", err)
+			os.Exit(1)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Setup a clientset for this node
-	cs, err := client.New(fmt.Sprintf("%s:%d", tlsHost, tlsPort))
+	serverAddr := fmt.Sprintf("%s:%d", host, port)
+	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(tlsConfig))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	defer cs.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Join node
-	err = cs.NodeV1().Join(ctx, nodev1.NewNodeFromEnv(nodeName))
+	nodeName, err := os.Hostname()
+	if err != nil {
+		log.Error("error getting hostname from env", "error", err)
+		return
+	}
+
+	n, err := newNodeFromEnv()
+	if err != nil {
+		log.Error("error creating a node from environment", "error", err)
+		return
+	}
+
+	err = cs.NodeV1().Join(ctx, n)
 	if err != nil {
 		log.Error("error joining node to server", "error", err)
 		return
@@ -153,7 +188,7 @@ func main() {
 	}
 
 	// Setup and run controllers
-	runtime := runtime.NewContainerdRuntimeClient(cclient, cni)
+	runtime := rt.NewContainerdRuntimeClient(cclient, cni, rt.WithLogger(log))
 	exit := make(chan os.Signal, 1)
 	stopCh := make(chan struct{})
 
@@ -209,4 +244,46 @@ func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, e
 		time.Sleep(backoff)
 
 	}
+}
+
+// NewNodeFromEnv creates a new node from the current environment with the name s
+func newNodeFromEnv() (*nodes.Node, error) {
+	arch := runtime.GOARCH
+	oper := runtime.GOOS
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+	n := &nodes.Node{
+		Meta: &types.Meta{
+			Name: hostname,
+		},
+		Status: &nodes.Status{
+			Ips:      getIpAddressesAsString(),
+			Hostname: hostname,
+			Arch:     arch,
+			Os:       oper,
+			Ready:    false,
+		},
+	}
+	return n, err
+}
+
+func getIpAddressesAsString() []string {
+	var i []string
+	inters, err := net.Interfaces()
+	if err != nil {
+		return i
+	}
+	for _, inter := range inters {
+		addrs, err := inter.Addrs()
+		if err != nil {
+			return i
+		}
+		for _, addr := range addrs {
+			a := addr.String()
+			i = append(i, a)
+		}
+	}
+	return i
 }

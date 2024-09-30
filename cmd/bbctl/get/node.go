@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -29,19 +28,19 @@ func NewCmdGetNode() *cobra.Command {
 			}
 			return nil
 		},
-		Run: func(_ *cobra.Command, args []string) {
-			server := viper.GetString("server")
-			ctx := context.Background()
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Setup client
+			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			if err != nil {
+				logrus.Fatalf("error setting up client: %v", err)
+			}
+			defer c.Close()
 
 			// Setup writer
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
-
-			// Setup our client
-			c, err := client.New(server)
-			if err != nil {
-				logrus.Fatal(err)
-			}
-			defer c.Close()
 
 			if len(args) == 1 {
 				var b bytes.Buffer
@@ -50,17 +49,17 @@ func NewCmdGetNode() *cobra.Command {
 				cname := args[0]
 				node, err := c.NodeV1().Get(context.Background(), cname)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
 				err = enc.Encode(&node)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
 				fmt.Printf("%s\n", b.String())
 			} else {
 				nodes, err := c.NodeV1().List(ctx)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
 				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "AGE")
 				for _, n := range nodes {
