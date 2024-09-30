@@ -169,9 +169,9 @@ func main() {
 	// Setup TLS configuration based on flags
 	var serverOpts []server.NewServerOption
 	var gatewayOpts []server.NewGatewayOption
-	serverAddr := fmt.Sprintf("%s", net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort)))
+	serverAddr := net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort))
 	if tlsCertificate != "" && tlsCertificateKey != "" {
-		serverAddr = fmt.Sprintf("%s", net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort)))
+		serverAddr = net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
 
 		creds, err := credentials.NewServerTLSFromFile(tlsCertificate, tlsCertificateKey)
 		if err != nil {
@@ -261,9 +261,9 @@ func main() {
 	close(exit)
 }
 
-func serveGateway(gw *server.Gateway) error {
+func serveGateway(gw *server.Gateway) {
 	if tlsCertificate != "" && tlsCertificateKey != "" {
-		addr := fmt.Sprintf("%s", net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort)))
+		addr := net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort))
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			log.Error("error creating gateway listener", "error", err)
@@ -273,7 +273,6 @@ func serveGateway(gw *server.Gateway) error {
 			log.Error("error serving gateway", "error", err)
 			os.Exit(1)
 		}
-		return nil
 	}
 
 	addr := fmt.Sprintf("%s", net.JoinHostPort(host, strconv.Itoa(port)))
@@ -286,10 +285,9 @@ func serveGateway(gw *server.Gateway) error {
 		log.Error("error serving gateway", "error", err)
 		os.Exit(1)
 	}
-	return nil
 }
 
-func serveServer(s *server.Server) error {
+func serveServer(s *server.Server) {
 	addr := net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort))
 	if tlsCertificate != "" && tlsCertificateKey != "" {
 		addr = net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
@@ -305,5 +303,4 @@ func serveServer(s *server.Server) error {
 		log.Error("error serving server", "error", err)
 		os.Exit(1)
 	}
-	return nil
 }
