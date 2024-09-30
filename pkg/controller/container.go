@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -131,28 +130,27 @@ func (c *ContainerController) onContainerCreate(obj *events.Event) {
 		c.handleError(cont.GetMeta().GetName(), events.EventType_ContainerCreate, fmt.Sprintf("error creating container %s: %s", cont.GetMeta().GetName(), err))
 		return
 	}
-	log.Printf("successfully created container: %s", cont.GetMeta().GetName())
+	c.logger.Info("successfully created container", "container", cont.GetMeta().GetName())
 }
 
 func (c *ContainerController) onContainerDelete(obj *events.Event) {
 	ctx := context.Background()
 	err := c.runtime.Delete(ctx, obj.GetObjectId())
 	if err != nil {
-		log.Printf("error deleting container %s from runtime: %s", obj.GetObjectId(), err)
+		c.logger.Error("error deleting container from runtime", "container", obj.GetObjectId(), "error", err)
 		return
 	}
-	log.Printf("successfully deleted container %s", obj.GetObjectId())
+	c.logger.Info("successfully deleted container", "container", obj.GetObjectId())
 }
 
 func (c *ContainerController) onContainerStart(obj *events.Event) {
 	ctx := context.Background()
 	ctr, err := c.clientset.ContainerV1().Get(ctx, obj.GetObjectId())
 	if err != nil {
-		log.Printf("error getting container %s", err)
+		c.logger.Error("error getting container", "objectId", obj.GetObjectId(), "error", err)
 	}
 	err = c.runtime.Start(ctx, ctr)
 	if err != nil {
-		log.Printf("Couldnt start container %v", err)
 		c.handleError(ctr.GetMeta().GetName(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetMeta().GetName(), err))
 		return
 	}
@@ -169,7 +167,7 @@ func (c *ContainerController) onContainerStop(obj *events.Event) {
 	ctx := context.Background()
 	ctr, err := c.clientset.ContainerV1().Get(ctx, obj.GetObjectId())
 	if err != nil {
-		log.Printf("error getting container %s", err)
+		c.logger.Error("error getting container", "objectId", obj.GetObjectId(), "error", err)
 	}
 	err = c.runtime.Kill(ctx, ctr)
 	if err != nil {

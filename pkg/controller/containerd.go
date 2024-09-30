@@ -4,7 +4,6 @@ import (
 	//"os"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -368,7 +367,6 @@ func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 }
 
 func (c *ContainerdController) setContainerState(id string) error {
-	log.Printf("setting state for %s", id)
 	ns := "blipblop"
 	ctx := context.Background()
 	ctx = namespaces.WithNamespace(ctx, ns)
