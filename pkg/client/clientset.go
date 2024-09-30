@@ -80,6 +80,8 @@ func WithTLSConfigFromFlags(f *pflag.FlagSet) NewClientOption {
 			}
 			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
+
+		c.tlsConfig = tlsConfig
 		return nil
 	}
 }

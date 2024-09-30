@@ -37,6 +37,7 @@ func NewCmdGetContainer() *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
+			defer c.Close()
 
 			// Setup writer
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)

@@ -21,7 +21,7 @@ var (
 	waitTimeoutSeconds uint64
 )
 
-func NewCmdRun(c *client.ClientSet) *cobra.Command {
+func NewCmdRun() *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run a container",
@@ -46,6 +46,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
+			defer c.Close()
 
 			// Setup ports
 			var cports []*containers.PortMapping
@@ -90,7 +91,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 	runCmd.Flags().StringVarP(
 		&image,
 		"image",
-		"i",
+		"I",
 		"",
 		"Container image to run, must include the registry host",
 	)

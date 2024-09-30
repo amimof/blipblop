@@ -15,6 +15,7 @@ import (
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
@@ -199,6 +200,10 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 		return err
 	}
 	task, err := container.Task(ctx, nil)
+	if errdefs.IsNotFound(err) {
+		c.logger.Debug("skip kill, no task found for container", "container", container.ID())
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -212,9 +217,12 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 		return err
 	}
 
-	err = task.Kill(ctx, syscall.SIGINT)
-	if err != nil {
-		return err
+	if err = task.Kill(ctx, syscall.SIGINT); err != nil {
+		if !errdefs.IsNotFound(err) {
+			return fmt.Errorf("failed to send SIGINT: %w", err)
+		}
+		c.logger.Debug("skip kill, task already stopped", "container", container.ID(), "task", task.ID())
+		return nil
 	}
 
 	wait, err := task.Wait(ctx)
@@ -224,11 +232,8 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 
 	select {
 	case status := <-wait:
-		c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
-		_, err = task.Delete(ctx)
-		if err != nil {
-			return err
-		}
+		c.logger.Info("task exited with status", "taskId", task.ID(), "exitCode", status.ExitCode())
+		_, _ = task.Delete(ctx)
 		return nil
 	case <-time.After(time.Second * 60):
 		return errors.New("timeout waiting for task to exit gracefully")
@@ -243,6 +248,10 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	}
 
 	task, err := container.NewTask(ctx, cio.NewCreator())
+	if errdefs.IsAlreadyExists(err) {
+		c.logger.Debug("skip creation, task already exists for container", "container", container.ID())
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -288,10 +297,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 		status := <-st
 		defer func() {
 			c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
-			_, err = task.Delete(ctx)
-			if err != nil {
-				c.logger.Error("error deleting task", "task", task.ID(), "container", ctr.GetMeta().GetName(), "error", err)
-			}
+			_, _ = task.Delete(ctx)
 
 			c.logger.Info("tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid())
 			err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
@@ -308,6 +314,12 @@ func (c *ContainerdRuntime) IsServing(ctx context.Context) (bool, error) {
 	return c.client.IsServing(ctx)
 }
 
-func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI) *ContainerdRuntime {
-	return &ContainerdRuntime{client: client, cni: cni}
+func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
+	runtime := &ContainerdRuntime{client: client, cni: cni}
+
+	for _, opt := range opts {
+		opt(runtime)
+	}
+
+	return runtime
 }

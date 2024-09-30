@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdDeleteContainer(c *client.ClientSet) *cobra.Command {
+func NewCmdDeleteContainer() *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Delete a container",
@@ -31,6 +31,7 @@ func NewCmdDeleteContainer(c *client.ClientSet) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
+			defer c.Close()
 
 			cname := args[0]
 			ctr, err := c.ContainerV1().Get(ctx, cname)

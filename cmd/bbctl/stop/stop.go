@@ -1,7 +1,6 @@
 package stop
 
 import (
-	"github.com/amimof/blipblop/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -10,7 +9,7 @@ var (
 	waitTimeoutSeconds uint64
 )
 
-func NewCmdStop(c *client.ClientSet) *cobra.Command {
+func NewCmdStop() *cobra.Command {
 	stopCmd := &cobra.Command{
 		Use:     "stop",
 		Short:   "Stop a resource",
@@ -34,7 +33,7 @@ func NewCmdStop(c *client.ClientSet) *cobra.Command {
 		"How long in seconds to wait for container to stop before giving up",
 	)
 
-	stopCmd.AddCommand(NewCmdStopContainer(c))
+	stopCmd.AddCommand(NewCmdStopContainer())
 
 	return stopCmd
 }

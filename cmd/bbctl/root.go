@@ -11,7 +11,6 @@ import (
 	"github.com/amimof/blipblop/cmd/bbctl/run"
 	"github.com/amimof/blipblop/cmd/bbctl/start"
 	"github.com/amimof/blipblop/cmd/bbctl/stop"
-	"github.com/amimof/blipblop/pkg/client"
 )
 
 var (
@@ -33,8 +32,6 @@ var (
 	tlsCACert  string
 	tlsCert    string
 	tlsCertKey string
-
-	clientSet *client.ClientSet
 )
 
 func init() {
@@ -56,7 +53,7 @@ func NewDefaultCommand() *cobra.Command {
 	}
 
 	// Setup flags
-	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "http://localhost:5700", "Address of the API Server")
+	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "localhost:5700", "Address of the API Server")
 	rootCmd.PersistentFlags().StringVarP(&tlsCACert, "tls-ca-certificate", "", "", "CA Certificate file path")
 	rootCmd.PersistentFlags().StringVarP(&tlsCert, "tls-certificate", "", "", "Certificate file path")
 	rootCmd.PersistentFlags().StringVarP(&tlsCertKey, "tls-certificate-key", "", "", "Certificate key file path")
@@ -64,12 +61,12 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "v", "v", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
 
 	// Setup sub-commands
-	rootCmd.AddCommand(run.NewCmdRun(clientSet))
-	rootCmd.AddCommand(delete.NewCmdDelete(clientSet))
+	rootCmd.AddCommand(run.NewCmdRun())
+	rootCmd.AddCommand(delete.NewCmdDelete())
 	rootCmd.AddCommand(get.NewCmdGet())
-	rootCmd.AddCommand(stop.NewCmdStop(clientSet))
-	rootCmd.AddCommand(run.NewCmdRun(clientSet))
-	rootCmd.AddCommand(start.NewCmdStart(clientSet))
+	rootCmd.AddCommand(stop.NewCmdStop())
+	rootCmd.AddCommand(run.NewCmdRun())
+	rootCmd.AddCommand(start.NewCmdStart())
 
 	return rootCmd
 }

@@ -52,7 +52,7 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 		for {
 			select {
 			case ev := <-evt:
-				c.logger.Info("received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
+				c.logger.Debug("received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
 				handleEventEvent(c.handlers, ev, c.logger)
 			case err := <-errChan:
 				c.logger.Error("recevied error on channel", "error", err)
@@ -99,6 +99,7 @@ func handleEventEvent(funcs *ContainerEventHandlerFuncs, ev *events.Event, l log
 	}
 }
 
+// TODO: Also print error to stderr
 func (c *ContainerController) handleError(id string, evtType events.EventType, msg string) {
 	ctx := context.Background()
 	err := c.clientset.ContainerV1().SetHealth(ctx, id, "unhealthy")
@@ -151,15 +152,16 @@ func (c *ContainerController) onContainerStart(obj *events.Event) {
 	}
 	err = c.runtime.Start(ctx, ctr)
 	if err != nil {
+		log.Printf("Couldnt start container %v", err)
 		c.handleError(ctr.GetMeta().GetName(), events.EventType_ContainerStart, fmt.Sprintf("error starting container %s: %s", ctr.GetMeta().GetName(), err))
 		return
 	}
 
 	// Emit event that the container has started
-	log.Printf("successfully started container %s", obj.GetObjectId())
+	c.logger.Info("successfully started container", "container", obj.GetObjectId())
 	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStarted)
 	if err != nil {
-		log.Printf("%v", err)
+		c.logger.Error("error emitting started event", "error", err)
 	}
 }
 
@@ -173,12 +175,13 @@ func (c *ContainerController) onContainerStop(obj *events.Event) {
 	if err != nil {
 		c.handleError(ctr.GetMeta().GetName(), events.EventType_ContainerKill, fmt.Sprintf("error stopping container %s: %s", ctr.GetMeta().GetName(), err))
 		return
+
 	}
 	// Emit event that the container has started
-	log.Printf("successfully killed container %s", obj.GetObjectId())
+	c.logger.Info("successfully killed container", "container", obj.GetObjectId())
 	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerKilled)
 	if err != nil {
-		log.Printf("error emitting killed event %v", err)
+		c.logger.Error("error emitting killed event", "error", err)
 	}
 }
 

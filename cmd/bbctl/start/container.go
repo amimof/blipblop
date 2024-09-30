@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdStartContainer(c *client.ClientSet) *cobra.Command {
+func NewCmdStartContainer() *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Start a container",
@@ -32,6 +32,7 @@ func NewCmdStartContainer(c *client.ClientSet) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
+			defer c.Close()
 
 			cname := args[0]
 			ctr, err := c.ContainerV1().Get(ctx, cname)
@@ -41,10 +42,12 @@ func NewCmdStartContainer(c *client.ClientSet) *cobra.Command {
 
 			logrus.Infof("requested to start container %s", ctr.GetMeta().GetName())
 
-			_, err = c.ContainerV1().Start(context.Background(), ctr.GetMeta().GetName())
-			if err != nil {
-				logrus.Fatal(err)
-			}
+			go func() {
+				_, err = c.ContainerV1().Start(context.Background(), ctr.GetMeta().GetName())
+				if err != nil {
+					logrus.Fatal(err)
+				}
+			}()
 
 			if viper.GetBool("wait") {
 				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)

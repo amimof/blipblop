@@ -118,7 +118,7 @@ func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
 	// Setup TLS for the client
-	var opts []client.NewClientOption
+	tlsConfig := &tls.Config{InsecureSkipVerify: insecureSkipVerify}
 	if tlsCACertificate != "" {
 		caCert, err := os.ReadFile(tlsCACertificate)
 		if err != nil {
@@ -129,7 +129,7 @@ func main() {
 		if !certPool.AppendCertsFromPEM(caCert) {
 			fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
 		}
-		opts = append(opts, client.WithTLSConfig(&tls.Config{RootCAs: certPool}))
+		tlsConfig.RootCAs = certPool
 	}
 
 	// Setup mTLS
@@ -139,15 +139,15 @@ func main() {
 			log.Error("error loading x509 cert key pair", "error", err)
 			os.Exit(1)
 		}
-		opts = append(opts, client.WithTLSConfig(&tls.Config{Certificates: []tls.Certificate{cert}}))
+		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	cs, err := client.New(ctx, serverAddr, opts...)
+	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(tlsConfig))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -188,7 +188,7 @@ func main() {
 	}
 
 	// Setup and run controllers
-	runtime := rt.NewContainerdRuntimeClient(cclient, cni)
+	runtime := rt.NewContainerdRuntimeClient(cclient, cni, rt.WithLogger(log))
 	exit := make(chan os.Signal, 1)
 	stopCh := make(chan struct{})
 

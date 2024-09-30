@@ -10,7 +10,6 @@ import (
 )
 
 type ClientV1 struct {
-	name        string
 	nodeService nodes.NodeServiceClient
 }
 
