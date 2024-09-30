@@ -32,16 +32,15 @@ blipblop-server \
     --tls-key ./certs/server-key.pem \
     --tls-certificate ./certs/server.pem \
     --tls-host 0.0.0.0 \
-    --tcp-tls-host 0.0.0.0 \
-    --tls-port 8443
+    --tcp-tls-host 0.0.0.0
 ```
 
 Run any number of node instances
 
 ```
 blipblop-node \
-    --node-name node-01 \
-    --tls-host server-hostname.foo.com
+    --tls-ca ./certs/ca.crt \
+    --port 5743
 ```
 
 Use `bbctl` to interact with the cluster
