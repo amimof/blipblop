@@ -5,12 +5,14 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/cmd/bbctl/delete"
 	"github.com/amimof/blipblop/cmd/bbctl/get"
 	"github.com/amimof/blipblop/cmd/bbctl/run"
 	"github.com/amimof/blipblop/cmd/bbctl/start"
 	"github.com/amimof/blipblop/cmd/bbctl/stop"
+	"github.com/amimof/blipblop/pkg/client"
 )
 
 var (
@@ -21,21 +23,33 @@ var (
 		Short:         "Distributed containerd workloads",
 		Long:          `bbctl is a command line tool for interacting with blipblop-server.`,
 	}
-
-	// Verbosity
-	verbosity string
-	// Server
-	server string
-	// Insecure
-	insecure bool
-
+	config     string
+	verbosity  string
+	server     string
+	insecure   bool
 	tlsCACert  string
 	tlsCert    string
 	tlsCertKey string
 )
 
 func init() {
-	// Setup flags
+	cobra.OnInitialize(initConfig)
+}
+
+func initConfig() {
+	if config != "" {
+		viper.SetConfigFile(config)
+		return
+	}
+
+	viper.SetConfigName("bbctl")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("/etc/blipblop")
+
+	if err := viper.ReadInConfig(); err != nil {
+		logrus.Fatalf("error reading config file %v", err)
+	}
 }
 
 func SetVersionInfo(version, commit, date, branch, goversion string) {
@@ -43,16 +57,25 @@ func SetVersionInfo(version, commit, date, branch, goversion string) {
 }
 
 func NewDefaultCommand() *cobra.Command {
+	var cfg client.Config
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		lvl, err := logrus.ParseLevel(verbosity)
 		if err != nil {
 			return err
 		}
 		logrus.SetLevel(lvl)
+		if err := viper.Unmarshal(&cfg); err != nil {
+			logrus.Fatalf("error decoding config into struct: %v", err)
+		}
+
+		if err := cfg.Validate(); err != nil {
+			logrus.Fatalf("Config validation failed %v:", err)
+		}
 		return nil
 	}
 
 	// Setup flags
+	rootCmd.PersistentFlags().StringVarP(&config, "config", "", "", "config file")
 	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "localhost:5700", "Address of the API Server")
 	rootCmd.PersistentFlags().StringVarP(&tlsCACert, "tls-ca-certificate", "", "", "CA Certificate file path")
 	rootCmd.PersistentFlags().StringVarP(&tlsCert, "tls-certificate", "", "", "Certificate file path")
@@ -61,12 +84,12 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "v", "v", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
 
 	// Setup sub-commands
-	rootCmd.AddCommand(run.NewCmdRun())
-	rootCmd.AddCommand(delete.NewCmdDelete())
-	rootCmd.AddCommand(get.NewCmdGet())
-	rootCmd.AddCommand(stop.NewCmdStop())
-	rootCmd.AddCommand(run.NewCmdRun())
-	rootCmd.AddCommand(start.NewCmdStart())
+	rootCmd.AddCommand(run.NewCmdRun(&cfg))
+	rootCmd.AddCommand(delete.NewCmdDelete(&cfg))
+	rootCmd.AddCommand(get.NewCmdGet(&cfg))
+	rootCmd.AddCommand(stop.NewCmdStop(&cfg))
+	rootCmd.AddCommand(run.NewCmdRun(&cfg))
+	rootCmd.AddCommand(start.NewCmdStart(&cfg))
 
 	return rootCmd
 }

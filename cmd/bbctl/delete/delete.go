@@ -1,10 +1,11 @@
 package delete
 
 import (
+	"github.com/amimof/blipblop/pkg/client"
 	"github.com/spf13/cobra"
 )
 
-func NewCmdDelete() *cobra.Command {
+func NewCmdDelete(cfg *client.Config) *cobra.Command {
 	deleteCmd := &cobra.Command{
 		Use:     "delete",
 		Short:   "Delete a resource",
@@ -13,8 +14,8 @@ func NewCmdDelete() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 	}
 
-	deleteCmd.AddCommand(NewCmdDeleteContainer())
-	deleteCmd.AddCommand(NewCmdDeleteNode())
+	deleteCmd.AddCommand(NewCmdDeleteContainer(cfg))
+	deleteCmd.AddCommand(NewCmdDeleteNode(cfg))
 
 	return deleteCmd
 }

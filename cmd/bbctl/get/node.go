@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func NewCmdGetNode() *cobra.Command {
+func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "node",
 		Short:   "Get a nodes",
@@ -33,7 +33,7 @@ func NewCmdGetNode() *cobra.Command {
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
@@ -63,7 +63,7 @@ func NewCmdGetNode() *cobra.Command {
 				}
 				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "AGE")
 				for _, n := range nodes {
-					fmt.Fprintf(wr, "%s\t%d\t%t\t%s\n", n.GetMeta().GetName(), n.GetMeta().GetRevision(), n.GetStatus().GetReady(), time.Since(n.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n", n.GetMeta().GetName(), n.GetMeta().GetRevision(), n.GetStatus().GetReadyStatus(), time.Since(n.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
 				}
 			}
 

@@ -113,9 +113,15 @@ func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) 
 		c.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", c.logger)
 		if err != nil {
 			c.logger.Error("error reconnection to stream", "error", err)
-			_ = c.clientset.NodeV1().SetReady(ctx, nodeName, false)
+			err = c.clientset.NodeV1().SetReady(ctx, nodeName, false)
+			if err != nil {
+				c.logger.Info("error setting node ready statys", "error", err)
+			}
 		}
-		_ = c.clientset.NodeV1().SetReady(ctx, nodeName, true)
+		err = c.clientset.NodeV1().SetReady(ctx, nodeName, true)
+		if err != nil {
+			c.logger.Info("error setting node ready statys", "error", err)
+		}
 	}
 }
 
@@ -275,15 +281,24 @@ func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 }
 
 func (c *ContainerdController) exitHandler(e *events.TaskExit) {
+	fmt.Println("exited")
 	id := e.ContainerID
 	err := c.setContainerState(id)
 	if err != nil {
 		c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
 	}
-	err = c.teardownNetworkForContainer(id)
+	ctr, err := c.clientset.ContainerV1().Get(context.Background(), e.ContainerID)
+	if err != nil {
+		c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
+	}
+	err = c.runtime.GC(context.Background(), ctr)
 	if err != nil {
 		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 	}
+	// err = c.teardownNetworkForContainer(id)
+	// if err != nil {
+	// 	c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
+	// }
 }
 
 func (c *ContainerdController) createHandler(e *events.TaskCreate) {

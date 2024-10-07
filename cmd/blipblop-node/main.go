@@ -259,11 +259,11 @@ func newNodeFromEnv() (*nodes.Node, error) {
 			Name: hostname,
 		},
 		Status: &nodes.Status{
-			Ips:      getIpAddressesAsString(),
-			Hostname: hostname,
-			Arch:     arch,
-			Os:       oper,
-			Ready:    false,
+			Ips:         getIpAddressesAsString(),
+			Hostname:    hostname,
+			Arch:        arch,
+			Os:          oper,
+			ReadyStatus: nodes.ReadyStatus_NotReady,
 		},
 	}
 	return n, err

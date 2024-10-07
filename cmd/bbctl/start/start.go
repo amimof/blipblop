@@ -1,6 +1,7 @@
 package start
 
 import (
+	"github.com/amimof/blipblop/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -9,7 +10,7 @@ var (
 	waitTimeoutSeconds uint64
 )
 
-func NewCmdStart() *cobra.Command {
+func NewCmdStart(cfg *client.Config) *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:     "start",
 		Short:   "Start a resource",
@@ -33,7 +34,7 @@ func NewCmdStart() *cobra.Command {
 		"How long in seconds to wait for container to start before giving up",
 	)
 
-	startCmd.AddCommand(NewCmdStartContainer())
+	startCmd.AddCommand(NewCmdStartContainer(cfg))
 
 	return startCmd
 }

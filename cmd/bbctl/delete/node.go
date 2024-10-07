@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdDeleteNode() *cobra.Command {
+func NewCmdDeleteNode(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "node",
 		Short:   "Delete a node",
@@ -27,7 +27,7 @@ func NewCmdDeleteNode() *cobra.Command {
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

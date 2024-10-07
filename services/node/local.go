@@ -99,7 +99,7 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
-	existing, err := l.Repo().Get(ctx, updateNode.GetMeta().GetName())
+	existing, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 	if err != nil {
 		return nil, err
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(updateNode.GetMeta().GetName(), events.EventType_NodeUpdate)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(existing.GetMeta().GetName(), events.EventType_NodeUpdate)})
 	if err != nil {
 		return nil, err
 	}

@@ -322,8 +322,8 @@
         "os": {
           "type": "string"
         },
-        "ready": {
-          "type": "boolean"
+        "readyStatus": {
+          "$ref": "#/definitions/v1ReadyStatus"
         }
       }
     },
@@ -424,6 +424,15 @@
           "$ref": "#/definitions/nodesv1Status"
         }
       }
+    },
+    "v1ReadyStatus": {
+      "type": "string",
+      "enum": [
+        "Unknown",
+        "NotReady",
+        "Ready"
+      ],
+      "default": "Unknown"
     },
     "v1UpdateNodeResponse": {
       "type": "object",
