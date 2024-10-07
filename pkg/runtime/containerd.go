@@ -16,7 +16,6 @@ import (
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
-	ccontainers "github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
@@ -152,16 +151,6 @@ func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Co
 	return nil, nil
 }
 
-func withPreStopHook(hooks *specs.Hooks) oci.SpecOpts {
-	return func(_ context.Context, _ oci.Client, _ *ccontainers.Container, s *oci.Spec) error {
-		if s.Hooks == nil {
-			s.Hooks = &specs.Hooks{}
-		}
-		s.Hooks.Poststop = hooks.Poststop
-		return nil
-	}
-}
-
 func (c *ContainerdRuntime) Create(ctx context.Context, ctr *containers.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
@@ -271,7 +260,7 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 			if err := c.Create(ctx, ctr); err != nil {
 				return err
 			}
-			container, err = c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+			_, err = c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 			if err != nil {
 				return err
 			}

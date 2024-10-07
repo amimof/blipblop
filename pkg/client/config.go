@@ -21,13 +21,6 @@ type TLSConfig struct {
 	Insecure    bool   `mapstructure:"insecure"`
 }
 
-func exists(servers []*Server, name string) bool {
-	if server := getServer(servers, name); server != nil {
-		return true
-	}
-	return false
-}
-
 func getServer(servers []*Server, name string) *Server {
 	for _, server := range servers {
 		if server.Name == name {
