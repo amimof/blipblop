@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"syscall"
@@ -23,13 +24,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const labelPrefix = "blipblop.io/"
+const labelPrefix = "blipblop"
 
 type ContainerdRuntime struct {
 	client *containerd.Client
 	cni    gocni.CNI
 	logger logger.Logger
-	// eh     *handler.ContainerdEventHandler
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -75,12 +75,15 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 	return info, nil
 }
 
-func buildContainerLabels(container *containers.Container) labels.Label {
-	l := labels.New()
-	l.Set(fmt.Sprintf("%s%s", labelPrefix, "revision"), util.Uint64ToString(container.GetMeta().GetRevision()))
-	l.Set(fmt.Sprintf("%s%s", labelPrefix, "created"), container.GetMeta().GetCreated().String())
-	l.Set(fmt.Sprintf("%s%s", labelPrefix, "updated"), container.GetMeta().GetUpdated().String())
-	l.AppendMap(container.GetMeta().GetLabels())
+func appendContainerLabels(l labels.Label, container *containers.Container) labels.Label {
+	pm := container.GetConfig().GetPortMappings()
+	b, _ := json.Marshal(&pm)
+	l.Set("blipblop/revision", util.Uint64ToString(container.GetMeta().GetRevision()))
+	l.Set("blipblop/created", container.GetMeta().GetCreated().String())
+	l.Set("blipblop/updated", container.GetMeta().GetUpdated().String())
+	l.Set("blipblop/name", container.GetMeta().GetName())
+	l.Set("blipblop/namespace", "blipblop")
+	l.Set("blipblop/ports", string(b))
 	return l
 }
 
@@ -88,7 +91,7 @@ func buildContainerLabels(container *containers.Container) labels.Label {
 func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 
-	// Setup port-mappings
+	// Tear down CNI network
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
@@ -97,7 +100,7 @@ func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) e
 		return err
 	}
 
-	return nil
+	return c.Delete(ctx, ctr.GetMeta().GetName())
 }
 
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
@@ -106,6 +109,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 	if err != nil {
 		return nil, err
 	}
+
 	result := make([]*containers.Container, len(ctrs))
 	for i, c := range ctrs {
 		l, err := parseContainerLabels(ctx, c)
@@ -116,12 +120,15 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 		if err != nil {
 			return nil, err
 		}
+
+		fmt.Println(l)
+
 		result[i] = &containers.Container{
 			Meta: &types.Meta{
 				Name:     info.ID,
-				Revision: util.StringToUint64(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "revision"))),
-				Created:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "created")))),
-				Updated:  timestamppb.New(util.StringToTimestamp(*l.Get(fmt.Sprintf("%s%s", labelPrefix, "updated")))),
+				Revision: util.StringToUint64(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "revision"))),
+				Created:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "created")))),
+				Updated:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "updated")))),
 			},
 			Config: &containers.Config{
 				Image: info.Image,
@@ -153,14 +160,16 @@ func (c *ContainerdRuntime) Create(ctx context.Context, ctr *containers.Containe
 	}
 
 	// Configure labels
-	l := buildContainerLabels(ctr)
-	m := buildMounts(ctr.Config.Mounts)
+	l := appendContainerLabels(labels.New(), ctr)
+	m := buildMounts(ctr.GetConfig().GetMounts())
 
 	// Build OCI specification
-	opts := buildSpec(ctr.Config.Envvars, m, ctr.Config.Args)
-	opts = append(opts, oci.WithHostname(ctr.GetMeta().GetName()))
-	opts = append(opts, oci.WithImageConfig(image))
-	opts = append(opts, oci.WithEnv(ctr.GetConfig().GetEnvvars()))
+	opts := buildSpec(ctr.GetConfig().GetEnvvars(), m, ctr.GetConfig().GetArgs())
+	opts = append(opts,
+		oci.WithHostname(ctr.GetMeta().GetName()),
+		oci.WithImageConfig(image),
+		oci.WithEnv(ctr.GetConfig().GetEnvvars()),
+	)
 
 	// Create container
 	_, err = c.client.NewContainer(
@@ -242,8 +251,20 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 
 func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	var container containerd.Container
+
 	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
+		if errdefs.IsNotFound(err) {
+			c.logger.Debug("container not found, creating a new instance in runtime", "container", ctr.GetMeta().GetName())
+			if err := c.Create(ctx, ctr); err != nil {
+				return err
+			}
+			_, err = c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+			if err != nil {
+				return err
+			}
+		}
 		return err
 	}
 
@@ -262,10 +283,8 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 		return err
 	}
 
-	// Setup port-mappings
+	// Tear down network
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
-
-	// Setup network for namespace.
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
 	result, err := networking.CreateCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
@@ -274,38 +293,38 @@ func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container
 	}
 
 	// Fill container labels with network information
+	l := labels.New()
 	ip := result.Interfaces["eth1"].IPConfigs[0].IP
 	gw := result.Interfaces["eth1"].IPConfigs[0].Gateway
 	mac := result.Interfaces["eth1"].Mac
-	containerLabels := labels.New()
-	containerLabels.Set("blipblop.io/ip-address", ip.String())
-	containerLabels.Set("blipblop.io/gateway", gw.String())
-	containerLabels.Set("blipblop.io/mac", mac)
-	containerLabels.Set("blipblop.io/container", ctr.GetMeta().GetName())
-	_, err = container.SetLabels(ctx, containerLabels)
+	l.Set("blipblop.io/ip-address", ip.String())
+	l.Set("blipblop.io/gateway", gw.String())
+	l.Set("blipblop.io/mac", mac)
+
+	_, err = container.SetLabels(ctx, l)
 	if err != nil {
 		return nil
 	}
 
-	// Testing
-	go func() {
-		st, err := task.Wait(ctx)
-		if err != nil {
-			c.logger.Error("error waiting for task", "container", ctr.GetMeta().GetName(), "error", err)
-			return
-		}
-		status := <-st
-		defer func() {
-			c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
-			_, _ = task.Delete(ctx)
-
-			c.logger.Info("tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid())
-			err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
-			if err != nil {
-				c.logger.Error("error tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid(), "error", err)
-			}
-		}()
-	}()
+	// // Testing
+	// go func() {
+	// 	st, err := task.Wait(ctx)
+	// 	if err != nil {
+	// 		c.logger.Error("error waiting for task", "container", ctr.GetMeta().GetName(), "error", err)
+	// 		return
+	// 	}
+	// 	status := <-st
+	// 	defer func() {
+	// 		c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
+	// 		_, _ = task.Delete(ctx)
+	//
+	// 		c.logger.Info("tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid())
+	// 		err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	// 		if err != nil {
+	// 			c.logger.Error("error tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid(), "error", err)
+	// 		}
+	// 	}()
+	// }()
 
 	return nil
 }
@@ -315,7 +334,7 @@ func (c *ContainerdRuntime) IsServing(ctx context.Context) (bool, error) {
 }
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
-	runtime := &ContainerdRuntime{client: client, cni: cni}
+	runtime := &ContainerdRuntime{client: client, cni: cni, logger: logger.ConsoleLogger{}}
 
 	for _, opt := range opts {
 		opt(runtime)

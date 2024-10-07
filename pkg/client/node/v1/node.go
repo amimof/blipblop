@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/services"
@@ -48,7 +49,7 @@ func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 	}
 	// node.Updated = timestamppb.New(time.Now())
 	// node.Revision = node.Revision + 1
-	_, err = c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Node: node})
+	_, err = c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
 	if err != nil {
 		return err
 	}
@@ -83,15 +84,19 @@ func (c *ClientV1) Forget(ctx context.Context, n string) error {
 }
 
 func (c *ClientV1) SetReady(ctx context.Context, nodeName string, ready bool) error {
+	v := nodes.ReadyStatus_NotReady
+	if ready {
+		v = nodes.ReadyStatus_Ready
+	}
 	n := &nodes.UpdateNodeRequest{
 		Id: nodeName,
 		Node: &nodes.Node{
 			Status: &nodes.Status{
-				Ready: ready,
+				ReadyStatus: v,
 			},
 		},
 	}
-	fm, err := fieldmaskpb.New(n.Node, "status.ready")
+	fm, err := fieldmaskpb.New(n.Node, "status.readyStatus")
 	if err != nil {
 		return err
 	}
@@ -103,6 +108,7 @@ func (c *ClientV1) SetReady(ctx context.Context, nodeName string, ready bool) er
 			return err
 		}
 	}
+	fmt.Printf("Setting %v", n)
 	return nil
 }
 

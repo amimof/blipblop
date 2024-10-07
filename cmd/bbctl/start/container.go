@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdStartContainer() *cobra.Command {
+func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Start a container",
@@ -27,8 +27,8 @@ func NewCmdStartContainer() *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Setup client
-			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			// Setup clien
+			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func NewCmdGetContainer() *cobra.Command {
+func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Get a container",
@@ -33,7 +33,7 @@ func NewCmdGetContainer() *cobra.Command {
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

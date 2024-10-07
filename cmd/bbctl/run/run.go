@@ -21,7 +21,7 @@ var (
 	waitTimeoutSeconds uint64
 )
 
-func NewCmdRun() *cobra.Command {
+func NewCmdRun(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run a container",
@@ -42,7 +42,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

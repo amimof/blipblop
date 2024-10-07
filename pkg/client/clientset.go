@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -54,36 +53,59 @@ func WithTLSConfigFromFlags(f *pflag.FlagSet) NewClientOption {
 	tlsCertificate, _ := f.GetString("tls-certificate")
 	tlsCertificateKey, _ := f.GetString("tls-certificate-key")
 	tlsCaCertificate, _ := f.GetString("tls-ca-certificate")
-
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: insecure,
-	}
 	return func(c *ClientSet) error {
-		// Add CA cert to tls config
-		if tlsCaCertificate != "" {
-			caCert, err := os.ReadFile(tlsCaCertificate)
-			if err != nil {
-				return fmt.Errorf("error reading ca cert file: %v", err)
-			}
-			certPool := x509.NewCertPool()
-			if !certPool.AppendCertsFromPEM(caCert) {
-				return fmt.Errorf("error appending CA certitifacte to pool: %v", err)
-			}
-			tlsConfig.RootCAs = certPool
+		tlsConfig, err := getTLSConfig(tlsCertificate, tlsCertificateKey, tlsCaCertificate, insecure)
+		if err != nil {
+			return err
 		}
-
-		// Add certificate pair to tls config
-		if tlsCertificate != "" && tlsCertificateKey != "" {
-			cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
-			if err != nil {
-				return fmt.Errorf("error loading x509 cert key pair: %v", err)
-			}
-			tlsConfig.Certificates = []tls.Certificate{cert}
-		}
-
 		c.tlsConfig = tlsConfig
 		return nil
 	}
+}
+
+// WithTLSConfigFromCfg returns a NewClientOption using the provided client.Config.
+// It runs Validate() on the config before returning
+func WithTLSConfigFromCfg(cfg *Config) NewClientOption {
+	insecure := cfg.CurrentServer().TLSConfig.Insecure
+	tlsCertificate := cfg.CurrentServer().TLSConfig.Certificate
+	tlsCertificateKey := cfg.CurrentServer().TLSConfig.Key
+	tlsCaCertificate := cfg.CurrentServer().TLSConfig.CA
+	return func(c *ClientSet) error {
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+
+		tlsConfig, err := getTLSConfig(tlsCertificate, tlsCertificateKey, tlsCaCertificate, insecure)
+		if err != nil {
+			return err
+		}
+		c.tlsConfig = tlsConfig
+		return nil
+	}
+}
+
+func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecure,
+	}
+
+	if ca != "" {
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM([]byte(ca)) {
+			return nil, fmt.Errorf("error appending CA certitifacte to pool")
+		}
+		tlsConfig.RootCAs = certPool
+	}
+
+	// Add certificate pair to tls config
+	if cert != "" && key != "" {
+		certificate, err := tls.X509KeyPair([]byte(cert), []byte(key))
+		if err != nil {
+			return nil, fmt.Errorf("error loading x509 cert key pair: %v", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{certificate}
+	}
+	return tlsConfig, nil
 }
 
 func (c *ClientSet) NodeV1() *nodev1.ClientV1 {

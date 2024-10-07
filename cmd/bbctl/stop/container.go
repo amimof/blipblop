@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdStopContainer() *cobra.Command {
+func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:     "container",
 		Short:   "Stop a container",
@@ -28,7 +28,7 @@ func NewCmdStopContainer() *cobra.Command {
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(ctx, viper.GetString("server"), client.WithTLSConfigFromFlags(cmd.Flags()))
+			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
