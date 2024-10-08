@@ -135,14 +135,8 @@
                   "$ref": "#/definitions/v1Config"
                 },
                 "status": {
-                  "$ref": "#/definitions/containersv1Status"
-                },
-                "events": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "$ref": "#/definitions/servicescontainersv1Event"
-                  }
+                  "$ref": "#/definitions/containersv1Status",
+                  "title": "repeated Event events = 4;"
                 }
               }
             }
@@ -221,14 +215,8 @@
                   "$ref": "#/definitions/v1Config"
                 },
                 "status": {
-                  "$ref": "#/definitions/containersv1Status"
-                },
-                "events": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "$ref": "#/definitions/servicescontainersv1Event"
-                  }
+                  "$ref": "#/definitions/containersv1Status",
+                  "title": "repeated Event events = 4;"
                 }
               }
             }
@@ -391,6 +379,12 @@
         },
         "health": {
           "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "taskStatus": {
+          "$ref": "#/definitions/v1TaskStatus"
         }
       }
     },
@@ -421,21 +415,6 @@
         }
       },
       "additionalProperties": {}
-    },
-    "servicescontainersv1Event": {
-      "type": "object",
-      "properties": {
-        "created": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "type": {
-          "$ref": "#/definitions/v1EventType"
-        },
-        "description": {
-          "type": "string"
-        }
-      }
     },
     "v1Config": {
       "type": "object",
@@ -481,14 +460,8 @@
           "$ref": "#/definitions/v1Config"
         },
         "status": {
-          "$ref": "#/definitions/containersv1Status"
-        },
-        "events": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/servicescontainersv1Event"
-          }
+          "$ref": "#/definitions/containersv1Status",
+          "title": "repeated Event events = 4;"
         }
       }
     },
@@ -507,29 +480,6 @@
           "type": "string"
         }
       }
-    },
-    "v1EventType": {
-      "type": "string",
-      "enum": [
-        "ContainerCreate",
-        "ContainerDelete",
-        "ContainerUpdate",
-        "ContainerStart",
-        "ContainerGet",
-        "ContainerList",
-        "ContainerKill",
-        "NodeGet",
-        "NodeCreate",
-        "NodeDelete",
-        "NodeList",
-        "NodeUpdate",
-        "NodeJoin",
-        "NodeForget",
-        "ContainerStartError",
-        "ContainerStarted",
-        "ContainerKilled"
-      ],
-      "default": "ContainerCreate"
     },
     "v1GetContainerResponse": {
       "type": "object",
@@ -631,6 +581,22 @@
           "type": "string"
         }
       }
+    },
+    "v1TaskStatus": {
+      "type": "string",
+      "enum": [
+        "Unknown",
+        "Created",
+        "Killed",
+        "Started",
+        "ExecError",
+        "ImagePullError",
+        "CreateError",
+        "KillError",
+        "DeleteError"
+      ],
+      "default": "Unknown",
+      "title": "- Created: OK\n - ExecError: Errors"
     },
     "v1UpdateContainerResponse": {
       "type": "object",

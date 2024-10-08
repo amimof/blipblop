@@ -58,9 +58,9 @@ service ContainerService {
 
 message Container {
   blipblop.types.v1.Meta meta = 1;
-	Config config = 2;
-	Status status = 3;
-  repeated Event events = 4;
+  Config config = 2;
+  Status status = 3;
+  // repeated Event events = 4;
 }
 
 message Status {
@@ -71,6 +71,8 @@ message Status {
   uint32 exitStatus = 5;
   google.protobuf.Timestamp exitTime = 6;
   string health = 7;
+  string description = 8;
+  TaskStatus taskStatus = 9;
 }
 
 message Config {
@@ -93,6 +95,21 @@ message PortMapping {
 	uint32 containerPort = 2;
 	string protocol = 3;
 	string hostIP = 4;
+}
+
+enum TaskStatus {
+  Unknown = 0;
+  // OK
+  Created = 1;
+  Killed = 2;
+  Started = 3;
+
+  // Errors
+  ExecError = 4;
+  ImagePullError = 5;
+  CreateError = 6;
+  KillError = 7;
+  DeleteError = 8;
 }
 
 message Event {

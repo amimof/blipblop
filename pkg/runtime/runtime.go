@@ -9,10 +9,10 @@ import (
 type Runtime interface {
 	List(context.Context) ([]*containers.Container, error)
 	Get(context.Context, string) (*containers.Container, error)
-	Create(context.Context, *containers.Container) error
 	Delete(context.Context, string) error
 	Kill(context.Context, *containers.Container) error
-	Start(context.Context, *containers.Container) error
-	IsServing(context.Context) (bool, error)
-	GC(context.Context, *containers.Container) error
+	Stop(context.Context, *containers.Container) error
+	Run(context.Context, *containers.Container) error
+	Cleanup(context.Context, *containers.Container) error
+	Pull(context.Context, *containers.Container) error
 }
