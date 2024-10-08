@@ -147,6 +147,14 @@ func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContain
 	return resp, err
 }
 
+func (c *ClientV1) Stop(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
+	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
+	if err != nil {
+		return nil, handleError(err)
+	}
+	return resp, err
+}
+
 func (c *ClientV1) Start(ctx context.Context, id string) (*containers.StartContainerResponse, error) {
 	resp, err := c.containerService.Start(ctx, &containers.StartContainerRequest{Id: id})
 	if err != nil {

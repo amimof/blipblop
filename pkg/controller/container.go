@@ -21,11 +21,14 @@ type ContainerController struct {
 	logger   logger.Logger
 }
 
+type ContainerEventHandlerFunc func(obj *events.Event, ctr *containers.Container) error
+
 type ContainerEventHandlerFuncs struct {
-	OnContainerCreate func(obj *events.Event, ctr *containers.Container) error
-	OnContainerDelete func(obj *events.Event, ctr *containers.Container) error
-	OnContainerStart  func(obj *events.Event, ctr *containers.Container) error
-	OnContainerKill   func(obj *events.Event, ctr *containers.Container) error
+	OnContainerCreate ContainerEventHandlerFunc
+	OnContainerDelete ContainerEventHandlerFunc
+	OnContainerStart  ContainerEventHandlerFunc
+	OnContainerKill   ContainerEventHandlerFunc
+	OnContainerStop   ContainerEventHandlerFunc
 }
 
 type NewContainerControllerOption func(c *ContainerController)
@@ -111,7 +114,7 @@ func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs
 	case events.EventType_ContainerDelete:
 		if err := funcs.OnContainerDelete(ev, ctr); err != nil {
 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_DeleteError, err.Error())
-			c.logger.Error("error calling OnContainerDeletDelete handler", "error", err)
+			c.logger.Error("error calling OnContainerDelete handler", "error", err)
 		}
 	case events.EventType_ContainerStart:
 		if err := funcs.OnContainerStart(ev, ctr); err != nil {
@@ -156,6 +159,12 @@ func (c *ContainerController) onContainerCreate(obj *events.Event, ctr *containe
 	if err != nil {
 		return err
 	}
+	// Emit event that the container has started
+	c.logger.Info("successfully started container", "container", obj.GetObjectId())
+	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStarted)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -188,7 +197,7 @@ func (c *ContainerController) onContainerStart(obj *events.Event, ctr *container
 	return nil
 }
 
-func (c *ContainerController) onContainerStop(obj *events.Event, ctr *containers.Container) error {
+func (c *ContainerController) onContainerKill(obj *events.Event, ctr *containers.Container) error {
 	ctx := context.Background()
 	err := c.runtime.Kill(ctx, ctr)
 	if err != nil {
@@ -196,7 +205,22 @@ func (c *ContainerController) onContainerStop(obj *events.Event, ctr *containers
 	}
 	// Emit event that the container has started
 	c.logger.Info("successfully killed container", "container", obj.GetObjectId())
-	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerKilled)
+	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStopped)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ContainerController) onContainerStop(obj *events.Event, ctr *containers.Container) error {
+	ctx := context.Background()
+	err := c.runtime.Stop(ctx, ctr)
+	if err != nil {
+		return err
+	}
+	// Emit event that the container has started
+	c.logger.Info("successfully stopped container", "container", obj.GetObjectId())
+	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStopped)
 	if err != nil {
 		return err
 	}
@@ -214,7 +238,8 @@ func NewContainerController(cs *client.ClientSet, rt runtime.Runtime, opts ...Ne
 		OnContainerCreate: eh.onContainerCreate,
 		OnContainerDelete: eh.onContainerDelete,
 		OnContainerStart:  eh.onContainerStart,
-		OnContainerKill:   eh.onContainerStop,
+		OnContainerKill:   eh.onContainerKill,
+		OnContainerStop:   eh.onContainerStop,
 	}
 
 	for _, opt := range opts {

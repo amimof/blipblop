@@ -112,7 +112,11 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
-	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerKill)})
+	evt := events.EventType_ContainerStop
+	if req.GetForceKill() {
+		evt = events.EventType_ContainerKill
+	}
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), evt)})
 	if err != nil {
 		return nil, err
 	}

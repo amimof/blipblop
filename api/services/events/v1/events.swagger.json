@@ -167,6 +167,7 @@
         "ContainerGet",
         "ContainerList",
         "ContainerKill",
+        "ContainerStop",
         "NodeGet",
         "NodeCreate",
         "NodeDelete",
@@ -176,7 +177,7 @@
         "NodeForget",
         "ContainerStartError",
         "ContainerStarted",
-        "ContainerKilled"
+        "ContainerStopped"
       ],
       "default": "ContainerCreate"
     },

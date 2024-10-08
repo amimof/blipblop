@@ -71,10 +71,6 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			_, err = c.ContainerV1().Start(ctx, cname)
-			if err != nil {
-				logrus.Fatal(err)
-			}
 
 			logrus.Infof("requested to run container %s", cname)
 

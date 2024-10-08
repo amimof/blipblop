@@ -61,6 +61,7 @@ func (l *local) Publish(ctx context.Context, req *events.PublishRequest, _ ...gr
 	if event.GetMeta().GetName() == "" {
 		event.Meta.Name = uuid.New().String()
 	}
+	fmt.Println("Creating", event)
 	return nil, l.Repo().Create(ctx, event)
 }
 

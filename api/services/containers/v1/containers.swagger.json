@@ -314,6 +314,12 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "forceKill",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -376,9 +382,6 @@
         "exitTime": {
           "type": "string",
           "format": "date-time"
-        },
-        "health": {
-          "type": "string"
         },
         "description": {
           "type": "string"

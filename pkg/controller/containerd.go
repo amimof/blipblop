@@ -412,7 +412,6 @@ func (c *ContainerdController) setContainerState(id string) error {
 				Pid:        pid,
 				Phase:      phase,
 				ExitStatus: exitStatus,
-				Health:     "healthy",
 			}
 			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 		}

@@ -70,7 +70,6 @@ message Status {
   uint32 pid = 4;
   uint32 exitStatus = 5;
   google.protobuf.Timestamp exitTime = 6;
-  string health = 7;
   string description = 8;
   TaskStatus taskStatus = 9;
 }
@@ -178,6 +177,7 @@ message StopContainerResponse {
 
 message KillContainerRequest {
 	string id = 1;
+  bool forceKill = 2;
 }
 
 message KillContainerResponse {
