@@ -55,20 +55,6 @@ func withMounts(m []*containers.Mount) oci.SpecOpts {
 	return oci.WithMounts(mounts)
 }
 
-func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpts {
-	var opts []oci.SpecOpts
-	if len(envs) > 0 {
-		opts = append(opts, oci.WithEnv(envs))
-	}
-	if len(mounts) > 0 {
-		opts = append(opts, oci.WithMounts(mounts))
-	}
-	if len(args) > 0 {
-		opts = append(opts, oci.WithProcessArgs(args...))
-	}
-	return opts
-}
-
 func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
 	info, err := container.Labels(ctx)
 	if err != nil {
@@ -161,18 +147,12 @@ func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container)
 	return nil
 }
 
-func isFound(e error) bool {
-	if errdefs.IsNotFound(e) {
-		return false
-	}
-	return true
-}
-
 // Delete deletes the container and any tasks associated with it.
 // Tasks will be forcefully stopped if running.
 func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 
+	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
 	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
@@ -181,20 +161,16 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 		return err
 	}
 
+	// Return any error that isn't NotFound
 	task, err := container.Task(ctx, nil)
 	if err != nil {
-		if !errors.Is(err, errdefs.ErrNotFound) {
+		if !errdefs.IsNotFound(err) {
 			return err
 		}
 	}
 
+	// Make sure to stop tasks before deleting container. Using Kill here which is a forceful operation
 	if task != nil {
-		// _, err = task.Delete(ctx)
-		// if err != nil {
-		// 	if !errors.Is(err, errdefs.ErrNotFound) {
-		// 		return err
-		// 	}
-		// }
 		err = c.Kill(ctx, ctr)
 		if err != nil && !errors.Is(err, errdefs.ErrNotFound) {
 			return err
@@ -237,7 +213,13 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 	case exitStatus := <-waitChan:
 		timer.Stop()
 		err = exitStatus.Error()
+		if err != nil {
+			return err
+		}
 	case err = <-timeoutChan:
+		if err != nil {
+			return err
+		}
 	}
 
 	// Delete the task
