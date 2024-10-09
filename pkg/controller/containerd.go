@@ -273,7 +273,7 @@ func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 	if err != nil {
 		return err
 	}
-	err = c.runtime.GC(context.Background(), ctr)
+	err = c.runtime.Cleanup(context.Background(), ctr)
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,6 @@ func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 }
 
 func (c *ContainerdController) exitHandler(e *events.TaskExit) {
-	fmt.Println("exited")
 	id := e.ContainerID
 	err := c.setContainerState(id)
 	if err != nil {
@@ -291,7 +290,7 @@ func (c *ContainerdController) exitHandler(e *events.TaskExit) {
 	if err != nil {
 		c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
 	}
-	err = c.runtime.GC(context.Background(), ctr)
+	err = c.runtime.Cleanup(context.Background(), ctr)
 	if err != nil {
 		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 	}
@@ -413,7 +412,6 @@ func (c *ContainerdController) setContainerState(id string) error {
 				Pid:        pid,
 				Phase:      phase,
 				ExitStatus: exitStatus,
-				Health:     "healthy",
 			}
 			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 		}
@@ -486,7 +484,7 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
-			err = c.runtime.Delete(ctx, currentContainer.GetMeta().GetName())
+			err = c.runtime.Delete(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
@@ -497,13 +495,9 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	for _, container := range clist {
 		if !contains(currentContainers, container) {
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
-			err := c.runtime.Create(ctx, container)
+			err := c.runtime.Run(ctx, container)
 			if err != nil {
-				c.logger.Error("error creating container", "error", err, "name", container.GetMeta().GetName())
-			}
-			err = c.runtime.Start(ctx, container)
-			if err != nil {
-				c.logger.Error("error starting container", "error", err, "name", container.GetMeta().GetName())
+				c.logger.Error("error running container", "error", err, "name", container.GetMeta().GetName())
 			}
 		}
 	}

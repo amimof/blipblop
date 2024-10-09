@@ -14,6 +14,7 @@ require (
 )
 
 require (
+	github.com/containerd/console v1.0.3
 	github.com/dgraph-io/badger/v4 v4.3.0
 	github.com/google/uuid v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.1

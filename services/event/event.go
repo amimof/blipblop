@@ -49,9 +49,9 @@ func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (
 
 func (s *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
 	eventChan := make(chan *events.Event)
-	if _, ok := s.channel[req.ClientId]; ok {
-		return ErrClientExists
-	}
+	// if _, ok := s.channel[req.ClientId]; ok {
+	// 	return ErrClientExists
+	// }
 	s.channel[req.ClientId] = append(s.channel[req.ClientId], eventChan)
 	s.logger.Info("client joined", "id", req.ClientId)
 	for {
@@ -97,11 +97,12 @@ func NewService(repo repository.EventRepository, opts ...NewServiceOption) *Even
 	return s
 }
 
-func NewEventFor(id string, t events.EventType) *events.Event {
+func NewEventFor(clientId, id string, t events.EventType) *events.Event {
 	return &events.Event{
 		Meta: &types.Meta{
 			Name: uuid.New().String(),
 		},
+		ClientId: clientId,
 		Type:     t,
 		ObjectId: id,
 	}

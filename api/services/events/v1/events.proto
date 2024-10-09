@@ -39,7 +39,8 @@ message SubscribeRequest {
 message Event {
   blipblop.types.v1.Meta meta = 1;
   string objectId = 4;
-  EventType type = 5;
+  string clientId = 5;
+  EventType type = 6;
 }
 
 enum EventType {
@@ -50,16 +51,18 @@ enum EventType {
   ContainerGet = 5;
   ContainerList = 6;
   ContainerKill = 7;
-  NodeGet = 8;
-  NodeCreate = 9;
-  NodeDelete = 10;
-  NodeList = 11;
-  NodeUpdate = 12;
-  NodeJoin = 13;
-  NodeForget = 14;
-  ContainerStartError = 15;
-  ContainerStarted = 16;
-  ContainerKilled = 17;
+  ContainerStop = 8;
+  NodeGet = 9;
+  NodeCreate = 10;
+  NodeDelete = 11;
+  NodeList = 12;
+  NodeUpdate = 13;
+  NodeJoin = 14;
+  NodeForget = 15;
+  ContainerStartError = 16;
+  ContainerStarted = 17;
+  ContainerStopped = 18;
+  ContainerDeleted = 19;
 }
 
 message GetEventRequest {

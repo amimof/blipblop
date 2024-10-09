@@ -5,6 +5,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	wait               bool
+	waitTimeoutSeconds uint64
+)
+
 func NewCmdDelete(cfg *client.Config) *cobra.Command {
 	deleteCmd := &cobra.Command{
 		Use:     "delete",
@@ -13,6 +18,9 @@ func NewCmdDelete(cfg *client.Config) *cobra.Command {
 		Example: `bbctl delete container`,
 		Args:    cobra.ExactArgs(1),
 	}
+
+	deleteCmd.PersistentFlags().BoolVarP(&wait, "wait", "w", true, "Wait for command to finish")
+	deleteCmd.PersistentFlags().Uint64VarP(&waitTimeoutSeconds, "timeout", "", 30, "How long in seconds to wait for container to stop before giving up")
 
 	deleteCmd.AddCommand(NewCmdDeleteContainer(cfg))
 	deleteCmd.AddCommand(NewCmdDeleteNode(cfg))

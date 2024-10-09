@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/util"
+	"github.com/containerd/console"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/errdefs"
@@ -40,7 +42,7 @@ func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 	}
 }
 
-func buildMounts(m []*containers.Mount) []specs.Mount {
+func withMounts(m []*containers.Mount) oci.SpecOpts {
 	var mounts []specs.Mount
 	for _, mount := range m {
 		mounts = append(mounts, specs.Mount{
@@ -50,21 +52,7 @@ func buildMounts(m []*containers.Mount) []specs.Mount {
 			Options:     mount.Options,
 		})
 	}
-	return mounts
-}
-
-func buildSpec(envs []string, mounts []specs.Mount, args []string) []oci.SpecOpts {
-	var opts []oci.SpecOpts
-	if len(envs) > 0 {
-		opts = append(opts, oci.WithEnv(envs))
-	}
-	if len(mounts) > 0 {
-		opts = append(opts, oci.WithMounts(mounts))
-	}
-	if len(args) > 0 {
-		opts = append(opts, oci.WithProcessArgs(args...))
-	}
-	return opts
+	return oci.WithMounts(mounts)
 }
 
 func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
@@ -75,7 +63,7 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 	return info, nil
 }
 
-func appendContainerLabels(l labels.Label, container *containers.Container) labels.Label {
+func withContainerLabels(l labels.Label, container *containers.Container) containerd.NewContainerOpts {
 	pm := container.GetConfig().GetPortMappings()
 	b, _ := json.Marshal(&pm)
 	l.Set("blipblop/revision", util.Uint64ToString(container.GetMeta().GetRevision()))
@@ -84,11 +72,11 @@ func appendContainerLabels(l labels.Label, container *containers.Container) labe
 	l.Set("blipblop/name", container.GetMeta().GetName())
 	l.Set("blipblop/namespace", "blipblop")
 	l.Set("blipblop/ports", string(b))
-	return l
+	return containerd.WithContainerLabels(l)
 }
 
 // GC performs any tasks necessary to clean up the environment from danglig configuration. Such as tearing down the network
-func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 
 	// Tear down CNI network
@@ -100,7 +88,7 @@ func (c *ContainerdRuntime) GC(ctx context.Context, ctr *containers.Container) e
 		return err
 	}
 
-	return c.Delete(ctx, ctr.GetMeta().GetName())
+	return c.Delete(ctx, ctr)
 }
 
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
@@ -120,8 +108,6 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 		if err != nil {
 			return nil, err
 		}
-
-		fmt.Println(l)
 
 		result[i] = &containers.Container{
 			Meta: &types.Meta{
@@ -151,182 +137,199 @@ func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Co
 	return nil, nil
 }
 
-func (c *ContainerdRuntime) Create(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container) error {
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
-	image, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
+	_, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
 	}
-
-	// Configure labels
-	l := appendContainerLabels(labels.New(), ctr)
-	m := buildMounts(ctr.GetConfig().GetMounts())
-
-	// Build OCI specification
-	opts := buildSpec(ctr.GetConfig().GetEnvvars(), m, ctr.GetConfig().GetArgs())
-	opts = append(opts,
-		oci.WithHostname(ctr.GetMeta().GetName()),
-		oci.WithImageConfig(image),
-		oci.WithEnv(ctr.GetConfig().GetEnvvars()),
-	)
-
-	// Create container
-	_, err = c.client.NewContainer(
-		ctx,
-		ctr.GetMeta().GetName(),
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.GetMeta().GetName()), image),
-		containerd.WithNewSpec(opts...),
-		containerd.WithContainerLabels(l),
-	)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
+// Delete deletes the container and any tasks associated with it.
+// Tasks will be forcefully stopped if running.
+func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, key)
+
+	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
+	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	// Return any error that isn't NotFound
+	task, err := container.Task(ctx, nil)
+	if err != nil {
+		if !errdefs.IsNotFound(err) {
+			return err
+		}
+	}
+
+	// Make sure to stop tasks before deleting container. Using Kill here which is a forceful operation
+	if task != nil {
+		err = c.Kill(ctx, ctr)
+		if err != nil && !errors.Is(err, errdefs.ErrNotFound) {
+			return err
+		}
+	}
+
+	return container.Delete(ctx, containerd.WithSnapshotCleanup)
+}
+
+func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
+	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		return err
 	}
-	task, _ := container.Task(ctx, nil)
-	if task != nil {
-		_, err = task.Delete(ctx)
+
+	task, err := cont.Task(ctx, cio.Load)
+	if err != nil {
+		return err
+	}
+
+	// Wait
+	waitChan, err := task.Wait(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Attempt gracefull shutdown
+	if err = task.Kill(ctx, syscall.SIGTERM); err != nil {
+		return err
+	}
+
+	timeoutChan := make(chan error)
+	timer := time.AfterFunc(time.Second*30, func() {
+		timeoutChan <- task.Kill(ctx, syscall.SIGQUIT)
+	})
+
+	// Wait for task to stop. Stop forcefully if timeout occurs
+	select {
+	case exitStatus := <-waitChan:
+		timer.Stop()
+		err = exitStatus.Error()
+		if err != nil {
+			return err
+		}
+	case err = <-timeoutChan:
 		if err != nil {
 			return err
 		}
 	}
-	return container.Delete(ctx)
+
+	// Delete the task
+	if _, err := task.Delete(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
-		return err
-	}
-	task, err := container.Task(ctx, nil)
-	if errdefs.IsNotFound(err) {
-		c.logger.Debug("skip kill, no task found for container", "container", container.ID())
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	// Tear down network
-	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
-	cniLabels := labels.New()
-	cniLabels.Set("IgnoreUnknown", "1")
-	err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
-	if err != nil {
-		return err
-	}
-
-	if err = task.Kill(ctx, syscall.SIGINT); err != nil {
-		if !errdefs.IsNotFound(err) {
-			return fmt.Errorf("failed to send SIGINT: %w", err)
+		if errors.Is(err, errdefs.ErrNotFound) {
+			return nil
 		}
-		c.logger.Debug("skip kill, task already stopped", "container", container.ID(), "task", task.ID())
-		return nil
+		return err
 	}
 
-	wait, err := task.Wait(ctx)
+	task, err := cont.Task(ctx, cio.Load)
 	if err != nil {
 		return err
 	}
 
-	select {
-	case status := <-wait:
-		c.logger.Info("task exited with status", "taskId", task.ID(), "exitCode", status.ExitCode())
-		_, _ = task.Delete(ctx)
-		return nil
-	case <-time.After(time.Second * 60):
-		return errors.New("timeout waiting for task to exit gracefully")
+	// Wait
+	waitChan, err := task.Wait(ctx)
+	if err != nil {
+		return err
 	}
+
+	// Attempt to forcefully kill the task
+	if err = task.Kill(ctx, syscall.SIGQUIT); err != nil {
+		return err
+	}
+
+	<-waitChan
+
+	// Delete the task
+	_, err = task.Delete(ctx)
+	return err
 }
 
-func (c *ContainerdRuntime) Start(ctx context.Context, ctr *containers.Container) error {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	var container containerd.Container
-
-	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
-	if err != nil {
-		if errdefs.IsNotFound(err) {
-			c.logger.Debug("container not found, creating a new instance in runtime", "container", ctr.GetMeta().GetName())
-			if err := c.Create(ctx, ctr); err != nil {
-				return err
-			}
-			_, err = c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
-			if err != nil {
-				return err
-			}
-		}
-		return err
-	}
-
-	task, err := container.NewTask(ctx, cio.NewCreator())
-	if errdefs.IsAlreadyExists(err) {
-		c.logger.Debug("skip creation, task already exists for container", "container", container.ID())
-		return nil
-	}
+func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) error {
+	ns := "blipblop"
+	ctx = namespaces.WithNamespace(ctx, ns)
+	// image, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
+	// if err != nil {
+	// 	return err
+	// }
+	image, err := c.client.GetImage(ctx, ctr.GetConfig().GetImage())
 	if err != nil {
 		return err
 	}
 
-	// Start the task
-	err = task.Start(ctx)
+	// Delete container if it exists
+	if err := c.Delete(ctx, ctr); err != nil {
+		return err
+	}
+
+	// Build OCI specification
+	opts := []oci.SpecOpts{
+		oci.WithDefaultSpec(),
+		oci.WithDefaultUnixDevices,
+		oci.WithTTY,
+		oci.WithImageConfig(image),
+		oci.WithHostname(ctr.GetMeta().GetName()),
+		oci.WithImageConfig(image),
+		oci.WithEnv(ctr.GetConfig().GetEnvvars()),
+		withMounts(ctr.GetConfig().GetMounts()),
+	}
+
+	// Add args opts
+	if len(ctr.GetConfig().GetArgs()) > 0 {
+		opts = append(opts, oci.WithProcessArgs(ctr.GetConfig().GetArgs()...))
+	}
+
+	// Create container
+	cont, err := c.client.NewContainer(
+		ctx,
+		ctr.GetMeta().GetName(),
+		containerd.WithImage(image),
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.GetMeta().GetName()), image),
+		containerd.WithNewSpec(opts...),
+		withContainerLabels(labels.New(), ctr),
+	)
 	if err != nil {
 		return err
 	}
 
-	// Tear down network
-	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
-	cniLabels := labels.New()
-	cniLabels.Set("IgnoreUnknown", "1")
-	result, err := networking.CreateCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	con, _, err := console.NewPty()
+	if err != nil {
+		return err
+	}
+	defer con.Close()
+
+	dummyReader, _, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	ioCreator := cio.NewCreator(cio.WithTerminal, cio.WithStreams(dummyReader, con, con))
+
+	// Create the task
+	task, err := cont.NewTask(ctx, ioCreator)
 	if err != nil {
 		return err
 	}
 
-	// Fill container labels with network information
-	l := labels.New()
-	ip := result.Interfaces["eth1"].IPConfigs[0].IP
-	gw := result.Interfaces["eth1"].IPConfigs[0].Gateway
-	mac := result.Interfaces["eth1"].Mac
-	l.Set("blipblop.io/ip-address", ip.String())
-	l.Set("blipblop.io/gateway", gw.String())
-	l.Set("blipblop.io/mac", mac)
-
-	_, err = container.SetLabels(ctx, l)
-	if err != nil {
-		return nil
-	}
-
-	// // Testing
-	// go func() {
-	// 	st, err := task.Wait(ctx)
-	// 	if err != nil {
-	// 		c.logger.Error("error waiting for task", "container", ctr.GetMeta().GetName(), "error", err)
-	// 		return
-	// 	}
-	// 	status := <-st
-	// 	defer func() {
-	// 		c.logger.Info("task exited", "taskId", task.ID(), "container", ctr.GetMeta().GetName(), "exitCode", status.ExitCode(), "error", status.Error())
-	// 		_, _ = task.Delete(ctx)
-	//
-	// 		c.logger.Info("tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid())
-	// 		err = networking.DeleteCNINetwork(ctx, c.cni, task.ID(), task.Pid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
-	// 		if err != nil {
-	// 			c.logger.Error("error tearing down network", "task", task.ID(), "container", ctr.GetMeta().GetName(), "pid", task.Pid(), "error", err)
-	// 		}
-	// 	}()
-	// }()
-
-	return nil
+	// Start the  task
+	return task.Start(ctx)
 }
 
 func (c *ContainerdRuntime) IsServing(ctx context.Context) (bool, error) {

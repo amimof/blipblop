@@ -152,6 +152,9 @@
         "objectId": {
           "type": "string"
         },
+        "clientId": {
+          "type": "string"
+        },
         "type": {
           "$ref": "#/definitions/v1EventType"
         }
@@ -167,6 +170,7 @@
         "ContainerGet",
         "ContainerList",
         "ContainerKill",
+        "ContainerStop",
         "NodeGet",
         "NodeCreate",
         "NodeDelete",
@@ -176,7 +180,8 @@
         "NodeForget",
         "ContainerStartError",
         "ContainerStarted",
-        "ContainerKilled"
+        "ContainerStopped",
+        "ContainerDeleted"
       ],
       "default": "ContainerCreate"
     },

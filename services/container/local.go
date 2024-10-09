@@ -12,6 +12,7 @@ import (
 	"github.com/amimof/blipblop/services"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -32,6 +33,8 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
@@ -39,7 +42,7 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 	if container == nil {
 		return nil, fmt.Errorf("container not found %s", req.GetId())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerGet)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_ContainerGet)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing GET event", "id", req.GetId(), "event", "ContainerGet")
 	}
@@ -49,11 +52,13 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
 	ctrs, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor("", events.EventType_ContainerList)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, "", events.EventType_ContainerList)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing LIST event", "event", "ContainerList")
 	}
@@ -63,6 +68,8 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 }
 
 func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
 	container := req.GetContainer()
 
 	if existing, _ := l.Repo().Get(ctx, container.GetMeta().GetName()); existing != nil {
@@ -79,7 +86,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", container.GetMeta().GetName())
 	}
 
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(container.GetMeta().GetName(), events.EventType_ContainerCreate)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, container.GetMeta().GetName(), events.EventType_ContainerCreate)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
 	}
@@ -91,18 +98,17 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
-	}
-	if container.GetStatus().GetPhase() == "running" {
-		return nil, fmt.Errorf("unable to delete running container %s", req.GetId())
 	}
 	err = l.Repo().Delete(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerDelete)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_ContainerDelete)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "ContainerDelete")
 	}
@@ -112,7 +118,13 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
-	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerKill)})
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
+	evt := events.EventType_ContainerStop
+	if req.GetForceKill() {
+		evt = events.EventType_ContainerKill
+	}
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), evt)})
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +134,9 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 }
 
 func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
-	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetId(), events.EventType_ContainerStart)})
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
+	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_ContainerStart)})
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +146,8 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	clientId := md.Get("blipblop_client_id")[0]
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
 	existing, err := l.Repo().Get(ctx, req.GetId())
@@ -147,7 +163,7 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(req.GetContainer().GetMeta().GetName(), events.EventType_ContainerUpdate)})
+	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetContainer().GetMeta().GetName(), events.EventType_ContainerUpdate)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}

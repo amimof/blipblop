@@ -9,13 +9,12 @@ import (
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/services/event"
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
 
 type ClientV1 struct {
-	// name         string
+	id           string
 	eventService events.EventServiceClient
 }
 
@@ -24,7 +23,7 @@ func (c *ClientV1) EventService() events.EventServiceClient {
 }
 
 func (c *ClientV1) Publish(ctx context.Context, id string, evt events.EventType) error {
-	req := &events.PublishRequest{Event: event.NewEventFor(id, evt)}
+	req := &events.PublishRequest{Event: event.NewEventFor(c.id, id, evt)}
 	_, err := c.eventService.Publish(ctx, req)
 	if err != nil {
 		return err
@@ -32,9 +31,9 @@ func (c *ClientV1) Publish(ctx context.Context, id string, evt events.EventType)
 	return nil
 }
 
-func (c *ClientV1) Subscribe(ctx context.Context, clientId string, receiveChan chan<- *events.Event, errChan chan<- error) error {
+func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
 	// Create stream
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: clientId})
+	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: c.id})
 	if err != nil {
 		return fmt.Errorf("subscribe failed: %v", err)
 	}
@@ -61,7 +60,9 @@ func (c *ClientV1) Subscribe(ctx context.Context, clientId string, receiveChan c
 			errChan <- fmt.Errorf("non-gRPC error: %v", err)
 			break
 		}
-		receiveChan <- response
+		if c.id != response.ClientId {
+			receiveChan <- response
+		}
 	}
 
 	return nil
@@ -70,12 +71,11 @@ func (c *ClientV1) Subscribe(ctx context.Context, clientId string, receiveChan c
 func (c *ClientV1) Wait(t events.EventType, id string) error {
 	evt := make(chan *events.Event)
 	errChan := make(chan error)
-	clientId := fmt.Sprintf("%s:%s", "bbctl", uuid.New())
 
 	go func() {
-		err := c.Subscribe(context.Background(), clientId, evt, errChan)
+		err := c.Subscribe(context.Background(), evt, errChan)
 		if err != nil {
-			errChan <- fmt.Errorf("error subscribing to events as %s: %v", clientId, err)
+			errChan <- fmt.Errorf("error subscribing to events as %s: %v", c.id, err)
 			return
 		}
 	}()
@@ -94,8 +94,9 @@ func (c *ClientV1) Wait(t events.EventType, id string) error {
 	}
 }
 
-func NewClientV1(conn *grpc.ClientConn) *ClientV1 {
+func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
 	return &ClientV1{
 		eventService: events.NewEventServiceClient(conn),
+		id:           clientId,
 	}
 }
