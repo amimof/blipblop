@@ -9,7 +9,7 @@ import (
 type Runtime interface {
 	List(context.Context) ([]*containers.Container, error)
 	Get(context.Context, string) (*containers.Container, error)
-	Delete(context.Context, string) error
+	Delete(context.Context, *containers.Container) error
 	Kill(context.Context, *containers.Container) error
 	Stop(context.Context, *containers.Container) error
 	Run(context.Context, *containers.Container) error

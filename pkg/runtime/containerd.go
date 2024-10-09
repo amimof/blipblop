@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -101,7 +102,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Contain
 		return err
 	}
 
-	return c.Delete(ctx, ctr.GetMeta().GetName())
+	return c.Delete(ctx, ctr)
 }
 
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
@@ -160,24 +161,47 @@ func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container)
 	return nil
 }
 
-// Delete deletes the container and any tasks associated with it
-func (c *ContainerdRuntime) Delete(ctx context.Context, key string) error {
+func isFound(e error) bool {
+	if errdefs.IsNotFound(e) {
+		return false
+	}
+	return true
+}
+
+// Delete deletes the container and any tasks associated with it.
+// Tasks will be forcefully stopped if running.
+func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
-	if container, err := c.client.LoadContainer(ctx, key); !errdefs.IsNotFound(err) {
 
-		// Delete the task
-		if task, err := container.Task(ctx, nil); !errdefs.IsNotFound(err) {
-			_, err = task.Delete(ctx)
+	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			return nil
 		}
-
-		// Delete the container
-		if err == nil {
-			_ = container.Delete(ctx, containerd.WithSnapshotCleanup)
-		}
-
+		return err
 	}
 
-	return nil
+	task, err := container.Task(ctx, nil)
+	if err != nil {
+		if !errors.Is(err, errdefs.ErrNotFound) {
+			return err
+		}
+	}
+
+	if task != nil {
+		// _, err = task.Delete(ctx)
+		// if err != nil {
+		// 	if !errors.Is(err, errdefs.ErrNotFound) {
+		// 		return err
+		// 	}
+		// }
+		err = c.Kill(ctx, ctr)
+		if err != nil && !errors.Is(err, errdefs.ErrNotFound) {
+			return err
+		}
+	}
+
+	return container.Delete(ctx, containerd.WithSnapshotCleanup)
 }
 
 func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
@@ -228,6 +252,9 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	ctx = namespaces.WithNamespace(ctx, "blipblop")
 	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
+		if errors.Is(err, errdefs.ErrNotFound) {
+			return nil
+		}
 		return err
 	}
 
@@ -267,7 +294,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	}
 
 	// Delete container if it exists
-	if err := c.Delete(ctx, ctr.GetMeta().GetName()); err != nil {
+	if err := c.Delete(ctx, ctr); err != nil {
 		return err
 	}
 
@@ -292,6 +319,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	cont, err := c.client.NewContainer(
 		ctx,
 		ctr.GetMeta().GetName(),
+		containerd.WithImage(image),
 		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.GetMeta().GetName()), image),
 		containerd.WithNewSpec(opts...),
 		withContainerLabels(labels.New(), ctr),

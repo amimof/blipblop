@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -10,7 +9,6 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
-	"github.com/google/uuid"
 )
 
 type ContainerController struct {
@@ -45,36 +43,39 @@ func (c *ContainerController) AddHandler(h *ContainerEventHandlerFuncs) {
 
 func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	// Setup channels
-	evt := make(chan *events.Event)
-	errChan := make(chan error)
-
-	clientId := fmt.Sprintf("%s:%s", "containerd-controller", uuid.New())
+	evt := make(chan *events.Event, 10)
+	errChan := make(chan error, 10)
 
 	go func() {
 		for {
 			select {
 			case ev := <-evt:
-				c.logger.Debug("received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
+				c.logger.Debug("received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String(), "clientId", ev.GetClientId())
 				c.handleEventEvent(c.handlers, ev, c.logger)
+				continue
 			case err := <-errChan:
 				c.logger.Error("recevied error on channel", "error", err)
 				return
 			case <-stopCh:
 				c.logger.Info("done watching, closing controller")
-				ctx.Done()
 				return
 			}
 		}
 	}()
 
 	for {
-		if err := c.clientset.EventV1().Subscribe(ctx, clientId, evt, errChan); err != nil {
-			c.logger.Error("error occured during subscribe", "error", err)
+		select {
+		case <-stopCh:
+			c.logger.Info("done watching, stopping subscription")
+			return
+		default:
+			if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
+				c.logger.Error("error occured during subscribe", "error", err)
+			}
+
+			c.logger.Info("attempting to re-subscribe to event server")
+			time.Sleep(5 * time.Second)
 		}
-
-		c.logger.Info("attempting to re-subscribe to event server")
-		time.Sleep(5 * time.Second)
-
 	}
 }
 
@@ -168,9 +169,20 @@ func (c *ContainerController) onContainerCreate(obj *events.Event, ctr *containe
 	return nil
 }
 
-func (c *ContainerController) onContainerDelete(obj *events.Event, _ *containers.Container) error {
+func (c *ContainerController) onContainerDelete(obj *events.Event, ctr *containers.Container) error {
 	ctx := context.Background()
-	err := c.runtime.Delete(ctx, obj.GetObjectId())
+	err := c.runtime.Kill(ctx, ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Delete(ctx, ctr)
+	if err != nil {
+		return err
+	}
+
+	// Emit event that the container has been deleted
+	c.logger.Info("successfully deleted container", "container", obj.GetObjectId())
+	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerDeleted)
 	if err != nil {
 		return err
 	}

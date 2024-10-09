@@ -484,7 +484,7 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
-			err = c.runtime.Delete(ctx, currentContainer.GetMeta().GetName())
+			err = c.runtime.Delete(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}

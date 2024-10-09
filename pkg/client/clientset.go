@@ -11,6 +11,7 @@ import (
 	containerv1 "github.com/amimof/blipblop/pkg/client/container/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
+	"github.com/google/uuid"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -30,9 +31,17 @@ type ClientSet struct {
 	mu                sync.Mutex
 	grpcOpts          []grpc.DialOption
 	tlsConfig         *tls.Config
+	clientId          string
 }
 
 type NewClientOption func(c *ClientSet) error
+
+func WithClientId(id string) NewClientOption {
+	return func(c *ClientSet) error {
+		c.clientId = id
+		return nil
+	}
+}
 
 func WithGrpcDialOption(opts ...grpc.DialOption) NewClientOption {
 	return func(c *ClientSet) error {
@@ -131,6 +140,10 @@ func (c *ClientSet) Close() error {
 	return nil
 }
 
+func (c *ClientSet) ID() string {
+	return c.clientId
+}
+
 func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSet, error) {
 	// Define connection backoff policy
 	backoffConfig := backoff.Config{
@@ -163,6 +176,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 		tlsConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},
+		clientId: uuid.New().String(),
 	}
 
 	// Allow passing in custom dial options
@@ -182,9 +196,9 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 	}
 
 	c.conn = conn
-	c.nodeV1Client = nodev1.NewClientV1(conn)
-	c.containerV1Client = containerv1.NewClientV1(conn)
-	c.eventV1Client = eventv1.NewClientV1(conn)
+	c.nodeV1Client = nodev1.NewClientV1(conn, c.clientId)
+	c.containerV1Client = containerv1.NewClientV1(conn, c.clientId)
+	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
 
 	return c, nil
 }

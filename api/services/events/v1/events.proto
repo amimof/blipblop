@@ -39,7 +39,8 @@ message SubscribeRequest {
 message Event {
   blipblop.types.v1.Meta meta = 1;
   string objectId = 4;
-  EventType type = 5;
+  string clientId = 5;
+  EventType type = 6;
 }
 
 enum EventType {
@@ -61,6 +62,7 @@ enum EventType {
   ContainerStartError = 16;
   ContainerStarted = 17;
   ContainerStopped = 18;
+  ContainerDeleted = 19;
 }
 
 message GetEventRequest {

@@ -3,6 +3,7 @@ package delete
 import (
 	"context"
 
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -38,11 +39,23 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			err = c.ContainerV1().Delete(context.Background(), ctr.GetMeta().GetName())
-			if err != nil {
-				logrus.Fatal(err)
+
+			logrus.Infof("requested to delete container %s", ctr.GetMeta().GetName())
+
+			go func() {
+				err = c.ContainerV1().Delete(ctx, cname)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+			}()
+
+			if viper.GetBool("wait") {
+				err = c.EventV1().Wait(events.EventType_ContainerDeleted, cname)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				logrus.Infof("successfully deleted container %s", cname)
 			}
-			logrus.Infof("request to delete container %s successful", ctr.GetMeta().GetName())
 		},
 	}
 
