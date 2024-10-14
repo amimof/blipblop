@@ -64,6 +64,9 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 					}
 					return nil
 				})
+				if err != nil {
+					logrus.Fatal(err)
+				}
 				fmt.Printf("Container %s deleted\n", cname)
 			}
 		},

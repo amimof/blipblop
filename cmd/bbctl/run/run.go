@@ -95,6 +95,9 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 					}
 					return nil
 				})
+				if err != nil {
+					logrus.Fatal(err)
+				}
 				fmt.Printf("Container %s started\n", cname)
 			}
 		},

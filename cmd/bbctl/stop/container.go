@@ -66,6 +66,9 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 					}
 					return nil
 				})
+				if err != nil {
+					logrus.Fatal(err)
+				}
 				fmt.Printf("Container %s stopped\n", cname)
 			}
 		},
