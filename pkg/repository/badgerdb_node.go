@@ -33,6 +33,9 @@ func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error
 		key := NodeID(id).String()
 		item, err := txn.Get([]byte(key))
 		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return ErrNotFound
+			}
 			return err
 		}
 		return item.Value(func(val []byte) error {

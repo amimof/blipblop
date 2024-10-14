@@ -60,15 +60,17 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 
 func NewService(repo repository.NodeRepository, ev *event.EventService, opts ...NewServiceOption) *NodeService {
 	s := &NodeService{
-		local: &local{
-			repo:        repo,
-			eventClient: ev,
-		},
 		logger: logger.ConsoleLogger{},
 	}
 
 	for _, opt := range opts {
 		opt(s)
+	}
+
+	s.local = &local{
+		repo:        repo,
+		eventClient: ev,
+		logger:      s.logger,
 	}
 
 	return s

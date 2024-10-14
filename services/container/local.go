@@ -35,7 +35,7 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	if errors.Is(err, repository.ErrNotFound) {
 		return status.Error(codes.NotFound, err.Error())
 	}
-	return err
+	return status.Error(codes.Internal, err.Error())
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
@@ -44,9 +44,6 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
-	}
-	if container == nil {
-		return nil, fmt.Errorf("container not found %s", req.GetId())
 	}
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_ContainerGet)})
 	if err != nil {
@@ -132,7 +129,7 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 	}
 	_, err := l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), evt)})
 	if err != nil {
-		return nil, err
+		return nil, l.handleError(err, "error publishing KILL event", "name", req.GetId(), "event", "ContainerKill")
 	}
 	return &containers.KillContainerResponse{
 		Id: req.GetId(),
