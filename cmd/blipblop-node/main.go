@@ -154,12 +154,6 @@ func main() {
 	defer cs.Close()
 
 	// Join node
-	nodeName, err := os.Hostname()
-	if err != nil {
-		log.Error("error getting hostname from env", "error", err)
-		return
-	}
-
 	n, err := newNodeFromEnv()
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err)
@@ -212,10 +206,10 @@ func main() {
 
 	log.Info("Shutting down")
 	ctx.Done()
-	if err := cs.NodeV1().Forget(ctx, nodeName); err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
-	}
-	log.Info("Successfully unjoined from cluster", "node", nodeName)
+	// if err := cs.NodeV1().Forget(ctx, nodeName); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "%s", err.Error())
+	// }
+	// log.Info("Successfully unjoined from cluster", "node", nodeName)
 }
 
 func connectContainerd(address string) (*containerd.Client, error) {

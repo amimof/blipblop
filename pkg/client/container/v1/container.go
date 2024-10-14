@@ -31,15 +31,6 @@ type Response[T any] struct {
 	Raw    proto.Message
 }
 
-// Wrapper that decorates the error with grpc status error
-func handleError(err error) error {
-	st, ok := status.FromError(err)
-	if ok {
-		return fmt.Errorf("gRPC error: %s - %s", st.Code(), st.Message())
-	}
-	return fmt.Errorf("unknown error: %v", err)
-}
-
 func (g *Response[T]) Object() (T, error) {
 	// Attempt to cast the value inside GenericContainer to type T
 	v, ok := g.Raw.(T)
@@ -62,14 +53,14 @@ func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
 	}
 	fm, err := fieldmaskpb.New(n.Container, "status.node")
 	if err != nil {
-		return handleError(err)
+		return err
 	}
 	fm.Normalize()
 	n.UpdateMask = fm
 	if fm.IsValid(n.Container) {
 		_, err = c.containerService.Update(ctx, n)
 		if err != nil {
-			return handleError(err)
+			return err
 		}
 	}
 	return nil
@@ -88,14 +79,14 @@ func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, phase string, d
 	}
 	fm, err := fieldmaskpb.New(n.Container, "status.phase")
 	if err != nil {
-		return handleError(err)
+		return err
 	}
 	fm.Normalize()
 	n.UpdateMask = fm
 	if fm.IsValid(n.Container) {
 		_, err = c.containerService.Update(ctx, n)
 		if err != nil {
-			return handleError(err)
+			return err
 		}
 	}
 	return nil
@@ -111,14 +102,14 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 	}
 	fm, err := fieldmaskpb.New(n.Container, "status")
 	if err != nil {
-		return handleError(err)
+		return err
 	}
 	fm.Normalize()
 	n.UpdateMask = fm
 	if fm.IsValid(n.Container) {
 		_, err = c.containerService.Update(ctx, n)
 		if err != nil {
-			return handleError(err)
+			return err
 		}
 	}
 	return nil
@@ -128,7 +119,7 @@ func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContain
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id})
 	if err != nil {
-		return nil, handleError(err)
+		return nil, err
 	}
 	return resp, err
 }
@@ -137,7 +128,7 @@ func (c *ClientV1) Stop(ctx context.Context, id string) (*containers.KillContain
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
 	if err != nil {
-		return nil, handleError(err)
+		return nil, err
 	}
 	return resp, err
 }
@@ -146,7 +137,7 @@ func (c *ClientV1) Start(ctx context.Context, id string) (*containers.StartConta
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	resp, err := c.containerService.Start(ctx, &containers.StartContainerRequest{Id: id})
 	if err != nil {
-		return nil, handleError(err)
+		return nil, err
 	}
 
 	return resp, err
@@ -156,7 +147,7 @@ func (c *ClientV1) Create(ctx context.Context, ctr *containers.Container) error 
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.containerService.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
 	if err != nil {
-		return handleError(err)
+		return err
 	}
 	return nil
 }
@@ -165,7 +156,7 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*containers.Container, e
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
-		return nil, handleError(err)
+		return nil, err
 	}
 	return res.GetContainer(), nil
 }
@@ -174,7 +165,7 @@ func (c *ClientV1) List(ctx context.Context) ([]*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: labels.New()})
 	if err != nil {
-		return nil, handleError(err)
+		return nil, err
 	}
 	return res.Containers, nil
 }
@@ -183,7 +174,7 @@ func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.containerService.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
 	if err != nil {
-		return handleError(err)
+		return err
 	}
 	return nil
 }

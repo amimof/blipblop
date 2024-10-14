@@ -6,6 +6,7 @@ import (
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/cmdutil"
+	"github.com/amimof/blipblop/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -38,7 +39,7 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			cname := args[0]
 			phase := ""
 
-			fmt.Printf("Requested to delete container %s", cname)
+			fmt.Printf("Requested to delete container %s\n", cname)
 
 			err = c.ContainerV1().Delete(ctx, cname)
 			if err != nil {
@@ -55,6 +56,11 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 				err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
 					ctr, err := c.ContainerV1().Get(ctx, cname)
 					if err != nil {
+						if errors.IsNotFound(err) {
+							stop()
+
+							return nil
+						}
 						logrus.Fatal(err)
 					}
 
