@@ -79,7 +79,6 @@ func Watch(ctx context.Context, id string, wf WatchFunc) error {
 	s := false
 	stop := func() {
 		s = true
-		return
 	}
 	for {
 		err := wf(stop)

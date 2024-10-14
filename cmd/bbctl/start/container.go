@@ -3,11 +3,9 @@ package start
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/cmdutil"
-	"github.com/fatih/color"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -71,18 +69,4 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 		},
 	}
 	return runCmd
-}
-
-func formatPhase(phase string) string {
-	p := strings.ToUpper(phase)
-	switch p {
-	case "UNKNOWN":
-		return color.YellowString(p)
-	case "RUNNING":
-		return color.GreenString(p)
-	case "ERROR":
-		return color.RedString(p)
-	default:
-		return color.CyanString(p)
-	}
 }
