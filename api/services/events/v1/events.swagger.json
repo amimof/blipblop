@@ -177,11 +177,7 @@
         "NodeList",
         "NodeUpdate",
         "NodeJoin",
-        "NodeForget",
-        "ContainerStartError",
-        "ContainerStarted",
-        "ContainerStopped",
-        "ContainerDeleted"
+        "NodeForget"
       ],
       "default": "ContainerCreate"
     },

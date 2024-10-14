@@ -75,18 +75,18 @@ func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
 	return nil
 }
 
-func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, health containers.TaskStatus, desc string) error {
+func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, phase string, desc string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	n := &containers.UpdateContainerRequest{
 		Id: id,
 		Container: &containers.Container{
 			Status: &containers.Status{
-				TaskStatus:  health,
+				Phase:       phase,
 				Description: desc,
 			},
 		},
 	}
-	fm, err := fieldmaskpb.New(n.Container, "status.taskStatus")
+	fm, err := fieldmaskpb.New(n.Container, "status.phase")
 	if err != nil {
 		return handleError(err)
 	}
@@ -123,35 +123,6 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 	}
 	return nil
 }
-
-// func (c *ClientV1) AddEvent(ctx context.Context, id string, evt *containers.Event) error {
-// 	ctr, err := c.Get(ctx, id)
-// 	if err != nil {
-// 		return handleError(err)
-// 	}
-// 	evt.Created = timestamppb.New(time.Now())
-// 	events := ctr.GetEvents()
-// 	events = append(events, evt)
-// 	req := &containers.UpdateContainerRequest{
-// 		Id: id,
-// 		Container: &containers.Container{
-// 			Events: events,
-// 		},
-// 	}
-// 	fm, err := fieldmaskpb.New(req.Container, "events")
-// 	if err != nil {
-// 		return handleError(err)
-// 	}
-// 	fm.Normalize()
-// 	req.UpdateMask = fm
-// 	if fm.IsValid(req.Container) {
-// 		_, err = c.containerService.Update(ctx, req)
-// 		if err != nil {
-// 			return handleError(err)
-// 		}
-// 	}
-// 	return nil
-// }
 
 func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)

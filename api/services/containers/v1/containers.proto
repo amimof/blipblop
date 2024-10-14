@@ -71,7 +71,6 @@ message Status {
   uint32 exitStatus = 5;
   google.protobuf.Timestamp exitTime = 6;
   string description = 8;
-  TaskStatus taskStatus = 9;
 }
 
 message Config {
@@ -96,19 +95,14 @@ message PortMapping {
 	string hostIP = 4;
 }
 
-enum TaskStatus {
+enum Phase {
   Unknown = 0;
-  // OK
-  Created = 1;
-  Killed = 2;
-  Started = 3;
-
-  // Errors
-  ExecError = 4;
-  ImagePullError = 5;
-  CreateError = 6;
-  KillError = 7;
-  DeleteError = 8;
+  Starting = 1;
+  Stopping = 2;
+  Running = 3;
+  Error = 4;
+  Pulling = 5;
+  Deleting = 6;
 }
 
 message Event {

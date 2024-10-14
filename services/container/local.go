@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/amimof/blipblop/services"
 	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,6 +32,9 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
 	def = append(def, keysAndValues...)
 	l.logger.Error(msg, def...)
+	if errors.Is(err, repository.ErrNotFound) {
+		return status.Error(codes.NotFound, err.Error())
+	}
 	return err
 }
 

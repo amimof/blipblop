@@ -107,28 +107,27 @@ func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs
 	t := ev.Type
 	switch t {
 	case events.EventType_ContainerCreate:
+		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Starting.String(), "")
 		if err := funcs.OnContainerCreate(ev, ctr); err != nil {
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_CreateError, err.Error())
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Error.String(), err.Error())
 			c.logger.Error("error calling OnContainerCreate handler", "error", err)
 		}
-		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_Created, "")
 	case events.EventType_ContainerDelete:
+		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Deleting.String(), "")
 		if err := funcs.OnContainerDelete(ev, ctr); err != nil {
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_DeleteError, err.Error())
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Error.String(), err.Error())
 			c.logger.Error("error calling OnContainerDelete handler", "error", err)
 		}
 	case events.EventType_ContainerStart:
 		if err := funcs.OnContainerStart(ev, ctr); err != nil {
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_ExecError, err.Error())
 			c.logger.Error("error calling OnContainerStart handler", "error", err)
 		}
-		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_Started, "")
 	case events.EventType_ContainerKill:
+		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Stopping.String(), "")
 		if err := funcs.OnContainerKill(ev, ctr); err != nil {
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_KillError, err.Error())
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Error.String(), err.Error())
 			c.logger.Error("error calling OnContainerKill handler", "error", err)
 		}
-		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.TaskStatus_Killed, "")
 	default:
 		l.Debug("container handler not implemented for event", "type", t.String())
 	}
@@ -160,12 +159,6 @@ func (c *ContainerController) onContainerCreate(obj *events.Event, ctr *containe
 	if err != nil {
 		return err
 	}
-	// Emit event that the container has started
-	c.logger.Info("successfully started container", "container", obj.GetObjectId())
-	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStarted)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -179,30 +172,27 @@ func (c *ContainerController) onContainerDelete(obj *events.Event, ctr *containe
 	if err != nil {
 		return err
 	}
-
-	// Emit event that the container has been deleted
-	c.logger.Info("successfully deleted container", "container", obj.GetObjectId())
-	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerDeleted)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 func (c *ContainerController) onContainerStart(obj *events.Event, ctr *containers.Container) error {
 	ctx := context.Background()
+	// Delete container if it exists
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Stopping.String(), "")
+	if err := c.runtime.Delete(ctx, ctr); err != nil {
+		return err
+	}
+
+	// Pull image
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Pulling.String(), "")
 	err := c.runtime.Pull(ctx, ctr)
 	if err != nil {
 		return err
 	}
-	err = c.runtime.Run(ctx, ctr)
-	if err != nil {
-		return err
-	}
 
-	// Emit event that the container has started
-	c.logger.Info("successfully started container", "container", obj.GetObjectId())
-	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStarted)
+	// Run container
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Starting.String(), "")
+	err = c.runtime.Run(ctx, ctr)
 	if err != nil {
 		return err
 	}
@@ -215,24 +205,12 @@ func (c *ContainerController) onContainerKill(obj *events.Event, ctr *containers
 	if err != nil {
 		return err
 	}
-	// Emit event that the container has started
-	c.logger.Info("successfully killed container", "container", obj.GetObjectId())
-	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStopped)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 func (c *ContainerController) onContainerStop(obj *events.Event, ctr *containers.Container) error {
 	ctx := context.Background()
 	err := c.runtime.Stop(ctx, ctr)
-	if err != nil {
-		return err
-	}
-	// Emit event that the container has started
-	c.logger.Info("successfully stopped container", "container", obj.GetObjectId())
-	err = c.clientset.EventV1().Publish(ctx, obj.GetObjectId(), events.EventType_ContainerStopped)
 	if err != nil {
 		return err
 	}

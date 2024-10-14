@@ -2,15 +2,16 @@ package run
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/amimof/blipblop/pkg/networking"
 )
 
@@ -72,16 +73,30 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				logrus.Fatal(err)
 			}
 
-			logrus.Infof("requested to run container %s", cname)
+			phase := ""
+
+			fmt.Printf("Requested to run container %s\n", cname)
 
 			if viper.GetBool("wait") {
-				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)
-				if err != nil {
-					logrus.Fatal(err)
-				}
-			}
+				fmt.Println("Waiting for container to start")
+				spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
+				spinner.Start()
+				defer spinner.Stop()
 
-			logrus.Infof("successfully started container %s", cname)
+				// Periodically get container phase
+				err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
+					ctr, err := c.ContainerV1().Get(ctx, cname)
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
+					if ctr.GetStatus().GetPhase() == "running" {
+						stop()
+					}
+					return nil
+				})
+				fmt.Printf("Container %s started\n", cname)
+			}
 		},
 	}
 	runCmd.Flags().StringVarP(

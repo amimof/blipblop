@@ -264,19 +264,13 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 }
 
 func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) error {
+	time.Sleep(5 * time.Second)
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
-	// image, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
-	// if err != nil {
-	// 	return err
-	// }
+
+	// Get the image. Assumes that image has been pulled beforehand
 	image, err := c.client.GetImage(ctx, ctr.GetConfig().GetImage())
 	if err != nil {
-		return err
-	}
-
-	// Delete container if it exists
-	if err := c.Delete(ctx, ctr); err != nil {
 		return err
 	}
 

@@ -2,9 +2,10 @@ package stop
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -35,29 +36,37 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 			defer c.Close()
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().Get(ctx, cname)
+			phase := ""
+
+			fmt.Printf("requested to stop container %s\n", cname)
+
+			if viper.GetBool("force") {
+				_, err = c.ContainerV1().Kill(ctx, cname)
+			}
+			_, err = c.ContainerV1().Stop(ctx, cname)
 			if err != nil {
 				logrus.Fatal(err)
 			}
 
-			logrus.Infof("requested to stop container %s", ctr.GetMeta().GetName())
-
-			go func() {
-				if viper.GetBool("force") {
-					_, err = c.ContainerV1().Kill(ctx, cname)
-				}
-				_, err = c.ContainerV1().Stop(ctx, cname)
-				if err != nil {
-					logrus.Fatal(err)
-				}
-			}()
-
 			if viper.GetBool("wait") {
-				err = c.EventV1().Wait(events.EventType_ContainerStopped, cname)
-				if err != nil {
-					logrus.Fatal(err)
-				}
-				logrus.Infof("successfully stopped container %s", cname)
+				fmt.Println("Waiting for container to stop")
+				spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
+				spinner.Start()
+				defer spinner.Stop()
+
+				// Periodically get container phase
+				err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
+					ctr, err := c.ContainerV1().Get(ctx, cname)
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
+					if ctr.GetStatus().GetPhase() == "Deleted" {
+						stop()
+					}
+					return nil
+				})
+				fmt.Printf("Container %s stopped\n", cname)
 			}
 		},
 	}
