@@ -41,10 +41,11 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 			fmt.Printf("requested to stop container %s\n", cname)
 
 			if viper.GetBool("force") {
-				_, err = c.ContainerV1().Kill(ctx, cname)
+				if _, err = c.ContainerV1().Kill(ctx, cname); err != nil {
+					logrus.Fatal(err)
+				}
 			}
-			_, err = c.ContainerV1().Stop(ctx, cname)
-			if err != nil {
+			if _, err = c.ContainerV1().Stop(ctx, cname); err != nil {
 				logrus.Fatal(err)
 			}
 
