@@ -2,9 +2,10 @@ package start
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -27,7 +28,7 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Setup clien
+			// Setup client
 			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
@@ -35,26 +36,38 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 			defer c.Close()
 
 			cname := args[0]
-			ctr, err := c.ContainerV1().Get(ctx, cname)
+			phase := ""
+
+			// Start container
+			_, err = c.ContainerV1().Start(context.Background(), cname)
 			if err != nil {
 				logrus.Fatal(err)
 			}
 
-			logrus.Infof("requested to start container %s", ctr.GetMeta().GetName())
-
-			go func() {
-				_, err = c.ContainerV1().Start(context.Background(), ctr.GetMeta().GetName())
-				if err != nil {
-					logrus.Fatal(err)
-				}
-			}()
+			fmt.Printf("Requested to start container %s\n", cname)
 
 			if viper.GetBool("wait") {
-				err = c.EventV1().Wait(events.EventType_ContainerStarted, cname)
+				fmt.Println("Waiting for container to start")
+				spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
+				spinner.Start()
+				defer spinner.Stop()
+
+				// Periodically get container phase
+				err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
+					ctr, err := c.ContainerV1().Get(ctx, cname)
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
+					if ctr.GetStatus().GetPhase() == "running" {
+						stop()
+					}
+					return nil
+				})
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				logrus.Infof("successfully started container %s", cname)
+				fmt.Printf("Container %s started\n", cname)
 			}
 		},
 	}

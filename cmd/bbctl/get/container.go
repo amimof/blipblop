@@ -29,7 +29,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
 
 			// Setup client
@@ -47,9 +47,9 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
+				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "NODE", "AGE")
 				for _, c := range containers {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n", c.GetMeta().GetName(), c.GetMeta().GetRevision(), c.GetStatus().GetPhase(), c.GetStatus().GetTaskStatus(), c.GetStatus().GetNode(), time.Since(c.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n", c.GetMeta().GetName(), c.GetMeta().GetRevision(), c.GetStatus().GetPhase(), c.GetStatus().GetNode(), time.Since(c.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
 				}
 			}
 

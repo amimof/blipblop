@@ -385,9 +385,6 @@
         },
         "description": {
           "type": "string"
-        },
-        "taskStatus": {
-          "$ref": "#/definitions/v1TaskStatus"
         }
       }
     },
@@ -584,22 +581,6 @@
           "type": "string"
         }
       }
-    },
-    "v1TaskStatus": {
-      "type": "string",
-      "enum": [
-        "Unknown",
-        "Created",
-        "Killed",
-        "Started",
-        "ExecError",
-        "ImagePullError",
-        "CreateError",
-        "KillError",
-        "DeleteError"
-      ],
-      "default": "Unknown",
-      "title": "- Created: OK\n - ExecError: Errors"
     },
     "v1UpdateContainerResponse": {
       "type": "object",

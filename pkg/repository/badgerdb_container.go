@@ -33,6 +33,9 @@ func (r *containerBadgerRepo) Get(ctx context.Context, id string) (*containers.C
 		key := ContainerID(id).String()
 		item, err := txn.Get([]byte(key))
 		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return ErrNotFound
+			}
 			return err
 		}
 		return item.Value(func(val []byte) error {
@@ -92,7 +95,14 @@ func (r *containerBadgerRepo) Create(ctx context.Context, container *containers.
 func (r *containerBadgerRepo) Delete(ctx context.Context, id string) error {
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := ContainerID(id).String()
-		return txn.Delete([]byte(key))
+		err := txn.Delete([]byte(key))
+		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return ErrNotFound
+			}
+			return err
+		}
+		return nil
 	})
 }
 

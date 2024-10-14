@@ -384,39 +384,52 @@ func (c *ContainerdController) setContainerState(id string) error {
 	ns := "blipblop"
 	ctx := context.Background()
 	ctx = namespaces.WithNamespace(ctx, ns)
-	list, err := c.client.Containers(ctx)
+
+	hostname, _ := os.Hostname()
+
+	st := &containers.Status{
+		Node: hostname,
+		Ip:   "192.168.13.123",
+		// Pid:        pid,
+		// Phase:      phase,
+		// ExitStatus: exitStatus,
+	}
+
+	ctr, err := c.client.LoadContainer(ctx, id)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			st.Phase = "Deleted"
+			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
+		}
+		return err
+	}
+
+	task, err := ctr.Task(ctx, nil)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			st.Phase = "Deleted"
+			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
+		}
+		return err
+	}
+
+	var pid, exitStatus uint32
+	var phase string
+
+	pid = getTaskPid(task)
+	phase = getTaskProcessStatus(ctx, task)
+	exitStatus = getTaskExitStatus(ctx, task)
+
+	err = c.clientset.ContainerV1().SetNode(ctx, id, hostname)
 	if err != nil {
 		return err
 	}
-	for _, container := range list {
-		if container.ID() == id {
 
-			var pid, exitStatus uint32
-			var phase string
+	st.Pid = pid
+	st.Phase = phase
+	st.ExitStatus = exitStatus
 
-			if task, err := container.Task(ctx, nil); err == nil {
-				pid = getTaskPid(task)
-				phase = getTaskProcessStatus(ctx, task)
-				exitStatus = getTaskExitStatus(ctx, task)
-			}
-
-			hostname, _ := os.Hostname()
-
-			err = c.clientset.ContainerV1().SetNode(ctx, id, hostname)
-			if err != nil {
-				return err
-			}
-			st := &containers.Status{
-				Node:       hostname,
-				Ip:         "192.168.13.123",
-				Pid:        pid,
-				Phase:      phase,
-				ExitStatus: exitStatus,
-			}
-			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
-		}
-	}
-	return nil
+	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 }
 
 func getTaskPid(t containerd.Task) uint32 {
