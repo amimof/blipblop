@@ -33,7 +33,6 @@ type ClientSet struct {
 	grpcOpts          []grpc.DialOption
 	tlsConfig         *tls.Config
 	clientId          string
-	connectionState   connectivity.State
 }
 
 type NewClientOption func(c *ClientSet) error

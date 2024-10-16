@@ -16,8 +16,6 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/typeurl"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type ContainerdController struct {
@@ -136,16 +134,6 @@ func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan s
 			ctx.Done()
 		}
 	}
-}
-
-func isConnectionError(err error) bool {
-	if errdefs.IsUnavailable(err) || errdefs.IsNotFound(err) {
-		return true
-	}
-	if st, ok := status.FromError(err); ok {
-		return st.Code() == codes.Unavailable
-	}
-	return false
 }
 
 func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {

@@ -25,10 +25,7 @@ func WithLogger(l logger.Logger) NewServiceOption {
 }
 
 type EventService struct {
-	// channel map[string][]chan *events.Event
-	channel map[string]chan *events.Event
-	// channel1 map[string]events.EventService_SubscribeServer
-	channel1 map[string]chan *events.Event
+	channels map[string]chan *events.Event
 	events.UnimplementedEventServiceServer
 	local  events.EventServiceClient
 	logger logger.Logger
@@ -63,7 +60,7 @@ func (s *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 
 	s.mu.Lock()
 	// s.channel[clientId] = append(s.channel[clientId], eventChan)
-	s.channel[clientId] = eventChan
+	s.channels[clientId] = eventChan
 	s.mu.Unlock()
 
 	go func() {
@@ -79,7 +76,7 @@ func (s *EventService) Subscribe(req *events.SubscribeRequest, stream events.Eve
 			case <-stream.Context().Done():
 				s.logger.Info("client disconnected", "clientId", req.ClientId)
 				s.mu.Lock()
-				delete(s.channel, req.ClientId)
+				delete(s.channels, req.ClientId)
 				s.mu.Unlock()
 				return
 			}
@@ -99,23 +96,22 @@ func (s *EventService) Publish(ctx context.Context, req *events.PublishRequest) 
 		return nil, err
 	}
 
-	for client, ch := range s.channel {
+	for client, ch := range s.channels {
 		select {
 		case ch <- req.Event:
-			s.logger.Info("Notified client", "client", client)
+			s.logger.Debug("notified client", "client", client)
 		default:
-			s.logger.Info("Client is too slow to receive events", "client", client)
+			s.logger.Debug("client is too slow to receive events", "client", client)
 		}
 	}
 
-	s.logger.Info("Successfullt published event", "event", req.GetEvent().GetType())
 	return &events.PublishResponse{Event: req.GetEvent()}, nil
 }
 
 func NewService(repo repository.EventRepository, opts ...NewServiceOption) *EventService {
 	s := &EventService{
 		// channel: make(map[string][]chan *events.Event),
-		channel: make(map[string]chan *events.Event),
+		channels: make(map[string]chan *events.Event),
 		local: &local{
 			repo: repo,
 		},
