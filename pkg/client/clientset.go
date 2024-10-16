@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 )
@@ -127,6 +128,14 @@ func (c *ClientSet) ContainerV1() *containerv1.ClientV1 {
 
 func (c *ClientSet) EventV1() *eventv1.ClientV1 {
 	return c.eventV1Client
+}
+
+func (c *ClientSet) State() connectivity.State {
+	return c.conn.GetState()
+}
+
+func (c *ClientSet) Connect() {
+	c.conn.Connect()
 }
 
 func (c *ClientSet) Close() error {

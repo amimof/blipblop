@@ -51,20 +51,27 @@ func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error
 func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 	var result []*nodes.Node
 	err := r.db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = nodePrefix
+		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		for it.Seek(nodePrefix); it.ValidForPrefix(nodePrefix); it.Next() {
+		it.Seek(nodePrefix)
+		for it.ValidForPrefix(nodePrefix) {
 			item := it.Item()
-			return item.Value(func(val []byte) error {
-				ctr := &nodes.Node{}
+			ctr := &nodes.Node{}
+			err := item.Value(func(val []byte) error {
 				err := proto.Unmarshal(val, ctr)
 				if err != nil {
 					return err
 				}
-				result = append(result, ctr)
 				return nil
 			})
+			if err != nil {
+				return err
+			}
+			result = append(result, ctr)
+			it.Next()
 		}
 		return nil
 	})

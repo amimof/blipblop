@@ -55,13 +55,7 @@ message Status {
   string hostname = 2;
   string arch = 3;
   string os = 4;
-  ReadyStatus readyStatus = 5;
-}
-
-enum ReadyStatus {
-  Unknown = 0;
-  NotReady = 1;
-  Ready = 2;
+  string state = 5;
 }
 
 message GetNodeRequest {

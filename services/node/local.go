@@ -39,16 +39,16 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
+	// md, _ := metadata.FromIncomingContext(ctx)
+	// clientId := md.Get("blipblop_client_id")[0]
 	node, err := l.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_NodeGet)})
-	if err != nil {
-		return nil, l.handleError(err, "error publishing GET event", "id", req.GetId(), "event", "NodeGet")
-	}
+	// _, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_NodeGet)})
+	// if err != nil {
+	// 	return nil, l.handleError(err, "error publishing GET event", "id", req.GetId(), "event", "NodeGet")
+	// }
 	return &nodes.GetNodeResponse{
 		Node: node,
 	}, nil
@@ -97,16 +97,16 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 }
 
 func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
+	// md, _ := metadata.FromIncomingContext(ctx)
+	// clientId := md.Get("blipblop_client_id")[0]
 	nodeList, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, "", events.EventType_NodeList)})
-	if err != nil {
-		return nil, err
-	}
+	// _, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, "", events.EventType_NodeList)})
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &nodes.ListNodeResponse{
 		Nodes: nodeList,
@@ -149,7 +149,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		return nil, status.Error(codes.InvalidArgument, "node name cannot be empty")
 	}
 
-	node, err := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetMeta().GetName()})
+	_, err := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetMeta().GetName()})
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			if _, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node}); err != nil {
@@ -160,9 +160,11 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	if _, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: req.GetNode().GetMeta().GetName(), Node: node.GetNode()}); err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE node", "name", req.GetNode().GetMeta().GetName())
-	}
+	// if node != nil {
+	// 	if _, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: req.GetNode().GetMeta().GetName(), Node: node.GetNode()}); err != nil {
+	// 		return nil, l.handleError(err, "couldn't UPDATE node", "name", req.GetNode().GetMeta().GetName())
+	// 	}
+	// }
 
 	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), events.EventType_NodeJoin)})
 	if err != nil {

@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
@@ -10,6 +11,7 @@ import (
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 )
 
 var ErrClientExists = errors.New("client already exists")
@@ -23,10 +25,11 @@ func WithLogger(l logger.Logger) NewServiceOption {
 }
 
 type EventService struct {
-	channel map[string][]chan *events.Event
+	channels map[string]chan *events.Event
 	events.UnimplementedEventServiceServer
 	local  events.EventServiceClient
 	logger logger.Logger
+	mu     sync.Mutex
 }
 
 func (n *EventService) Register(server *grpc.Server) error {
@@ -48,44 +51,67 @@ func (n *EventService) List(ctx context.Context, req *events.ListEventRequest) (
 }
 
 func (s *EventService) Subscribe(req *events.SubscribeRequest, stream events.EventService_SubscribeServer) error {
+	// Identify the client
+	clientId := req.ClientId
+	peer, _ := peer.FromContext(stream.Context())
 	eventChan := make(chan *events.Event)
-	// if _, ok := s.channel[req.ClientId]; ok {
-	// 	return ErrClientExists
-	// }
-	s.channel[req.ClientId] = append(s.channel[req.ClientId], eventChan)
-	s.logger.Info("client joined", "id", req.ClientId)
-	for {
-		select {
-		case <-stream.Context().Done():
-			s.logger.Info("client left", "id", req.ClientId)
-			delete(s.channel, req.ClientId)
-			return nil
-		case n := <-eventChan:
-			s.logger.Debug("got event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
-			err := stream.Send(n)
-			if err != nil {
-				s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+
+	s.logger.Info("client connected", "clientId", clientId, "address", peer.Addr.String())
+
+	s.mu.Lock()
+	// s.channel[clientId] = append(s.channel[clientId], eventChan)
+	s.channels[clientId] = eventChan
+	s.mu.Unlock()
+
+	go func() {
+		for {
+			select {
+			case n := <-eventChan:
+				s.logger.Debug("got event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+				err := stream.Send(n)
+				if err != nil {
+					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+					return
+				}
+			case <-stream.Context().Done():
+				s.logger.Info("client disconnected", "clientId", req.ClientId)
+				s.mu.Lock()
+				delete(s.channels, req.ClientId)
+				s.mu.Unlock()
+				return
 			}
 		}
-	}
+	}()
+
+	<-stream.Context().Done()
+	return nil
 }
 
-func (n *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*events.PublishResponse, error) {
-	_, err := n.local.Publish(ctx, req)
+func (s *EventService) Publish(ctx context.Context, req *events.PublishRequest) (*events.PublishResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.local.Publish(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	for k := range n.channel {
-		for _, ch := range n.channel[k] {
-			ch <- req.Event
+
+	for client, ch := range s.channels {
+		select {
+		case ch <- req.Event:
+			s.logger.Debug("notified client", "client", client)
+		default:
+			s.logger.Debug("client is too slow to receive events", "client", client)
 		}
 	}
+
 	return &events.PublishResponse{Event: req.GetEvent()}, nil
 }
 
 func NewService(repo repository.EventRepository, opts ...NewServiceOption) *EventService {
 	s := &EventService{
-		channel: make(map[string][]chan *events.Event),
+		// channel: make(map[string][]chan *events.Event),
+		channels: make(map[string]chan *events.Event),
 		local: &local{
 			repo: repo,
 		},

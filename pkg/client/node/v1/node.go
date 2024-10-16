@@ -6,6 +6,7 @@ import (
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
@@ -91,21 +92,17 @@ func (c *ClientV1) Forget(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *ClientV1) SetReady(ctx context.Context, nodeName string, ready bool) error {
+func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connectivity.State) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	v := nodes.ReadyStatus_NotReady
-	if ready {
-		v = nodes.ReadyStatus_Ready
-	}
 	n := &nodes.UpdateNodeRequest{
 		Id: nodeName,
 		Node: &nodes.Node{
 			Status: &nodes.Status{
-				ReadyStatus: v,
+				State: state.String(),
 			},
 		},
 	}
-	fm, err := fieldmaskpb.New(n.Node, "status.readyStatus")
+	fm, err := fieldmaskpb.New(n.Node, "status.state")
 	if err != nil {
 		return err
 	}

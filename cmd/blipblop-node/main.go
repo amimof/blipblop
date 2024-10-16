@@ -206,10 +206,6 @@ func main() {
 
 	log.Info("Shutting down")
 	ctx.Done()
-	// if err := cs.NodeV1().Forget(ctx, nodeName); err != nil {
-	// 	fmt.Fprintf(os.Stderr, "%s", err.Error())
-	// }
-	// log.Info("Successfully unjoined from cluster", "node", nodeName)
 }
 
 func connectContainerd(address string) (*containerd.Client, error) {
@@ -253,11 +249,10 @@ func newNodeFromEnv() (*nodes.Node, error) {
 			Name: hostname,
 		},
 		Status: &nodes.Status{
-			Ips:         getIpAddressesAsString(),
-			Hostname:    hostname,
-			Arch:        arch,
-			Os:          oper,
-			ReadyStatus: nodes.ReadyStatus_NotReady,
+			Ips:      getIpAddressesAsString(),
+			Hostname: hostname,
+			Arch:     arch,
+			Os:       oper,
 		},
 	}
 	return n, err

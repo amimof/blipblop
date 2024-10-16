@@ -7,7 +7,6 @@ import (
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/google/uuid"
 
 	"google.golang.org/grpc"
 )
@@ -57,11 +56,7 @@ func (l *local) Subscribe(ctx context.Context, req *events.SubscribeRequest, _ .
 }
 
 func (l *local) Publish(ctx context.Context, req *events.PublishRequest, _ ...grpc.CallOption) (*events.PublishResponse, error) {
-	event := req.GetEvent()
-	if event.GetMeta().GetName() == "" {
-		event.Meta.Name = uuid.New().String()
-	}
-	return nil, l.Repo().Create(ctx, event)
+	return nil, nil
 }
 
 func (l *local) Repo() repository.EventRepository {
