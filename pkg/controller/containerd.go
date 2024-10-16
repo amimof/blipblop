@@ -101,7 +101,6 @@ func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, 
 }
 
 func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) {
-	nodeName, _ := os.Hostname()
 	err := c.Reconcile(ctx)
 	if err != nil {
 		c.logger.Error("error reconciling state", "error", err)
@@ -113,20 +112,11 @@ func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) 
 		c.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", c.logger)
 		if err != nil {
 			c.logger.Error("error reconnection to stream", "error", err)
-			err = c.clientset.NodeV1().SetReady(ctx, nodeName, false)
-			if err != nil {
-				c.logger.Info("error setting node ready statys", "error", err)
-			}
-		}
-		err = c.clientset.NodeV1().SetReady(ctx, nodeName, true)
-		if err != nil {
-			c.logger.Info("error setting node ready statys", "error", err)
 		}
 	}
 }
 
 func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan struct{}) error {
-	nodeName, _ := os.Hostname()
 	eventCh, errCh := c.client.Subscribe(ctx)
 	for {
 		select {
@@ -137,11 +127,6 @@ func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan s
 			}
 			c.HandleEvent(c.handlers, ev)
 		case err := <-errCh:
-			if err == nil || isConnectionError(err) {
-				c.logger.Error("received stream disconnect, attempting to reconnect")
-				_ = c.clientset.NodeV1().SetReady(ctx, nodeName, false)
-				return err
-			}
 			return err
 		case <-ctx.Done():
 			return nil

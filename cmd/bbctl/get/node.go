@@ -61,9 +61,9 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "AGE")
+				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "AGE")
 				for _, n := range nodes {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n", n.GetMeta().GetName(), n.GetMeta().GetRevision(), n.GetStatus().GetReadyStatus(), time.Since(n.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n", n.GetMeta().GetName(), n.GetMeta().GetRevision(), n.GetStatus().GetState(), time.Since(n.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
 				}
 			}
 

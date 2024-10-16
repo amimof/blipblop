@@ -39,32 +39,32 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
+	// md, _ := metadata.FromIncomingContext(ctx)
+	// clientId := md.Get("blipblop_client_id")[0]
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_ContainerGet)})
-	if err != nil {
-		return nil, l.handleError(err, "error publishing GET event", "id", req.GetId(), "event", "ContainerGet")
-	}
+	// _, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_ContainerGet)})
+	// if err != nil {
+	// 	return nil, l.handleError(err, "error publishing GET event", "id", req.GetId(), "event", "ContainerGet")
+	// }
 	return &containers.GetContainerResponse{
 		Container: container,
 	}, nil
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
+	// md, _ := metadata.FromIncomingContext(ctx)
+	// _ := md.Get("blipblop_client_id")[0]
 	ctrs, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, "", events.EventType_ContainerList)})
-	if err != nil {
-		return nil, l.handleError(err, "error publishing LIST event", "event", "ContainerList")
-	}
+	// _, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, "", events.EventType_ContainerList)})
+	// if err != nil {
+	// 	return nil, l.handleError(err, "error publishing LIST event", "event", "ContainerList")
+	// }
 	return &containers.ListContainerResponse{
 		Containers: ctrs,
 	}, nil

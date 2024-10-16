@@ -38,11 +38,6 @@ __run_node() {
 }
 
 __debug() {
-  if [[ $# < 2 ]]; then {
-    echo "not enough arguments, got $# need 2"
-    return
-  } >&2
-  fi
   local REMOTE_HOST=$1
   local END=$2
   local CURRENT_SESSION=$(tmux display-message -p '#S')
@@ -56,7 +51,7 @@ __debug() {
 
 __sync() {
   local REMOTE_HOST=$1
-  rsync -avr --exclude .git*  ../blipblop 192.168.13.123:/home/amir/go
+  rsync -avr --exclude .git*  ../blipblop $REMOTE_HOST:/home/amir/go
 }
 
 __killall() {
@@ -84,7 +79,7 @@ case "$2" in
     __killall $1
     ;;
   'debug')
-    __debug $1 $3
+    __debug $1
     ;;
   'build')
     __build $1
