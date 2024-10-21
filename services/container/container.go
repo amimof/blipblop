@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 )
 
@@ -18,10 +18,17 @@ func WithLogger(l logger.Logger) NewServiceOption {
 	}
 }
 
+func WithExchange(e *events.Exchange) NewServiceOption {
+	return func(s *ContainerService) {
+		s.exchange = e
+	}
+}
+
 type ContainerService struct {
 	containers.UnimplementedContainerServiceServer
-	local  containers.ContainerServiceClient
-	logger logger.Logger
+	local    containers.ContainerServiceClient
+	logger   logger.Logger
+	exchange *events.Exchange
 }
 
 func (c *ContainerService) Register(server *grpc.Server) error {
@@ -58,7 +65,7 @@ func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateCon
 	return c.local.Update(ctx, req)
 }
 
-func NewService(repo repository.ContainerRepository, ev *event.EventService, opts ...NewServiceOption) *ContainerService {
+func NewService(repo repository.ContainerRepository, opts ...NewServiceOption) *ContainerService {
 	s := &ContainerService{
 		logger: logger.ConsoleLogger{},
 	}
@@ -68,9 +75,9 @@ func NewService(repo repository.ContainerRepository, ev *event.EventService, opt
 	}
 
 	s.local = &local{
-		repo:        repo,
-		eventClient: ev,
-		logger:      s.logger,
+		repo:     repo,
+		exchange: s.exchange,
+		logger:   s.logger,
 	}
 
 	return s

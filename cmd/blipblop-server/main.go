@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
 	"github.com/amimof/blipblop/services/container"
@@ -207,10 +208,28 @@ func main() {
 	}
 	defer db.Close()
 
+	// Setup event bus
+	exchange := events.NewExchange(
+		events.WithLogger(log),
+	)
+
+	// Setup event broker
+	eventService := event.NewService(
+		repository.NewEventBadgerRepository(db),
+		event.WithLogger(log),
+		event.WithExchange(exchange),
+	)
 	// Setup services
-	eventService := event.NewService(repository.NewEventBadgerRepository(db), event.WithLogger(log))
-	nodeService := node.NewService(repository.NewNodeBadgerRepository(db), eventService, node.WithLogger(log))
-	containerService := container.NewService(repository.NewContainerBadgerRepository(db), eventService, container.WithLogger(log))
+	nodeService := node.NewService(
+		repository.NewNodeBadgerRepository(db),
+		node.WithLogger(log),
+		node.WithExchange(exchange),
+	)
+	containerService := container.NewService(
+		repository.NewContainerBadgerRepository(db),
+		container.WithLogger(log),
+		container.WithExchange(exchange),
+	)
 
 	// Setup server
 	s := server.New(serverOpts...)

@@ -31,43 +31,6 @@ func (c *ClientV1) Publish(ctx context.Context, id string, evt events.EventType)
 	return nil
 }
 
-func (c *ClientV1) Subscribe2(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
-	// Create stream
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: c.id})
-	if err != nil {
-		return fmt.Errorf("subscribe failed: %v", err)
-	}
-
-	// Read from the stream
-	for {
-		response, err := stream.Recv()
-
-		// Stream closed by server
-		if err == io.EOF {
-			errChan <- fmt.Errorf("server stream closed")
-			break
-		}
-
-		// Handle transient errors
-		if err != nil {
-			if grpcErr, ok := status.FromError(err); ok {
-				errChan <- fmt.Errorf("gRPC stream error %v, code %v", grpcErr.Message(), grpcErr.Code())
-				if grpcErr.Code() == status.Code(err) {
-					errChan <- errors.New("transient error occured, attempting to reconnect")
-					time.Sleep(2 * time.Second)
-				}
-			}
-			errChan <- fmt.Errorf("non-gRPC error: %v", err)
-			break
-		}
-		if c.id != response.ClientId {
-			receiveChan <- response
-		}
-	}
-
-	return nil
-}
-
 func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
 	// Create stream
 	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: c.id})

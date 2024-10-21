@@ -15,97 +15,7 @@
   "produces": [
     "application/json"
   ],
-  "paths": {
-    "/api/v1/events": {
-      "get": {
-        "operationId": "EventService_List",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1ListEventResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "selector",
-            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "EventService"
-        ]
-      }
-    },
-    "/api/v1/events/{id}": {
-      "get": {
-        "operationId": "EventService_Get",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1GetEventResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "EventService"
-        ]
-      },
-      "delete": {
-        "operationId": "EventService_Delete",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1DeleteEventResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "EventService"
-        ]
-      }
-    }
-  },
+  "paths": {},
   "definitions": {
     "protobufAny": {
       "type": "object",
@@ -132,14 +42,6 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
-        }
-      }
-    },
-    "v1DeleteEventResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
         }
       }
     },
@@ -180,26 +82,6 @@
         "NodeForget"
       ],
       "default": "ContainerCreate"
-    },
-    "v1GetEventResponse": {
-      "type": "object",
-      "properties": {
-        "event": {
-          "$ref": "#/definitions/v1Event"
-        }
-      }
-    },
-    "v1ListEventResponse": {
-      "type": "object",
-      "properties": {
-        "events": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/v1Event"
-          }
-        }
-      }
     },
     "v1Meta": {
       "type": "object",
