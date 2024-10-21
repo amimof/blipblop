@@ -70,29 +70,26 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 func (n *NodeService) subscribe(ctx context.Context) {
 	ch, _ := n.exchange.Subscribe(ctx)
 
-	for {
-		select {
-		case e := <-ch:
-			if e.Type == eventsv1.EventType_NodeForget {
-				n.logger.Info("Got node forget, update node status", "node", e.GetObjectId())
-				fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
-				_, err := n.Update(ctx,
-					&nodes.UpdateNodeRequest{
-						Id: e.GetObjectId(),
-						Node: &nodes.Node{
-							Status: &nodes.Status{
-								State: "GONE",
-							},
-							Meta: &metav1.Meta{
-								Name: e.GetObjectId(),
-							},
+	for e := range ch {
+		if e.Type == eventsv1.EventType_NodeForget {
+			n.logger.Info("Got node forget, update node status", "node", e.GetObjectId())
+			fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
+			_, err := n.Update(ctx,
+				&nodes.UpdateNodeRequest{
+					Id: e.GetObjectId(),
+					Node: &nodes.Node{
+						Status: &nodes.Status{
+							State: "GONE",
 						},
-						UpdateMask: fm,
+						Meta: &metav1.Meta{
+							Name: e.GetObjectId(),
+						},
 					},
-				)
-				if err != nil {
-					n.logger.Error("error updating node state")
-				}
+					UpdateMask: fm,
+				},
+			)
+			if err != nil {
+				n.logger.Error("error updating node state")
 			}
 		}
 	}

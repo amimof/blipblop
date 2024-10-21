@@ -61,7 +61,10 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 				delete(s.subscribers, req.ClientId)
 				s.mu.Unlock()
 				// TODO: ObjectID (node name) is hardcoded here. Figure out a way to get this from the event
-				s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: "bbnode", Type: eventsv1.EventType_NodeForget, ClientId: clientId}})
+				err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: "bbnode", Type: eventsv1.EventType_NodeForget, ClientId: clientId}})
+				if err != nil {
+					s.logger.Error("error publishing event", "error", err)
+				}
 				return
 			}
 		}
