@@ -3,11 +3,14 @@ package node
 import (
 	"context"
 
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	metav1 "github.com/amimof/blipblop/api/types/v1"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 type NewServiceOption func(s *NodeService)
@@ -18,15 +21,21 @@ func WithLogger(l logger.Logger) NewServiceOption {
 	}
 }
 
+func WithExchange(e *events.Exchange) NewServiceOption {
+	return func(s *NodeService) {
+		s.exchange = e
+	}
+}
+
 type NodeService struct {
 	nodes.UnimplementedNodeServiceServer
-	local  nodes.NodeServiceClient
-	logger logger.Logger
+	local    nodes.NodeServiceClient
+	logger   logger.Logger
+	exchange *events.Exchange
 }
 
 func (n *NodeService) Register(server *grpc.Server) error {
 	server.RegisterService(&nodes.NodeService_ServiceDesc, n)
-	// nodes.RegisterNodeServiceServer(server, n)
 	return nil
 }
 
@@ -58,7 +67,38 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 	return n.local.Forget(ctx, req)
 }
 
-func NewService(repo repository.NodeRepository, ev *event.EventService, opts ...NewServiceOption) *NodeService {
+func (n *NodeService) subscribe(ctx context.Context) {
+	ch, _ := n.exchange.Subscribe(ctx)
+
+	for {
+		select {
+		case e := <-ch:
+			if e.Type == eventsv1.EventType_NodeForget {
+				n.logger.Info("Got node forget, update node status", "node", e.GetObjectId())
+				fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
+				_, err := n.Update(ctx,
+					&nodes.UpdateNodeRequest{
+						Id: e.GetObjectId(),
+						Node: &nodes.Node{
+							Status: &nodes.Status{
+								State: "GONE",
+							},
+							Meta: &metav1.Meta{
+								Name: e.GetObjectId(),
+							},
+						},
+						UpdateMask: fm,
+					},
+				)
+				if err != nil {
+					n.logger.Error("error updating node state")
+				}
+			}
+		}
+	}
+}
+
+func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {
 	s := &NodeService{
 		logger: logger.ConsoleLogger{},
 	}
@@ -68,10 +108,12 @@ func NewService(repo repository.NodeRepository, ev *event.EventService, opts ...
 	}
 
 	s.local = &local{
-		repo:        repo,
-		eventClient: ev,
-		logger:      s.logger,
+		repo:     repo,
+		exchange: s.exchange,
+		logger:   s.logger,
 	}
+
+	go s.subscribe(context.Background())
 
 	return s
 }

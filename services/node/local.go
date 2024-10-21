@@ -5,9 +5,10 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	errdefs "github.com/amimof/blipblop/pkg/errors"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services"
@@ -20,10 +21,10 @@ import (
 )
 
 type local struct {
-	repo        repository.NodeRepository
-	mu          sync.Mutex
-	eventClient *event.EventService
-	logger      logger.Logger
+	repo     repository.NodeRepository
+	mu       sync.Mutex
+	exchange *events.Exchange
+	logger   logger.Logger
 }
 
 var _ nodes.NodeServiceClient = &local{}
@@ -39,16 +40,10 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
-	// md, _ := metadata.FromIncomingContext(ctx)
-	// clientId := md.Get("blipblop_client_id")[0]
 	node, err := l.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
 	}
-	// _, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_NodeGet)})
-	// if err != nil {
-	// 	return nil, l.handleError(err, "error publishing GET event", "id", req.GetId(), "event", "NodeGet")
-	// }
 	return &nodes.GetNodeResponse{
 		Node: node,
 	}, nil
@@ -71,7 +66,7 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", node.GetMeta().GetName())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), events.EventType_NodeCreate)})
+	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), eventsv1.EventType_NodeCreate)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", node.GetMeta().GetName(), "event", "NodeCreate")
 	}
@@ -87,7 +82,7 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_NodeDelete)})
+	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), eventsv1.EventType_NodeDelete)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
@@ -97,25 +92,22 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 }
 
 func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
-	// md, _ := metadata.FromIncomingContext(ctx)
-	// clientId := md.Get("blipblop_client_id")[0]
 	nodeList, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	// _, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, "", events.EventType_NodeList)})
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	return &nodes.ListNodeResponse{
 		Nodes: nodeList,
 	}, nil
 }
 
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
+	clientId := "internal"
+
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		clientId = md.Get("blipblop_client_id")[0]
+	}
+
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
 	existing, err := l.Repo().Get(ctx, req.GetId())
@@ -131,7 +123,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", existing.GetMeta().GetName())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, existing.GetMeta().GetName(), events.EventType_NodeUpdate)})
+	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, existing.GetMeta().GetName(), eventsv1.EventType_NodeUpdate)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "NodeUpdate")
 	}
@@ -141,7 +133,6 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 }
 
 func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
-	// clientId := ctx.Value("blipblop/client_id").(string)
 	md, _ := metadata.FromIncomingContext(ctx)
 	clientId := md.Get("blipblop_client_id")[0]
 
@@ -160,13 +151,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	// if node != nil {
-	// 	if _, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: req.GetNode().GetMeta().GetName(), Node: node.GetNode()}); err != nil {
-	// 		return nil, l.handleError(err, "couldn't UPDATE node", "name", req.GetNode().GetMeta().GetName())
-	// 	}
-	// }
-
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), events.EventType_NodeJoin)})
+	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), eventsv1.EventType_NodeJoin)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing JOIN event", "name", req.GetNode().GetMeta().GetName(), "event", "NodeJoin")
 	}
@@ -182,7 +167,7 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	_, err = l.eventClient.Publish(ctx, &events.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), events.EventType_NodeForget)})
+	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), eventsv1.EventType_NodeForget)})
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}

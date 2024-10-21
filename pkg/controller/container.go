@@ -98,6 +98,7 @@ func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs
 
 	ctr := ev.GetObjectId()
 
+	// TODO: Consider fetching the container here. Might be less performant
 	// Get the container
 	// ctr, err := c.clientset.ContainerV1().Get(context.Background(), ev.GetObjectId())
 	// if err != nil {

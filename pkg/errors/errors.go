@@ -14,3 +14,10 @@ func IsNotFound(err error) bool {
 	}
 	return b
 }
+
+func IgnoreNotFound(err error) error {
+	if IsNotFound(err) {
+		return nil
+	}
+	return err
+}
