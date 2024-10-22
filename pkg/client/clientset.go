@@ -9,6 +9,7 @@ import (
 	"time"
 
 	containerv1 "github.com/amimof/blipblop/pkg/client/container/v1"
+	containersetv1 "github.com/amimof/blipblop/pkg/client/containerset/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/google/uuid"
@@ -25,14 +26,15 @@ var DefaultTLSConfig = &tls.Config{
 }
 
 type ClientSet struct {
-	conn              *grpc.ClientConn
-	nodeV1Client      *nodev1.ClientV1
-	containerV1Client *containerv1.ClientV1
-	eventV1Client     *eventv1.ClientV1
-	mu                sync.Mutex
-	grpcOpts          []grpc.DialOption
-	tlsConfig         *tls.Config
-	clientId          string
+	conn                 *grpc.ClientConn
+	nodeV1Client         *nodev1.ClientV1
+	containerV1Client    *containerv1.ClientV1
+	containerSetV1Client *containersetv1.ClientV1
+	eventV1Client        *eventv1.ClientV1
+	mu                   sync.Mutex
+	grpcOpts             []grpc.DialOption
+	tlsConfig            *tls.Config
+	clientId             string
 }
 
 type NewClientOption func(c *ClientSet) error
@@ -122,6 +124,10 @@ func (c *ClientSet) NodeV1() *nodev1.ClientV1 {
 	return c.nodeV1Client
 }
 
+func (c *ClientSet) ContainerSetV1() *containersetv1.ClientV1 {
+	return c.containerSetV1Client
+}
+
 func (c *ClientSet) ContainerV1() *containerv1.ClientV1 {
 	return c.containerV1Client
 }
@@ -207,6 +213,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 	c.conn = conn
 	c.nodeV1Client = nodev1.NewClientV1(conn, c.clientId)
 	c.containerV1Client = containerv1.NewClientV1(conn, c.clientId)
+	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
 
 	return c, nil

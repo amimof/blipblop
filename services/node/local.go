@@ -57,10 +57,11 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
 	}
 
-	err := services.EnsureMeta(node)
+	m, err := services.EnsureMeta(node)
 	if err != nil {
 		return nil, err
 	}
+	node.Meta = m
 
 	err = l.Repo().Create(ctx, node)
 	if err != nil {

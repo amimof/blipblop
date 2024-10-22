@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package blipblop.services.containersets.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "google/api/annotations.proto";
+import "api/services/events/v1/events.proto";
+import "api/types/v1/meta.proto";
+
+
+option go_package = "github.com/amimof/blipblop/api/services/containersets/v1;containersets";
+
+service ContainerSetService {
+  rpc Get(GetContainerSetRequest) returns (GetContainerSetResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/containersets/{id}"
+    };
+	}
+	rpc List(ListContainerSetRequest) returns (ListContainerSetResponse) {
+		option (google.api.http) = {
+			get: "/api/v1/containersets"
+		};
+	}
+	rpc Create(CreateContainerSetRequest) returns (CreateContainerSetResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/containers"
+      body: "containerSet"
+    };
+	}
+	rpc Update(UpdateContainerSetRequest) returns (UpdateContainerSetResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/containers/{containerSet.meta.name}"
+      body: "containerSet"
+      additional_bindings {
+        patch: "/api/v1/containers/{containerSet.meta.name}"
+        body: "containerSet"
+      }
+    };
+	}
+	rpc Delete(DeleteContainerSetRequest) returns (DeleteContainerSetResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/containersets/{id}"
+    };
+	}
+}
+
+
+message ContainerSet {
+  blipblop.types.v1.Meta meta = 1;
+}
+
+message GetContainerSetRequest {
+  string id = 1;
+}
+
+message GetContainerSetResponse {
+	ContainerSet containerSet = 1;
+}
+
+message CreateContainerSetRequest {
+	ContainerSet containerSet = 1;
+}
+
+message CreateContainerSetResponse {
+	ContainerSet containerSet = 1;
+}
+
+message UpdateContainerSetRequest {
+  string id = 1;
+  ContainerSet containerSet = 2;
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message UpdateContainerSetResponse {
+  ContainerSet containerSet = 1;
+}
+
+message DeleteContainerSetRequest {
+	string id = 1;
+}
+
+message DeleteContainerSetResponse {
+	string id = 1;
+}
+
+message ListContainerSetRequest {
+	map<string, string> selector = 1;
+}
+
+message ListContainerSetResponse {
+	repeated ContainerSet containerSets = 1;
+}
+

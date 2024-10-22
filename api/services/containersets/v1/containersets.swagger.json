@@ -1,0 +1,391 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "api/services/containersets/v1/containersets.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "ContainerSetService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/containers": {
+      "post": {
+        "operationId": "ContainerSetService_Create",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateContainerSetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "containerSet",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ContainerSet"
+            }
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      }
+    },
+    "/api/v1/containers/{containerSet.meta.name}": {
+      "put": {
+        "operationId": "ContainerSetService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateContainerSetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "containerSet.meta.name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "containerSet",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "format": "uint64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      },
+      "patch": {
+        "operationId": "ContainerSetService_Update2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateContainerSetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "containerSet.meta.name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "containerSet",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "format": "uint64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      }
+    },
+    "/api/v1/containersets": {
+      "get": {
+        "operationId": "ContainerSetService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListContainerSetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "selector",
+            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      }
+    },
+    "/api/v1/containersets/{id}": {
+      "get": {
+        "operationId": "ContainerSetService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetContainerSetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      },
+      "delete": {
+        "operationId": "ContainerSetService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteContainerSetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1ContainerSet": {
+      "type": "object",
+      "properties": {
+        "meta": {
+          "$ref": "#/definitions/v1Meta"
+        }
+      }
+    },
+    "v1CreateContainerSetResponse": {
+      "type": "object",
+      "properties": {
+        "containerSet": {
+          "$ref": "#/definitions/v1ContainerSet"
+        }
+      }
+    },
+    "v1DeleteContainerSetResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1GetContainerSetResponse": {
+      "type": "object",
+      "properties": {
+        "containerSet": {
+          "$ref": "#/definitions/v1ContainerSet"
+        }
+      }
+    },
+    "v1ListContainerSetResponse": {
+      "type": "object",
+      "properties": {
+        "containerSets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ContainerSet"
+          }
+        }
+      }
+    },
+    "v1Meta": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "created": {
+          "type": "string",
+          "format": "date"
+        },
+        "updated": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
+    "v1UpdateContainerSetResponse": {
+      "type": "object",
+      "properties": {
+        "containerSet": {
+          "$ref": "#/definitions/v1ContainerSet"
+        }
+      }
+    }
+  }
+}

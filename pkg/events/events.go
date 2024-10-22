@@ -6,10 +6,13 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/logger"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 )
 
 var topic = "test-topic"
+
+type EventHandlerFunc func(e *eventsv1.Event) error
 
 type NewExchangeOption func(*Exchange)
 
@@ -60,10 +63,15 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 				s.mu.Lock()
 				delete(s.subscribers, req.ClientId)
 				s.mu.Unlock()
-				// TODO: ObjectID (node name) is hardcoded here. Figure out a way to get this from the event
-				err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: "bbnode", Type: eventsv1.EventType_NodeForget, ClientId: clientId}})
-				if err != nil {
-					s.logger.Error("error publishing event", "error", err)
+
+				// Get node name from context
+				if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
+						err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget, ClientId: clientId}})
+						if err != nil {
+							s.logger.Error("error publishing event", "error", err)
+						}
+					}
 				}
 				return
 			}

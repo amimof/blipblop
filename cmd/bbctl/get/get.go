@@ -26,6 +26,7 @@ bbctl get nodes
 
 	getCmd.AddCommand(NewCmdGetNode(cfg))
 	getCmd.AddCommand(NewCmdGetContainer(cfg))
+	getCmd.AddCommand(NewCmdGetContainerSet(cfg))
 
 	return getCmd
 }

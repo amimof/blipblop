@@ -79,7 +79,7 @@ func (n *NodeService) subscribe(ctx context.Context) {
 					Id: e.GetObjectId(),
 					Node: &nodes.Node{
 						Status: &nodes.Status{
-							State: "GONE",
+							State: "MISSING",
 						},
 						Meta: &metav1.Meta{
 							Name: e.GetObjectId(),
