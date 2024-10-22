@@ -132,21 +132,22 @@ func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) handleEvent(ev *eventsv1.Event) {
+func (c *NodeController) handleEvent(ev *eventsv1.Event) error {
 	if ev == nil {
-		return
+		return nil
 	}
 	t := ev.Type
 	switch t {
 	case eventsv1.EventType_NodeDelete:
-		c.handlers.OnNodeDelete(ev)
+		return c.handlers.OnNodeDelete(ev)
 	case eventsv1.EventType_NodeJoin:
-		c.handlers.OnNodeJoin(ev)
+		return c.handlers.OnNodeJoin(ev)
 	case eventsv1.EventType_NodeForget:
-		c.handlers.OnNodeForget(ev)
+		return c.handlers.OnNodeForget(ev)
 	default:
 		c.logger.Debug("node handler not implemented for event", "type", t.String())
 	}
+	return nil
 }
 
 // Reconcile ensures that desired containers matches with containers
