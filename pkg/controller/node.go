@@ -72,7 +72,9 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 			select {
 			case ev := <-evt:
 				c.logger.Debug("node controller received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
-				c.handleEvent(ev)
+				if err := c.handleEvent(ev); err != nil {
+					c.logger.Error("error handling event", "error", err, "event", ev)
+				}
 				continue
 			case err := <-errChan:
 				c.logger.Error("node controller recevied error on channel", "error", err)
