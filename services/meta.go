@@ -37,9 +37,9 @@ func EnsureMetaForContainer(c *containers.Container) error {
 	return nil
 }
 
-func EnsureMeta(entity MetaObject) error {
+func EnsureMeta(entity MetaObject) (*types.Meta, error) {
 	if entity.GetMeta() == nil {
-		return ErrNoName
+		return nil, ErrNoName
 	}
 
 	m := entity.GetMeta()
@@ -56,5 +56,5 @@ func EnsureMeta(entity MetaObject) error {
 		m.Revision = 1
 	}
 
-	return nil
+	return m, nil
 }

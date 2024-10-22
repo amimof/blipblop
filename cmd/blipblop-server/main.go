@@ -17,6 +17,7 @@ import (
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
 	"github.com/amimof/blipblop/services/container"
+	"github.com/amimof/blipblop/services/containerset"
 	"github.com/amimof/blipblop/services/event"
 	"github.com/amimof/blipblop/services/node"
 	"github.com/dgraph-io/badger/v4"
@@ -225,6 +226,11 @@ func main() {
 		node.WithLogger(log),
 		node.WithExchange(exchange),
 	)
+	containerSetService := containerset.NewService(
+		repository.NewContainerSetBadgerRepository(db),
+		containerset.WithLogger(log),
+		containerset.WithExchange(exchange),
+	)
 	containerService := container.NewService(
 		repository.NewContainerBadgerRepository(db),
 		container.WithLogger(log),
@@ -234,7 +240,8 @@ func main() {
 	// Setup server
 	s := server.New(serverOpts...)
 
-	err = s.RegisterService(eventService, nodeService, containerService)
+	// Register services to gRPC server
+	err = s.RegisterService(eventService, nodeService, containerSetService, containerService)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)

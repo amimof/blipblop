@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -49,7 +50,13 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				}
 				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "NODE", "AGE")
 				for _, c := range containers {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n", c.GetMeta().GetName(), c.GetMeta().GetRevision(), c.GetStatus().GetPhase(), c.GetStatus().GetNode(), time.Since(c.GetMeta().GetCreated().AsTime()).Round(1*time.Second))
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n",
+						c.GetMeta().GetName(),
+						c.GetMeta().GetRevision(),
+						c.GetStatus().GetPhase(),
+						c.GetStatus().GetNode(),
+						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
+					)
 				}
 			}
 

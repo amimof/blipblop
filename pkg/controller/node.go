@@ -2,15 +2,16 @@ package controller
 
 import (
 	"context"
-	"log"
 	"os"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/metadata"
 )
 
 type NodeController struct {
@@ -22,12 +23,10 @@ type NodeController struct {
 	heartbeatIntervalSeconds int
 }
 
-type NodeEventHandlerFunc func(obj *events.Event)
-
 type NodeEventHandlerFuncs struct {
-	OnNodeDelete NodeEventHandlerFunc
-	OnNodeJoin   NodeEventHandlerFunc
-	OnNodeForget NodeEventHandlerFunc
+	OnNodeDelete events.EventHandlerFunc
+	OnNodeJoin   events.EventHandlerFunc
+	OnNodeForget events.EventHandlerFunc
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -66,14 +65,16 @@ func (c *NodeController) heartBeat(ctx context.Context) {
 
 func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	// Setup channels
-	evt := make(chan *events.Event, 10)
+	evt := make(chan *eventsv1.Event, 10)
 	errChan := make(chan error, 10)
 	go func() {
 		for {
 			select {
 			case ev := <-evt:
 				c.logger.Debug("node controller received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
-				c.handleEvent(ev)
+				if err := c.handleEvent(ev); err != nil {
+					c.logger.Error("error handling event", "error", err, "event", ev)
+				}
 				continue
 			case err := <-errChan:
 				c.logger.Error("node controller recevied error on channel", "error", err)
@@ -87,6 +88,13 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 
 	// Run heart beat routine
 	go c.heartBeat(ctx)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		c.logger.Error("error getting hostname", "error", err)
+	}
+
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", hostname)
 
 	for {
 		select {
@@ -107,37 +115,41 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 // BUG: this will delete and forget the node that the event was triggered on. We need to make sure
 // that the node that receives the event, checks that the id matches the node id so that only
 // the specific node unregisters itself from the server
-func (c *NodeController) onNodeDelete(obj *events.Event) {
+func (c *NodeController) onNodeDelete(obj *eventsv1.Event) error {
 	ctx := context.Background()
 	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
 	if err != nil {
-		log.Printf("error unjoining node %s: %v", obj.GetMeta().GetName(), err)
-		return
+		c.logger.Error("error unjoining node", "node", obj.GetMeta().GetName(), "error", err)
+		return err
 	}
-	log.Printf("successfully unjoined node %s", obj.GetMeta().GetName())
+	c.logger.Debug("successfully unjoined node", "node", obj.GetMeta().GetName())
+	return nil
 }
 
-func (c *NodeController) onNodeJoin(obj *events.Event) {
+func (c *NodeController) onNodeJoin(obj *eventsv1.Event) error {
+	return nil
 }
 
-func (c *NodeController) onNodeForget(obj *events.Event) {
+func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
+	return nil
 }
 
-func (c *NodeController) handleEvent(ev *events.Event) {
+func (c *NodeController) handleEvent(ev *eventsv1.Event) error {
 	if ev == nil {
-		return
+		return nil
 	}
 	t := ev.Type
 	switch t {
-	case events.EventType_NodeDelete:
-		c.handlers.OnNodeDelete(ev)
-	case events.EventType_NodeJoin:
-		c.handlers.OnNodeJoin(ev)
-	case events.EventType_NodeForget:
-		c.handlers.OnNodeForget(ev)
+	case eventsv1.EventType_NodeDelete:
+		return c.handlers.OnNodeDelete(ev)
+	case eventsv1.EventType_NodeJoin:
+		return c.handlers.OnNodeJoin(ev)
+	case eventsv1.EventType_NodeForget:
+		return c.handlers.OnNodeForget(ev)
 	default:
 		c.logger.Debug("node handler not implemented for event", "type", t.String())
 	}
+	return nil
 }
 
 // Reconcile ensures that desired containers matches with containers

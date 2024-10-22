@@ -5,28 +5,26 @@ import (
 	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/services/events/v1"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 )
 
 type ContainerController struct {
 	clientset *client.ClientSet
-	// runtime   *client.RuntimeClient
-	runtime  runtime.Runtime
-	handlers *ContainerEventHandlerFuncs
-	logger   logger.Logger
+	runtime   runtime.Runtime
+	handlers  *ContainerEventHandlerFuncs
+	logger    logger.Logger
 }
 
-type ContainerEventHandlerFunc func(obj *events.Event, ctr string) error
-
 type ContainerEventHandlerFuncs struct {
-	OnContainerCreate ContainerEventHandlerFunc
-	OnContainerDelete ContainerEventHandlerFunc
-	OnContainerStart  ContainerEventHandlerFunc
-	OnContainerKill   ContainerEventHandlerFunc
-	OnContainerStop   ContainerEventHandlerFunc
+	OnContainerCreate events.EventHandlerFunc
+	OnContainerDelete events.EventHandlerFunc
+	OnContainerStart  events.EventHandlerFunc
+	OnContainerKill   events.EventHandlerFunc
+	OnContainerStop   events.EventHandlerFunc
 }
 
 type NewContainerControllerOption func(c *ContainerController)
@@ -43,7 +41,7 @@ func (c *ContainerController) AddHandler(h *ContainerEventHandlerFuncs) {
 
 func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	// Setup channels
-	evt := make(chan *events.Event, 10)
+	evt := make(chan *eventsv1.Event, 10)
 	errChan := make(chan error, 10)
 
 	go func() {
@@ -85,7 +83,7 @@ func (c *ContainerController) Reconcile(ctx context.Context) error {
 
 // TODO: This controller will also receive events for objects that are not container-related (sucha as nodes).
 // Need to implement logic to only handle container events.
-func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs, ev *events.Event, l logger.Logger) {
+func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs, ev *eventsv1.Event, l logger.Logger) {
 	ctx := context.Background()
 
 	// Ignore empty events
@@ -109,25 +107,25 @@ func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs
 	// Run handlers
 	t := ev.Type
 	switch t {
-	case events.EventType_ContainerCreate:
+	case eventsv1.EventType_ContainerCreate:
 		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Starting.String(), "")
-		if err := funcs.OnContainerCreate(ev, ctr); err != nil {
+		if err := funcs.OnContainerCreate(ev); err != nil {
 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Error.String(), err.Error())
 			c.logger.Error("error calling OnContainerCreate handler", "error", err)
 		}
-	case events.EventType_ContainerDelete:
+	case eventsv1.EventType_ContainerDelete:
 		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Deleting.String(), "")
-		if err := funcs.OnContainerDelete(ev, ctr); err != nil {
+		if err := funcs.OnContainerDelete(ev); err != nil {
 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Error.String(), err.Error())
 			c.logger.Error("error calling OnContainerDelete handler", "error", err)
 		}
-	case events.EventType_ContainerStart:
-		if err := funcs.OnContainerStart(ev, ctr); err != nil {
+	case eventsv1.EventType_ContainerStart:
+		if err := funcs.OnContainerStart(ev); err != nil {
 			c.logger.Error("error calling OnContainerStart handler", "error", err)
 		}
-	case events.EventType_ContainerKill:
+	case eventsv1.EventType_ContainerKill:
 		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Stopping.String(), "")
-		if err := funcs.OnContainerKill(ev, ctr); err != nil {
+		if err := funcs.OnContainerKill(ev); err != nil {
 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Error.String(), err.Error())
 			c.logger.Error("error calling OnContainerKill handler", "error", err)
 		}
@@ -136,8 +134,9 @@ func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs
 	}
 }
 
-func (c *ContainerController) onContainerCreate(obj *events.Event, id string) error {
+func (c *ContainerController) onContainerCreate(obj *eventsv1.Event) error {
 	ctx := context.Background()
+	id := obj.GetObjectId()
 	// Get the container
 	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
 	if err != nil {
@@ -155,8 +154,9 @@ func (c *ContainerController) onContainerCreate(obj *events.Event, id string) er
 	return nil
 }
 
-func (c *ContainerController) onContainerDelete(obj *events.Event, id string) error {
+func (c *ContainerController) onContainerDelete(obj *eventsv1.Event) error {
 	ctx := context.Background()
+	id := obj.GetObjectId()
 	// Get the container
 	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
 	if err != nil {
@@ -174,8 +174,9 @@ func (c *ContainerController) onContainerDelete(obj *events.Event, id string) er
 	return nil
 }
 
-func (c *ContainerController) onContainerStart(obj *events.Event, id string) error {
+func (c *ContainerController) onContainerStart(obj *eventsv1.Event) error {
 	ctx := context.Background()
+	id := obj.GetObjectId()
 	// Get the container
 	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
 	if err != nil {
@@ -205,8 +206,9 @@ func (c *ContainerController) onContainerStart(obj *events.Event, id string) err
 	return nil
 }
 
-func (c *ContainerController) onContainerKill(obj *events.Event, id string) error {
+func (c *ContainerController) onContainerKill(obj *eventsv1.Event) error {
 	ctx := context.Background()
+	id := obj.GetObjectId()
 	// Get the container
 	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
 	if err != nil {
@@ -220,8 +222,9 @@ func (c *ContainerController) onContainerKill(obj *events.Event, id string) erro
 	return nil
 }
 
-func (c *ContainerController) onContainerStop(obj *events.Event, id string) error {
+func (c *ContainerController) onContainerStop(obj *eventsv1.Event) error {
 	ctx := context.Background()
+	id := obj.GetObjectId()
 	// Get the container
 	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
 	if err != nil {
