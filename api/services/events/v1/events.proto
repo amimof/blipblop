@@ -25,6 +25,7 @@ message Event {
   string objectId = 4;
   string clientId = 5;
   EventType type = 6;
+  Operation operation = 7;
 }
 
 enum EventType {
@@ -43,6 +44,18 @@ enum EventType {
   NodeUpdate = 13;
   NodeJoin = 14;
   NodeForget = 15;
+  ContainerSetCreate = 16;
+  ContainerSetDelete = 17;
+  ContainerSetUpdate = 18;
+}
+
+enum Operation {
+  Create = 0;
+  Update = 1;
+  Delete = 3;
+  Get = 4;
+  List = 5;
+  Watch = 6;
 }
 
 message GetEventRequest {

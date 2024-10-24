@@ -190,6 +190,10 @@ func main() {
 	go containerdCtrl.Run(ctx, stopCh)
 	log.Info("Started Containerd Controller")
 
+	containerSetCtrl := controller.NewContainerSetController(cs, controller.WithContainerSetLogger(log))
+	go containerSetCtrl.Run(ctx, stopCh)
+	log.Info("Started ContainerSet Controller")
+
 	containerCtrl := controller.NewContainerController(cs, runtime, controller.WithContainerControllerLogger(log))
 	go containerCtrl.Run(ctx, stopCh)
 	log.Info("Started Container Controller")

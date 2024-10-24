@@ -2,8 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/labels"
@@ -29,16 +27,6 @@ type Status = status.Status
 type Response[T any] struct {
 	Status Status
 	Raw    proto.Message
-}
-
-func (g *Response[T]) Object() (T, error) {
-	// Attempt to cast the value inside GenericContainer to type T
-	v, ok := g.Raw.(T)
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("failed to convert %v (type %s) to type %s", g.Raw, reflect.TypeOf(g.Raw), reflect.TypeOf(zero))
-	}
-	return v, nil
 }
 
 func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
