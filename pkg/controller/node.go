@@ -138,24 +138,6 @@ func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) handleEvent(ev *eventsv1.Event) error {
-	if ev == nil {
-		return nil
-	}
-	t := ev.Type
-	switch t {
-	case eventsv1.EventType_NodeDelete:
-		return c.handlers.OnNodeDelete(ev)
-	case eventsv1.EventType_NodeJoin:
-		return c.handlers.OnNodeJoin(ev)
-	case eventsv1.EventType_NodeForget:
-		return c.handlers.OnNodeForget(ev)
-	default:
-		c.logger.Debug("node handler not implemented for event", "type", t.String())
-	}
-	return nil
-}
-
 // Reconcile ensures that desired containers matches with containers
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.

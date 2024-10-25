@@ -46,27 +46,27 @@ func (i *containerEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 		switch e.Type {
 		case eventsv1.EventType_ContainerCreate:
 			if i.handlers.OnCreate != nil {
-				i.handlers.OnCreate(e)
+				_ = i.handlers.OnCreate(e)
 			}
 		case eventsv1.EventType_ContainerUpdate:
 			if i.handlers.OnUpdate != nil {
-				i.handlers.OnUpdate(e)
+				_ = i.handlers.OnUpdate(e)
 			}
 		case eventsv1.EventType_ContainerDelete:
 			if i.handlers.OnDelete != nil {
-				i.handlers.OnDelete(e)
+				_ = i.handlers.OnDelete(e)
 			}
 		case eventsv1.EventType_ContainerStart:
 			if i.handlers.OnStart != nil {
-				i.handlers.OnStart(e)
+				_ = i.handlers.OnStart(e)
 			}
 		case eventsv1.EventType_ContainerKill:
 			if i.handlers.OnKill != nil {
-				i.handlers.OnKill(e)
+				_ = i.handlers.OnKill(e)
 			}
 		case eventsv1.EventType_ContainerStop:
 			if i.handlers.OnStop != nil {
-				i.handlers.OnStop(e)
+				_ = i.handlers.OnStop(e)
 			}
 		}
 	}
@@ -81,15 +81,15 @@ func (i *containerSetEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 		switch e.Type {
 		case eventsv1.EventType_ContainerSetCreate:
 			if i.handlers.OnCreate != nil {
-				i.handlers.OnCreate(e)
+				_ = i.handlers.OnCreate(e)
 			}
 		case eventsv1.EventType_ContainerSetUpdate:
 			if i.handlers.OnUpdate != nil {
-				i.handlers.OnUpdate(e)
+				_ = i.handlers.OnUpdate(e)
 			}
 		case eventsv1.EventType_ContainerSetDelete:
 			if i.handlers.OnDelete != nil {
-				i.handlers.OnDelete(e)
+				_ = i.handlers.OnDelete(e)
 			}
 		}
 	}
@@ -104,23 +104,23 @@ func (i *nodeEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 		switch e.Type {
 		case eventsv1.EventType_NodeCreate:
 			if i.handlers.OnCreate != nil {
-				i.handlers.OnCreate(e)
+				_ = i.handlers.OnCreate(e)
 			}
 		case eventsv1.EventType_NodeUpdate:
 			if i.handlers.OnUpdate != nil {
-				i.handlers.OnUpdate(e)
+				_ = i.handlers.OnUpdate(e)
 			}
 		case eventsv1.EventType_NodeDelete:
 			if i.handlers.OnDelete != nil {
-				i.handlers.OnDelete(e)
+				_ = i.handlers.OnDelete(e)
 			}
 		case eventsv1.EventType_NodeJoin:
 			if i.handlers.OnJoin != nil {
-				i.handlers.OnJoin(e)
+				_ = i.handlers.OnJoin(e)
 			}
 		case eventsv1.EventType_NodeForget:
 			if i.handlers.OnForget != nil {
-				i.handlers.OnForget(e)
+				_ = i.handlers.OnForget(e)
 			}
 		}
 	}
