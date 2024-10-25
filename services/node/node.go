@@ -71,8 +71,8 @@ func (n *NodeService) subscribe(ctx context.Context) {
 	ch, _ := n.exchange.Subscribe(ctx)
 
 	handlers := events.NodeEventHandlerFuncs{
-		OnForget: func(e *eventsv1.Event) {
-			n.logger.Info("Got node forget, update node status", "node", e.GetObjectId())
+		OnForget: func(e *eventsv1.Event) error {
+			n.logger.Debug("Got node forget, update node status", "node", e.GetObjectId())
 			fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
 			_, err := n.Update(ctx,
 				&nodes.UpdateNodeRequest{
@@ -88,9 +88,7 @@ func (n *NodeService) subscribe(ctx context.Context) {
 					UpdateMask: fm,
 				},
 			)
-			if err != nil {
-				n.logger.Error("error updating node state")
-			}
+			return err
 		},
 	}
 

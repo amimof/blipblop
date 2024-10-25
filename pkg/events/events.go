@@ -6,8 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var topic = "test-topic"
-
 const (
 	OperationAdd    eventsv1.Operation = eventsv1.Operation_Create
 	OperationUpdate eventsv1.Operation = eventsv1.Operation_Update

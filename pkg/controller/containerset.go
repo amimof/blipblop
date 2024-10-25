@@ -31,14 +31,17 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 
 	// Define handlers
 	handlers := events.ContainerSetEventHandlerFuncs{
-		OnCreate: func(e *eventsv1.Event) {
+		OnCreate: func(e *eventsv1.Event) error {
 			log.Println("set controller OnCreate")
+			return nil
 		},
-		OnUpdate: func(e *eventsv1.Event) {
+		OnUpdate: func(e *eventsv1.Event) error {
 			log.Println("set controller OnUpdate")
+			return nil
 		},
-		OnDelete: func(e *eventsv1.Event) {
+		OnDelete: func(e *eventsv1.Event) error {
 			log.Println("set controller OnDelete")
+			return nil
 		},
 	}
 

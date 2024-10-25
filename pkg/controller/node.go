@@ -70,21 +70,11 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 
 	// Setup handlers
 	handlers := events.NodeEventHandlerFuncs{
-		OnCreate: func(e *eventsv1.Event) {
-			c.onNodeCreate(e)
-		},
-		OnUpdate: func(e *eventsv1.Event) {
-			c.onNodeUpdate(e)
-		},
-		OnDelete: func(e *eventsv1.Event) {
-			c.onNodeDelete(e)
-		},
-		OnJoin: func(e *eventsv1.Event) {
-			c.onNodeJoin(e)
-		},
-		OnForget: func(e *eventsv1.Event) {
-			c.onNodeForget(e)
-		},
+		OnCreate: c.onNodeCreate,
+		OnUpdate: c.onNodeUpdate,
+		OnDelete: c.onNodeDelete,
+		OnJoin:   c.onNodeJoin,
+		OnForget: c.onNodeForget,
 	}
 
 	// Run informer

@@ -47,7 +47,7 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 					return
 				}
 			case <-stream.Context().Done():
-				s.logger.Info("client disconnected", "clientId", req.ClientId)
+				s.logger.Debug("client disconnected", "clientId", req.ClientId)
 				s.mu.Lock()
 				delete(s.subscribers, req.ClientId)
 				s.mu.Unlock()

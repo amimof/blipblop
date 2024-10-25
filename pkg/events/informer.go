@@ -12,7 +12,7 @@ type EventInformer interface {
 
 type EventHandlerFunc func(e *eventsv1.Event) error
 
-type ResourceEventHandlerFunc func(e *eventsv1.Event)
+type ResourceEventHandlerFunc func(e *eventsv1.Event) error
 
 type ContainerEventHandlerFuncs struct {
 	OnCreate ResourceEventHandlerFunc

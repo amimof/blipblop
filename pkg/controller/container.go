@@ -34,24 +34,12 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 
 	// Setup handlers
 	handlers := events.ContainerEventHandlerFuncs{
-		OnCreate: func(e *eventsv1.Event) {
-			c.onContainerCreate(e)
-		},
-		OnUpdate: func(e *eventsv1.Event) {
-			c.onContainerUpdate(e)
-		},
-		OnDelete: func(e *eventsv1.Event) {
-			c.onContainerDelete(e)
-		},
-		OnStart: func(e *eventsv1.Event) {
-			c.onContainerStart(e)
-		},
-		OnKill: func(e *eventsv1.Event) {
-			c.onContainerKill(e)
-		},
-		OnStop: func(e *eventsv1.Event) {
-			c.onContainerStop(e)
-		},
+		OnCreate: c.onContainerCreate,
+		OnUpdate: c.onContainerUpdate,
+		OnDelete: c.onContainerDelete,
+		OnStart:  c.onContainerStart,
+		OnKill:   c.onContainerKill,
+		OnStop:   c.onContainerStop,
 	}
 
 	// Run informer
