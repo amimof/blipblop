@@ -10,6 +10,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
@@ -111,9 +112,11 @@ func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainer
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainerSet.GetMeta().GetName())
 	}
 
-	if updateMask != nil && updateMask.IsValid(existing) {
-		proto.Merge(existing, updateContainerSet)
+	maskedUpdate, err := protoutils.ApplyFieldMaskToNewMessage(updateContainerSet, updateMask)
+	if err != nil {
+		return nil, err
 	}
+	proto.Merge(existing, maskedUpdate)
 
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {

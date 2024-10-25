@@ -10,6 +10,7 @@ import (
 	errdefs "github.com/amimof/blipblop/pkg/errors"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
@@ -107,9 +108,12 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", updateNode.GetMeta().GetName())
 	}
 
-	if updateMask != nil && updateMask.IsValid(existing) {
-		proto.Merge(existing, updateNode)
+	// Apply the FieldMask selectively
+	maskedUpdate, err := protoutils.ApplyFieldMaskToNewMessage(updateNode, updateMask)
+	if err != nil {
+		return nil, err
 	}
+	proto.Merge(existing, maskedUpdate)
 
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {
@@ -126,8 +130,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 }
 
 func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
-	node := req.GetNode()
-	nodeId := node.GetMeta().GetName()
+	nodeId := req.GetNode().GetMeta().GetName()
 
 	if nodeId == "" {
 		return nil, status.Error(codes.InvalidArgument, "node name cannot be empty")
@@ -144,13 +147,15 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, nodeId))
+	// _, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode(), UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"meta", "status"}}})
+	_, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode()})
 	if err != nil {
-		return nil, l.handleError(err, "error publishing JOIN event", "name", nodeId, "event", "NodeJoin")
+		return nil, err
 	}
+
 	return &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
-	}, nil
+	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, nodeId))
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {

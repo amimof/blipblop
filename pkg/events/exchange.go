@@ -88,7 +88,7 @@ func (s *Exchange) Publish(ctx context.Context, req *eventsv1.PublishRequest) er
 			// if client != clientId {
 			select {
 			case ch <- req.Event:
-				s.logger.Info("notified client", "client", client)
+				s.logger.Debug("notified client", "client", client)
 			default:
 				s.logger.Debug("client is too slow to receive events", "client", client)
 			}
