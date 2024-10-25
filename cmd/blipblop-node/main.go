@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"os/signal"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
+	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
 	rt "github.com/amimof/blipblop/pkg/runtime"
 
@@ -153,8 +153,16 @@ func main() {
 	}
 	defer cs.Close()
 
+	// Create containerd client
+	cclient, err := reconnectWithBackoff(containerdSocket, log)
+	if err != nil {
+		log.Error("could not establish connection to containerd: %v", "error", err)
+		return
+	}
+	defer cclient.Close()
+
 	// Join node
-	n, err := newNodeFromEnv()
+	n, err := newNodeFromEnv(cclient)
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err)
 		return
@@ -165,15 +173,6 @@ func main() {
 		log.Error("error joining node to server", "error", err)
 		return
 	}
-
-	// Create containerd client
-	cclient, err := reconnectWithBackoff(containerdSocket, log)
-	if err != nil {
-		log.Error("could not establish connection to containerd: %v", "error", err)
-		return
-	}
-	defer cclient.Close()
-
 	// Create networking
 	cni, err := networking.InitNetwork()
 	if err != nil {
@@ -241,42 +240,40 @@ func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, e
 }
 
 // NewNodeFromEnv creates a new node from the current environment with the name s
-func newNodeFromEnv() (*nodes.Node, error) {
+func newNodeFromEnv(c *containerd.Client) (*nodes.Node, error) {
+	// Hostname, arch and OS info
 	arch := runtime.GOARCH
 	oper := runtime.GOOS
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, err
 	}
+
+	// Containerd info
+	runtime := c.Runtime()
+	version, err := c.Version(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	// Networks and IP address info
+
+	// Construct labels
+	l := labels.New()
+	l.Set(labels.LabelPrefix("arch").String(), arch)
+	l.Set(labels.LabelPrefix("os").String(), oper)
+	l.Set(labels.LabelPrefix("runtime").String(), runtime)
+	l.Set(labels.LabelPrefix("version").String(), version.Version)
+
+	// Construct node instance
 	n := &nodes.Node{
 		Meta: &types.Meta{
-			Name: hostname,
+			Name:   hostname,
+			Labels: l,
 		},
 		Status: &nodes.Status{
-			Ips:      getIpAddressesAsString(),
-			Hostname: hostname,
-			Arch:     arch,
-			Os:       oper,
+			State: "UNKNOWN",
 		},
 	}
 	return n, err
-}
-
-func getIpAddressesAsString() []string {
-	var i []string
-	inters, err := net.Interfaces()
-	if err != nil {
-		return i
-	}
-	for _, inter := range inters {
-		addrs, err := inter.Addrs()
-		if err != nil {
-			return i
-		}
-		for _, addr := range addrs {
-			a := addr.String()
-			i = append(i, a)
-		}
-	}
-	return i
 }

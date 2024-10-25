@@ -105,18 +105,11 @@ func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connecti
 				State: state.String(),
 			},
 		},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.state"}},
 	}
-	fm, err := fieldmaskpb.New(n.Node, "status.state")
+	_, err := c.nodeService.Update(ctx, n)
 	if err != nil {
 		return err
-	}
-	fm.Normalize()
-	n.UpdateMask = fm
-	if fm.IsValid(n.Node) {
-		_, err = c.nodeService.Update(ctx, n)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }

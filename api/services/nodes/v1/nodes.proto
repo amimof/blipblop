@@ -51,10 +51,6 @@ message Node {
 }
 
 message Status {
-  repeated string ips = 1;
-  string hostname = 2;
-  string arch = 3;
-  string os = 4;
   string state = 5;
 }
 
