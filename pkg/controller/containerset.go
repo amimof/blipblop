@@ -59,16 +59,10 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 			if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
 				c.logger.Error("error occured during subscribe", "error", err)
 			}
-
 			c.logger.Info("attempting to re-subscribe to event server")
 			time.Sleep(5 * time.Second)
 		}
 	}
-}
-
-func (c *ContainerSetController) onContainerSetCreate(e *eventsv1.Event) error {
-	c.logger.Info("Handler not implemented", e.Type.String())
-	return nil
 }
 
 func NewContainerSetController(cs *client.ClientSet, opts ...NewContainerSetControllerOption) *ContainerSetController {
