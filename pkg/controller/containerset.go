@@ -29,8 +29,8 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 	evt := make(chan *eventsv1.Event, 10)
 	errChan := make(chan error, 10)
 
-	informer := events.NewEventInformer()
-	informer.AddHandlers(events.ResourceEventHandlerFuncs{
+	// Define handlers
+	handlers := events.ContainerSetEventHandlerFuncs{
 		OnCreate: func(e *eventsv1.Event) {
 			log.Println("set controller OnCreate")
 		},
@@ -40,10 +40,13 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 		OnDelete: func(e *eventsv1.Event) {
 			log.Println("set controller OnDelete")
 		},
-	})
+	}
 
+	// Run informer
+	informer := events.NewContainerSetEventInformer(handlers)
 	go informer.Run(evt)
 
+	// Subscribe with retry
 	for {
 		select {
 		case <-stopCh:

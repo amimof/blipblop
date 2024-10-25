@@ -70,8 +70,8 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 func (n *NodeService) subscribe(ctx context.Context) {
 	ch, _ := n.exchange.Subscribe(ctx)
 
-	for e := range ch {
-		if e.Type == eventsv1.EventType_NodeForget {
+	handlers := events.NodeEventHandlerFuncs{
+		OnForget: func(e *eventsv1.Event) {
 			n.logger.Info("Got node forget, update node status", "node", e.GetObjectId())
 			fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
 			_, err := n.Update(ctx,
@@ -91,8 +91,11 @@ func (n *NodeService) subscribe(ctx context.Context) {
 			if err != nil {
 				n.logger.Error("error updating node state")
 			}
-		}
+		},
 	}
+
+	informer := events.NewNodeEventInformer(handlers)
+	go informer.Run(ch)
 }
 
 func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {

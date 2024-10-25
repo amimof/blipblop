@@ -67,35 +67,41 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	// Setup channels
 	evt := make(chan *eventsv1.Event, 10)
 	errChan := make(chan error, 10)
-	go func() {
-		for {
-			select {
-			case ev := <-evt:
-				c.logger.Debug("node controller received event", "id", ev.GetMeta().GetName(), "type", ev.GetType().String())
-				if err := c.handleEvent(ev); err != nil {
-					c.logger.Error("error handling event", "error", err, "event", ev)
-				}
-				continue
-			case err := <-errChan:
-				c.logger.Error("node controller recevied error on channel", "error", err)
-				return
-			case <-stopCh:
-				c.logger.Info("done watching, closing node controller")
-				return
-			}
-		}
-	}()
+
+	// Setup handlers
+	handlers := events.NodeEventHandlerFuncs{
+		OnCreate: func(e *eventsv1.Event) {
+			c.onNodeCreate(e)
+		},
+		OnUpdate: func(e *eventsv1.Event) {
+			c.onNodeUpdate(e)
+		},
+		OnDelete: func(e *eventsv1.Event) {
+			c.onNodeDelete(e)
+		},
+		OnJoin: func(e *eventsv1.Event) {
+			c.onNodeJoin(e)
+		},
+		OnForget: func(e *eventsv1.Event) {
+			c.onNodeForget(e)
+		},
+	}
+
+	// Run informer
+	informer := events.NewNodeEventInformer(handlers)
+	go informer.Run(evt)
 
 	// Run heart beat routine
 	go c.heartBeat(ctx)
 
+	// Attach node name to context
 	hostname, err := os.Hostname()
 	if err != nil {
 		c.logger.Error("error getting hostname", "error", err)
 	}
-
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", hostname)
 
+	// Subscribe with retry
 	for {
 		select {
 		case <-stopCh:
@@ -110,6 +116,14 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func (c *NodeController) onNodeCreate(_ *eventsv1.Event) error {
+	return nil
+}
+
+func (c *NodeController) onNodeUpdate(_ *eventsv1.Event) error {
+	return nil
 }
 
 // BUG: this will delete and forget the node that the event was triggered on. We need to make sure

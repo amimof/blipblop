@@ -105,7 +105,7 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 
 func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id})
+	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContain
 
 func (c *ClientV1) Stop(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
+	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: false})
 	if err != nil {
 		return nil, err
 	}

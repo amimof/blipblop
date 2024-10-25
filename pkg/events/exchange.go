@@ -47,7 +47,7 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 					return
 				}
 			case <-stream.Context().Done():
-				s.logger.Debug("client disconnected", "clientId", req.ClientId)
+				s.logger.Info("client disconnected", "clientId", req.ClientId)
 				s.mu.Lock()
 				delete(s.subscribers, req.ClientId)
 				s.mu.Unlock()
@@ -55,7 +55,7 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 				// Get node name from context
 				if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
-						err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget, ClientId: clientId}})
+						err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
 						if err != nil {
 							s.logger.Error("error publishing event", "error", err)
 						}
@@ -75,24 +75,24 @@ func (s *Exchange) Publish(ctx context.Context, req *eventsv1.PublishRequest) er
 	defer s.mu.Unlock()
 
 	// Retrieve clientId from the context
-	clientId := "NOID"
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		clientIdMd := md.Get("blipblop_client_id")
-		if len(clientIdMd) > 0 {
-			clientId = clientIdMd[0]
-		}
-	}
+	// clientId := "NOID"
+	// if md, ok := metadata.FromIncomingContext(ctx); ok {
+	// 	clientIdMd := md.Get("blipblop_client_id")
+	// 	if len(clientIdMd) > 0 {
+	// 		clientId = clientIdMd[0]
+	// 	}
+	// }
 
 	for client, sub := range s.subscribers {
 		for _, ch := range sub {
-			if client != clientId {
-				select {
-				case ch <- req.Event:
-					s.logger.Debug("notified client", "client", client)
-				default:
-					s.logger.Debug("client is too slow to receive events", "client", client)
-				}
+			// if client != clientId {
+			select {
+			case ch <- req.Event:
+				s.logger.Info("notified client", "client", client)
+			default:
+				s.logger.Debug("client is too slow to receive events", "client", client)
 			}
+			// }
 		}
 	}
 
@@ -104,7 +104,15 @@ func (s *Exchange) Subscribe(ctx context.Context) (<-chan *eventsv1.Event, <-cha
 	defer s.mu.Unlock()
 	eventChan := make(chan *eventsv1.Event, 10)
 
-	s.subscribers[topic] = append(s.subscribers[topic], eventChan)
+	clientId := "NOID"
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		clientIdMd := md.Get("blipblop_client_id")
+		if len(clientIdMd) > 0 {
+			clientId = clientIdMd[0]
+		}
+	}
+
+	s.subscribers[clientId] = append(s.subscribers[clientId], eventChan)
 
 	return eventChan, nil
 }
