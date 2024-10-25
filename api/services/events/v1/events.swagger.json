@@ -17,6 +17,18 @@
   ],
   "paths": {},
   "definitions": {
+    "eventsv1Operation": {
+      "type": "string",
+      "enum": [
+        "Create",
+        "Update",
+        "Delete",
+        "Get",
+        "List",
+        "Watch"
+      ],
+      "default": "Create"
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -59,6 +71,9 @@
         },
         "type": {
           "$ref": "#/definitions/v1EventType"
+        },
+        "operation": {
+          "$ref": "#/definitions/eventsv1Operation"
         }
       }
     },
@@ -79,7 +94,10 @@
         "NodeList",
         "NodeUpdate",
         "NodeJoin",
-        "NodeForget"
+        "NodeForget",
+        "ContainerSetCreate",
+        "ContainerSetDelete",
+        "ContainerSetUpdate"
       ],
       "default": "ContainerCreate"
     },

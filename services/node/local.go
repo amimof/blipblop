@@ -12,10 +12,8 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services"
-	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -50,12 +48,12 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 }
 
 func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
 	node := req.GetNode()
 	if existing, _ := l.Repo().Get(ctx, node.GetMeta().GetName()); existing != nil {
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
 	}
+
+	nodeId := node.GetMeta().GetName()
 
 	m, err := services.EnsureMeta(node)
 	if err != nil {
@@ -67,7 +65,8 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", node.GetMeta().GetName())
 	}
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), eventsv1.EventType_NodeCreate)})
+
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, nodeId))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", node.GetMeta().GetName(), "event", "NodeCreate")
 	}
@@ -77,13 +76,11 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 }
 
 func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...grpc.CallOption) (*nodes.DeleteNodeResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
 	err := l.Repo().Delete(ctx, req.Id)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), eventsv1.EventType_NodeDelete)})
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, req.GetId()))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
@@ -103,12 +100,6 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 }
 
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
-	clientId := "internal"
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		clientId = md.Get("blipblop_client_id")[0]
-	}
-
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
 	existing, err := l.Repo().Get(ctx, req.GetId())
@@ -124,7 +115,8 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", existing.GetMeta().GetName())
 	}
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, existing.GetMeta().GetName(), eventsv1.EventType_NodeUpdate)})
+
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, req.GetId()))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "NodeUpdate")
 	}
@@ -134,27 +126,27 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 }
 
 func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
+	node := req.GetNode()
+	nodeId := node.GetMeta().GetName()
 
-	if req.GetNode().GetMeta().GetName() == "" {
+	if nodeId == "" {
 		return nil, status.Error(codes.InvalidArgument, "node name cannot be empty")
 	}
 
-	_, err := l.Get(ctx, &nodes.GetNodeRequest{Id: req.GetNode().GetMeta().GetName()})
+	_, err := l.Get(ctx, &nodes.GetNodeRequest{Id: nodeId})
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			if _, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node}); err != nil {
-				return nil, l.handleError(err, "couldn't CREATE node", "name", req.GetNode().GetMeta().GetName())
+				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeId)
 			}
 		} else {
-			return nil, l.handleError(err, "couldn't GET node", "name", req.GetNode().GetMeta().GetName())
+			return nil, l.handleError(err, "couldn't GET node", "name", nodeId)
 		}
 	}
 
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetNode().GetMeta().GetName(), eventsv1.EventType_NodeJoin)})
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, nodeId))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing JOIN event", "name", req.GetNode().GetMeta().GetName(), "event", "NodeJoin")
+		return nil, l.handleError(err, "error publishing JOIN event", "name", nodeId, "event", "NodeJoin")
 	}
 	return &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
@@ -162,13 +154,11 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
 	_, err := l.Delete(ctx, &nodes.DeleteNodeRequest{Id: req.GetId()})
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), eventsv1.EventType_NodeForget)})
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, req.GetId()))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}

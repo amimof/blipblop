@@ -2,8 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/labels"
@@ -29,16 +27,6 @@ type Status = status.Status
 type Response[T any] struct {
 	Status Status
 	Raw    proto.Message
-}
-
-func (g *Response[T]) Object() (T, error) {
-	// Attempt to cast the value inside GenericContainer to type T
-	v, ok := g.Raw.(T)
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("failed to convert %v (type %s) to type %s", g.Raw, reflect.TypeOf(g.Raw), reflect.TypeOf(zero))
-	}
-	return v, nil
 }
 
 func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
@@ -117,7 +105,7 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 
 func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id})
+	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +114,7 @@ func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContain
 
 func (c *ClientV1) Stop(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
+	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: false})
 	if err != nil {
 		return nil, err
 	}

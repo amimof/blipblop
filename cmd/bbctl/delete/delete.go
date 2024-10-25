@@ -24,6 +24,7 @@ func NewCmdDelete(cfg *client.Config) *cobra.Command {
 
 	deleteCmd.AddCommand(NewCmdDeleteContainer(cfg))
 	deleteCmd.AddCommand(NewCmdDeleteNode(cfg))
+	deleteCmd.AddCommand(NewCmdDeleteContainerSet(cfg))
 
 	return deleteCmd
 }

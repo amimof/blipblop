@@ -60,9 +60,7 @@ func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *events.Eve
 			errChan <- fmt.Errorf("non-gRPC error: %v", err)
 			break
 		}
-		if c.id != response.ClientId {
-			receiveChan <- response
-		}
+		receiveChan <- response
 	}
 
 	return nil

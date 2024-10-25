@@ -12,10 +12,8 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/services"
-	"github.com/amimof/blipblop/services/event"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -60,50 +58,45 @@ func (l *local) List(ctx context.Context, req *containersetsv1.ListContainerSetR
 }
 
 func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.CreateContainerSetResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
-	container := req.GetContainerSet()
+	containerSet := req.GetContainerSet()
+	containerSetId := containerSet.GetMeta().GetName()
 
-	if existing, _ := l.Repo().Get(ctx, container.GetMeta().GetName()); existing != nil {
-		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
+	if existing, _ := l.Repo().Get(ctx, containerSet.GetMeta().GetName()); existing != nil {
+		return nil, fmt.Errorf("container set %s already exists", containerSet.GetMeta().GetName())
 	}
-
-	m, err := services.EnsureMeta(container)
+	var err error
+	containerSet.Meta, err = services.EnsureMeta(containerSet)
 	if err != nil {
 		return nil, err
 	}
-	container.Meta = m
 
-	err = l.Repo().Create(ctx, container)
+	err = l.Repo().Create(ctx, containerSet)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", container.GetMeta().GetName())
+		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerSet.GetMeta().GetName())
 	}
 
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, container.GetMeta().GetName(), eventsv1.EventType_ContainerCreate)})
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetCreate, containerSetId))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
+		return nil, l.handleError(err, "error publishing CREATE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerCreate")
 	}
 	return &containersetsv1.CreateContainerSetResponse{
-		ContainerSet: container,
+		ContainerSet: containerSet,
 	}, nil
 }
 
-// Delete publishes a delete request and the subscribers are responsible for deleting resources.
-// Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.DeleteContainerSetResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
-	container, err := l.Repo().Get(ctx, req.GetId())
+	containerSet, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
 	}
+	containerSetId := containerSet.GetMeta().GetName()
 	err = l.Repo().Delete(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetId(), eventsv1.EventType_ContainerDelete)})
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetDelete, containerSetId))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "ContainerDelete")
+		return nil, l.handleError(err, "error publishing DELETE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
 	}
 	return &containersetsv1.DeleteContainerSetResponse{
 		Id: req.GetId(),
@@ -111,24 +104,22 @@ func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainer
 }
 
 func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.UpdateContainerSetResponse, error) {
-	md, _ := metadata.FromIncomingContext(ctx)
-	clientId := md.Get("blipblop_client_id")[0]
 	updateMask := req.GetUpdateMask()
-	updateContainer := req.GetContainerSet()
+	updateContainerSet := req.GetContainerSet()
 	existing, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainer.GetMeta().GetName())
+		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainerSet.GetMeta().GetName())
 	}
 
 	if updateMask != nil && updateMask.IsValid(existing) {
-		proto.Merge(existing, updateContainer)
+		proto.Merge(existing, updateContainerSet)
 	}
 
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
-	err = l.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: event.NewEventFor(clientId, req.GetContainerSet().GetMeta().GetName(), eventsv1.EventType_ContainerUpdate)})
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetUpdate, req.GetId()))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}
