@@ -29,7 +29,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -61,7 +61,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -101,6 +101,9 @@
                       "format": "uint64"
                     }
                   }
+                },
+                "template": {
+                  "$ref": "#/definitions/v1Config"
                 }
               }
             }
@@ -134,7 +137,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -174,6 +177,9 @@
                       "format": "uint64"
                     }
                   }
+                },
+                "template": {
+                  "$ref": "#/definitions/v1Config"
                 }
               }
             }
@@ -203,7 +209,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -234,7 +240,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -262,7 +268,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/rpcStatus"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -281,16 +287,7 @@
     }
   },
   "definitions": {
-    "protobufAny": {
-      "type": "object",
-      "properties": {
-        "@type": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": {}
-    },
-    "rpcStatus": {
+    "googlerpcStatus": {
       "type": "object",
       "properties": {
         "code": {
@@ -309,11 +306,63 @@
         }
       }
     },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "v1Config": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "envvars": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Mount"
+          }
+        },
+        "portMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PortMapping"
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "v1ContainerSet": {
       "type": "object",
       "properties": {
         "meta": {
           "$ref": "#/definitions/v1Meta"
+        },
+        "template": {
+          "$ref": "#/definitions/v1Config"
         }
       }
     },
@@ -376,6 +425,45 @@
         "revision": {
           "type": "string",
           "format": "uint64"
+        }
+      }
+    },
+    "v1Mount": {
+      "type": "object",
+      "properties": {
+        "destination": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1PortMapping": {
+      "type": "object",
+      "properties": {
+        "hostPort": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "containerPort": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "hostIP": {
+          "type": "string"
         }
       }
     },

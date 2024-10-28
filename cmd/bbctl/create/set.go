@@ -3,6 +3,7 @@ package create
 import (
 	"context"
 
+	"github.com/amimof/blipblop/api/services/containers/v1"
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -28,6 +29,12 @@ func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			// Get labels, for some reason we cannot use viper here. Viper returns an empty map
+			// l, err := createCmd.PersistentFlags().GetStringToString("labels")
+			// if err != nil {
+			// 	log.Fatalf("error retrieving labels flag: %v", err)
+			// }
+
 			// Setup client
 			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
@@ -37,7 +44,16 @@ func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 
 			cname := args[0]
 
-			err = c.ContainerSetV1().Create(ctx, &containersetsv1.ContainerSet{Meta: &metav1.Meta{Name: cname}})
+			err = c.ContainerSetV1().Create(
+				ctx,
+				&containersetsv1.ContainerSet{
+					Meta: &metav1.Meta{
+						Name: cname,
+					},
+					Template: &containers.Config{
+						Image: "docker.io/library/nginx:latest",
+					},
+				})
 			if err != nil {
 				logrus.Fatal(err)
 			}

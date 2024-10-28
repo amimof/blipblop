@@ -13,11 +13,11 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type local struct {
@@ -67,7 +67,9 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
 	}
 
-	err := services.EnsureMetaForContainer(container)
+	container.GetMeta().Created = timestamppb.Now()
+
+	err := req.Validate()
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +142,13 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 		return nil, err
 	}
 	proto.Merge(existing, maskedUpdate)
+
+	existing.GetMeta().Updated = timestamppb.Now()
+
+	err = existing.Validate()
+	if err != nil {
+		return nil, err
+	}
 
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var containerSetPrefix = []byte("containerset")
+var containerSetPrefix = []byte("set")
 
 type ContainerSetID string
 

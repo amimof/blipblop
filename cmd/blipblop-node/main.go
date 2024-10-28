@@ -8,24 +8,16 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
-	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/networking"
+	"github.com/amimof/blipblop/pkg/node"
 	rt "github.com/amimof/blipblop/pkg/runtime"
-
-	//"github.com/amimof/blipblop/pkg/server"
-
 	"github.com/containerd/containerd"
-	//"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/spf13/pflag"
 )
 
@@ -40,19 +32,16 @@ var (
 	GOVERSION string
 
 	insecureSkipVerify bool
-
-	host              string
-	port              int
-	tlsCertificate    string
-	tlsCertificateKey string
-	tlsCACertificate  string
-
-	metricsHost string
-	metricsPort int
-
-	containerdSocket string
-
-	logLevel string
+	host               string
+	port               int
+	tlsCertificate     string
+	tlsCertificateKey  string
+	tlsCACertificate   string
+	metricsHost        string
+	metricsPort        int
+	containerdSocket   string
+	logLevel           string
+	nodeFile           string
 )
 
 func init() {
@@ -63,6 +52,7 @@ func init() {
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
+	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -162,7 +152,7 @@ func main() {
 	defer cclient.Close()
 
 	// Join node
-	n, err := newNodeFromEnv(cclient)
+	n, err := node.LoadNodeFromEnv(nodeFile)
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err)
 		return
@@ -237,43 +227,4 @@ func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, e
 		time.Sleep(backoff)
 
 	}
-}
-
-// NewNodeFromEnv creates a new node from the current environment with the name s
-func newNodeFromEnv(c *containerd.Client) (*nodes.Node, error) {
-	// Hostname, arch and OS info
-	arch := runtime.GOARCH
-	oper := runtime.GOOS
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-
-	// Containerd info
-	runtime := c.Runtime()
-	version, err := c.Version(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	// Networks and IP address info
-
-	// Construct labels
-	l := labels.New()
-	l.Set(labels.LabelPrefix("arch").String(), arch)
-	l.Set(labels.LabelPrefix("os").String(), oper)
-	l.Set(labels.LabelPrefix("runtime").String(), runtime)
-	l.Set(labels.LabelPrefix("version").String(), version.Version)
-
-	// Construct node instance
-	n := &nodes.Node{
-		Meta: &types.Meta{
-			Name:   hostname,
-			Labels: l,
-		},
-		Status: &nodes.Status{
-			State: "UNKNOWN",
-		},
-	}
-	return n, err
 }

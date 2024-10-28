@@ -2,12 +2,16 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 )
 
@@ -31,10 +35,7 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 
 	// Define handlers
 	handlers := events.ContainerSetEventHandlerFuncs{
-		OnCreate: func(e *eventsv1.Event) error {
-			log.Println("set controller OnCreate")
-			return nil
-		},
+		OnCreate: c.onCreate,
 		OnUpdate: func(e *eventsv1.Event) error {
 			log.Println("set controller OnUpdate")
 			return nil
@@ -63,6 +64,38 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
+	ctx := context.Background()
+
+	set, err := c.clientset.ContainerSetV1().Get(ctx, e.GetObjectId())
+	if err != nil {
+		return err
+	}
+
+	// Merge labels from containerset into container
+	l := labels.New()
+	l.Set(labels.LabelPrefix("container-set").String(), set.GetMeta().GetName())
+	l.AppendMap(set.GetMeta().GetLabels())
+	template := set.GetTemplate()
+
+	// Create container instance
+	container := &containersv1.Container{
+		Meta: &types.Meta{
+			Name:   fmt.Sprintf("%s-%d", set.GetMeta().GetName(), time.Now().UnixMilli()),
+			Labels: l,
+		},
+		Config: template,
+	}
+
+	// Create container request
+	err = c.clientset.ContainerV1().Create(ctx, container)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func NewContainerSetController(cs *client.ClientSet, opts ...NewContainerSetControllerOption) *ContainerSetController {

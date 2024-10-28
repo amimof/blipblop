@@ -326,8 +326,8 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	return task.Start(ctx)
 }
 
-func (c *ContainerdRuntime) IsServing(ctx context.Context) (bool, error) {
-	return c.client.IsServing(ctx)
+func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
+	return nil, nil
 }
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
