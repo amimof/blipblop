@@ -447,6 +447,12 @@
             "type": "object",
             "$ref": "#/definitions/v1PortMapping"
           }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
@@ -50,15 +49,7 @@ func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
 func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 
-	m, err := services.EnsureMeta(node)
-	if err != nil {
-		return err
-	}
-	node.Meta = m
-
-	// node.Updated = timestamppb.New(time.Now())
-	// node.Revision = node.Revision + 1
-	_, err = c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
+	_, err := c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
 	if err != nil {
 		return err
 	}
@@ -66,18 +57,9 @@ func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 }
 
 func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
-	// ctx = context.WithValue(ctx, "blipblop/client_id", c.id)
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	// node.Created = timestamppb.New(time.Now())
-	// node.Updated = timestamppb.New(time.Now())
-	// node.Revision = 1
-	m, err := services.EnsureMeta(node)
-	if err != nil {
-		return err
-	}
-	node.Meta = m
-	// c.name = node.GetMeta().GetName()
-	_, err = c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
+
+	_, err := c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@ require (
 require (
 	github.com/containerd/console v1.0.3
 	github.com/dgraph-io/badger/v4 v4.3.0
+	github.com/envoyproxy/protoc-gen-validate v1.0.2
 	github.com/fatih/color v1.7.0
 	github.com/google/uuid v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.1
@@ -42,7 +43,7 @@ require (
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
-	github.com/spf13/afero v1.2.2 // indirect
+	github.com/spf13/afero v1.3.3 // indirect
 	github.com/spf13/cast v1.3.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240125205218-1f4bbc51befe // indirect

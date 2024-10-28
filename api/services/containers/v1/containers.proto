@@ -5,6 +5,7 @@ package blipblop.services.containers.v1;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
+import "validate/validate.proto";
 import "api/services/events/v1/events.proto";
 import "api/types/v1/meta.proto";
 
@@ -57,8 +58,8 @@ service ContainerService {
 
 
 message Container {
-  blipblop.types.v1.Meta meta = 1;
-  Config config = 2;
+  blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
+  Config config = 2 [(validate.rules).message.required = true];
   Status status = 3;
   // repeated Event events = 4;
 }
@@ -74,11 +75,12 @@ message Status {
 }
 
 message Config {
-	string image = 1;
+	string image = 1[ (validate.rules).string.min_len = 1];
 	repeated string args = 2;
 	repeated string envvars = 3;
 	repeated Mount mounts = 4;
-	repeated PortMapping portMappings = 5;
+	repeated PortMapping portMappings = 5; 
+  map<string, string> nodeSelector = 6;
 }
 
 message Mount {
@@ -112,7 +114,7 @@ message Event {
 }
 
 message GetContainerRequest {
-  string id = 1;
+  string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message GetContainerResponse {
@@ -124,12 +126,12 @@ message CreateContainerRequest {
 }
 
 message CreateContainerResponse {
-	Container container = 1;
+	Container container = 1 [(validate.rules).message.required = true];
 }
 
 message UpdateContainerRequest {
-  string id = 1;
-  Container container = 2;
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Container container = 2 [(validate.rules).message.required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -138,11 +140,11 @@ message UpdateContainerResponse {
 }
 
 message DeleteContainerRequest {
-	string id = 1;
+	string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message DeleteContainerResponse {
-	string id = 1;
+	string id = 1 ;
 }
 
 message ListContainerRequest {
@@ -154,7 +156,7 @@ message ListContainerResponse {
 }
 
 message StartContainerRequest {
-	string id = 1;
+	string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message StartContainerResponse {
@@ -162,7 +164,7 @@ message StartContainerResponse {
 }
 
 message StopContainerRequest {
-	string id = 1;
+	string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message StopContainerResponse {
@@ -170,7 +172,7 @@ message StopContainerResponse {
 }
 
 message KillContainerRequest {
-	string id = 1;
+	string id = 1 [(validate.rules).string.min_len = 1];
   bool forceKill = 2;
 }
 

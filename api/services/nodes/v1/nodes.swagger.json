@@ -307,21 +307,6 @@
     "nodesv1Status": {
       "type": "object",
       "properties": {
-        "ips": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "hostname": {
-          "type": "string"
-        },
-        "arch": {
-          "type": "string"
-        },
-        "os": {
-          "type": "string"
-        },
         "state": {
           "type": "string"
         }

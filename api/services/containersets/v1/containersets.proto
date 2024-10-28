@@ -5,7 +5,9 @@ package blipblop.services.containersets.v1;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
+import "validate/validate.proto";
 import "api/services/events/v1/events.proto";
+import "api/services/containers/v1/containers.proto";
 import "api/types/v1/meta.proto";
 
 
@@ -47,11 +49,16 @@ service ContainerSetService {
 
 
 message ContainerSet {
-  blipblop.types.v1.Meta meta = 1;
+  blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
+  blipblop.services.containers.v1.Config template = 2 [(validate.rules).message.required = true];
 }
 
+// message Template {
+//   blipblop.services.containers.v1.Config config = 2 [(validate.rules).message.required = true];
+// }
+
 message GetContainerSetRequest {
-  string id = 1;
+  string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message GetContainerSetResponse {
@@ -59,7 +66,7 @@ message GetContainerSetResponse {
 }
 
 message CreateContainerSetRequest {
-	ContainerSet containerSet = 1;
+	ContainerSet containerSet = 1 [(validate.rules).message.required = true];
 }
 
 message CreateContainerSetResponse {
@@ -67,7 +74,7 @@ message CreateContainerSetResponse {
 }
 
 message UpdateContainerSetRequest {
-  string id = 1;
+  string id = 1 [(validate.rules).string.min_len = 1];
   ContainerSet containerSet = 2;
   google.protobuf.FieldMask update_mask = 3;
 }
@@ -77,7 +84,7 @@ message UpdateContainerSetResponse {
 }
 
 message DeleteContainerSetRequest {
-	string id = 1;
+	string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message DeleteContainerSetResponse {

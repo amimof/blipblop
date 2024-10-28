@@ -12,11 +12,11 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/amimof/blipblop/services"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type local struct {
@@ -54,13 +54,13 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
 	}
 
-	nodeId := node.GetMeta().GetName()
+	nodeId := node.Meta.GetName()
+	node.Meta.Created = timestamppb.Now()
 
-	m, err := services.EnsureMeta(node)
+	err := req.Validate()
 	if err != nil {
 		return nil, err
 	}
-	node.Meta = m
 
 	err = l.Repo().Create(ctx, node)
 	if err != nil {
@@ -115,6 +115,13 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 	}
 	proto.Merge(existing, maskedUpdate)
 
+	existing.GetMeta().Updated = timestamppb.Now()
+
+	err = existing.Validate()
+	if err != nil {
+		return nil, err
+	}
+
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", existing.GetMeta().GetName())
@@ -147,7 +154,6 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	// _, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode(), UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"meta", "status"}}})
 	_, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode()})
 	if err != nil {
 		return nil, err
@@ -155,7 +161,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 
 	return &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
-	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, nodeId))
+	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeJoin, nodeId))
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
@@ -163,7 +169,7 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, req.GetId()))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeForget, req.GetId()))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}

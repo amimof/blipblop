@@ -15,8 +15,7 @@ import (
 type ContainerController struct {
 	clientset *client.ClientSet
 	runtime   runtime.Runtime
-	// handlers  *ContainerEventHandlerFuncs
-	logger logger.Logger
+	logger    logger.Logger
 }
 
 type NewContainerControllerOption func(c *ContainerController)
@@ -66,59 +65,6 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 func (c *ContainerController) Reconcile(ctx context.Context) error {
 	return nil
 }
-
-// TODO: This controller will also receive events for objects that are not container-related (sucha as nodes).
-// Need to implement logic to only handle container events.
-// func (c *ContainerController) handleEventEvent(funcs *ContainerEventHandlerFuncs, ev *eventsv1.Event, l logger.Logger) {
-// 	ctx := context.Background()
-//
-// 	// Ignore empty events
-// 	if ev == nil {
-// 		return
-// 	}
-// 	if ev.GetObjectId() == "" {
-// 		return
-// 	}
-//
-// 	ctr := ev.GetObjectId()
-//
-// 	// TODO: Consider fetching the container here. Might be less performant
-// 	// Get the container
-// 	// ctr, err := c.clientset.ContainerV1().Get(context.Background(), ev.GetObjectId())
-// 	// if err != nil {
-// 	// 	c.logger.Error("couldn't handle event, error getting container", "error", err, "objectId", ev.GetObjectId())
-// 	// 	return
-// 	// }
-//
-// 	// Run handlers
-// 	t := ev.Type
-// 	switch t {
-// 	case eventsv1.EventType_ContainerCreate:
-// 		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Starting.String(), "")
-// 		if err := funcs.OnContainerCreate(ev); err != nil {
-// 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Error.String(), err.Error())
-// 			c.logger.Error("error calling OnContainerCreate handler", "error", err)
-// 		}
-// 	case eventsv1.EventType_ContainerDelete:
-// 		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Deleting.String(), "")
-// 		if err := funcs.OnContainerDelete(ev); err != nil {
-// 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Error.String(), err.Error())
-// 			c.logger.Error("error calling OnContainerDelete handler", "error", err)
-// 		}
-// 	case eventsv1.EventType_ContainerStart:
-// 		if err := funcs.OnContainerStart(ev); err != nil {
-// 			c.logger.Error("error calling OnContainerStart handler", "error", err)
-// 		}
-// 	case eventsv1.EventType_ContainerKill:
-// 		_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Stopping.String(), "")
-// 		if err := funcs.OnContainerKill(ev); err != nil {
-// 			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr, containers.Phase_Error.String(), err.Error())
-// 			c.logger.Error("error calling OnContainerKill handler", "error", err)
-// 		}
-// 	default:
-// 		l.Debug("container handler not implemented for event", "type", t.String())
-// 	}
-// }
 
 func (c *ContainerController) onContainerCreate(obj *eventsv1.Event) error {
 	ctx := context.Background()

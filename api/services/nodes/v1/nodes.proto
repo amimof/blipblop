@@ -5,6 +5,7 @@ package blipblop.services.nodes.v1;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
+import "validate/validate.proto";
 import "api/types/v1/meta.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
@@ -46,7 +47,7 @@ service NodeService {
 }
 
 message Node {
-  blipblop.types.v1.Meta meta = 1;
+  blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
   Status status = 2;
 }
 
@@ -55,7 +56,7 @@ message Status {
 }
 
 message GetNodeRequest {
-  string id = 1;
+  string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message GetNodeResponse {
@@ -63,7 +64,7 @@ message GetNodeResponse {
 }
 
 message CreateNodeRequest {
-  Node node = 1;
+  Node node = 1 [(validate.rules).message.required = true];
 }
 
 message CreateNodeResponse {
@@ -71,7 +72,7 @@ message CreateNodeResponse {
 }
 
 message DeleteNodeRequest {
-  string id = 1;
+  string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message DeleteNodeResponse {
@@ -79,8 +80,8 @@ message DeleteNodeResponse {
 }
 
 message UpdateNodeRequest {
-  string id = 1;
-  Node node = 2;
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Node node = 2 [(validate.rules).message.required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -97,7 +98,7 @@ message ListNodeResponse {
 }
 
 message JoinRequest {
-  Node node = 1;
+  Node node = 1 [(validate.rules).message.required = true];
 }
 
 message JoinResponse {
@@ -105,7 +106,7 @@ message JoinResponse {
 }
 
 message ForgetRequest {
-  string id = 1;
+  string id = 1 [(validate.rules).string.min_len = 1];
 }
 
 message ForgetResponse {
