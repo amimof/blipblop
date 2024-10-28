@@ -20,6 +20,9 @@ func LoadNodeFromEnv(path string) (*nodes.Node, error) {
 				return nil, err
 			}
 			err = createNodeFile(n, path)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return n, nil
