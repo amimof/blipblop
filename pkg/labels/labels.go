@@ -2,13 +2,6 @@ package labels
 
 import "fmt"
 
-const (
-	In           Operator = "In"
-	NotIn        Operator = "NotIn"
-	Exists       Operator = "Exists"
-	DoesNotExist Operator = "DoesNotExist"
-)
-
 const DefaultLabelPrefix = "blipblop.io"
 
 var DefaultContainerLabels = []string{LabelPrefix("uuid").String()}
@@ -43,69 +36,66 @@ func (l *Label) AppendMap(m map[string]string) {
 	}
 }
 
-type Operator string
-
-// Selector represents a filter based on key-value conditions.
-type Selector struct {
-	MatchLabels Label
-	Expressions []LabelExpression
-}
-
-type LabelExpression struct {
-	Key      string
-	Operator Operator
-	Values   []string
-}
-
-type LabelSelector interface {
+type Selector interface {
 	Matches(labels Label) bool
-	AddMatchLabel(key, value string)
-	AddExpression(expr LabelExpression)
 }
 
-func (s *Selector) Matches(labels Label) bool {
-	// Match by key-value pairs in MatchLabels
-	for key, value := range s.MatchLabels {
-		if labels[key] != value {
+type EqualitySelector struct {
+	Key   string
+	Value string
+}
+
+func (s EqualitySelector) Matches(labels Label) bool {
+	return labels[s.Key] == s.Value
+}
+
+type SetSelector struct {
+	Key    string
+	Values []string
+	In     bool // true for "in", false for "notin"
+}
+
+func (s SetSelector) Matches(labels Label) bool {
+	value, exists := labels[s.Key]
+	if !exists {
+		return false
+	}
+	for _, v := range s.Values {
+		if value == v {
+			return s.In
+		}
+	}
+	return !s.In
+}
+
+type ExistsSelector struct {
+	Key string
+}
+
+func (s ExistsSelector) Matches(labels Label) bool {
+	_, exists := labels[s.Key]
+	return exists
+}
+
+type CompositeSelector struct {
+	Selectors []Selector
+}
+
+func (s CompositeSelector) Matches(labels Label) bool {
+	for _, selector := range s.Selectors {
+		if !selector.Matches(labels) {
 			return false
 		}
 	}
-
-	// Evaluate label expressions
-	for _, expr := range s.Expressions {
-		if !evaluateExpression(expr, labels) {
-			return false
-		}
-	}
-
 	return true
 }
 
-func evaluateExpression(expr LabelExpression, labels Label) bool {
-	switch expr.Operator {
-	case In:
-		for _, v := range expr.Values {
-			if labels[expr.Key] == v {
-				return true
-			}
-		}
-		return false
-	case NotIn:
-		for _, v := range expr.Values {
-			if labels[expr.Key] == v {
-				return false
-			}
-		}
-		return true
-	case Exists:
-		_, exists := labels[expr.Key]
-		return exists
-	case DoesNotExist:
-		_, exists := labels[expr.Key]
-		return !exists
-	default:
-		return false
+func NewCompositeSelectorFromMap(labelMap map[string]string) CompositeSelector {
+	selectors := make([]Selector, 0, len(labelMap))
+	for key, value := range labelMap {
+		selectors = append(selectors, EqualitySelector{Key: key, Value: value})
 	}
+	return CompositeSelector{Selectors: selectors}
 }
 
 func New() Label {

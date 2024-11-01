@@ -7,7 +7,6 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
-	errdefs "github.com/amimof/blipblop/pkg/errors"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
@@ -64,12 +63,12 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 
 	err = l.Repo().Create(ctx, node)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", node.GetMeta().GetName())
+		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeId)
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, nodeId))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", node.GetMeta().GetName(), "event", "NodeCreate")
+		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeId, "event", "NodeCreate")
 	}
 	return &nodes.CreateNodeResponse{
 		Node: node,
@@ -77,11 +76,15 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 }
 
 func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...grpc.CallOption) (*nodes.DeleteNodeResponse, error) {
-	err := l.Repo().Delete(ctx, req.Id)
+	node, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	err = l.Repo().Delete(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, req.GetId()))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
@@ -127,7 +130,12 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", existing.GetMeta().GetName())
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, req.GetId()))
+	node, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "NodeUpdate")
 	}
@@ -143,9 +151,9 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		return nil, status.Error(codes.InvalidArgument, "node name cannot be empty")
 	}
 
-	_, err := l.Get(ctx, &nodes.GetNodeRequest{Id: nodeId})
+	node, err := l.Repo().Get(ctx, nodeId)
 	if err != nil {
-		if errdefs.IsNotFound(err) {
+		if errors.Is(err, repository.ErrNotFound) {
 			if _, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node}); err != nil {
 				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeId)
 			}
@@ -154,22 +162,31 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	_, err = l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode()})
+	res, err := l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode()})
 	if err != nil {
 		return nil, err
 	}
 
+	if res != nil {
+		node = res.GetNode()
+	}
+
 	return &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
-	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeJoin, nodeId))
+	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeJoin, node))
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
-	_, err := l.Delete(ctx, &nodes.DeleteNodeRequest{Id: req.GetId()})
+	node, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = l.Delete(ctx, &nodes.DeleteNodeRequest{Id: req.GetId()})
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeForget, req.GetId()))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeForget, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}

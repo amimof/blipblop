@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -76,10 +75,15 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 
 	err = l.Repo().Create(ctx, container)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", container.GetMeta().GetName())
+		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerId)
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerCreate, containerId))
+	container, err = l.Repo().Get(ctx, containerId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerCreate, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
 	}
@@ -99,7 +103,7 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerDelete, req.GetId()))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerDelete, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "ContainerDelete")
 	}
@@ -109,8 +113,11 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
-	log.Println("Killing")
-	err := l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerKill, req.GetId()))
+	container, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerKill, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing KILL event", "name", req.GetId(), "event", "ContainerKill")
 	}
@@ -120,7 +127,11 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 }
 
 func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
-	err := l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerStart, req.GetId()))
+	container, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerStart, container))
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +165,13 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, req.GetId()))
+
+	node, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}

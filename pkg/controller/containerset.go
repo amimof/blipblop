@@ -7,12 +7,14 @@ import (
 	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
+	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/util"
 )
 
 type ContainerSetController struct {
@@ -40,10 +42,7 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 			log.Println("set controller OnUpdate")
 			return nil
 		},
-		OnDelete: func(e *eventsv1.Event) error {
-			log.Println("set controller OnDelete")
-			return nil
-		},
+		OnDelete: c.onDelete,
 	}
 
 	// Run informer
@@ -69,7 +68,10 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
 	ctx := context.Background()
 
-	set, err := c.clientset.ContainerSetV1().Get(ctx, e.GetObjectId())
+	fmt.Println(" On create container set")
+
+	var set containersetsv1.ContainerSet
+	err := e.Object.UnmarshalTo(&set)
 	if err != nil {
 		return err
 	}
@@ -83,7 +85,7 @@ func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
 	// Create container instance
 	container := &containersv1.Container{
 		Meta: &types.Meta{
-			Name:   fmt.Sprintf("%s-%d", set.GetMeta().GetName(), time.Now().UnixMilli()),
+			Name:   fmt.Sprintf("%s-%s", set.GetMeta().GetName(), util.GenerateBase36(8)),
 			Labels: l,
 		},
 		Config: template,
@@ -93,6 +95,36 @@ func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
 	err = c.clientset.ContainerV1().Create(ctx, container)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *ContainerSetController) onDelete(e *eventsv1.Event) error {
+	ctx := context.Background()
+
+	var containerSet containersetsv1.ContainerSet
+	err := e.GetObject().UnmarshalTo(&containerSet)
+	if err != nil {
+		return err
+	}
+
+	ctrs, err := c.clientset.ContainerV1().List(ctx)
+	if err != nil {
+		return err
+	}
+
+	key := labels.LabelPrefix("container-set").String()
+
+	for _, ctr := range ctrs {
+		if _, ok := ctr.GetMeta().GetLabels()[key]; ok {
+			if ctr.GetMeta().GetLabels()[key] == containerSet.GetMeta().GetName() {
+				err = c.clientset.ContainerV1().Delete(ctx, ctr.GetMeta().GetName())
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil

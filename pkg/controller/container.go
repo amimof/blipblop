@@ -8,7 +8,9 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
 )
 
@@ -68,18 +70,37 @@ func (c *ContainerController) Reconcile(ctx context.Context) error {
 
 func (c *ContainerController) onContainerCreate(obj *eventsv1.Event) error {
 	ctx := context.Background()
-	id := obj.GetObjectId()
+
 	// Get the container
-	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
-	if err != nil {
-		c.logger.Error("couldn't handle event, error getting container", "error", err, "container", id)
-		return err
-	}
-	err = c.runtime.Pull(ctx, ctr)
+	var ctr containers.Container
+	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err
 	}
-	err = c.runtime.Run(ctx, ctr)
+
+	// Get the node from node config
+	n, err := node.LoadNodeFromEnv("/etc/blipblop/node.yaml")
+	if err != nil {
+		return err
+	}
+
+	// Retreive latest node from the server
+	n, err = c.clientset.NodeV1().Get(ctx, n.GetMeta().GetName())
+	if err != nil {
+		return err
+	}
+
+	// See if nodeSelector matches labels on the node
+	nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
+	if !nodeSelector.Matches(n.GetMeta().GetLabels()) {
+		return nil
+	}
+
+	err = c.runtime.Pull(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
 	}
@@ -92,18 +113,16 @@ func (c *ContainerController) onContainerUpdate(_ *eventsv1.Event) error {
 
 func (c *ContainerController) onContainerDelete(obj *eventsv1.Event) error {
 	ctx := context.Background()
-	id := obj.GetObjectId()
-	// Get the container
-	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
-	if err != nil {
-		c.logger.Error("couldn't handle event, error getting container", "error", err, "container", id)
-		return err
-	}
-	err = c.runtime.Kill(ctx, ctr)
+	var ctr containers.Container
+	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err
 	}
-	err = c.runtime.Delete(ctx, ctr)
+	err = c.runtime.Kill(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
 		return err
 	}
@@ -112,30 +131,29 @@ func (c *ContainerController) onContainerDelete(obj *eventsv1.Event) error {
 
 func (c *ContainerController) onContainerStart(obj *eventsv1.Event) error {
 	ctx := context.Background()
-	id := obj.GetObjectId()
-	// Get the container
-	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
+
+	var ctr containers.Container
+	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
-		c.logger.Error("couldn't handle event, error getting container", "error", err, "container", id)
 		return err
 	}
 
 	// Delete container if it exists
 	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Stopping.String(), "")
-	if err := c.runtime.Delete(ctx, ctr); err != nil {
+	if err := c.runtime.Delete(ctx, &ctr); err != nil {
 		return err
 	}
 
 	// Pull image
 	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Pulling.String(), "")
-	err = c.runtime.Pull(ctx, ctr)
+	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
 	// Run container
 	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Starting.String(), "")
-	err = c.runtime.Run(ctx, ctr)
+	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
 	}
@@ -145,14 +163,14 @@ func (c *ContainerController) onContainerStart(obj *eventsv1.Event) error {
 
 func (c *ContainerController) onContainerKill(obj *eventsv1.Event) error {
 	ctx := context.Background()
-	id := obj.GetObjectId()
-	// Get the container
-	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
+
+	var ctr containers.Container
+	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
-		c.logger.Error("couldn't handle event, error getting container", "error", err, "container", id)
 		return err
 	}
-	err = c.runtime.Kill(ctx, ctr)
+
+	err = c.runtime.Kill(ctx, &ctr)
 	if err != nil {
 		return err
 	}
@@ -161,14 +179,14 @@ func (c *ContainerController) onContainerKill(obj *eventsv1.Event) error {
 
 func (c *ContainerController) onContainerStop(obj *eventsv1.Event) error {
 	ctx := context.Background()
-	id := obj.GetObjectId()
-	// Get the container
-	ctr, err := c.clientset.ContainerV1().Get(context.Background(), id)
+
+	var ctr containers.Container
+	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
-		c.logger.Error("couldn't handle event, error getting container", "error", err, "container", id)
 		return err
 	}
-	err = c.runtime.Stop(ctx, ctr)
+
+	err = c.runtime.Stop(ctx, &ctr)
 	if err != nil {
 		return err
 	}
