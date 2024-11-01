@@ -86,12 +86,12 @@ func GenerateBase36(length int) string {
 	const base36Chars = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 	// Seed the random generator to ensure different results on each run
-	rand.Seed(time.Now().UnixNano())
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Create a byte slice for storing the generated characters
 	result := make([]byte, length)
 	for i := range result {
-		result[i] = base36Chars[rand.Intn(len(base36Chars))]
+		result[i] = base36Chars[r.Intn(len(base36Chars))]
 	}
 	return string(result)
 }
