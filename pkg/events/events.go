@@ -4,6 +4,8 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 const (
@@ -12,14 +14,17 @@ const (
 	OperationDelete eventsv1.Operation = eventsv1.Operation_Delete
 )
 
-func NewRequest(evType eventsv1.EventType, objectId string) *eventsv1.PublishRequest {
+type Object protoreflect.ProtoMessage
+
+func NewRequest(evType eventsv1.EventType, obj Object) *eventsv1.PublishRequest {
+	o, _ := anypb.New(obj)
 	return &eventsv1.PublishRequest{
 		Event: &eventsv1.Event{
 			Meta: &types.Meta{
 				Name: uuid.New().String(),
 			},
-			ObjectId: objectId,
-			Type:     evType,
+			Type:   evType,
+			Object: o,
 		},
 	}
 }

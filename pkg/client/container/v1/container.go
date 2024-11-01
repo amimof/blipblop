@@ -7,8 +7,6 @@ import (
 	"github.com/amimof/blipblop/pkg/labels"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -17,16 +15,19 @@ var (
 	ContainerHealthUnhealthy = "unhealthy"
 )
 
+type CreateOption func(c *ClientV1) error
+
+func WithEmitLabels(l labels.Label) CreateOption {
+	return func(c *ClientV1) error {
+		c.emitLabels = l
+		return nil
+	}
+}
+
 type ClientV1 struct {
 	containerService containers.ContainerServiceClient
 	id               string
-}
-
-type Status = status.Status
-
-type Response[T any] struct {
-	Status Status
-	Raw    proto.Message
+	emitLabels       labels.Label
 }
 
 func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
@@ -38,18 +39,11 @@ func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
 				Node: node,
 			},
 		},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.node"}},
 	}
-	fm, err := fieldmaskpb.New(n.Container, "status.node")
+	_, err := c.containerService.Update(ctx, n)
 	if err != nil {
 		return err
-	}
-	fm.Normalize()
-	n.UpdateMask = fm
-	if fm.IsValid(n.Container) {
-		_, err = c.containerService.Update(ctx, n)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -64,18 +58,11 @@ func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, phase string, d
 				Description: desc,
 			},
 		},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.phase"}},
 	}
-	fm, err := fieldmaskpb.New(n.Container, "status.phase")
+	_, err := c.containerService.Update(ctx, n)
 	if err != nil {
 		return err
-	}
-	fm.Normalize()
-	n.UpdateMask = fm
-	if fm.IsValid(n.Container) {
-		_, err = c.containerService.Update(ctx, n)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -87,18 +74,11 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 		Container: &containers.Container{
 			Status: status,
 		},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status"}},
 	}
-	fm, err := fieldmaskpb.New(n.Container, "status")
+	_, err := c.containerService.Update(ctx, n)
 	if err != nil {
 		return err
-	}
-	fm.Normalize()
-	n.UpdateMask = fm
-	if fm.IsValid(n.Container) {
-		_, err = c.containerService.Update(ctx, n)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -131,7 +111,13 @@ func (c *ClientV1) Start(ctx context.Context, id string) (*containers.StartConta
 	return resp, err
 }
 
-func (c *ClientV1) Create(ctx context.Context, ctr *containers.Container) error {
+func (c *ClientV1) Create(ctx context.Context, ctr *containers.Container, opts ...CreateOption) error {
+	for _, opt := range opts {
+		err := opt(c)
+		if err != nil {
+			return err
+		}
+	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.containerService.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
 	if err != nil {

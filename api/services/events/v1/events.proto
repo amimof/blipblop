@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package blipblop.services.events.v1;
 
+import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 import "api/types/v1/meta.proto";
 
@@ -26,6 +27,7 @@ message Event {
   string clientId = 5;
   EventType type = 6;
   Operation operation = 7;
+  google.protobuf.Any object = 8;
 }
 
 enum EventType {

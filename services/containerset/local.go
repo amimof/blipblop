@@ -62,7 +62,7 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainer
 	containerSet := req.GetContainerSet()
 	containerSetId := containerSet.GetMeta().GetName()
 
-	if existing, _ := l.Repo().Get(ctx, containerSet.GetMeta().GetName()); existing != nil {
+	if existing, _ := l.Repo().Get(ctx, containerSetId); existing != nil {
 		return nil, fmt.Errorf("container set %s already exists", containerSet.GetMeta().GetName())
 	}
 
@@ -78,7 +78,7 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainer
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerSet.GetMeta().GetName())
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetCreate, containerSetId))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetCreate, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerCreate")
 	}
@@ -93,11 +93,11 @@ func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainer
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
 	}
 	containerSetId := containerSet.GetMeta().GetName()
-	err = l.Repo().Delete(ctx, req.GetId())
+	err = l.Repo().Delete(ctx, containerSetId)
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetDelete, containerSetId))
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetDelete, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
 	}
@@ -131,7 +131,13 @@ func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainer
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetUpdate, req.GetId()))
+
+	containerSet, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetUpdate, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}
