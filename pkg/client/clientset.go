@@ -12,6 +12,7 @@ import (
 	containersetv1 "github.com/amimof/blipblop/pkg/client/containerset/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
@@ -23,18 +24,6 @@ import (
 
 var DefaultTLSConfig = &tls.Config{
 	InsecureSkipVerify: false,
-}
-
-type ClientSet struct {
-	conn                 *grpc.ClientConn
-	nodeV1Client         *nodev1.ClientV1
-	containerV1Client    *containerv1.ClientV1
-	containerSetV1Client *containersetv1.ClientV1
-	eventV1Client        *eventv1.ClientV1
-	mu                   sync.Mutex
-	grpcOpts             []grpc.DialOption
-	tlsConfig            *tls.Config
-	clientId             string
 }
 
 type NewClientOption func(c *ClientSet) error
@@ -56,6 +45,13 @@ func WithGrpcDialOption(opts ...grpc.DialOption) NewClientOption {
 func WithTLSConfig(t *tls.Config) NewClientOption {
 	return func(c *ClientSet) error {
 		c.tlsConfig = t
+		return nil
+	}
+}
+
+func WithLogger(l logger.Logger) NewClientOption {
+	return func(c *ClientSet) error {
+		c.logger = l
 		return nil
 	}
 }
@@ -118,6 +114,19 @@ func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
 		tlsConfig.Certificates = []tls.Certificate{certificate}
 	}
 	return tlsConfig, nil
+}
+
+type ClientSet struct {
+	conn                 *grpc.ClientConn
+	nodeV1Client         *nodev1.ClientV1
+	containerV1Client    *containerv1.ClientV1
+	containerSetV1Client *containersetv1.ClientV1
+	eventV1Client        *eventv1.ClientV1
+	mu                   sync.Mutex
+	grpcOpts             []grpc.DialOption
+	tlsConfig            *tls.Config
+	clientId             string
+	logger               logger.Logger
 }
 
 func (c *ClientSet) NodeV1() *nodev1.ClientV1 {
@@ -192,6 +201,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 			InsecureSkipVerify: false,
 		},
 		clientId: uuid.New().String(),
+		logger:   logger.ConsoleLogger{},
 	}
 
 	// Allow passing in custom dial options
@@ -211,7 +221,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 	}
 
 	c.conn = conn
-	c.nodeV1Client = nodev1.NewClientV1(conn, c.clientId)
+	c.nodeV1Client = nodev1.NewClientV1(conn, nodev1.WithLogger(c.logger))
 	c.containerV1Client = containerv1.NewClientV1(conn, c.clientId)
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)

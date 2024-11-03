@@ -10,8 +10,8 @@ import (
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/metadata"
 )
 
 type NodeController struct {
@@ -21,6 +21,7 @@ type NodeController struct {
 	logger                   logger.Logger
 	connectionState          connectivity.State
 	heartbeatIntervalSeconds int
+	nodeName                 string
 }
 
 type NodeEventHandlerFuncs struct {
@@ -43,6 +44,12 @@ func WithHeartbeatInterval(s int) NewNodeControllerOption {
 	}
 }
 
+func WithNodeName(s string) NewNodeControllerOption {
+	return func(c *NodeController) {
+		c.nodeName = s
+	}
+}
+
 func (c *NodeController) heartBeat(ctx context.Context) {
 	hostname, _ := os.Hostname()
 	for {
@@ -59,14 +66,20 @@ func (c *NodeController) heartBeat(ctx context.Context) {
 			break
 		}
 
+		err = c.clientset.NodeV1().SendMessage(ctx, &eventsv1.Event{Type: eventsv1.EventType_NodeJoin})
+		if err != nil {
+			c.logger.Error("error sending message", "error", err)
+		}
+
 		time.Sleep(time.Second * time.Duration(c.heartbeatIntervalSeconds))
 	}
 }
 
-func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
+// func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
+func (c *NodeController) Run(ctx context.Context) {
 	// Setup channels
 	evt := make(chan *eventsv1.Event, 10)
-	errChan := make(chan error, 10)
+	errChan := make(chan error, 1)
 
 	// Setup handlers
 	handlers := events.NodeEventHandlerFuncs{
@@ -81,29 +94,22 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	informer := events.NewNodeEventInformer(handlers)
 	go informer.Run(evt)
 
-	// Run heart beat routine
-	go c.heartBeat(ctx)
+	// Connect with retry logic
+	go func() {
+		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, errChan)
+		if err != nil {
+			c.logger.Error("error connecting to server", "error", err)
+		}
+	}()
 
-	// Attach node name to context
-	hostname, err := os.Hostname()
-	if err != nil {
-		c.logger.Error("error getting hostname", "error", err)
-	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", hostname)
-
-	// Subscribe with retry
+	// Handle messages
 	for {
 		select {
-		case <-stopCh:
-			c.logger.Info("done watching, stopping subscription")
+		case err := <-errChan:
+			c.logger.Error("received stream error", "error", err)
+		case <-ctx.Done():
+			c.logger.Info("context canceled, shutting down controller")
 			return
-		default:
-			if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
-				c.logger.Error("error occured during subscribe", "error", err)
-			}
-
-			c.logger.Info("attempting to re-subscribe to event server")
-			time.Sleep(5 * time.Second)
 		}
 	}
 }
@@ -131,6 +137,7 @@ func (c *NodeController) onNodeDelete(obj *eventsv1.Event) error {
 }
 
 func (c *NodeController) onNodeJoin(obj *eventsv1.Event) error {
+	c.logger.Info("node joined")
 	return nil
 }
 
@@ -152,6 +159,7 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		runtime:                  rt,
 		logger:                   logger.ConsoleLogger{},
 		heartbeatIntervalSeconds: 5,
+		nodeName:                 uuid.New().String(),
 	}
 	m.handlers = &NodeEventHandlerFuncs{
 		OnNodeDelete: m.onNodeDelete,

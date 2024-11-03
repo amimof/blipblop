@@ -195,6 +195,10 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	}, nil
 }
 
+func (l *local) Connect(ctx context.Context, opt ...grpc.CallOption) (nodes.NodeService_ConnectClient, error) {
+	return nil, nil
+}
+
 func (l *local) Repo() repository.NodeRepository {
 	if l.repo != nil {
 		return l.repo

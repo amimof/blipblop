@@ -2,17 +2,37 @@ package v1
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+	"time"
 
+	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/logger"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
+
+type ClientOption func(*ClientV1)
+
+func WithLogger(l logger.Logger) ClientOption {
+	return func(c *ClientV1) {
+		c.logger = l
+	}
+}
 
 type ClientV1 struct {
 	nodeService nodes.NodeServiceClient
 	id          string
+	mu          sync.Mutex
+	stream      nodes.NodeService_ConnectClient
+	logger      logger.Logger
 }
 
 func (c *ClientV1) NodeService() nodes.NodeServiceClient {
@@ -78,6 +98,100 @@ func (c *ClientV1) Forget(ctx context.Context, n string) error {
 	return nil
 }
 
+func (c *ClientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *events.Event, errChan chan error) error {
+	for {
+		// Check if the context is already canceled before starting a connection
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
+		// Start a new stream connection
+		stream, err := c.startStream(ctx, nodeName)
+		if err != nil {
+			c.logger.Info("error connecting to stream", "error", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		// log.Println("Connected to stream")
+		c.logger.Info("connected to stream", "node", nodeName)
+
+		// Stream handling
+		streamErr := c.handleStream(ctx, stream, receiveChan, errChan)
+
+		// Log and retry on transiet errors
+		if streamErr != nil {
+
+			// Stream closed due to context cancellation
+			if errors.Is(streamErr, context.Canceled) {
+				return err
+			}
+
+			// Backoff reconnect
+			c.logger.Error("reconnecting due to stream error", "error", streamErr)
+			time.Sleep(2 * time.Second)
+		}
+
+	}
+}
+
+func (c *ClientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {
+	mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
+	stream, err := c.nodeService.Connect(mdCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stream: %v", err)
+	}
+	return stream, nil
+}
+
+func (c *ClientV1) handleStream(ctx context.Context, stream nodes.NodeService_ConnectClient, receiveChan chan<- *events.Event, errChan chan<- error) error {
+	// Start receiving messages from the server
+	for {
+		select {
+		case <-ctx.Done():
+			return context.Canceled
+		default:
+			response, err := stream.Recv()
+			if err != nil {
+
+				// Handle EOF and retryable gRPC errors
+				if errors.Is(err, io.EOF) {
+					return io.EOF
+				}
+
+				// Transient stream error
+				if s, ok := status.FromError(err); ok && isRetryableError(s.Code()) {
+					return fmt.Errorf("transient stream error %s %s: %v", s.Message(), s.Code(), err)
+				}
+
+				// Non-retryable error
+				errChan <- err
+				return err
+			}
+			// Send received message to chan
+			receiveChan <- response
+		}
+	}
+}
+
+func isRetryableError(code codes.Code) bool {
+	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
+}
+
+func (c *ClientV1) SendMessage(ctx context.Context, msg *events.Event) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := c.stream.Send(msg); err != nil {
+		c.stream = nil
+		return err
+	}
+
+	return nil
+}
+
 func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connectivity.State) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	n := &nodes.UpdateNodeRequest{
@@ -96,9 +210,15 @@ func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connecti
 	return nil
 }
 
-func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
-	return &ClientV1{
+func NewClientV1(conn *grpc.ClientConn, opts ...ClientOption) *ClientV1 {
+	c := &ClientV1{
 		nodeService: nodes.NewNodeServiceClient(conn),
-		id:          clientId,
+		logger:      logger.ConsoleLogger{},
 	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
