@@ -162,7 +162,10 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 				return err
 			}
 
-			n.exchange.Publish(context.Background(), &eventsv1.PublishRequest{Event: msg})
+			err = n.exchange.Publish(context.Background(), &eventsv1.PublishRequest{Event: msg})
+			if err != nil {
+				return err
+			}
 		}
 	}
 }

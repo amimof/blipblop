@@ -2,8 +2,6 @@ package controller
 
 import (
 	"context"
-	"os"
-	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -18,11 +16,9 @@ import (
 )
 
 type NodeController struct {
-	clientset *client.ClientSet
-	runtime   runtime.Runtime
-	// handlers                 *NodeEventHandlerFuncs
+	clientset                *client.ClientSet
+	runtime                  runtime.Runtime
 	logger                   logger.Logger
-	connectionState          connectivity.State
 	heartbeatIntervalSeconds int
 	nodeName                 string
 }
@@ -50,31 +46,6 @@ func WithHeartbeatInterval(s int) NewNodeControllerOption {
 func WithNodeName(s string) NewNodeControllerOption {
 	return func(c *NodeController) {
 		c.nodeName = s
-	}
-}
-
-func (c *NodeController) heartBeat(ctx context.Context) {
-	hostname, _ := os.Hostname()
-	for {
-		state := c.clientset.State()
-
-		c.connectionState = state
-		err := c.clientset.NodeV1().SetState(ctx, hostname, state)
-		if err != nil {
-			c.logger.Error("error setting node state", "error", err, "node", hostname, "state", state)
-		}
-
-		if state == connectivity.Shutdown {
-			c.logger.Info("Connection shutdown detected")
-			break
-		}
-
-		err = c.clientset.NodeV1().SendMessage(ctx, &eventsv1.Event{Type: eventsv1.EventType_NodeJoin})
-		if err != nil {
-			c.logger.Error("error sending message", "error", err)
-		}
-
-		time.Sleep(time.Second * time.Duration(c.heartbeatIntervalSeconds))
 	}
 }
 
@@ -261,11 +232,6 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		heartbeatIntervalSeconds: 5,
 		nodeName:                 uuid.New().String(),
 	}
-	// m.handlers = &NodeEventHandlerFuncs{
-	// 	OnNodeDelete: m.onNodeDelete,
-	// 	OnNodeJoin:   m.onNodeJoin,
-	// 	OnNodeForget: m.onNodeForget,
-	// }
 	for _, opt := range opts {
 		opt(m)
 	}
