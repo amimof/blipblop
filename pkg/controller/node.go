@@ -2,25 +2,25 @@ package controller
 
 import (
 	"context"
-	"os"
-	"time"
 
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/metadata"
 )
 
 type NodeController struct {
 	clientset                *client.ClientSet
 	runtime                  runtime.Runtime
-	handlers                 *NodeEventHandlerFuncs
 	logger                   logger.Logger
-	connectionState          connectivity.State
 	heartbeatIntervalSeconds int
+	nodeName                 string
 }
 
 type NodeEventHandlerFuncs struct {
@@ -43,33 +43,23 @@ func WithHeartbeatInterval(s int) NewNodeControllerOption {
 	}
 }
 
-func (c *NodeController) heartBeat(ctx context.Context) {
-	hostname, _ := os.Hostname()
-	for {
-		state := c.clientset.State()
-
-		c.connectionState = state
-		err := c.clientset.NodeV1().SetState(ctx, hostname, state)
-		if err != nil {
-			c.logger.Error("error setting node state", "error", err, "node", hostname, "state", state)
-		}
-
-		if state == connectivity.Shutdown {
-			c.logger.Info("Connection shutdown detected")
-			break
-		}
-
-		time.Sleep(time.Second * time.Duration(c.heartbeatIntervalSeconds))
+func WithNodeName(s string) NewNodeControllerOption {
+	return func(c *NodeController) {
+		c.nodeName = s
 	}
 }
 
-func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
+// func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
+func (c *NodeController) Run(ctx context.Context) {
 	// Setup channels
 	evt := make(chan *eventsv1.Event, 10)
-	errChan := make(chan error, 10)
+	errChan := make(chan error, 1)
 
-	// Setup handlers
-	handlers := events.NodeEventHandlerFuncs{
+	nodeEvt := make(chan *eventsv1.Event, 10)
+	containerEvt := make(chan *eventsv1.Event, 10)
+
+	// Setup node handlers
+	nodeHandlers := events.NodeEventHandlerFuncs{
 		OnCreate: c.onNodeCreate,
 		OnUpdate: c.onNodeUpdate,
 		OnDelete: c.onNodeDelete,
@@ -77,34 +67,61 @@ func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 		OnForget: c.onNodeForget,
 	}
 
-	// Run informer
-	informer := events.NewNodeEventInformer(handlers)
-	go informer.Run(evt)
-
-	// Run heart beat routine
-	go c.heartBeat(ctx)
-
-	// Attach node name to context
-	hostname, err := os.Hostname()
-	if err != nil {
-		c.logger.Error("error getting hostname", "error", err)
+	// Setup container handlers
+	containerHandlers := events.ContainerEventHandlerFuncs{
+		OnCreate: c.onContainerCreate,
+		OnDelete: c.onContainerDelete,
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", hostname)
 
-	// Subscribe with retry
+	// Run node informer
+	nodeInformer := events.NewNodeEventInformer(nodeHandlers)
+	go nodeInformer.Run(nodeEvt)
+
+	// Run container informer
+	containerInformer := events.NewContainerEventInformer(containerHandlers)
+	go containerInformer.Run(containerEvt)
+
+	// Start broadcasting incoming events to both node and container informers
+	go broadcastEvent(evt, nodeEvt, containerEvt)
+
+	// Connect with retry logic
+	go func() {
+		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, errChan)
+		if err != nil {
+			c.logger.Error("error connecting to server", "error", err)
+		}
+	}()
+
+	// Update status once connected
+	err := c.clientset.NodeV1().SetState(ctx, c.nodeName, connectivity.Ready)
+	if err != nil {
+		c.logger.Error("error setting node state", "error", err)
+	}
+
+	// Handle messages
 	for {
 		select {
-		case <-stopCh:
-			c.logger.Info("done watching, stopping subscription")
+		case err := <-errChan:
+			c.logger.Error("received stream error", "error", err)
+		case <-ctx.Done():
+			c.logger.Info("context canceled, shutting down controller")
 			return
-		default:
-			if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
-				c.logger.Error("error occured during subscribe", "error", err)
-			}
-
-			c.logger.Info("attempting to re-subscribe to event server")
-			time.Sleep(5 * time.Second)
 		}
+	}
+}
+
+// Broadcaster reads from the input channel and sends each message to multiple output channels.
+func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Event) {
+	// Send the same message to each output channel
+	for event := range input {
+		for _, out := range outputs {
+			out <- event
+		}
+	}
+
+	// Close all output channels
+	for _, out := range outputs {
+		close(out)
 	}
 }
 
@@ -138,6 +155,67 @@ func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
 	return nil
 }
 
+func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
+	ctx := context.Background()
+
+	c.logger.Info("controller received task", "event", e.GetType())
+
+	// Get the container
+	var ctr containersv1.Container
+	err := e.Object.UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	// Get the node from node config
+	n, err := node.LoadNodeFromEnv("/etc/blipblop/node.yaml")
+	if err != nil {
+		return err
+	}
+
+	// Retreive latest node from the server
+	n, err = c.clientset.NodeV1().Get(ctx, n.GetMeta().GetName())
+	if err != nil {
+		return err
+	}
+
+	// TODO: The label selection should be performed by the scheduler before it even is assigned to a node
+	//
+	// See if nodeSelector matches labels on the node
+	nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
+	if !nodeSelector.Matches(n.GetMeta().GetLabels()) {
+		return nil
+	}
+
+	err = c.runtime.Pull(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Run(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *NodeController) onContainerDelete(e *eventsv1.Event) error {
+	ctx := context.Background()
+	var ctr containersv1.Container
+	err := e.GetObject().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+	err = n.runtime.Kill(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = n.runtime.Delete(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Reconcile ensures that desired containers matches with containers
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
@@ -152,11 +230,7 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		runtime:                  rt,
 		logger:                   logger.ConsoleLogger{},
 		heartbeatIntervalSeconds: 5,
-	}
-	m.handlers = &NodeEventHandlerFuncs{
-		OnNodeDelete: m.onNodeDelete,
-		OnNodeJoin:   m.onNodeJoin,
-		OnNodeForget: m.onNodeForget,
+		nodeName:                 uuid.New().String(),
 	}
 	for _, opt := range opts {
 		opt(m)

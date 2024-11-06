@@ -137,7 +137,7 @@ func main() {
 
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(tlsConfig))
+	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(tlsConfig), client.WithLogger(log))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -173,32 +173,23 @@ func main() {
 	// Setup and run controllers
 	runtime := rt.NewContainerdRuntimeClient(cclient, cni, rt.WithLogger(log))
 	exit := make(chan os.Signal, 1)
-	stopCh := make(chan struct{})
 
 	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime, controller.WithContainerdControllerLogger(log))
-	go containerdCtrl.Run(ctx, stopCh)
-	log.Info("Started Containerd Controller")
+	go containerdCtrl.Run(ctx)
+	log.Info("started containerd controller")
 
-	containerSetCtrl := controller.NewContainerSetController(cs, controller.WithContainerSetLogger(log))
-	go containerSetCtrl.Run(ctx, stopCh)
-	log.Info("Started ContainerSet Controller")
-
-	containerCtrl := controller.NewContainerController(cs, runtime, controller.WithContainerControllerLogger(log))
-	go containerCtrl.Run(ctx, stopCh)
-	log.Info("Started Container Controller")
-
-	nodeCtrl := controller.NewNodeController(cs, runtime, controller.WithNodeControllerLogger(log))
-	go nodeCtrl.Run(ctx, stopCh)
-	log.Info("Started Node Controller")
+	nodeCtrl := controller.NewNodeController(cs, runtime, controller.WithNodeControllerLogger(log), controller.WithNodeName(n.GetMeta().GetName()))
+	go nodeCtrl.Run(ctx)
+	log.Info("started node controller")
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
+	cancel()
 
-	stopCh <- struct{}{}
+	// stopCh <- struct{}{}
 
-	log.Info("Shutting down")
-	ctx.Done()
+	log.Info("shutting down")
 }
 
 func connectContainerd(address string) (*containerd.Client, error) {

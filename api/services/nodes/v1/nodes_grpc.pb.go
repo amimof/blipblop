@@ -8,6 +8,7 @@ package nodes
 
 import (
 	context "context"
+	v1 "github.com/amimof/blipblop/api/services/events/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -29,6 +30,7 @@ type NodeServiceClient interface {
 	Delete(ctx context.Context, in *DeleteNodeRequest, opts ...grpc.CallOption) (*DeleteNodeResponse, error)
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
+	Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error)
 }
 
 type nodeServiceClient struct {
@@ -102,6 +104,37 @@ func (c *nodeServiceClient) Forget(ctx context.Context, in *ForgetRequest, opts 
 	return out, nil
 }
 
+func (c *nodeServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error) {
+	stream, err := c.cc.NewStream(ctx, &NodeService_ServiceDesc.Streams[0], "/blipblop.services.nodes.v1.NodeService/Connect", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeServiceConnectClient{stream}
+	return x, nil
+}
+
+type NodeService_ConnectClient interface {
+	Send(*v1.Event) error
+	Recv() (*v1.Event, error)
+	grpc.ClientStream
+}
+
+type nodeServiceConnectClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeServiceConnectClient) Send(m *v1.Event) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *nodeServiceConnectClient) Recv() (*v1.Event, error) {
+	m := new(v1.Event)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // NodeServiceServer is the server API for NodeService service.
 // All implementations must embed UnimplementedNodeServiceServer
 // for forward compatibility
@@ -113,6 +146,7 @@ type NodeServiceServer interface {
 	Delete(context.Context, *DeleteNodeRequest) (*DeleteNodeResponse, error)
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
+	Connect(NodeService_ConnectServer) error
 	mustEmbedUnimplementedNodeServiceServer()
 }
 
@@ -140,6 +174,9 @@ func (UnimplementedNodeServiceServer) Join(context.Context, *JoinRequest) (*Join
 }
 func (UnimplementedNodeServiceServer) Forget(context.Context, *ForgetRequest) (*ForgetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Forget not implemented")
+}
+func (UnimplementedNodeServiceServer) Connect(NodeService_ConnectServer) error {
+	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
 }
 func (UnimplementedNodeServiceServer) mustEmbedUnimplementedNodeServiceServer() {}
 
@@ -280,6 +317,32 @@ func _NodeService_Forget_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NodeServiceServer).Connect(&nodeServiceConnectServer{stream})
+}
+
+type NodeService_ConnectServer interface {
+	Send(*v1.Event) error
+	Recv() (*v1.Event, error)
+	grpc.ServerStream
+}
+
+type nodeServiceConnectServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeServiceConnectServer) Send(m *v1.Event) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *nodeServiceConnectServer) Recv() (*v1.Event, error) {
+	m := new(v1.Event)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // NodeService_ServiceDesc is the grpc.ServiceDesc for NodeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -316,6 +379,13 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeService_Forget_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Connect",
+			Handler:       _NodeService_Connect_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "api/services/nodes/v1/nodes.proto",
 }

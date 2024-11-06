@@ -8,11 +8,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/server"
@@ -72,7 +75,7 @@ var (
 )
 
 func init() {
-	pflag.StringVar(&socketPath, "socket-path", "/var/run/blipblop.sock", "the unix socket to listen on")
+	pflag.StringVar(&socketPath, "socket-path", "/var/run/blipblop/blipblop.sock", "the unix socket to listen on")
 	pflag.StringVar(&host, "host", "localhost", "The host address on which to listen for the --port port")
 	pflag.StringVar(&tcpHost, "tcp-host", "localhost", "The host address on which to listen for the --tcp-port port")
 	pflag.StringVar(&tlsHost, "tls-host", "localhost", "The host address on which to listen for the --tls-port port")
@@ -209,18 +212,17 @@ func main() {
 	}
 	defer db.Close()
 
-	// Setup event bus
+	// Setup event exchange bus
 	exchange := events.NewExchange(
 		events.WithLogger(log),
 	)
 
-	// Setup event broker
+	// Setup services
 	eventService := event.NewService(
 		repository.NewEventBadgerRepository(db),
 		event.WithLogger(log),
 		event.WithExchange(exchange),
 	)
-	// Setup services
 	nodeService := node.NewService(
 		repository.NewNodeBadgerRepository(db),
 		node.WithLogger(log),
@@ -246,7 +248,8 @@ func main() {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)
 	}
-	go serveServer(s)
+	go serveTCP(s)
+	go serveUnix(s)
 
 	// Setup gateway
 	ctx := context.Background()
@@ -266,8 +269,26 @@ func main() {
 
 	go serveGateway(gw)
 
+	// Setup a clientset for the controllers
+	socketAddr := fmt.Sprintf("unix://%s", socketPath)
+	cs, err := client.New(ctx, socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err.Error())
+	}
+	defer cs.Close()
+
+	// Start controllers
+	containerSetCtrl := controller.NewContainerSetController(cs, controller.WithContainerSetLogger(log))
+	go containerSetCtrl.Run(ctx)
+	log.Info("Started ContainerSet Controller")
+
+	// containerCtrl := controller.NewContainerController(cs, runtime, controller.WithContainerControllerLogger(log))
+	// go containerCtrl.Run(ctx)
+	// log.Info("Started Container Controller")
+
 	// Wait for exit signal, begin shutdown process after this point
 	<-exit
+	cancel()
 
 	// Shut down gateway
 	if err := gw.Shutdown(ctx); err != nil {
@@ -313,7 +334,37 @@ func serveGateway(gw *server.Gateway) {
 	}
 }
 
-func serveServer(s *server.Server) {
+func serveUnix(s *server.Server) {
+	// Remove the socket file if it already exists
+	if _, err := os.Stat(socketPath); err == nil {
+		if err := os.RemoveAll(socketPath); err != nil {
+			log.Error("failed to remove existing Unix socket", "error", err)
+			return
+		}
+	}
+
+	// Create socket dir if doesn't exist
+	dirPath := filepath.Dir(socketPath)
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(dirPath, 0); err != nil {
+			log.Error("failed to create socket directory", "error", err)
+			return
+		}
+	}
+	unixListener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		log.Error("error setting up Unix socket listener", "error", err.Error())
+		os.Exit(1)
+	}
+
+	log.Info("server listening", "socket", socketPath)
+	if err := s.Serve(unixListener); err != nil {
+		log.Error("error serving server", "error", err)
+		os.Exit(1)
+	}
+}
+
+func serveTCP(s *server.Server) {
 	addr := net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort))
 	if tlsCertificate != "" && tlsCertificateKey != "" {
 		addr = net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))

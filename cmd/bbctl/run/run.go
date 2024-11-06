@@ -120,7 +120,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		&wait,
 		"wait",
 		"w",
-		true,
+		false,
 		"Wait for command to finish",
 	)
 	runCmd.PersistentFlags().Uint64VarP(

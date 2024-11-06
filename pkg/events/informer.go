@@ -30,11 +30,12 @@ type ContainerSetEventHandlerFuncs struct {
 }
 
 type NodeEventHandlerFuncs struct {
-	OnCreate ResourceEventHandlerFunc
-	OnUpdate ResourceEventHandlerFunc
-	OnDelete ResourceEventHandlerFunc
-	OnJoin   ResourceEventHandlerFunc
-	OnForget ResourceEventHandlerFunc
+	OnCreate  ResourceEventHandlerFunc
+	OnUpdate  ResourceEventHandlerFunc
+	OnDelete  ResourceEventHandlerFunc
+	OnJoin    ResourceEventHandlerFunc
+	OnForget  ResourceEventHandlerFunc
+	OnConnect ResourceEventHandlerFunc
 }
 
 type containerEventInformer struct {
@@ -121,6 +122,10 @@ func (i *nodeEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 		case eventsv1.EventType_NodeForget:
 			if i.handlers.OnForget != nil {
 				_ = i.handlers.OnForget(e)
+			}
+		case eventsv1.EventType_NodeConnect:
+			if i.handlers.OnConnect != nil {
+				_ = i.handlers.OnConnect(e)
 			}
 		}
 	}

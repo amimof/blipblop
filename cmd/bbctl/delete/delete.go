@@ -19,7 +19,7 @@ func NewCmdDelete(cfg *client.Config) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 	}
 
-	deleteCmd.PersistentFlags().BoolVarP(&wait, "wait", "w", true, "Wait for command to finish")
+	deleteCmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "Wait for command to finish")
 	deleteCmd.PersistentFlags().Uint64VarP(&waitTimeoutSeconds, "timeout", "", 30, "How long in seconds to wait for container to stop before giving up")
 
 	deleteCmd.AddCommand(NewCmdDeleteContainer(cfg))

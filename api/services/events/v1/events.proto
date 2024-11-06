@@ -46,9 +46,10 @@ enum EventType {
   NodeUpdate = 13;
   NodeJoin = 14;
   NodeForget = 15;
-  ContainerSetCreate = 16;
-  ContainerSetDelete = 17;
-  ContainerSetUpdate = 18;
+  NodeConnect = 16;
+  ContainerSetCreate = 17;
+  ContainerSetDelete = 18;
+  ContainerSetUpdate = 19;
 }
 
 enum Operation {

@@ -7,23 +7,27 @@ import (
 	"io"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/services/event"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/events"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
 type ClientV1 struct {
 	id           string
-	eventService events.EventServiceClient
+	eventService eventsv1.EventServiceClient
 }
 
-func (c *ClientV1) EventService() events.EventServiceClient {
+func (c *ClientV1) EventService() eventsv1.EventServiceClient {
 	return c.eventService
 }
 
-func (c *ClientV1) Publish(ctx context.Context, id string, evt events.EventType) error {
-	req := &events.PublishRequest{Event: event.NewEventFor(c.id, id, evt)}
+func (c *ClientV1) Publish(ctx context.Context, obj events.Object, evt eventsv1.EventType) error {
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	req := events.NewRequest(evt, obj)
+	// req := &eventsv1.PublishRequest{Event: event.NewEventFor(c.id, id, evt)}
 	_, err := c.eventService.Publish(ctx, req)
 	if err != nil {
 		return err
@@ -31,9 +35,9 @@ func (c *ClientV1) Publish(ctx context.Context, id string, evt events.EventType)
 	return nil
 }
 
-func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *events.Event, errChan chan<- error) error {
+func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *eventsv1.Event, errChan chan<- error) error {
 	// Create stream
-	stream, err := c.eventService.Subscribe(ctx, &events.SubscribeRequest{ClientId: c.id})
+	stream, err := c.eventService.Subscribe(ctx, &eventsv1.SubscribeRequest{ClientId: c.id})
 	if err != nil {
 		return fmt.Errorf("subscribe failed: %v", err)
 	}
@@ -66,8 +70,8 @@ func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *events.Eve
 	return nil
 }
 
-func (c *ClientV1) Wait(t events.EventType, id string) error {
-	evt := make(chan *events.Event)
+func (c *ClientV1) Wait(t eventsv1.EventType, id string) error {
+	evt := make(chan *eventsv1.Event)
 	errChan := make(chan error)
 
 	go func() {
@@ -93,8 +97,11 @@ func (c *ClientV1) Wait(t events.EventType, id string) error {
 }
 
 func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
+	if clientId == "" {
+		clientId = uuid.New().String()
+	}
 	return &ClientV1{
-		eventService: events.NewEventServiceClient(conn),
+		eventService: eventsv1.NewEventServiceClient(conn),
 		id:           clientId,
 	}
 }
