@@ -35,39 +35,39 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 			}
 			defer c.Close()
 
-			cname := args[0]
-			phase := ""
-
-			// Start container
-			_, err = c.ContainerV1().Start(context.Background(), cname)
-			if err != nil {
-				logrus.Fatal(err)
-			}
-
-			fmt.Printf("Requested to start container %s\n", cname)
-
-			if viper.GetBool("wait") {
-				fmt.Println("Waiting for container to start")
-				spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
-				spinner.Start()
-				defer spinner.Stop()
-
-				// Periodically get container phase
-				err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
-					ctr, err := c.ContainerV1().Get(ctx, cname)
-					if err != nil {
-						logrus.Fatal(err)
-					}
-					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
-					if ctr.GetStatus().GetPhase() == "running" {
-						stop()
-					}
-					return nil
-				})
+			// Start containers
+			for _, cname := range args {
+				phase := ""
+				_, err = c.ContainerV1().Start(context.Background(), cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Printf("Container %s started\n", cname)
+
+				fmt.Printf("Requested to start container %s\n", cname)
+
+				if viper.GetBool("wait") {
+					fmt.Println("Waiting for container to start")
+					spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
+					spinner.Start()
+					defer spinner.Stop()
+
+					// Periodically get container phase
+					err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
+						ctr, err := c.ContainerV1().Get(ctx, cname)
+						if err != nil {
+							logrus.Fatal(err)
+						}
+						phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
+						if ctr.GetStatus().GetPhase() == "running" {
+							stop()
+						}
+						return nil
+					})
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					fmt.Printf("Container %s started\n", cname)
+				}
 			}
 		},
 	}

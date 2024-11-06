@@ -18,7 +18,7 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 		Short:   "Delete a container",
 		Long:    "Delete a container",
 		Example: `bbctl delete container NAME`,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
@@ -36,44 +36,44 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			}
 			defer c.Close()
 
-			cname := args[0]
-			phase := ""
+			for _, cname := range args {
+				phase := ""
+				fmt.Printf("Requested to delete container %s\n", cname)
 
-			fmt.Printf("Requested to delete container %s\n", cname)
-
-			err = c.ContainerV1().Delete(ctx, cname)
-			if err != nil {
-				logrus.Fatal(err)
-			}
-
-			if viper.GetBool("wait") {
-				fmt.Println("Waiting for container to stop")
-				spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
-				spinner.Start()
-				defer spinner.Stop()
-
-				// Periodically get container phase
-				err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
-					ctr, err := c.ContainerV1().Get(ctx, cname)
-					if err != nil {
-						if errors.IsNotFound(err) {
-							stop()
-
-							return nil
-						}
-						logrus.Fatal(err)
-					}
-
-					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
-					if ctr.GetStatus().GetPhase() == "Deleted" {
-						stop()
-					}
-					return nil
-				})
+				err = c.ContainerV1().Delete(ctx, cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Printf("Container %s deleted\n", cname)
+
+				if viper.GetBool("wait") {
+					fmt.Println("Waiting for container to stop")
+					spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
+					spinner.Start()
+					defer spinner.Stop()
+
+					// Periodically get container phase
+					err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
+						ctr, err := c.ContainerV1().Get(ctx, cname)
+						if err != nil {
+							if errors.IsNotFound(err) {
+								stop()
+
+								return nil
+							}
+							logrus.Fatal(err)
+						}
+
+						phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
+						if ctr.GetStatus().GetPhase() == "Deleted" {
+							stop()
+						}
+						return nil
+					})
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					fmt.Printf("Container %s deleted\n", cname)
+				}
 			}
 		},
 	}

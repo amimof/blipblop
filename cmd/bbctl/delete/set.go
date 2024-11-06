@@ -16,7 +16,7 @@ func NewCmdDeleteContainerSet(cfg *client.Config) *cobra.Command {
 		Short:   "Delete a containerset",
 		Long:    "Delete a containerset",
 		Example: `bbctl delete containerset NAME`,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
@@ -34,16 +34,17 @@ func NewCmdDeleteContainerSet(cfg *client.Config) *cobra.Command {
 			}
 			defer c.Close()
 
-			cname := args[0]
+			for _, cname := range args {
 
-			fmt.Printf("Requested to delete containerset %s\n", cname)
+				fmt.Printf("Requested to delete containerset %s\n", cname)
 
-			err = c.ContainerSetV1().Delete(ctx, cname)
-			if err != nil {
-				logrus.Fatal(err)
+				err = c.ContainerSetV1().Delete(ctx, cname)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+
+				fmt.Printf("ContainerSet %s deleted\n", cname)
 			}
-
-			fmt.Printf("ContainerSet %s deleted\n", cname)
 		},
 	}
 

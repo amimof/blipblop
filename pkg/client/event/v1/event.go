@@ -42,8 +42,6 @@ func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *eventsv1.E
 		return fmt.Errorf("subscribe failed: %v", err)
 	}
 
-	fmt.Println("subscrubed")
-
 	// Read from the stream
 	for {
 		response, err := stream.Recv()
@@ -66,7 +64,6 @@ func (c *ClientV1) Subscribe(ctx context.Context, receiveChan chan<- *eventsv1.E
 			errChan <- fmt.Errorf("non-gRPC error: %v", err)
 			break
 		}
-		fmt.Println("subscrube got message")
 		receiveChan <- response
 	}
 

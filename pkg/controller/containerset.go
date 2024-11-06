@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
@@ -30,7 +29,7 @@ func WithContainerSetLogger(l logger.Logger) NewContainerSetControllerOption {
 	}
 }
 
-func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}) {
+func (c *ContainerSetController) Run(ctx context.Context) {
 	// Setup channels
 	evt := make(chan *eventsv1.Event, 10)
 	errChan := make(chan error, 10)
@@ -39,7 +38,6 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 	handlers := events.ContainerSetEventHandlerFuncs{
 		OnCreate: c.onCreate,
 		OnUpdate: func(e *eventsv1.Event) error {
-			log.Println("set controller OnUpdate")
 			return nil
 		},
 		OnDelete: c.onDelete,
@@ -52,7 +50,7 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 	// Subscribe with retry
 	for {
 		select {
-		case <-stopCh:
+		case <-ctx.Done():
 			c.logger.Info("done watching, stopping subscription")
 			return
 		default:
@@ -67,8 +65,6 @@ func (c *ContainerSetController) Run(ctx context.Context, stopCh <-chan struct{}
 
 func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
 	ctx := context.Background()
-
-	fmt.Println(" On create container set")
 
 	var set containersetsv1.ContainerSet
 	err := e.Object.UnmarshalTo(&set)

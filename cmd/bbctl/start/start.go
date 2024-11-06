@@ -23,7 +23,7 @@ func NewCmdStart(cfg *client.Config) *cobra.Command {
 		&wait,
 		"wait",
 		"w",
-		true,
+		false,
 		"Wait for command to finish",
 	)
 	startCmd.PersistentFlags().Uint64VarP(

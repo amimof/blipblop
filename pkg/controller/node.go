@@ -5,19 +5,22 @@ import (
 	"os"
 	"time"
 
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/connectivity"
 )
 
 type NodeController struct {
-	clientset                *client.ClientSet
-	runtime                  runtime.Runtime
-	handlers                 *NodeEventHandlerFuncs
+	clientset *client.ClientSet
+	runtime   runtime.Runtime
+	// handlers                 *NodeEventHandlerFuncs
 	logger                   logger.Logger
 	connectionState          connectivity.State
 	heartbeatIntervalSeconds int
@@ -81,8 +84,11 @@ func (c *NodeController) Run(ctx context.Context) {
 	evt := make(chan *eventsv1.Event, 10)
 	errChan := make(chan error, 1)
 
-	// Setup handlers
-	handlers := events.NodeEventHandlerFuncs{
+	nodeEvt := make(chan *eventsv1.Event, 10)
+	containerEvt := make(chan *eventsv1.Event, 10)
+
+	// Setup node handlers
+	nodeHandlers := events.NodeEventHandlerFuncs{
 		OnCreate: c.onNodeCreate,
 		OnUpdate: c.onNodeUpdate,
 		OnDelete: c.onNodeDelete,
@@ -90,9 +96,22 @@ func (c *NodeController) Run(ctx context.Context) {
 		OnForget: c.onNodeForget,
 	}
 
-	// Run informer
-	informer := events.NewNodeEventInformer(handlers)
-	go informer.Run(evt)
+	// Setup container handlers
+	containerHandlers := events.ContainerEventHandlerFuncs{
+		OnCreate: c.onContainerCreate,
+		OnDelete: c.onContainerDelete,
+	}
+
+	// Run node informer
+	nodeInformer := events.NewNodeEventInformer(nodeHandlers)
+	go nodeInformer.Run(nodeEvt)
+
+	// Run container informer
+	containerInformer := events.NewContainerEventInformer(containerHandlers)
+	go containerInformer.Run(containerEvt)
+
+	// Start broadcasting incoming events to both node and container informers
+	go broadcastEvent(evt, nodeEvt, containerEvt)
 
 	// Connect with retry logic
 	go func() {
@@ -101,6 +120,12 @@ func (c *NodeController) Run(ctx context.Context) {
 			c.logger.Error("error connecting to server", "error", err)
 		}
 	}()
+
+	// Update status once connected
+	err := c.clientset.NodeV1().SetState(ctx, c.nodeName, connectivity.Ready)
+	if err != nil {
+		c.logger.Error("error setting node state", "error", err)
+	}
 
 	// Handle messages
 	for {
@@ -111,6 +136,21 @@ func (c *NodeController) Run(ctx context.Context) {
 			c.logger.Info("context canceled, shutting down controller")
 			return
 		}
+	}
+}
+
+// Broadcaster reads from the input channel and sends each message to multiple output channels.
+func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Event) {
+	// Send the same message to each output channel
+	for event := range input {
+		for _, out := range outputs {
+			out <- event
+		}
+	}
+
+	// Close all output channels
+	for _, out := range outputs {
+		close(out)
 	}
 }
 
@@ -137,11 +177,71 @@ func (c *NodeController) onNodeDelete(obj *eventsv1.Event) error {
 }
 
 func (c *NodeController) onNodeJoin(obj *eventsv1.Event) error {
-	c.logger.Info("node joined")
 	return nil
 }
 
 func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
+	return nil
+}
+
+func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
+	ctx := context.Background()
+
+	c.logger.Info("controller received task", "event", e.GetType())
+
+	// Get the container
+	var ctr containersv1.Container
+	err := e.Object.UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	// Get the node from node config
+	n, err := node.LoadNodeFromEnv("/etc/blipblop/node.yaml")
+	if err != nil {
+		return err
+	}
+
+	// Retreive latest node from the server
+	n, err = c.clientset.NodeV1().Get(ctx, n.GetMeta().GetName())
+	if err != nil {
+		return err
+	}
+
+	// TODO: The label selection should be performed by the scheduler before it even is assigned to a node
+	//
+	// See if nodeSelector matches labels on the node
+	nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
+	if !nodeSelector.Matches(n.GetMeta().GetLabels()) {
+		return nil
+	}
+
+	err = c.runtime.Pull(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Run(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *NodeController) onContainerDelete(e *eventsv1.Event) error {
+	ctx := context.Background()
+	var ctr containersv1.Container
+	err := e.GetObject().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+	err = n.runtime.Kill(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = n.runtime.Delete(ctx, &ctr)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -161,11 +261,11 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		heartbeatIntervalSeconds: 5,
 		nodeName:                 uuid.New().String(),
 	}
-	m.handlers = &NodeEventHandlerFuncs{
-		OnNodeDelete: m.onNodeDelete,
-		OnNodeJoin:   m.onNodeJoin,
-		OnNodeForget: m.onNodeForget,
-	}
+	// m.handlers = &NodeEventHandlerFuncs{
+	// 	OnNodeDelete: m.onNodeDelete,
+	// 	OnNodeJoin:   m.onNodeJoin,
+	// 	OnNodeForget: m.onNodeForget,
+	// }
 	for _, opt := range opts {
 		opt(m)
 	}

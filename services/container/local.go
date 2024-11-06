@@ -87,6 +87,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
 	}
+
 	return &containers.CreateContainerResponse{
 		Container: container,
 	}, nil

@@ -98,13 +98,13 @@ func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, 
 	}
 }
 
-func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) {
+func (c *ContainerdController) Run(ctx context.Context) {
 	err := c.Reconcile(ctx)
 	if err != nil {
 		c.logger.Error("error reconciling state", "error", err)
 		return
 	}
-	err = c.streamEvents(ctx, stopCh)
+	err = c.streamEvents(ctx)
 	if err != nil {
 		c.logger.Info("Reconnecting stream")
 		c.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", c.logger)
@@ -114,7 +114,7 @@ func (c *ContainerdController) Run(ctx context.Context, stopCh <-chan struct{}) 
 	}
 }
 
-func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan struct{}) error {
+func (c *ContainerdController) streamEvents(ctx context.Context) error {
 	eventCh, errCh := c.client.Subscribe(ctx)
 	for {
 		select {
@@ -127,11 +127,8 @@ func (c *ContainerdController) streamEvents(ctx context.Context, stopCh <-chan s
 		case err := <-errCh:
 			return err
 		case <-ctx.Done():
-			return nil
-		case <-stopCh:
 			c.client.Close()
 			c.clientset.Close()
-			ctx.Done()
 		}
 	}
 }
