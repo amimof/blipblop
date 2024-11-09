@@ -7,9 +7,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/connectivity"
@@ -71,6 +69,10 @@ func (c *NodeController) Run(ctx context.Context) {
 	containerHandlers := events.ContainerEventHandlerFuncs{
 		OnCreate: c.onContainerCreate,
 		OnDelete: c.onContainerDelete,
+		OnUpdate: c.onContainerUpdate,
+		OnStop:   c.onContainerStop,
+		OnKill:   c.onContainerKill,
+		OnStart:  c.onContainerStart,
 	}
 
 	// Run node informer
@@ -158,8 +160,6 @@ func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
 func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
 	ctx := context.Background()
 
-	c.logger.Info("controller received task", "event", e.GetType())
-
 	// Get the container
 	var ctr containersv1.Container
 	err := e.Object.UnmarshalTo(&ctr)
@@ -167,25 +167,7 @@ func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
 		return err
 	}
 
-	// Get the node from node config
-	n, err := node.LoadNodeFromEnv("/etc/blipblop/node.yaml")
-	if err != nil {
-		return err
-	}
-
-	// Retreive latest node from the server
-	n, err = c.clientset.NodeV1().Get(ctx, n.GetMeta().GetName())
-	if err != nil {
-		return err
-	}
-
-	// TODO: The label selection should be performed by the scheduler before it even is assigned to a node
-	//
-	// See if nodeSelector matches labels on the node
-	nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
-	if !nodeSelector.Matches(n.GetMeta().GetLabels()) {
-		return nil
-	}
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
@@ -198,21 +180,107 @@ func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
 	return nil
 }
 
-func (n *NodeController) onContainerDelete(e *eventsv1.Event) error {
+func (c *NodeController) onContainerDelete(e *eventsv1.Event) error {
 	ctx := context.Background()
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
 		return err
 	}
-	err = n.runtime.Kill(ctx, &ctr)
+
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+
+	err = c.runtime.Kill(ctx, &ctr)
 	if err != nil {
 		return err
 	}
-	err = n.runtime.Delete(ctx, &ctr)
+	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (c *NodeController) onContainerUpdate(e *eventsv1.Event) error {
+	ctx := context.Background()
+	var ctr containersv1.Container
+	err := e.GetObject().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+
+	err = c.runtime.Kill(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Delete(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Pull(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	err = c.runtime.Run(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *NodeController) onContainerKill(e *eventsv1.Event) error {
+	ctx := context.Background()
+	var ctr containersv1.Container
+	err := e.GetObject().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+
+	err = c.runtime.Kill(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *NodeController) onContainerStart(e *eventsv1.Event) error {
+	ctx := context.Background()
+	var ctr containersv1.Container
+	err := e.GetObject().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+
+	err = c.runtime.Run(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *NodeController) onContainerStop(e *eventsv1.Event) error {
+	ctx := context.Background()
+	var ctr containersv1.Container
+	err := e.GetObject().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+
+	err = c.runtime.Stop(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -220,7 +288,7 @@ func (n *NodeController) onContainerDelete(e *eventsv1.Event) error {
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (n *NodeController) Reconcile(ctx context.Context) error {
+func (c *NodeController) Reconcile(ctx context.Context) error {
 	return nil
 }
 
