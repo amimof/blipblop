@@ -184,6 +184,7 @@ func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Even
 	}
 }
 
+// TODO: Probably not necessary to watch for node events
 func (n *NodeService) subscribe(ctx context.Context) {
 	ch, _ := n.exchange.Subscribe(ctx)
 
@@ -200,7 +201,11 @@ func (n *NodeService) subscribe(ctx context.Context) {
 
 	containerHandlers := events.ContainerEventHandlerFuncs{
 		OnCreate: n.onContainerCreate,
-		OnDelete: n.onContainerDelete,
+		OnDelete: n.onContainer,
+		OnUpdate: n.onContainer,
+		OnStart:  n.onContainer,
+		OnKill:   n.onContainer,
+		OnStop:   n.onContainer,
 	}
 
 	containerInformer := events.NewContainerEventInformer(containerHandlers)
@@ -227,7 +232,6 @@ func (n *NodeService) onForget(e *eventsv1.Event) error {
 }
 
 func (n *NodeService) onContainerCreate(e *eventsv1.Event) error {
-	n.logger.Info("node service got container create event")
 	// Schedule container on every node
 	for nodeName, stream := range n.streams {
 
@@ -262,8 +266,7 @@ func (n *NodeService) onContainerCreate(e *eventsv1.Event) error {
 	return nil
 }
 
-func (n *NodeService) onContainerDelete(e *eventsv1.Event) error {
-	n.logger.Info("onContainerDelete in service")
+func (n *NodeService) onContainer(e *eventsv1.Event) error {
 	// Unmarshal Container from event
 	var ctr containers.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
@@ -277,12 +280,14 @@ func (n *NodeService) onContainerDelete(e *eventsv1.Event) error {
 		return fmt.Errorf("container is missing node in status")
 	}
 
+	// Get the stream for the specific node
 	stream, ok := n.streams[nodeName]
 	if !ok {
 		return fmt.Errorf("node is not connected as %s", nodeName)
 	}
 
 	// Forward event to node
+	n.logger.Info("forwarding event to node", "node", nodeName, "container", ctr.GetMeta().GetName(), "event", e.GetType().String())
 	err = stream.Send(e)
 	if err != nil {
 		return err

@@ -167,15 +167,19 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
 
-	node, err := l.Repo().Get(ctx, req.GetId())
+	ctr, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, node))
-	if err != nil {
-		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
+	// Only publish if spec is updated
+	if protoutils.FieldMaskTriggersUpdate(updateMask) {
+		err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, ctr))
+		if err != nil {
+			return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
+		}
 	}
+
 	return &containers.UpdateContainerResponse{
 		Container: existing,
 	}, nil
