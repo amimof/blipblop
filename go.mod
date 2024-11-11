@@ -2,8 +2,6 @@ module github.com/amimof/blipblop
 
 go 1.22.0
 
-toolchain go1.23.1
-
 require (
 	github.com/containerd/go-cni v1.1.4
 	github.com/prometheus/client_golang v1.12.1
