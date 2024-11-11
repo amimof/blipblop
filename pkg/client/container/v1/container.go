@@ -126,6 +126,15 @@ func (c *ClientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 	return nil
 }
 
+func (c *ClientV1) Update(ctx context.Context, id string, ctr *containers.Container) error {
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	_, err := c.containerService.Update(ctx, &containers.UpdateContainerRequest{Id: id, Container: ctr})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *ClientV1) Get(ctx context.Context, id string) (*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
