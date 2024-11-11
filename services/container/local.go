@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
+	jsonpatch "github.com/evanphx/json-patch"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -141,39 +143,98 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 	}, nil
 }
 
+func removeImmutableFields(dst *containers.Container) error {
+	if dst.Meta == nil {
+		return nil
+	}
+	if dst.Meta.Name != "" {
+		dst.Meta.Name = ""
+	}
+
+	if dst.Meta.Created != nil {
+		dst.Meta.Created = nil
+	}
+
+	return nil
+}
+
+// mergePatch uses json to apply the patch to the target
+func mergePatch(target, patch *containers.Container) (*containers.Container, error) {
+	targetb, err := json.Marshal(target)
+	if err != nil {
+		return nil, err
+	}
+
+	patchb, err := json.Marshal(patch)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := jsonpatch.MergePatch(targetb, patchb)
+	if err != nil {
+		return nil, err
+	}
+
+	var c containers.Container
+	err = json.Unmarshal(b, &c)
+	if err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
+
+	// Get existing container from repo
 	existing, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainer.GetMeta().GetName())
 	}
 
+	// Filter out immutable fields before we update
+	err = removeImmutableFields(updateContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle partial update
 	maskedUpdate, err := protoutils.ApplyFieldMaskToNewMessage(updateContainer, updateMask)
 	if err != nil {
 		return nil, err
 	}
-	proto.Merge(existing, maskedUpdate)
 
-	existing.GetMeta().Updated = timestamppb.Now()
-
-	err = existing.Validate()
+	// Apply the patch
+	updated, err := mergePatch(existing, maskedUpdate.(*containers.Container))
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.Repo().Update(ctx, existing)
+	// Update updated field
+	updated.GetMeta().Updated = timestamppb.Now()
+
+	// Validate
+	err = updated.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the container
+	err = l.Repo().Update(ctx, updated)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
 	}
 
+	// Retreive the container again so that we can include it in an event
 	ctr, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
 	// Only publish if spec is updated
-	if protoutils.FieldMaskTriggersUpdate(updateMask) {
+	if !proto.Equal(updated.Config, existing.Config) {
 		err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")

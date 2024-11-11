@@ -37,16 +37,6 @@ func ApplyFieldMaskToNewMessage(source proto.Message, mask *fieldmaskpb.FieldMas
 	return newMessage, nil
 }
 
-// FieldMaskTriggersUpdate checks if the given mask is considered to be a config change and if it should trigger an update event
-func FieldMaskTriggersUpdate(mask *fieldmaskpb.FieldMask) bool {
-	for _, p := range mask.GetPaths() {
-		if strings.Contains(p, "config") {
-			return true
-		}
-	}
-	return false
-}
-
 // ApplyNestedField sets the value of a nested field in the target message based on the source message.
 func ApplyNestedField(target, source protoreflect.Message, path []string) error {
 	if len(path) == 0 {
