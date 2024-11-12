@@ -2,6 +2,7 @@ package events
 
 import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/logger"
 )
 
 var UnimplemetedEventHandler = func(e *eventsv1.Event) {}
@@ -13,6 +14,14 @@ type EventInformer interface {
 type EventHandlerFunc func(e *eventsv1.Event) error
 
 type ResourceEventHandlerFunc func(e *eventsv1.Event) error
+
+type NewContainerEventInformerOption func(s *containerEventInformer)
+
+func WithContainerEventInformerLogger(l logger.Logger) NewContainerEventInformerOption {
+	return func(s *containerEventInformer) {
+		s.logger = l
+	}
+}
 
 type ContainerEventHandlerFuncs struct {
 	OnCreate ResourceEventHandlerFunc
@@ -40,6 +49,7 @@ type NodeEventHandlerFuncs struct {
 
 type containerEventInformer struct {
 	handlers ContainerEventHandlerFuncs
+	logger   logger.Logger
 }
 
 func (i *containerEventInformer) Run(eventChan <-chan *eventsv1.Event) {
@@ -47,27 +57,39 @@ func (i *containerEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 		switch e.Type {
 		case eventsv1.EventType_ContainerCreate:
 			if i.handlers.OnCreate != nil {
-				_ = i.handlers.OnCreate(e)
+				if err := i.handlers.OnCreate(e); err != nil {
+					i.logger.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+				}
 			}
 		case eventsv1.EventType_ContainerUpdate:
 			if i.handlers.OnUpdate != nil {
-				_ = i.handlers.OnUpdate(e)
+				if err := i.handlers.OnUpdate(e); err != nil {
+					i.logger.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+				}
 			}
 		case eventsv1.EventType_ContainerDelete:
 			if i.handlers.OnDelete != nil {
-				_ = i.handlers.OnDelete(e)
+				if err := i.handlers.OnDelete(e); err != nil {
+					i.logger.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+				}
 			}
 		case eventsv1.EventType_ContainerStart:
 			if i.handlers.OnStart != nil {
-				_ = i.handlers.OnStart(e)
+				if err := i.handlers.OnStart(e); err != nil {
+					i.logger.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+				}
 			}
 		case eventsv1.EventType_ContainerKill:
 			if i.handlers.OnKill != nil {
-				_ = i.handlers.OnKill(e)
+				if err := i.handlers.OnKill(e); err != nil {
+					i.logger.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+				}
 			}
 		case eventsv1.EventType_ContainerStop:
 			if i.handlers.OnStop != nil {
-				_ = i.handlers.OnStop(e)
+				if err := i.handlers.OnStop(e); err != nil {
+					i.logger.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+				}
 			}
 		}
 	}
@@ -131,8 +153,14 @@ func (i *nodeEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 	}
 }
 
-func NewContainerEventInformer(h ContainerEventHandlerFuncs) EventInformer {
-	return &containerEventInformer{handlers: h}
+func NewContainerEventInformer(h ContainerEventHandlerFuncs, opts ...NewContainerEventInformerOption) EventInformer {
+	i := &containerEventInformer{handlers: h, logger: logger.ConsoleLogger{}}
+
+	for _, opt := range opts {
+		opt(i)
+	}
+
+	return i
 }
 
 func NewContainerSetEventInformer(h ContainerSetEventHandlerFuncs) EventInformer {

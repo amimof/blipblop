@@ -1,6 +1,8 @@
 module github.com/amimof/blipblop
 
-go 1.22.0
+go 1.22.7
+
+toolchain go1.23.1
 
 require (
 	github.com/containerd/go-cni v1.1.4
@@ -16,24 +18,29 @@ require (
 require (
 	github.com/containerd/console v1.0.3
 	github.com/dgraph-io/badger/v4 v4.3.0
-	github.com/envoyproxy/protoc-gen-validate v1.0.2
+	github.com/envoyproxy/protoc-gen-validate v1.1.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fatih/color v1.7.0
 	github.com/google/uuid v1.6.0
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.1
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.9.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20240125205218-1f4bbc51befe
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.57.0
+	go.opentelemetry.io/otel v1.32.0
+	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgraph-io/ristretto v0.1.2-0.20240116140435-c67e07994f91 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/pprof v0.0.0-20240525223248-4bfdf5a9a2af // indirect
@@ -47,11 +54,17 @@ require (
 	github.com/onsi/gomega v1.33.1 // indirect
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
-	github.com/spf13/afero v1.3.3 // indirect
+	github.com/rogpeppe/go-internal v1.13.1 // indirect
+	github.com/spf13/afero v1.10.0 // indirect
 	github.com/spf13/cast v1.3.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240125205218-1f4bbc51befe // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.32.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0 // indirect
+	go.opentelemetry.io/otel/metric v1.32.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.32.0 // indirect
+	go.opentelemetry.io/otel/trace v1.32.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241104194629-dd2ea8efbc28 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
@@ -85,11 +98,10 @@ require (
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/net v0.28.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
-	google.golang.org/genproto v0.0.0-20240116215550-a9fa1716bcac // indirect
-	google.golang.org/grpc v1.61.0
-	google.golang.org/protobuf v1.34.2
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sync v0.9.0 // indirect
+	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/text v0.20.0 // indirect
+	google.golang.org/grpc v1.68.0
+	google.golang.org/protobuf v1.35.1
 )

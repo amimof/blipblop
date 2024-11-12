@@ -15,6 +15,7 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
@@ -192,6 +193,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 				MinConnectTimeout: 20 * time.Second,
 			},
 		),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	}
 
 	// Default clientset
@@ -215,7 +217,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 	// We always want TLS but TLSConfig might be changed by the user so that's why do this here
 	c.grpcOpts = append(c.grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 
-	conn, err := grpc.DialContext(ctx, server, c.grpcOpts...)
+	conn, err := grpc.NewClient(server, c.grpcOpts...)
 	if err != nil {
 		return nil, err
 	}

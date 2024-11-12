@@ -240,7 +240,11 @@ func main() {
 	)
 
 	// Setup server
-	s := server.New(serverOpts...)
+	s, err := server.New(serverOpts...)
+	if err != nil {
+		log.Error("error setting up gRPC server", "error", err)
+		os.Exit(1)
+	}
 
 	// Register services to gRPC server
 	err = s.RegisterService(eventService, nodeService, containerSetService, containerService)

@@ -10,10 +10,15 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/grpc"
 )
 
-var ErrClientExists = errors.New("client already exists")
+var (
+	ErrClientExists = errors.New("client already exists")
+	tracer          = otel.Tracer("blipblop/events")
+)
 
 type NewServiceOption func(s *EventService)
 
@@ -45,6 +50,13 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 }
 
 func (s *EventService) Publish(ctx context.Context, req *eventsv1.PublishRequest) (*eventsv1.PublishResponse, error) {
+	ctx, span := tracer.Start(ctx, "service.Publish")
+	defer span.End()
+
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	req.Event.Meta.Labels = carrier
+
 	err := s.exchange.Publish(ctx, req)
 	return &eventsv1.PublishResponse{Event: req.GetEvent()}, err
 }

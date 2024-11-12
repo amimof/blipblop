@@ -80,7 +80,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	go nodeInformer.Run(nodeEvt)
 
 	// Run container informer
-	containerInformer := events.NewContainerEventInformer(containerHandlers)
+	containerInformer := events.NewContainerEventInformer(containerHandlers, events.WithContainerEventInformerLogger(c.logger))
 	go containerInformer.Run(containerEvt)
 
 	// Start broadcasting incoming events to both node and container informers
@@ -258,6 +258,21 @@ func (c *NodeController) onContainerStart(e *eventsv1.Event) error {
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
+	// Delete container if it exists
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
+	if err := c.runtime.Delete(ctx, &ctr); err != nil {
+		return err
+	}
+
+	// Pull image
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String(), "")
+	err = c.runtime.Pull(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+
+	// Run container
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String(), "")
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err

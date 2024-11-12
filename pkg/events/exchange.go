@@ -6,11 +6,15 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 )
 
 type NewExchangeOption func(*Exchange)
+
+var tracer = otel.Tracer("blipblop/events")
 
 func WithLogger(l logger.Logger) NewExchangeOption {
 	return func(e *Exchange) {
@@ -25,9 +29,13 @@ type Exchange struct {
 }
 
 func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
+	ctx := stream.Context()
+	ctx, span := tracer.Start(ctx, "exchange.Forward")
+	defer span.End()
+
 	// Identify the client
 	clientId := req.ClientId
-	peer, _ := peer.FromContext(stream.Context())
+	peer, _ := peer.FromContext(ctx)
 	eventChan := make(chan *eventsv1.Event)
 
 	s.logger.Debug("client connected", "clientId", clientId, "address", peer.Addr.String())
@@ -40,20 +48,24 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 		for {
 			select {
 			case n := <-eventChan:
+				_, span := tracer.Start(ctx, "exchange.FwrdMsg")
+				defer span.End()
+				span.SetAttributes(attribute.String("client.id", clientId), attribute.String("event.type", n.GetType().String()))
+
 				s.logger.Debug("got event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
 				err := stream.Send(n)
 				if err != nil {
 					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
 					return
 				}
-			case <-stream.Context().Done():
+			case <-ctx.Done():
 				s.logger.Debug("client disconnected", "clientId", req.ClientId)
 				s.mu.Lock()
 				delete(s.subscribers, req.ClientId)
 				s.mu.Unlock()
 
 				// Get node name from context
-				if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+				if md, ok := metadata.FromIncomingContext(ctx); ok {
 					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
 						err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
 						if err != nil {
@@ -71,6 +83,9 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 }
 
 func (s *Exchange) Publish(ctx context.Context, req *eventsv1.PublishRequest) error {
+	ctx, span := tracer.Start(ctx, "exchange.Publish")
+	defer span.End()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -88,6 +103,9 @@ func (s *Exchange) Publish(ctx context.Context, req *eventsv1.PublishRequest) er
 			// if client != clientId {
 			select {
 			case ch <- req.Event:
+				_, span := tracer.Start(ctx, "exchange.SendMsg")
+				defer span.End()
+				span.SetAttributes(attribute.String("subscriber.id", client), attribute.String("event.type", req.GetEvent().GetType().String()))
 				s.logger.Debug("notified client", "client", client)
 			default:
 				s.logger.Debug("client is too slow to receive events", "client", client)

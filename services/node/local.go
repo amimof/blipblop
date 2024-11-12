@@ -11,6 +11,7 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,7 +26,10 @@ type local struct {
 	logger   logger.Logger
 }
 
-var _ nodes.NodeServiceClient = &local{}
+var (
+	_      nodes.NodeServiceClient = &local{}
+	tracer                         = otel.Tracer("blipblop/nodes")
+)
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
@@ -38,6 +42,9 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Get")
+	defer span.End()
+
 	node, err := l.Repo().Get(ctx, req.Id)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
@@ -48,6 +55,9 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 }
 
 func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Create")
+	defer span.End()
+
 	node := req.GetNode()
 	if existing, _ := l.Repo().Get(ctx, node.GetMeta().GetName()); existing != nil {
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
@@ -76,6 +86,9 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 }
 
 func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...grpc.CallOption) (*nodes.DeleteNodeResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Delete")
+	defer span.End()
+
 	node, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -94,6 +107,9 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 }
 
 func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
+	_, span := tracer.Start(ctx, "ListNodes")
+	defer span.End()
+
 	nodeList, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, err
@@ -104,6 +120,9 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 }
 
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Update")
+	defer span.End()
+
 	updateMask := req.GetUpdateMask()
 	updateNode := req.GetNode()
 	existing, err := l.Repo().Get(ctx, req.GetId())
@@ -145,6 +164,9 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 }
 
 func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Join")
+	defer span.End()
+
 	nodeId := req.GetNode().GetMeta().GetName()
 
 	if nodeId == "" {
@@ -177,6 +199,9 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Forget")
+	defer span.End()
+
 	node, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err

@@ -79,6 +79,10 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 }
 
 func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
+	ctx := stream.Context()
+	ctx, span := tracer.Start(ctx, "node.Connect")
+	defer span.End()
+
 	var nodeName string
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		if res, ok := md["blipblop_node_name"]; ok && len(res) > 0 {
@@ -92,7 +96,7 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 	}
 
 	// Check if node is joined to cluster prior to connecting
-	res, err := n.Get(stream.Context(), &nodes.GetNodeRequest{Id: nodeName})
+	res, err := n.Get(ctx, &nodes.GetNodeRequest{Id: nodeName})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return errors.Join(fmt.Errorf("node %s not found", nodeName), err)
@@ -100,7 +104,6 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 		return err
 	}
 
-	ctx := stream.Context()
 	node := res.GetNode()
 
 	n.mu.Lock()
@@ -151,6 +154,9 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 
 			return ctx.Err()
 		default:
+			ctx, span := tracer.Start(ctx, "node.RecvMsg")
+			defer span.End()
+
 			msg, err := stream.Recv()
 			if err == io.EOF {
 				n.logger.Error("error receving from stream, stream probably closed", "node", nodeName)
@@ -162,7 +168,7 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 				return err
 			}
 
-			err = n.exchange.Publish(context.Background(), &eventsv1.PublishRequest{Event: msg})
+			err = n.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: msg})
 			if err != nil {
 				return err
 			}

@@ -6,6 +6,8 @@ import (
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/dgraph-io/badger/v4"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -18,16 +20,21 @@ func (c NodeID) String() string {
 }
 
 type nodeBadgerRepo struct {
-	db *badger.DB
+	db     *badger.DB
+	tracer trace.Tracer
 }
 
 func NewNodeBadgerRepository(db *badger.DB) *nodeBadgerRepo {
 	return &nodeBadgerRepo{
-		db: db,
+		db:     db,
+		tracer: otel.Tracer("blipblop/nodes"),
 	}
 }
 
 func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error) {
+	ctx, span := r.tracer.Start(ctx, "badger.Get")
+	defer span.End()
+
 	res := &nodes.Node{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := NodeID(id).String()
@@ -49,6 +56,9 @@ func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error
 }
 
 func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
+	ctx, span := r.tracer.Start(ctx, "badger.List")
+	defer span.End()
+
 	var result []*nodes.Node
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -82,6 +92,9 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 }
 
 func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodes.Node) error {
+	ctx, span := r.tracer.Start(ctx, "badger.Create")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := NodeID(node.GetMeta().GetName()).String()
 		b, err := proto.Marshal(node)
@@ -93,6 +106,9 @@ func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodes.Node) error {
 }
 
 func (r *nodeBadgerRepo) Delete(ctx context.Context, id string) error {
+	ctx, span := r.tracer.Start(ctx, "badger.Delete")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := NodeID(id).String()
 		return txn.Delete([]byte(key))

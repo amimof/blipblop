@@ -399,6 +399,7 @@ func (c *ContainerdController) setContainerState(id string) error {
 	st.Phase = phase
 	st.ExitStatus = exitStatus
 
+	c.logger.Debug("setting container status state", "id", id, "status", st)
 	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 }
 
