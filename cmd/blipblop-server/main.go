@@ -149,7 +149,7 @@ func main() {
 		fmt.Fprint(os.Stderr, title+"\n\n")
 		desc := "Manages multiple Kubernetes clusters and provides a single API to clients"
 		if desc != "" {
-			fmt.Fprintf(os.Stderr, desc+"\n\n")
+			fmt.Fprintf(os.Stderr, "%s\n\n", desc)
 		}
 		fmt.Fprintln(os.Stderr, pflag.CommandLine.FlagUsages())
 	}
