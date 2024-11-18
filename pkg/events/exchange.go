@@ -26,8 +26,9 @@ type Exchange struct {
 
 func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
 	// Identify the client
+	ctx := stream.Context()
 	clientId := req.ClientId
-	peer, _ := peer.FromContext(stream.Context())
+	peer, _ := peer.FromContext(ctx)
 	eventChan := make(chan *eventsv1.Event)
 
 	s.logger.Debug("client connected", "clientId", clientId, "address", peer.Addr.String())
@@ -35,27 +36,27 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 	s.mu.Lock()
 	s.subscribers[clientId] = append(s.subscribers[clientId], eventChan)
 	s.mu.Unlock()
-
 	go func() {
 		for {
 			select {
 			case n := <-eventChan:
-				s.logger.Debug("got event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+
+				s.logger.Debug("forwarding event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
 				err := stream.Send(n)
 				if err != nil {
 					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
 					return
 				}
-			case <-stream.Context().Done():
+			case <-ctx.Done():
 				s.logger.Debug("client disconnected", "clientId", req.ClientId)
 				s.mu.Lock()
 				delete(s.subscribers, req.ClientId)
 				s.mu.Unlock()
 
 				// Get node name from context
-				if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+				if md, ok := metadata.FromIncomingContext(ctx); ok {
 					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
-						err := s.Publish(stream.Context(), &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
+						err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
 						if err != nil {
 							s.logger.Error("error publishing event", "error", err)
 						}
@@ -66,7 +67,7 @@ func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.Event
 		}
 	}()
 
-	<-stream.Context().Done()
+	<-ctx.Done()
 	return nil
 }
 
@@ -74,25 +75,14 @@ func (s *Exchange) Publish(ctx context.Context, req *eventsv1.PublishRequest) er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Retrieve clientId from the context
-	// clientId := "NOID"
-	// if md, ok := metadata.FromIncomingContext(ctx); ok {
-	// 	clientIdMd := md.Get("blipblop_client_id")
-	// 	if len(clientIdMd) > 0 {
-	// 		clientId = clientIdMd[0]
-	// 	}
-	// }
-
 	for client, sub := range s.subscribers {
 		for _, ch := range sub {
-			// if client != clientId {
 			select {
 			case ch <- req.Event:
-				s.logger.Debug("notified client", "client", client)
+				s.logger.Debug("published event to client", "client", client, "event", req.GetEvent().GetType().String())
 			default:
 				s.logger.Debug("client is too slow to receive events", "client", client)
 			}
-			// }
 		}
 	}
 

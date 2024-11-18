@@ -5,11 +5,9 @@ import (
 	"errors"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 )
 
@@ -57,15 +55,4 @@ func NewService(repo repository.EventRepository, opts ...NewServiceOption) *Even
 		opt(s)
 	}
 	return s
-}
-
-func NewEventFor(clientId, id string, t eventsv1.EventType) *eventsv1.Event {
-	return &eventsv1.Event{
-		Meta: &types.Meta{
-			Name: uuid.New().String(),
-		},
-		ClientId: clientId,
-		Type:     t,
-		ObjectId: id,
-	}
 }

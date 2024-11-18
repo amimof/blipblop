@@ -1,18 +1,45 @@
 package events
 
 import (
+	"context"
+
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/pkg/logger"
 )
 
 var UnimplemetedEventHandler = func(e *eventsv1.Event) {}
 
 type EventInformer interface {
-	Run(<-chan *eventsv1.Event)
+	Run(context.Context, <-chan *eventsv1.Event)
 }
 
 type EventHandlerFunc func(e *eventsv1.Event) error
 
-type ResourceEventHandlerFunc func(e *eventsv1.Event) error
+type ResourceEventHandlerFunc func(ctx context.Context, e *eventsv1.Event) error
+
+type (
+	NewContainerEventInformerOption    func(s *containerEventInformer)
+	NewContainerSetEventInformerOption func(s *containerSetEventInformer)
+	NewNodeEventInformerOption         func(s *nodeEventInformer)
+)
+
+func WithContainerEventInformerLogger(l logger.Logger) NewContainerEventInformerOption {
+	return func(s *containerEventInformer) {
+		s.logger = l
+	}
+}
+
+func WithContainerSetEventInformerLogger(l logger.Logger) NewContainerSetEventInformerOption {
+	return func(s *containerSetEventInformer) {
+		s.logger = l
+	}
+}
+
+func WithNodeEventInformerLogger(l logger.Logger) NewNodeEventInformerOption {
+	return func(s *nodeEventInformer) {
+		s.logger = l
+	}
+}
 
 type ContainerEventHandlerFuncs struct {
 	OnCreate ResourceEventHandlerFunc
@@ -40,34 +67,47 @@ type NodeEventHandlerFuncs struct {
 
 type containerEventInformer struct {
 	handlers ContainerEventHandlerFuncs
+	logger   logger.Logger
 }
 
-func (i *containerEventInformer) Run(eventChan <-chan *eventsv1.Event) {
+func (i *containerEventInformer) Run(ctx context.Context, eventChan <-chan *eventsv1.Event) {
 	for e := range eventChan {
 		switch e.Type {
 		case eventsv1.EventType_ContainerCreate:
 			if i.handlers.OnCreate != nil {
-				_ = i.handlers.OnCreate(e)
+				if err := i.handlers.OnCreate(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerUpdate:
 			if i.handlers.OnUpdate != nil {
-				_ = i.handlers.OnUpdate(e)
+				if err := i.handlers.OnUpdate(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerDelete:
 			if i.handlers.OnDelete != nil {
-				_ = i.handlers.OnDelete(e)
+				if err := i.handlers.OnDelete(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerStart:
 			if i.handlers.OnStart != nil {
-				_ = i.handlers.OnStart(e)
+				if err := i.handlers.OnStart(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerKill:
 			if i.handlers.OnKill != nil {
-				_ = i.handlers.OnKill(e)
+				if err := i.handlers.OnKill(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerStop:
 			if i.handlers.OnStop != nil {
-				_ = i.handlers.OnStop(e)
+				if err := i.handlers.OnStop(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		}
 	}
@@ -75,22 +115,29 @@ func (i *containerEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 
 type containerSetEventInformer struct {
 	handlers ContainerSetEventHandlerFuncs
+	logger   logger.Logger
 }
 
-func (i *containerSetEventInformer) Run(eventChan <-chan *eventsv1.Event) {
+func (i *containerSetEventInformer) Run(ctx context.Context, eventChan <-chan *eventsv1.Event) {
 	for e := range eventChan {
 		switch e.Type {
 		case eventsv1.EventType_ContainerSetCreate:
 			if i.handlers.OnCreate != nil {
-				_ = i.handlers.OnCreate(e)
+				if err := i.handlers.OnCreate(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerSetUpdate:
 			if i.handlers.OnUpdate != nil {
-				_ = i.handlers.OnUpdate(e)
+				if err := i.handlers.OnUpdate(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_ContainerSetDelete:
 			if i.handlers.OnDelete != nil {
-				_ = i.handlers.OnDelete(e)
+				if err := i.handlers.OnDelete(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		}
 	}
@@ -98,41 +145,64 @@ func (i *containerSetEventInformer) Run(eventChan <-chan *eventsv1.Event) {
 
 type nodeEventInformer struct {
 	handlers NodeEventHandlerFuncs
+	logger   logger.Logger
 }
 
-func (i *nodeEventInformer) Run(eventChan <-chan *eventsv1.Event) {
+func (i *nodeEventInformer) Run(ctx context.Context, eventChan <-chan *eventsv1.Event) {
 	for e := range eventChan {
 		switch e.Type {
 		case eventsv1.EventType_NodeCreate:
 			if i.handlers.OnCreate != nil {
-				_ = i.handlers.OnCreate(e)
+				if err := i.handlers.OnCreate(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_NodeUpdate:
 			if i.handlers.OnUpdate != nil {
-				_ = i.handlers.OnUpdate(e)
+				if err := i.handlers.OnUpdate(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_NodeDelete:
 			if i.handlers.OnDelete != nil {
-				_ = i.handlers.OnDelete(e)
+				if err := i.handlers.OnDelete(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_NodeJoin:
 			if i.handlers.OnJoin != nil {
-				_ = i.handlers.OnJoin(e)
+				if err := i.handlers.OnJoin(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_NodeForget:
 			if i.handlers.OnForget != nil {
-				_ = i.handlers.OnForget(e)
+				if err := i.handlers.OnForget(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		case eventsv1.EventType_NodeConnect:
 			if i.handlers.OnConnect != nil {
-				_ = i.handlers.OnConnect(e)
+				if err := i.handlers.OnConnect(ctx, e); err != nil {
+					handleError(err, e, i.logger)
+				}
 			}
 		}
 	}
 }
 
-func NewContainerEventInformer(h ContainerEventHandlerFuncs) EventInformer {
-	return &containerEventInformer{handlers: h}
+func handleError(err error, e *eventsv1.Event, i logger.Logger) {
+	i.Error("container event informer error calling handler", "type", e.GetType().String(), "error", err)
+}
+
+func NewContainerEventInformer(h ContainerEventHandlerFuncs, opts ...NewContainerEventInformerOption) EventInformer {
+	i := &containerEventInformer{handlers: h, logger: logger.ConsoleLogger{}}
+
+	for _, opt := range opts {
+		opt(i)
+	}
+
+	return i
 }
 
 func NewContainerSetEventInformer(h ContainerSetEventHandlerFuncs) EventInformer {

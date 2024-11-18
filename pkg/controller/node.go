@@ -77,14 +77,14 @@ func (c *NodeController) Run(ctx context.Context) {
 
 	// Run node informer
 	nodeInformer := events.NewNodeEventInformer(nodeHandlers)
-	go nodeInformer.Run(nodeEvt)
+	go nodeInformer.Run(ctx, nodeEvt)
 
 	// Run container informer
-	containerInformer := events.NewContainerEventInformer(containerHandlers)
-	go containerInformer.Run(containerEvt)
+	containerInformer := events.NewContainerEventInformer(containerHandlers, events.WithContainerEventInformerLogger(c.logger))
+	go containerInformer.Run(ctx, containerEvt)
 
 	// Start broadcasting incoming events to both node and container informers
-	go broadcastEvent(evt, nodeEvt, containerEvt)
+	go c.broadcastEvent(ctx, evt, nodeEvt, containerEvt)
 
 	// Connect with retry logic
 	go func() {
@@ -113,10 +113,11 @@ func (c *NodeController) Run(ctx context.Context) {
 }
 
 // Broadcaster reads from the input channel and sends each message to multiple output channels.
-func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Event) {
+func (n *NodeController) broadcastEvent(_ context.Context, input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Event) {
 	// Send the same message to each output channel
 	for event := range input {
 		for _, out := range outputs {
+			// event.Meta.Labels = metadata
 			out <- event
 		}
 	}
@@ -127,19 +128,18 @@ func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Even
 	}
 }
 
-func (c *NodeController) onNodeCreate(_ *eventsv1.Event) error {
+func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onNodeUpdate(_ *eventsv1.Event) error {
+func (c *NodeController) onNodeUpdate(ctx context.Context, _ *eventsv1.Event) error {
 	return nil
 }
 
 // BUG: this will delete and forget the node that the event was triggered on. We need to make sure
 // that the node that receives the event, checks that the id matches the node id so that only
 // the specific node unregisters itself from the server
-func (c *NodeController) onNodeDelete(obj *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *NodeController) onNodeDelete(ctx context.Context, obj *eventsv1.Event) error {
 	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
 	if err != nil {
 		c.logger.Error("error unjoining node", "node", obj.GetMeta().GetName(), "error", err)
@@ -149,17 +149,15 @@ func (c *NodeController) onNodeDelete(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onNodeJoin(obj *eventsv1.Event) error {
+func (c *NodeController) onNodeJoin(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onNodeForget(obj *eventsv1.Event) error {
+func (c *NodeController) onNodeForget(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *NodeController) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
 	// Get the container
 	var ctr containersv1.Container
 	err := e.Object.UnmarshalTo(&ctr)
@@ -177,11 +175,11 @@ func (c *NodeController) onContainerCreate(e *eventsv1.Event) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
-func (c *NodeController) onContainerDelete(e *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Event) error {
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -201,8 +199,7 @@ func (c *NodeController) onContainerDelete(e *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onContainerUpdate(e *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Event) error {
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -230,8 +227,7 @@ func (c *NodeController) onContainerUpdate(e *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onContainerKill(e *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event) error {
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -248,8 +244,7 @@ func (c *NodeController) onContainerKill(e *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onContainerStart(e *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event) error {
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -258,6 +253,21 @@ func (c *NodeController) onContainerStart(e *eventsv1.Event) error {
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
+	// Delete container if it exists
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
+	if err := c.runtime.Delete(ctx, &ctr); err != nil {
+		return err
+	}
+
+	// Pull image
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String(), "")
+	err = c.runtime.Pull(ctx, &ctr)
+	if err != nil {
+		return err
+	}
+
+	// Run container
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String(), "")
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -266,8 +276,7 @@ func (c *NodeController) onContainerStart(e *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onContainerStop(e *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event) error {
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -292,7 +301,7 @@ func (c *NodeController) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeControllerOption) *NodeController {
+func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeControllerOption) (*NodeController, error) {
 	m := &NodeController{
 		clientset:                c,
 		runtime:                  rt,
@@ -303,5 +312,32 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 	for _, opt := range opts {
 		opt(m)
 	}
-	return m
+
+	// Setup tracing
+	// exporter, err := otlptracehttp.New(context.Background(), otlptracehttp.WithInsecure(), otlptracehttp.WithEndpoint("192.168.13.123:4318"))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defaultResource := resource.Default()
+	//
+	// mergedResources, err := resource.Merge(
+	// 	defaultResource,
+	// 	resource.NewWithAttributes(
+	// 		defaultResource.SchemaURL(),
+	// 		semconv.ServiceNameKey.String("blipblop-node"),
+	// 	),
+	// )
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// tracer := sdktrace.NewTracerProvider(
+	// 	sdktrace.WithBatcher(exporter),
+	// 	sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	// 	sdktrace.WithResource(mergedResources),
+	// )
+	//
+	// otel.SetTracerProvider(tracer)
+	//
+	return m, nil
 }

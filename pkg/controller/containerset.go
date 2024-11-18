@@ -37,7 +37,7 @@ func (c *ContainerSetController) Run(ctx context.Context) {
 	// Define handlers
 	handlers := events.ContainerSetEventHandlerFuncs{
 		OnCreate: c.onCreate,
-		OnUpdate: func(e *eventsv1.Event) error {
+		OnUpdate: func(ctx context.Context, e *eventsv1.Event) error {
 			return nil
 		},
 		OnDelete: c.onDelete,
@@ -45,7 +45,7 @@ func (c *ContainerSetController) Run(ctx context.Context) {
 
 	// Run informer
 	informer := events.NewContainerSetEventInformer(handlers)
-	go informer.Run(evt)
+	go informer.Run(ctx, evt)
 
 	// Subscribe with retry
 	for {
@@ -63,9 +63,7 @@ func (c *ContainerSetController) Run(ctx context.Context) {
 	}
 }
 
-func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *ContainerSetController) onCreate(ctx context.Context, e *eventsv1.Event) error {
 	var set containersetsv1.ContainerSet
 	err := e.Object.UnmarshalTo(&set)
 	if err != nil {
@@ -96,9 +94,7 @@ func (c *ContainerSetController) onCreate(e *eventsv1.Event) error {
 	return nil
 }
 
-func (c *ContainerSetController) onDelete(e *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *ContainerSetController) onDelete(ctx context.Context, e *eventsv1.Event) error {
 	var containerSet containersetsv1.ContainerSet
 	err := e.GetObject().UnmarshalTo(&containerSet)
 	if err != nil {

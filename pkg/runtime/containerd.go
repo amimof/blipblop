@@ -176,7 +176,6 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 			return err
 		}
 	}
-
 	return container.Delete(ctx, containerd.WithSnapshotCleanup)
 }
 
@@ -264,7 +263,6 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 }
 
 func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) error {
-	time.Sleep(5 * time.Second)
 	ns := "blipblop"
 	ctx = namespaces.WithNamespace(ctx, ns)
 

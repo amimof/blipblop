@@ -33,11 +33,11 @@ func WithLogger(lgr logger.Logger) NewServerOption {
 
 func WithGrpcOption(opts ...grpc.ServerOption) NewServerOption {
 	return func(s *Server) {
-		s.grpcOpts = opts
+		s.grpcOpts = append(s.grpcOpts, opts...)
 	}
 }
 
-func New(opts ...NewServerOption) *Server {
+func New(opts ...NewServerOption) (*Server, error) {
 	grpcOpts := []grpc.ServerOption{
 		grpc.KeepaliveParams(keepalive.ServerParameters{}),
 	}
@@ -45,8 +45,7 @@ func New(opts ...NewServerOption) *Server {
 	// Setup server
 	server := &Server{
 		grpcOpts: grpcOpts,
-		// addr:     &addr,
-		logger: logger.ConsoleLogger{},
+		logger:   logger.ConsoleLogger{},
 	}
 
 	// Apply options
@@ -56,16 +55,12 @@ func New(opts ...NewServerOption) *Server {
 
 	server.grpcServer = grpc.NewServer(server.grpcOpts...)
 
-	return server
+	return server, nil
 }
 
 func (s *Server) Serve(lis net.Listener) error {
 	return s.grpcServer.Serve(lis)
 }
-
-// func (s *Server) Addr() string {
-// 	return *s.addr
-// }
 
 func (s *Server) Shutdown() {
 	s.grpcServer.GracefulStop()

@@ -149,7 +149,7 @@ func main() {
 		fmt.Fprint(os.Stderr, title+"\n\n")
 		desc := "Manages multiple Kubernetes clusters and provides a single API to clients"
 		if desc != "" {
-			fmt.Fprintf(os.Stderr, desc+"\n\n")
+			fmt.Fprintf(os.Stderr, "%s\n\n", desc)
 		}
 		fmt.Fprintln(os.Stderr, pflag.CommandLine.FlagUsages())
 	}
@@ -240,7 +240,11 @@ func main() {
 	)
 
 	// Setup server
-	s := server.New(serverOpts...)
+	s, err := server.New(serverOpts...)
+	if err != nil {
+		log.Error("error setting up gRPC server", "error", err)
+		os.Exit(1)
+	}
 
 	// Register services to gRPC server
 	err = s.RegisterService(eventService, nodeService, containerSetService, containerService)
