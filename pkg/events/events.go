@@ -16,12 +16,20 @@ const (
 
 type Object protoreflect.ProtoMessage
 
-func NewRequest(evType eventsv1.EventType, obj Object) *eventsv1.PublishRequest {
+func NewRequest(evType eventsv1.EventType, obj Object, labels ...map[string]string) *eventsv1.PublishRequest {
+	// Merge the maps
+	l := map[string]string{}
+	for _, label := range labels {
+		for k, v := range label {
+			l[k] = v
+		}
+	}
 	o, _ := anypb.New(obj)
 	return &eventsv1.PublishRequest{
 		Event: &eventsv1.Event{
 			Meta: &types.Meta{
-				Name: uuid.New().String(),
+				Name:   uuid.New().String(),
+				Labels: l,
 			},
 			Type:   evType,
 			Object: o,

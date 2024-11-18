@@ -68,7 +68,6 @@ func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
 
 func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-
 	_, err := c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
 	if err != nil {
 		return err
@@ -78,7 +77,6 @@ func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 
 func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-
 	_, err := c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err

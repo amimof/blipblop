@@ -14,7 +14,6 @@ import (
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
 	jsonpatch "github.com/evanphx/json-patch"
-	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,10 +28,7 @@ type local struct {
 	logger   logger.Logger
 }
 
-var (
-	_      containers.ContainerServiceClient = &local{}
-	tracer                                   = otel.Tracer("blipblop/containers")
-)
+var _ containers.ContainerServiceClient = &local{}
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
@@ -45,9 +41,6 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
-	ctx, span := tracer.Start(ctx, "service.Get")
-	defer span.End()
-
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
@@ -58,9 +51,6 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
-	_, span := tracer.Start(ctx, "service.List")
-	defer span.End()
-
 	ctrs, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
@@ -71,9 +61,6 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 }
 
 func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
-	_, span := tracer.Start(ctx, "service.Create")
-	defer span.End()
-
 	container := req.GetContainer()
 	containerId := container.GetMeta().GetName()
 
@@ -111,9 +98,6 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
-	_, span := tracer.Start(ctx, "service.Delete")
-	defer span.End()
-
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
@@ -132,9 +116,6 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
-	_, span := tracer.Start(ctx, "service.Kill")
-	defer span.End()
-
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -149,9 +130,6 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 }
 
 func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
-	_, span := tracer.Start(ctx, "service.Start")
-	defer span.End()
-
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -207,9 +185,6 @@ func mergePatch(target, patch *containers.Container) (*containers.Container, err
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
-	_, span := tracer.Start(ctx, "service.Update")
-	defer span.End()
-
 	updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
 

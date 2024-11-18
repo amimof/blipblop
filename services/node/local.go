@@ -28,7 +28,8 @@ type local struct {
 
 var (
 	_      nodes.NodeServiceClient = &local{}
-	tracer                         = otel.Tracer("blipblop/nodes")
+	tracer                         = otel.GetTracerProvider().Tracer("node")
+	// tracer                         = otel.Tracer("blipblop/nodes")
 )
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {

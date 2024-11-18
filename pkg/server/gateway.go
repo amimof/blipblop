@@ -75,8 +75,7 @@ func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux, opts ..
 		opt(g)
 	}
 
-	conn, err := grpc.DialContext(
-		ctx,
+	conn, err := grpc.NewClient(
 		addr,
 		g.grpcOpts...,
 	)

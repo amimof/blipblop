@@ -178,7 +178,11 @@ func main() {
 	go containerdCtrl.Run(ctx)
 	log.Info("started containerd controller")
 
-	nodeCtrl := controller.NewNodeController(cs, runtime, controller.WithNodeControllerLogger(log), controller.WithNodeName(n.GetMeta().GetName()))
+	nodeCtrl, err := controller.NewNodeController(cs, runtime, controller.WithNodeControllerLogger(log), controller.WithNodeName(n.GetMeta().GetName()))
+	if err != nil {
+		log.Error("error setting up Node Controller", "error", err)
+		return
+	}
 	go nodeCtrl.Run(ctx)
 	log.Info("started node controller")
 
@@ -186,8 +190,6 @@ func main() {
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
 	cancel()
-
-	// stopCh <- struct{}{}
 
 	log.Info("shutting down")
 }

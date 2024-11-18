@@ -45,7 +45,7 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 
 	// Run informer
 	informer := events.NewContainerEventInformer(handlers)
-	go informer.Run(evt)
+	go informer.Run(ctx, evt)
 
 	// Subscribe with retry
 	for {
@@ -68,9 +68,7 @@ func (c *ContainerController) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func (c *ContainerController) onContainerCreate(obj *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *ContainerController) onContainerCreate(ctx context.Context, obj *eventsv1.Event) error {
 	// Get the container
 	var ctr containers.Container
 	err := obj.Object.UnmarshalTo(&ctr)
@@ -107,12 +105,11 @@ func (c *ContainerController) onContainerCreate(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *ContainerController) onContainerUpdate(_ *eventsv1.Event) error {
+func (c *ContainerController) onContainerUpdate(ctx context.Context, _ *eventsv1.Event) error {
 	return nil
 }
 
-func (c *ContainerController) onContainerDelete(obj *eventsv1.Event) error {
-	ctx := context.Background()
+func (c *ContainerController) onContainerDelete(ctx context.Context, obj *eventsv1.Event) error {
 	var ctr containers.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
@@ -129,9 +126,7 @@ func (c *ContainerController) onContainerDelete(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *ContainerController) onContainerStart(obj *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv1.Event) error {
 	var ctr containers.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
@@ -161,9 +156,7 @@ func (c *ContainerController) onContainerStart(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *ContainerController) onContainerKill(obj *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *ContainerController) onContainerKill(ctx context.Context, obj *eventsv1.Event) error {
 	var ctr containers.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
@@ -177,9 +170,7 @@ func (c *ContainerController) onContainerKill(obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *ContainerController) onContainerStop(obj *eventsv1.Event) error {
-	ctx := context.Background()
-
+func (c *ContainerController) onContainerStop(ctx context.Context, obj *eventsv1.Event) error {
 	var ctr containers.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {

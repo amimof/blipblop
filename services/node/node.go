@@ -80,11 +80,9 @@ func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*no
 
 func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 	ctx := stream.Context()
-	ctx, span := tracer.Start(ctx, "node.Connect")
-	defer span.End()
 
 	var nodeName string
-	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if res, ok := md["blipblop_node_name"]; ok && len(res) > 0 {
 			nodeName = res[0]
 		}
@@ -154,9 +152,6 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 
 			return ctx.Err()
 		default:
-			ctx, span := tracer.Start(ctx, "node.RecvMsg")
-			defer span.End()
-
 			msg, err := stream.Recv()
 			if err == io.EOF {
 				n.logger.Error("error receving from stream, stream probably closed", "node", nodeName)
@@ -203,7 +198,7 @@ func (n *NodeService) subscribe(ctx context.Context) {
 		OnForget: n.onForget,
 	}
 	nodeinformer := events.NewNodeEventInformer(nodeHandlers)
-	go nodeinformer.Run(nodeEvt)
+	go nodeinformer.Run(ctx, nodeEvt)
 
 	containerHandlers := events.ContainerEventHandlerFuncs{
 		OnCreate: n.onContainerCreate,
@@ -215,10 +210,10 @@ func (n *NodeService) subscribe(ctx context.Context) {
 	}
 
 	containerInformer := events.NewContainerEventInformer(containerHandlers)
-	go containerInformer.Run(ctrEvt)
+	go containerInformer.Run(ctx, ctrEvt)
 }
 
-func (n *NodeService) onForget(e *eventsv1.Event) error {
+func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {
 	n.logger.Debug("got node forget, update node status", "node", e.GetObjectId())
 	fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
 	req := &nodes.UpdateNodeRequest{
@@ -237,7 +232,7 @@ func (n *NodeService) onForget(e *eventsv1.Event) error {
 	return err
 }
 
-func (n *NodeService) onContainerCreate(e *eventsv1.Event) error {
+func (n *NodeService) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
 	// Schedule container on every node
 	for nodeName, stream := range n.streams {
 
@@ -272,7 +267,7 @@ func (n *NodeService) onContainerCreate(e *eventsv1.Event) error {
 	return nil
 }
 
-func (n *NodeService) onContainer(e *eventsv1.Event) error {
+func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error {
 	// Unmarshal Container from event
 	var ctr containers.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
@@ -291,6 +286,12 @@ func (n *NodeService) onContainer(e *eventsv1.Event) error {
 	if !ok {
 		return fmt.Errorf("node is not connected as %s", nodeName)
 	}
+
+	// n.logger.Info("metadata", "meta", e.Meta.Labels)
+	// msg := inttrace.ExtractMetadataFromContext(ctx)
+	// e.Meta.Labels = msg
+
+	n.logger.Info("metadata", "meta start container?", e.Meta.Labels)
 
 	// Forward event to node
 	n.logger.Info("forwarding event to node", "node", nodeName, "container", ctr.GetMeta().GetName(), "event", e.GetType().String())
