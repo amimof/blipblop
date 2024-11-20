@@ -8,6 +8,8 @@ import (
 	"math/rand"
 	"strconv"
 	"time"
+
+	"github.com/amimof/blipblop/pkg/labels"
 )
 
 type Serializer struct {
@@ -94,4 +96,14 @@ func GenerateBase36(length int) string {
 		result[i] = base36Chars[r.Intn(len(base36Chars))]
 	}
 	return string(result)
+}
+
+func MergeLabels(ls ...labels.Label) labels.Label {
+	l := map[string]string{}
+	for _, label := range ls {
+		for k, v := range label {
+			l[k] = v
+		}
+	}
+	return l
 }

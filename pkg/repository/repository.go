@@ -8,6 +8,7 @@ import (
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/labels"
 )
 
 type ContainerSetRepository interface {
@@ -22,7 +23,7 @@ type ContainerRepository interface {
 	Create(context.Context, *containersv1.Container) error
 	Get(context.Context, string) (*containersv1.Container, error)
 	Delete(context.Context, string) error
-	List(context.Context) ([]*containersv1.Container, error)
+	List(context.Context, ...labels.Label) ([]*containersv1.Container, error)
 	Update(context.Context, *containersv1.Container) error
 }
 

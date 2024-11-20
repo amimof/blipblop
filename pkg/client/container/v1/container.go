@@ -5,6 +5,7 @@ import (
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -144,9 +145,11 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*containers.Container, e
 	return res.GetContainer(), nil
 }
 
-func (c *ClientV1) List(ctx context.Context) ([]*containers.Container, error) {
+func (c *ClientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: labels.New()})
+
+	mergedLabels := util.MergeLabels(l...)
+	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: mergedLabels})
 	if err != nil {
 		return nil, err
 	}
