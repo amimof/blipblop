@@ -119,8 +119,8 @@ func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
 
 type ClientSet struct {
 	conn                 *grpc.ClientConn
-	nodeV1Client         *nodev1.ClientV1
-	containerV1Client    *containerv1.ClientV1
+	NodeV1Client         *nodev1.ClientV1
+	ContainerV1Client    *containerv1.ClientV1
 	containerSetV1Client *containersetv1.ClientV1
 	eventV1Client        *eventv1.ClientV1
 	mu                   sync.Mutex
@@ -131,7 +131,7 @@ type ClientSet struct {
 }
 
 func (c *ClientSet) NodeV1() *nodev1.ClientV1 {
-	return c.nodeV1Client
+	return c.NodeV1Client
 }
 
 func (c *ClientSet) ContainerSetV1() *containersetv1.ClientV1 {
@@ -139,7 +139,7 @@ func (c *ClientSet) ContainerSetV1() *containersetv1.ClientV1 {
 }
 
 func (c *ClientSet) ContainerV1() *containerv1.ClientV1 {
-	return c.containerV1Client
+	return c.ContainerV1Client
 }
 
 func (c *ClientSet) EventV1() *eventv1.ClientV1 {
@@ -223,8 +223,8 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 	}
 
 	c.conn = conn
-	c.nodeV1Client = nodev1.NewClientV1(conn, nodev1.WithLogger(c.logger))
-	c.containerV1Client = containerv1.NewClientV1(conn, c.clientId)
+	c.NodeV1Client = nodev1.NewClientV1(conn, nodev1.WithLogger(c.logger))
+	c.ContainerV1Client = containerv1.NewClientV1(conn, c.clientId)
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
 

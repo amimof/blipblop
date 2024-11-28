@@ -53,6 +53,7 @@ func TestListContainersWithFilter(t *testing.T) {
 	filter.Set("app", "default")
 
 	repo, err := initInMemContainerRepo(ctx, NewContainerInMemRepo())
+	assert.NoError(t, err)
 
 	ctrs, err := repo.List(ctx, filter)
 	if err != nil {
@@ -72,6 +73,7 @@ func TestListContainersWithNoFilter(t *testing.T) {
 	ctx := context.Background()
 
 	repo, err := initInMemContainerRepo(ctx, NewContainerInMemRepo())
+	assert.NoError(t, err)
 
 	ctrs, err := repo.List(ctx)
 	if err != nil {

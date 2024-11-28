@@ -28,20 +28,20 @@ func WithLogger(l logger.Logger) ClientOption {
 }
 
 type ClientV1 struct {
-	nodeService nodes.NodeServiceClient
-	id          string
-	mu          sync.Mutex
-	stream      nodes.NodeService_ConnectClient
-	logger      logger.Logger
+	Client nodes.NodeServiceClient
+	id     string
+	mu     sync.Mutex
+	stream nodes.NodeService_ConnectClient
+	logger logger.Logger
 }
 
 func (c *ClientV1) NodeService() nodes.NodeServiceClient {
-	return c.nodeService
+	return c.Client
 }
 
 func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.nodeService.Delete(ctx, &nodes.DeleteNodeRequest{Id: id})
+	_, err := c.Client.Delete(ctx, &nodes.DeleteNodeRequest{Id: id})
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (c *ClientV1) Delete(ctx context.Context, id string) error {
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n, err := c.nodeService.Get(ctx, &nodes.GetNodeRequest{Id: id})
+	n, err := c.Client.Get(ctx, &nodes.GetNodeRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
 
 func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n, err := c.nodeService.List(ctx, &nodes.ListNodeRequest{})
+	n, err := c.Client.List(ctx, &nodes.ListNodeRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
 
 func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.nodeService.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
+	_, err := c.Client.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
 
 func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.nodeService.Join(ctx, &nodes.JoinRequest{Node: node})
+	_, err := c.Client.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (c *ClientV1) Forget(ctx context.Context, n string) error {
 	req := &nodes.ForgetRequest{
 		Id: n,
 	}
-	_, err := c.nodeService.Forget(ctx, req)
+	_, err := c.Client.Forget(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func (c *ClientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 
 func (c *ClientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {
 	mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
-	stream, err := c.nodeService.Connect(mdCtx)
+	stream, err := c.Client.Connect(mdCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)
 	}
@@ -201,7 +201,7 @@ func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connecti
 		},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.state"}},
 	}
-	_, err := c.nodeService.Update(ctx, n)
+	_, err := c.Client.Update(ctx, n)
 	if err != nil {
 		return err
 	}
@@ -210,8 +210,8 @@ func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connecti
 
 func NewClientV1(conn *grpc.ClientConn, opts ...ClientOption) *ClientV1 {
 	c := &ClientV1{
-		nodeService: nodes.NewNodeServiceClient(conn),
-		logger:      logger.ConsoleLogger{},
+		Client: nodes.NewNodeServiceClient(conn),
+		logger: logger.ConsoleLogger{},
 	}
 
 	for _, opt := range opts {

@@ -98,6 +98,19 @@ func GenerateBase36(length int) string {
 	return string(result)
 }
 
+func CopyList[T any](original []*T) []*T {
+	copied := make([]*T, len(original))
+
+	for i, item := range original {
+		if item != nil {
+			newItem := *item
+			copied[i] = &newItem
+		}
+	}
+
+	return copied
+}
+
 func MergeLabels(ls ...labels.Label) labels.Label {
 	l := map[string]string{}
 	for _, label := range ls {

@@ -26,9 +26,9 @@ func WithEmitLabels(l labels.Label) CreateOption {
 }
 
 type ClientV1 struct {
-	containerService containers.ContainerServiceClient
-	id               string
-	emitLabels       labels.Label
+	Client     containers.ContainerServiceClient
+	id         string
+	emitLabels labels.Label
 }
 
 func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
@@ -42,7 +42,7 @@ func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
 		},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.node"}},
 	}
-	_, err := c.containerService.Update(ctx, n)
+	_, err := c.Client.Update(ctx, n)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, phase string, d
 		},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.phase"}},
 	}
-	_, err := c.containerService.Update(ctx, n)
+	_, err := c.Client.Update(ctx, n)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 		},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status"}},
 	}
-	_, err := c.containerService.Update(ctx, n)
+	_, err := c.Client.Update(ctx, n)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 
 func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
+	resp, err := c.Client.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (c *ClientV1) Kill(ctx context.Context, id string) (*containers.KillContain
 
 func (c *ClientV1) Stop(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: false})
+	resp, err := c.Client.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: false})
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (c *ClientV1) Stop(ctx context.Context, id string) (*containers.KillContain
 
 func (c *ClientV1) Start(ctx context.Context, id string) (*containers.StartContainerResponse, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.containerService.Start(ctx, &containers.StartContainerRequest{Id: id})
+	resp, err := c.Client.Start(ctx, &containers.StartContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (c *ClientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 		}
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.containerService.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
+	_, err := c.Client.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (c *ClientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 
 func (c *ClientV1) Update(ctx context.Context, id string, ctr *containers.Container) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.containerService.Update(ctx, &containers.UpdateContainerRequest{Id: id, Container: ctr})
+	_, err := c.Client.Update(ctx, &containers.UpdateContainerRequest{Id: id, Container: ctr})
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (c *ClientV1) Update(ctx context.Context, id string, ctr *containers.Contai
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	res, err := c.containerService.Get(ctx, &containers.GetContainerRequest{Id: id})
+	res, err := c.Client.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (c *ClientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.C
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 
 	mergedLabels := util.MergeLabels(l...)
-	res, err := c.containerService.List(ctx, &containers.ListContainerRequest{Selector: mergedLabels})
+	res, err := c.Client.List(ctx, &containers.ListContainerRequest{Selector: mergedLabels})
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (c *ClientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.C
 
 func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.containerService.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
+	_, err := c.Client.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (c *ClientV1) Delete(ctx context.Context, id string) error {
 
 func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
 	return &ClientV1{
-		containerService: containers.NewContainerServiceClient(conn),
-		id:               clientId,
+		Client: containers.NewContainerServiceClient(conn),
+		id:     clientId,
 	}
 }
