@@ -51,7 +51,7 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
-	ctrs, err := l.Repo().List(ctx)
+	ctrs, err := l.Repo().List(ctx, req.GetSelector())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
 	}

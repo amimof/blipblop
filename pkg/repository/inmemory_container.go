@@ -6,6 +6,8 @@ import (
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/cache"
+	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/util"
 )
 
 type containerInMemRepo struct {
@@ -20,12 +22,16 @@ func NewContainerInMemRepo() ContainerRepository {
 	}
 }
 
-func (i *containerInMemRepo) List(ctx context.Context) ([]*containers.Container, error) {
+func (i *containerInMemRepo) List(ctx context.Context, l ...labels.Label) ([]*containers.Container, error) {
+	filter := util.MergeLabels(l...)
 	var c []*containers.Container
 	for _, key := range i.cache.ListKeys() {
 		container, _ := i.Get(ctx, key)
 		if container != nil {
-			c = append(c, container)
+			filter := labels.NewCompositeSelectorFromMap(filter)
+			if filter.Matches(container.GetMeta().GetLabels()) {
+				c = append(c, container)
+			}
 		}
 	}
 	return c, nil

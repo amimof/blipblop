@@ -101,7 +101,7 @@ lint: | $(GOCILINT) ; $(info $(M) running golangci-lint) @ ## Runs static code a
 
 .PHONY: test
 test: ; $(info $(M) running go test) @ ## Runs unit tests
-	$Q $(GO) test -v ${PKGS}
+	$Q $(GO) test -count=1 -v ${PKGS}
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt) @ ## Formats Go code

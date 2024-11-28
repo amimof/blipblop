@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/util"
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
 )
@@ -48,7 +50,8 @@ func (r *containerBadgerRepo) Get(ctx context.Context, id string) (*containers.C
 	return res, nil
 }
 
-func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container, error) {
+func (r *containerBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*containers.Container, error) {
+	filter := util.MergeLabels(l...)
 	var result []*containers.Container
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -70,7 +73,10 @@ func (r *containerBadgerRepo) List(ctx context.Context) ([]*containers.Container
 			if err != nil {
 				return err
 			}
-			result = append(result, ctr)
+			filter := labels.NewCompositeSelectorFromMap(filter)
+			if filter.Matches(ctr.GetMeta().GetLabels()) {
+				result = append(result, ctr)
+			}
 			it.Next()
 		}
 		return nil
