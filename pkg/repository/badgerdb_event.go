@@ -17,14 +17,17 @@ func (c EventID) String() string {
 	return fmt.Sprintf("%s:%s", string(eventPrefix), string(c))
 }
 
-type eventBadgerRepo struct {
-	db *badger.DB
+type NewEventBadgerRepositoryOption func(r *eventBadgerRepo)
+
+func WithEventBadgerRepositoryMaxItems(max uint64) NewEventBadgerRepositoryOption {
+	return func(r *eventBadgerRepo) {
+		r.maxItems = max
+	}
 }
 
-func NewEventBadgerRepository(db *badger.DB) *eventBadgerRepo {
-	return &eventBadgerRepo{
-		db: db,
-	}
+type eventBadgerRepo struct {
+	db       *badger.DB
+	maxItems uint64
 }
 
 func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*events.Event, error) {
@@ -72,12 +75,27 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
 }
 
 func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error {
+	// Did we hit the limit?
+	res, err := r.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Remove first in item
+	if len(res) >= int(r.maxItems) {
+		fmt.Println("REACHED MAX ITEMS")
+		delId := res[0]
+		_ = r.Delete(ctx, delId.GetMeta().GetName())
+	}
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := EventID(event.GetMeta().GetName()).String()
 		b, err := proto.Marshal(event)
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("CREATING")
 		return txn.Set([]byte(key), b)
 	})
 }
@@ -91,4 +109,17 @@ func (r *eventBadgerRepo) Delete(ctx context.Context, id string) error {
 
 func (r *eventBadgerRepo) Update(ctx context.Context, event *events.Event) error {
 	return r.Create(ctx, event)
+}
+
+func NewEventBadgerRepository(db *badger.DB, opts ...NewEventBadgerRepositoryOption) *eventBadgerRepo {
+	r := &eventBadgerRepo{
+		db:       db,
+		maxItems: 0,
+	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/repository"
+	"github.com/amimof/blipblop/pkg/scheduling"
 	"github.com/amimof/blipblop/pkg/server"
 	"github.com/amimof/blipblop/services/container"
 	"github.com/amimof/blipblop/services/containerset"
@@ -219,20 +220,23 @@ func main() {
 
 	// Setup services
 	eventService := event.NewService(
-		repository.NewEventBadgerRepository(db),
+		repository.NewEventBadgerRepository(db, repository.WithEventBadgerRepositoryMaxItems(5)),
 		event.WithLogger(log),
 		event.WithExchange(exchange),
 	)
+
 	nodeService := node.NewService(
 		repository.NewNodeBadgerRepository(db),
 		node.WithLogger(log),
 		node.WithExchange(exchange),
 	)
+
 	containerSetService := containerset.NewService(
 		repository.NewContainerSetBadgerRepository(db),
 		containerset.WithLogger(log),
 		containerset.WithExchange(exchange),
 	)
+
 	containerService := container.NewService(
 		repository.NewContainerBadgerRepository(db),
 		container.WithLogger(log),
@@ -285,6 +289,12 @@ func main() {
 	containerSetCtrl := controller.NewContainerSetController(cs, controller.WithContainerSetLogger(log))
 	go containerSetCtrl.Run(ctx)
 	log.Info("Started ContainerSet Controller")
+
+	// Start scheduler
+	sched := scheduling.NewHorizontalScheduler(cs)
+	schedulerCtrl := controller.NewSchedulerController(cs, sched)
+	go schedulerCtrl.Run(ctx)
+	log.Info("Started Schduler Controller")
 
 	// containerCtrl := controller.NewContainerController(cs, runtime, controller.WithContainerControllerLogger(log))
 	// go containerCtrl.Run(ctx)

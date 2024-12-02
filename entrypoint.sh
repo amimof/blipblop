@@ -9,27 +9,40 @@ term_handler() {
 
 trap 'term_handler' SIGINT SIGTERM
 
-# Start Containerd
-/usr/bin/containerd &
-CONTAINERD_PID=$!
-
 # Start server instance
-/usr/local/bin/blipblop-server \
-  --tls-key /blipblop/src/certs/server.key \
-  --tls-certificate /blipblop/src/certs/server.crt \
-  --tls-host 0.0.0.0 \
-  --tcp-tls-host 0.0.0.0 &
-SERVER_PID=$!
+__run_server() {
+  /usr/local/bin/blipblop-server \
+    --tls-key /etc/blipblop/server.key \
+    --tls-certificate /etc/blipblop/server.crt \
+    --tls-host 0.0.0.0 \
+    --tcp-tls-host 0.0.0.0 &
+  SERVER_PID=$!
 
-# Wait for server to start
-sleep 2
+}
 
-# Start node service
-/usr/local/bin/blipblop-node \
-  --tls-ca /blipblop/src/certs/ca.crt \
-  --port 5743 &
-NODE_PID=$!
+__run_node() {
+  # Start node service
+  /usr/local/bin/blipblop-node \
+    --tls-ca /etc/blipblop/ca.crt \
+    --port 5743 &
+  NODE_PID=$!
+}
 
-wait $CONTAINERD_PID
-wait $SERVER_PID
-wait $NODE_PID
+__usage() {
+    p="$(basename $0)"
+    echo "usage: $p [server|node]"
+}
+
+case "$1" in
+  'server')
+    __run_server
+    wait $SERVER_PID
+    ;;
+  'node')
+    __run_node $1
+    wait $NODE_PID
+    ;;
+  *) 
+  __usage
+esac
+

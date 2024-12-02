@@ -32,7 +32,7 @@ func TestImmutableFields(t *testing.T) {
 			},
 		},
 		Status: &containersv1.Status{
-			Phase: "idel",
+			Phase: "idle",
 			Node:  "bbnode",
 		},
 	}

@@ -7,13 +7,14 @@ import (
 	"io"
 	"sync"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/api/services/nodes/v1"
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/events/informer"
 	"github.com/amimof/blipblop/pkg/logger"
+	nodeutil "github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/repository"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -37,48 +38,48 @@ func WithExchange(e *events.Exchange) NewServiceOption {
 }
 
 type NodeService struct {
-	nodes.UnimplementedNodeServiceServer
-	local    nodes.NodeServiceClient
+	nodesv1.UnimplementedNodeServiceServer
+	local    nodesv1.NodeServiceClient
 	logger   logger.Logger
 	exchange *events.Exchange
-	streams  map[string]nodes.NodeService_ConnectServer
+	streams  map[string]nodesv1.NodeService_ConnectServer
 	mu       sync.Mutex
 }
 
 func (n *NodeService) Register(server *grpc.Server) error {
-	server.RegisterService(&nodes.NodeService_ServiceDesc, n)
+	server.RegisterService(&nodesv1.NodeService_ServiceDesc, n)
 	return nil
 }
 
-func (n *NodeService) Get(ctx context.Context, req *nodes.GetNodeRequest) (*nodes.GetNodeResponse, error) {
+func (n *NodeService) Get(ctx context.Context, req *nodesv1.GetNodeRequest) (*nodesv1.GetNodeResponse, error) {
 	return n.local.Get(ctx, req)
 }
 
-func (n *NodeService) Create(ctx context.Context, req *nodes.CreateNodeRequest) (*nodes.CreateNodeResponse, error) {
+func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateNodeRequest) (*nodesv1.CreateNodeResponse, error) {
 	return n.local.Create(ctx, req)
 }
 
-func (n *NodeService) Delete(ctx context.Context, req *nodes.DeleteNodeRequest) (*nodes.DeleteNodeResponse, error) {
+func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteNodeRequest) (*nodesv1.DeleteNodeResponse, error) {
 	return n.local.Delete(ctx, req)
 }
 
-func (n *NodeService) List(ctx context.Context, req *nodes.ListNodeRequest) (*nodes.ListNodeResponse, error) {
+func (n *NodeService) List(ctx context.Context, req *nodesv1.ListNodeRequest) (*nodesv1.ListNodeResponse, error) {
 	return n.local.List(ctx, req)
 }
 
-func (n *NodeService) Update(ctx context.Context, req *nodes.UpdateNodeRequest) (*nodes.UpdateNodeResponse, error) {
+func (n *NodeService) Update(ctx context.Context, req *nodesv1.UpdateNodeRequest) (*nodesv1.UpdateNodeResponse, error) {
 	return n.local.Update(ctx, req)
 }
 
-func (n *NodeService) Join(ctx context.Context, req *nodes.JoinRequest) (*nodes.JoinResponse, error) {
+func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*nodesv1.JoinResponse, error) {
 	return n.local.Join(ctx, req)
 }
 
-func (n *NodeService) Forget(ctx context.Context, req *nodes.ForgetRequest) (*nodes.ForgetResponse, error) {
+func (n *NodeService) Forget(ctx context.Context, req *nodesv1.ForgetRequest) (*nodesv1.ForgetResponse, error) {
 	return n.local.Forget(ctx, req)
 }
 
-func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
+func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	ctx := stream.Context()
 
 	var nodeName string
@@ -94,7 +95,7 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 	}
 
 	// Check if node is joined to cluster prior to connecting
-	res, err := n.Get(ctx, &nodes.GetNodeRequest{Id: nodeName})
+	res, err := n.Get(ctx, &nodesv1.GetNodeRequest{Id: nodeName})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return errors.Join(fmt.Errorf("node %s not found", nodeName), err)
@@ -118,11 +119,11 @@ func (n *NodeService) Connect(stream nodes.NodeService_ConnectServer) error {
 		n.logger.Info("removing node stream", "node", nodeName)
 		fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
 		_, err := n.Update(ctx,
-			&nodes.UpdateNodeRequest{
+			&nodesv1.UpdateNodeRequest{
 				Id: node.GetMeta().GetName(),
-				Node: &nodes.Node{
-					Status: &nodes.Status{
-						State: "MISSING",
+				Node: &nodesv1.Node{
+					Status: &nodesv1.Status{
+						State: nodeutil.StatusMissing,
 					},
 					Meta: &metav1.Meta{
 						Name: node.GetMeta().GetName(),
@@ -194,14 +195,15 @@ func (n *NodeService) subscribe(ctx context.Context) {
 
 	go broadcastEvent(ch, nodeEvt, ctrEvt)
 
-	nodeHandlers := events.NodeEventHandlerFuncs{
+	nodeHandlers := informer.NodeEventHandlerFuncs{
 		OnForget: n.onForget,
 	}
-	nodeinformer := events.NewNodeEventInformer(nodeHandlers)
+	nodeinformer := informer.NewNodeEventInformer(nodeHandlers)
 	go nodeinformer.Run(ctx, nodeEvt)
 
-	containerHandlers := events.ContainerEventHandlerFuncs{
-		OnCreate: n.onContainerCreate,
+	containerHandlers := informer.ContainerEventHandlerFuncs{
+		OnSchedule: n.onSchedule,
+		// OnCreate:   n.onContainerCreate,
 		OnDelete: n.onContainer,
 		OnUpdate: n.onContainer,
 		OnStart:  n.onContainer,
@@ -209,18 +211,18 @@ func (n *NodeService) subscribe(ctx context.Context) {
 		OnStop:   n.onContainer,
 	}
 
-	containerInformer := events.NewContainerEventInformer(containerHandlers)
+	containerInformer := informer.NewContainerEventInformer(containerHandlers)
 	go containerInformer.Run(ctx, ctrEvt)
 }
 
 func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {
 	n.logger.Debug("got node forget, update node status", "node", e.GetObjectId())
 	fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
-	req := &nodes.UpdateNodeRequest{
+	req := &nodesv1.UpdateNodeRequest{
 		Id: e.GetObjectId(),
-		Node: &nodes.Node{
-			Status: &nodes.Status{
-				State: "MISSING",
+		Node: &nodesv1.Node{
+			Status: &nodesv1.Status{
+				State: nodeutil.StatusMissing,
 			},
 			Meta: &metav1.Meta{
 				Name: e.GetObjectId(),
@@ -232,44 +234,83 @@ func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {
 	return err
 }
 
-func (n *NodeService) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
-	// Schedule container on every node
-	for nodeName, stream := range n.streams {
+func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
+	// Extract ScheduleRequest embedded in the event
+	var req eventsv1.ScheduleRequest
+	if err := e.GetObject().UnmarshalTo(&req); err != nil {
+		return err
+	}
 
-		// Extract the Container from the Event
-		var ctr containers.Container
-		if err := e.GetObject().UnmarshalTo(&ctr); err != nil {
-			return err
-		}
+	// Get the container from the request
+	var ctr containersv1.Container
+	if err := req.GetContainer().UnmarshalTo(&ctr); err != nil {
+		return err
+	}
 
-		// Lookup the Node
-		res, err := n.Get(context.Background(), &nodes.GetNodeRequest{Id: nodeName})
-		if err != nil {
-			return err
-		}
+	// Get the node from the request
+	var node nodesv1.Node
+	if err := req.GetNode().UnmarshalTo(&node); err != nil {
+		return err
+	}
 
-		node := res.GetNode()
+	// Find stream beloning to the node
+	nodeName := node.GetMeta().GetName()
+	stream, ok := n.streams[nodeName]
+	if !ok {
+		return fmt.Errorf("node is not connected as %s", nodeName)
+	}
 
-		// See if nodeSelector matches labels on the node
-		nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
-		if !nodeSelector.Matches(node.GetMeta().GetLabels()) {
-			return nil
-		}
+	// Construct event that is to be forwarded to the node
+	newEvent := events.NewRequest(eventsv1.EventType_ContainerCreate, &ctr)
 
-		// Schedule container on node
-		n.logger.Info("scheduling container", "node", nodeName, "container", ctr.GetMeta().GetName())
-		err = stream.Send(e)
-		if err != nil {
-			return err
-		}
+	// Schedule container on node
+	n.logger.Info("scheduling container", "node", node.GetMeta().GetName(), "container", ctr.GetMeta().GetName())
+	err := stream.Send(newEvent.GetEvent())
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
+// func (n *NodeService) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
+// 	// Schedule container on every node
+// 	for nodeName, stream := range n.streams {
+//
+// 		// Extract the Container from the Event
+// 		var ctr containersv1.Container
+// 		if err := e.GetObject().UnmarshalTo(&ctr); err != nil {
+// 			return err
+// 		}
+//
+// 		// Lookup the Node
+// 		res, err := n.Get(context.Background(), &nodesv1.GetNodeRequest{Id: nodeName})
+// 		if err != nil {
+// 			return err
+// 		}
+//
+// 		node := res.GetNode()
+//
+// 		// See if nodeSelector matches labels on the node
+// 		nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
+// 		if !nodeSelector.Matches(node.GetMeta().GetLabels()) {
+// 			return nil
+// 		}
+//
+// 		// Schedule container on node
+// 		n.logger.Info("scheduling container", "node", nodeName, "container", ctr.GetMeta().GetName())
+// 		err = stream.Send(e)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+//
+// 	return nil
+// }
+
 func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error {
 	// Unmarshal Container from event
-	var ctr containers.Container
+	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
 		return err
@@ -306,7 +347,7 @@ func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error 
 func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {
 	s := &NodeService{
 		logger:  logger.ConsoleLogger{},
-		streams: make(map[string]nodes.NodeService_ConnectServer),
+		streams: make(map[string]nodesv1.NodeService_ConnectServer),
 	}
 
 	for _, opt := range opts {

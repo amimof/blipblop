@@ -59,6 +59,22 @@
         }
       }
     },
+    "v1CreateEventResponse": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/definitions/v1Event"
+        }
+      }
+    },
+    "v1DeleteEventResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      }
+    },
     "v1Event": {
       "type": "object",
       "properties": {
@@ -103,9 +119,30 @@
         "NodeConnect",
         "ContainerSetCreate",
         "ContainerSetDelete",
-        "ContainerSetUpdate"
+        "ContainerSetUpdate",
+        "Schedule"
       ],
       "default": "ContainerCreate"
+    },
+    "v1GetEventResponse": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "$ref": "#/definitions/v1Event"
+        }
+      }
+    },
+    "v1ListEventResponse": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Event"
+          }
+        }
+      }
     },
     "v1Meta": {
       "type": "object",

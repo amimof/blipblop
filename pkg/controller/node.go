@@ -6,7 +6,7 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/events/informer"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
@@ -22,9 +22,9 @@ type NodeController struct {
 }
 
 type NodeEventHandlerFuncs struct {
-	OnNodeDelete events.EventHandlerFunc
-	OnNodeJoin   events.EventHandlerFunc
-	OnNodeForget events.EventHandlerFunc
+	OnNodeDelete informer.EventHandlerFunc
+	OnNodeJoin   informer.EventHandlerFunc
+	OnNodeForget informer.EventHandlerFunc
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -57,7 +57,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	containerEvt := make(chan *eventsv1.Event, 10)
 
 	// Setup node handlers
-	nodeHandlers := events.NodeEventHandlerFuncs{
+	nodeHandlers := informer.NodeEventHandlerFuncs{
 		OnCreate: c.onNodeCreate,
 		OnUpdate: c.onNodeUpdate,
 		OnDelete: c.onNodeDelete,
@@ -66,7 +66,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	}
 
 	// Setup container handlers
-	containerHandlers := events.ContainerEventHandlerFuncs{
+	containerHandlers := informer.ContainerEventHandlerFuncs{
 		OnCreate: c.onContainerCreate,
 		OnDelete: c.onContainerDelete,
 		OnUpdate: c.onContainerUpdate,
@@ -76,11 +76,11 @@ func (c *NodeController) Run(ctx context.Context) {
 	}
 
 	// Run node informer
-	nodeInformer := events.NewNodeEventInformer(nodeHandlers)
+	nodeInformer := informer.NewNodeEventInformer(nodeHandlers)
 	go nodeInformer.Run(ctx, nodeEvt)
 
 	// Run container informer
-	containerInformer := events.NewContainerEventInformer(containerHandlers, events.WithContainerEventInformerLogger(c.logger))
+	containerInformer := informer.NewContainerEventInformer(containerHandlers, informer.WithContainerEventInformerLogger(c.logger))
 	go containerInformer.Run(ctx, containerEvt)
 
 	// Start broadcasting incoming events to both node and container informers
