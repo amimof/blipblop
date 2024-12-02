@@ -99,6 +99,8 @@ func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, 
 }
 
 func (c *ContainerdController) Run(ctx context.Context) {
+	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
+
 	err := c.Reconcile(ctx)
 	if err != nil {
 		c.logger.Error("error reconciling state", "error", err)
@@ -251,16 +253,18 @@ func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 }
 
 func (c *ContainerdController) exitHandler(e *events.TaskExit) {
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+
 	id := e.ContainerID
 	err := c.setContainerState(id)
 	if err != nil {
 		c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
 	}
-	ctr, err := c.clientset.ContainerV1().Get(context.Background(), e.ContainerID)
+	ctr, err := c.clientset.ContainerV1().Get(ctx, e.ContainerID)
 	if err != nil {
 		c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
 	}
-	err = c.runtime.Cleanup(context.Background(), ctr)
+	err = c.runtime.Cleanup(ctx, ctr)
 	if err != nil {
 		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 	}
@@ -351,9 +355,7 @@ func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 }
 
 func (c *ContainerdController) setContainerState(id string) error {
-	ns := "blipblop"
-	ctx := context.Background()
-	ctx = namespaces.WithNamespace(ctx, ns)
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 
 	hostname, _ := os.Hostname()
 
@@ -479,7 +481,11 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	for _, container := range clist {
 		if !contains(currentContainers, container) {
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
-			err := c.runtime.Run(ctx, container)
+			err := c.runtime.Pull(ctx, container)
+			if err != nil {
+				c.logger.Error("error pulling image", "error", err, "container", container.GetMeta().GetName())
+			}
+			err = c.runtime.Run(ctx, container)
 			if err != nil {
 				c.logger.Error("error running container", "error", err, "name", container.GetMeta().GetName())
 			}

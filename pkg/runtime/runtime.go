@@ -7,6 +7,10 @@ import (
 	"github.com/amimof/blipblop/pkg/labels"
 )
 
+const (
+	DefaultNamespace = "blipblop"
+)
+
 type Runtime interface {
 	List(context.Context) ([]*containers.Container, error)
 	Get(context.Context, string) (*containers.Container, error)
@@ -17,4 +21,5 @@ type Runtime interface {
 	Cleanup(context.Context, *containers.Container) error
 	Pull(context.Context, *containers.Container) error
 	Labels(context.Context) (labels.Label, error)
+	Namespace() string
 }

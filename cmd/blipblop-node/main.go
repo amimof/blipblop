@@ -16,8 +16,11 @@ import (
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
+
+	// "github.com/amimof/blipblop/pkg/runtime"
 	rt "github.com/amimof/blipblop/pkg/runtime"
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/namespaces"
 	"github.com/spf13/pflag"
 )
 
@@ -42,6 +45,7 @@ var (
 	containerdSocket   string
 	logLevel           string
 	nodeFile           string
+	runtimeNamespace   string
 )
 
 func init() {
@@ -53,6 +57,7 @@ func init() {
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
+	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for containers")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -133,6 +138,7 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = namespaces.WithNamespace(ctx, runtimeNamespace)
 	defer cancel()
 
 	// Setup a clientset for this node
@@ -171,7 +177,7 @@ func main() {
 	}
 
 	// Setup and run controllers
-	runtime := rt.NewContainerdRuntimeClient(cclient, cni, rt.WithLogger(log))
+	runtime := rt.NewContainerdRuntimeClient(cclient, cni, rt.WithLogger(log), rt.WithNamespace(runtimeNamespace))
 	exit := make(chan os.Signal, 1)
 
 	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime, controller.WithContainerdControllerLogger(log))

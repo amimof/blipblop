@@ -32,6 +32,7 @@ type ContainerdRuntime struct {
 	client *containerd.Client
 	cni    gocni.CNI
 	logger logger.Logger
+	ns     string
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -55,6 +56,12 @@ func withMounts(m []*containers.Mount) oci.SpecOpts {
 	return oci.WithMounts(mounts)
 }
 
+func WithNamespace(ns string) NewContainerdRuntimeOption {
+	return func(c *ContainerdRuntime) {
+		c.ns = ns
+	}
+}
+
 func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
 	info, err := container.Labels(ctx)
 	if err != nil {
@@ -75,9 +82,13 @@ func withContainerLabels(l labels.Label, container *containers.Container) contai
 	return containerd.WithContainerLabels(l)
 }
 
+func (c *ContainerdRuntime) Namespace() string {
+	return c.ns
+}
+
 // GC performs any tasks necessary to clean up the environment from danglig configuration. Such as tearing down the network
 func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Container) error {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Tear down CNI network
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
@@ -92,7 +103,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Contain
 }
 
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 	ctrs, err := c.client.Containers(ctx)
 	if err != nil {
 		return nil, err
@@ -125,6 +136,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 }
 
 func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Container, error) {
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 	ctrs, err := c.List(ctx)
 	if err != nil {
 		return nil, err
@@ -138,8 +150,7 @@ func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Co
 }
 
 func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container) error {
-	ns := "blipblop"
-	ctx = namespaces.WithNamespace(ctx, ns)
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 	_, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
@@ -150,7 +161,7 @@ func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container)
 // Delete deletes the container and any tasks associated with it.
 // Tasks will be forcefully stopped if running.
 func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Container) error {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
 	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
@@ -180,7 +191,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 }
 
 func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		return err
@@ -230,7 +241,7 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 }
 
 func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
-	ctx = namespaces.WithNamespace(ctx, "blipblop")
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		if errors.Is(err, errdefs.ErrNotFound) {
@@ -263,8 +274,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 }
 
 func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) error {
-	ns := "blipblop"
-	ctx = namespaces.WithNamespace(ctx, ns)
+	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the image. Assumes that image has been pulled beforehand
 	image, err := c.client.GetImage(ctx, ctr.GetConfig().GetImage())
@@ -329,7 +339,7 @@ func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 }
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
-	runtime := &ContainerdRuntime{client: client, cni: cni, logger: logger.ConsoleLogger{}}
+	runtime := &ContainerdRuntime{client: client, cni: cni, logger: logger.ConsoleLogger{}, ns: DefaultNamespace}
 
 	for _, opt := range opts {
 		opt(runtime)
