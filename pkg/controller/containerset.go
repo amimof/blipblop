@@ -10,7 +10,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/events/informer"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/util"
@@ -35,7 +35,7 @@ func (c *ContainerSetController) Run(ctx context.Context) {
 	errChan := make(chan error, 10)
 
 	// Define handlers
-	handlers := events.ContainerSetEventHandlerFuncs{
+	handlers := informer.ContainerSetEventHandlerFuncs{
 		OnCreate: c.onCreate,
 		OnUpdate: func(ctx context.Context, e *eventsv1.Event) error {
 			return nil
@@ -44,7 +44,7 @@ func (c *ContainerSetController) Run(ctx context.Context) {
 	}
 
 	// Run informer
-	informer := events.NewContainerSetEventInformer(handlers)
+	informer := informer.NewContainerSetEventInformer(handlers)
 	go informer.Run(ctx, evt)
 
 	// Subscribe with retry

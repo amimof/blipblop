@@ -24,6 +24,7 @@ bbctl get nodes
 		Args: cobra.ExactArgs(1),
 	}
 
+	getCmd.AddCommand(NewCmdGetEvent(cfg))
 	getCmd.AddCommand(NewCmdGetNode(cfg))
 	getCmd.AddCommand(NewCmdGetContainer(cfg))
 	getCmd.AddCommand(NewCmdGetContainerSet(cfg))

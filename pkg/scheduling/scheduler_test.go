@@ -11,6 +11,7 @@ import (
 	containers "github.com/amimof/blipblop/pkg/client/container/v1"
 	nodes "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/node"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/proto"
@@ -41,7 +42,7 @@ var testNodes = &nodesv1.ListNodeResponse{
 				Name: "node-c",
 			},
 			Status: &nodesv1.Status{
-				State: "Ready",
+				State: node.StatusReady,
 			},
 		},
 		{
@@ -49,7 +50,7 @@ var testNodes = &nodesv1.ListNodeResponse{
 				Name: "node-d",
 			},
 			Status: &nodesv1.Status{
-				State: "MISSING",
+				State: node.StatusMissing,
 			},
 		},
 	},
@@ -159,7 +160,7 @@ var testContainers = []*containersv1.Container{
 func TestHoriontalSchedulerFilters(t *testing.T) {
 	in := testNodes.GetNodes()
 
-	in = excludeByState(in, "MISSING")
+	in = excludeByState(in, node.StatusMissing)
 	assert.Len(t, in, 3, "Number of nodes should be 3")
 	for _, n := range in {
 		assert.NotEqual(t, n.GetMeta().GetName(), "node-d", "Nodes with MISSING status should not exist in result")
@@ -250,7 +251,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						Name: "node-c",
 					},
 					Status: &nodesv1.Status{
-						State: "Ready",
+						State: node.StatusReady,
 					},
 				},
 			},

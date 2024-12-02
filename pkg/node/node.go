@@ -4,12 +4,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"runtime"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	StatusReady   = "READY"
+	StatusMissing = "MISSING"
+	StatusUnknown = "UNKNOWN"
 )
 
 func LoadNodeFromEnv(path string) (*nodes.Node, error) {
@@ -36,25 +43,25 @@ func LoadNodeFromEnv(path string) (*nodes.Node, error) {
 	return n, nil
 }
 
-func createNodeFile(n *nodes.Node, path string) error {
+func createNodeFile(n *nodes.Node, filePath string) error {
 	b, err := yaml.Marshal(n)
 	if err != nil {
 		return err
 	}
 
-	// TODO: Paramterize this
-	err = os.Mkdir("/etc/blipblop", 0)
+	p := path.Dir(filePath)
+	err = os.MkdirAll(p, 0)
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(path)
+	f, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	err = os.WriteFile(path, b, 0)
+	err = os.WriteFile(filePath, b, 0)
 	if err != nil {
 		return err
 	}

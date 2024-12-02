@@ -11,6 +11,8 @@ import (
 	"github.com/amimof/blipblop/pkg/labels"
 )
 
+var ErrNotFound = errors.New("item not found")
+
 type ContainerSetRepository interface {
 	Create(context.Context, *containersetsv1.ContainerSet) error
 	Get(context.Context, string) (*containersetsv1.ContainerSet, error)
@@ -40,7 +42,4 @@ type EventRepository interface {
 	Get(context.Context, string) (*eventsv1.Event, error)
 	Delete(context.Context, string) error
 	List(context.Context) ([]*eventsv1.Event, error)
-	Update(context.Context, *eventsv1.Event) error
 }
-
-var ErrNotFound = errors.New("item not found")

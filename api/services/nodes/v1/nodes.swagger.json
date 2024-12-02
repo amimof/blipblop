@@ -395,7 +395,8 @@
         "NodeConnect",
         "ContainerSetCreate",
         "ContainerSetDelete",
-        "ContainerSetUpdate"
+        "ContainerSetUpdate",
+        "Schedule"
       ],
       "default": "ContainerCreate"
     },

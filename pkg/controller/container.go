@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/events/informer"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/node"
@@ -34,18 +34,19 @@ func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
 	errChan := make(chan error, 10)
 
 	// Setup handlers
-	handlers := events.ContainerEventHandlerFuncs{
-		OnCreate: c.onContainerCreate,
-		OnUpdate: c.onContainerUpdate,
-		OnDelete: c.onContainerDelete,
-		OnStart:  c.onContainerStart,
-		OnKill:   c.onContainerKill,
-		OnStop:   c.onContainerStop,
+	handlers := informer.ContainerEventHandlerFuncs{
+		// OnCreate: c.onContainerCreate,
+		OnSchedule: c.onContainerCreate,
+		OnUpdate:   c.onContainerUpdate,
+		OnDelete:   c.onContainerDelete,
+		OnStart:    c.onContainerStart,
+		OnKill:     c.onContainerKill,
+		OnStop:     c.onContainerStop,
 	}
 
-	// Run informer
-	informer := events.NewContainerEventInformer(handlers)
-	go informer.Run(ctx, evt)
+	// Run ctrInformer
+	ctrInformer := informer.NewContainerEventInformer(handlers)
+	go ctrInformer.Run(ctx, evt)
 
 	// Subscribe with retry
 	for {
@@ -69,12 +70,29 @@ func (c *ContainerController) Reconcile(ctx context.Context) error {
 }
 
 func (c *ContainerController) onContainerCreate(ctx context.Context, obj *eventsv1.Event) error {
-	// Get the container
-	var ctr containers.Container
-	err := obj.Object.UnmarshalTo(&ctr)
-	if err != nil {
+	// Extract ScheduleRequest embedded in the event
+	var req eventsv1.ScheduleRequest
+	if err := obj.GetObject().UnmarshalTo(&req); err != nil {
 		return err
 	}
+
+	// Get the container from the request
+	var ctr containersv1.Container
+	if err := req.GetContainer().UnmarshalTo(&ctr); err != nil {
+		return err
+	}
+
+	// Get the node from the request
+	// var node nodesv1.Node
+	// if err := req.GetNode().UnmarshalTo(&node); err != nil {
+	// 	return err
+	// }
+	// Get the container
+	// var ctr containersv1.Container
+	// err := obj.Object.UnmarshalTo(&ctr)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// Get the node from node config
 	n, err := node.LoadNodeFromEnv("/etc/blipblop/node.yaml")
@@ -110,7 +128,7 @@ func (c *ContainerController) onContainerUpdate(ctx context.Context, _ *eventsv1
 }
 
 func (c *ContainerController) onContainerDelete(ctx context.Context, obj *eventsv1.Event) error {
-	var ctr containers.Container
+	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err
@@ -127,27 +145,27 @@ func (c *ContainerController) onContainerDelete(ctx context.Context, obj *events
 }
 
 func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv1.Event) error {
-	var ctr containers.Container
+	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err
 	}
 
 	// Delete container if it exists
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Stopping.String(), "")
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
 	if err := c.runtime.Delete(ctx, &ctr); err != nil {
 		return err
 	}
 
 	// Pull image
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Pulling.String(), "")
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String(), "")
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
 	// Run container
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containers.Phase_Starting.String(), "")
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String(), "")
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -157,7 +175,7 @@ func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv
 }
 
 func (c *ContainerController) onContainerKill(ctx context.Context, obj *eventsv1.Event) error {
-	var ctr containers.Container
+	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err
@@ -171,7 +189,7 @@ func (c *ContainerController) onContainerKill(ctx context.Context, obj *eventsv1
 }
 
 func (c *ContainerController) onContainerStop(ctx context.Context, obj *eventsv1.Event) error {
-	var ctr containers.Container
+	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err

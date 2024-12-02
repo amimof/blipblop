@@ -9,6 +9,8 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/util"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -22,6 +24,32 @@ type ClientV1 struct {
 
 func (c *ClientV1) EventService() eventsv1.EventServiceClient {
 	return c.eventService
+}
+
+func (c *ClientV1) Get(ctx context.Context, id string) (*eventsv1.Event, error) {
+	resp, err := c.eventService.Get(ctx, &eventsv1.GetEventRequest{Id: id})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetEvent(), nil
+}
+
+func (c *ClientV1) List(ctx context.Context, filter ...labels.Label) ([]*eventsv1.Event, error) {
+	l := util.MergeLabels(filter...)
+	resp, err := c.eventService.List(ctx, &eventsv1.ListEventRequest{Selector: l})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetEvents(), nil
+}
+
+func (c *ClientV1) Create(ctx context.Context, e *eventsv1.Event) (*eventsv1.Event, error) {
+	resp, err := c.eventService.Create(ctx, &eventsv1.CreateEventRequest{Event: e})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.GetEvent(), nil
 }
 
 func (c *ClientV1) Publish(ctx context.Context, obj events.Object, evt eventsv1.EventType) error {

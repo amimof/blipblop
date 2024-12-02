@@ -1173,6 +1173,17 @@ func (m *CreateContainerRequest) validate(all bool) error {
 
 	var errors []error
 
+	if m.GetContainer() == nil {
+		err := CreateContainerRequestValidationError{
+			field:  "Container",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	if all {
 		switch v := interface{}(m.GetContainer()).(type) {
 		case interface{ ValidateAll() error }:
@@ -1303,17 +1314,6 @@ func (m *CreateContainerResponse) validate(all bool) error {
 	}
 
 	var errors []error
-
-	if m.GetContainer() == nil {
-		err := CreateContainerResponseValidationError{
-			field:  "Container",
-			reason: "value is required",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
 
 	if all {
 		switch v := interface{}(m.GetContainer()).(type) {

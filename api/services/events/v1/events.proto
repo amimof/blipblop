@@ -5,10 +5,15 @@ package blipblop.services.events.v1;
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 import "api/types/v1/meta.proto";
+import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
 
 service EventService {
+  rpc Get(GetEventRequest) returns (GetEventResponse) {}
+  rpc List(ListEventRequest) returns (ListEventResponse) {}
+  rpc Delete(DeleteEventRequest) returns (DeleteEventResponse) {}
+  rpc Create(CreateEventRequest) returns (CreateEventResponse) {}
   rpc Subscribe(SubscribeRequest) returns (stream Event) {}
   rpc Publish(PublishRequest) returns (PublishResponse) {}
 }
@@ -28,6 +33,12 @@ message Event {
   EventType type = 6;
   Operation operation = 7;
   google.protobuf.Any object = 8;
+}
+
+message ScheduleRequest {
+  google.protobuf.Any container = 1;
+  google.protobuf.Any node = 2;
+  EventType eventType = 3;
 }
 
 enum EventType {
@@ -50,6 +61,7 @@ enum EventType {
   ContainerSetCreate = 17;
   ContainerSetDelete = 18;
   ContainerSetUpdate = 19;
+  Schedule = 20;
 }
 
 enum Operation {
@@ -83,6 +95,14 @@ message DeleteEventRequest {
 
 message DeleteEventResponse {
   string id = 1;
+}
+
+message CreateEventRequest {
+  Event event = 1;
+}
+
+message CreateEventResponse {
+  Event event = 1 [(validate.rules).message.required = true];
 }
 
 message PublishRequest {
