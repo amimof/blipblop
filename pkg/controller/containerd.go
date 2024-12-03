@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
@@ -16,6 +16,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type ContainerdController struct {
@@ -254,31 +255,36 @@ func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 }
 
 func (c *ContainerdController) exitHandler(e *events.TaskExit) {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-
-	id := e.ContainerID
-	err := c.setContainerState(id)
+	err := c.setContainerState(e.ID)
 	if err != nil {
-		c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
+		c.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
 	}
+	// ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+	//
+	// id := e.ContainerID
+	// err := c.setContainerState(id)
+	// if err != nil {
+	// 	c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
+	// }
+	//
+	// ctr, err := c.clientset.ContainerV1().Get(ctx, e.ContainerID)
+	// if err != nil {
+	// 	c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
+	// 	return
+	// }
 
-	ctr, err := c.clientset.ContainerV1().Get(ctx, e.ContainerID)
-	if err != nil {
-		c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
-		return
-	}
-
-	err = c.runtime.Delete(ctx, ctr)
-	if err != nil {
-		c.logger.Error("error deleting container", "id", id, "error", err)
-		return
-	}
-
-	err = c.runtime.Cleanup(ctx, ctr)
-	if err != nil {
-		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
-		return
-	}
+	// _ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String(), "")
+	// err = c.runtime.Delete(ctx, ctr)
+	// if err != nil {
+	// 	c.logger.Error("error deleting container", "id", id, "error", err)
+	// 	return
+	// }
+	//
+	// err = c.runtime.Cleanup(ctx, ctr)
+	// if err != nil {
+	// 	c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
+	// 	return
+	// }
 	// err = c.teardownNetworkForContainer(id)
 	// if err != nil {
 	// 	c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
@@ -370,7 +376,7 @@ func (c *ContainerdController) setContainerState(id string) error {
 
 	hostname, _ := os.Hostname()
 
-	st := &containers.Status{
+	st := &containersv1.Status{
 		Node: hostname,
 		Ip:   "192.168.13.123",
 		// Pid:        pid,
@@ -398,10 +404,12 @@ func (c *ContainerdController) setContainerState(id string) error {
 
 	var pid, exitStatus uint32
 	var phase string
+	var exitTime time.Time
 
 	pid = getTaskPid(task)
 	phase = getTaskProcessStatus(ctx, task)
 	exitStatus = getTaskExitStatus(ctx, task)
+	exitTime = getTaskExitTime(ctx, task)
 
 	err = c.clientset.ContainerV1().SetNode(ctx, id, hostname)
 	if err != nil {
@@ -411,6 +419,7 @@ func (c *ContainerdController) setContainerState(id string) error {
 	st.Pid = pid
 	st.Phase = phase
 	st.ExitStatus = exitStatus
+	st.ExitTime = timestamppb.New(exitTime)
 
 	c.logger.Debug("setting container status state", "id", id, "status", st)
 	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
@@ -432,6 +441,10 @@ func getTaskExitStatus(ctx context.Context, t containerd.Task) uint32 {
 	return getTaskStatus(ctx, t).ExitStatus
 }
 
+func getTaskExitTime(ctx context.Context, t containerd.Task) time.Time {
+	return getTaskStatus(ctx, t).ExitTime
+}
+
 func getTaskStatus(ctx context.Context, t containerd.Task) containerd.Status {
 	s := containerd.Status{
 		Status:     containerd.Unknown,
@@ -446,7 +459,7 @@ func getTaskStatus(ctx context.Context, t containerd.Task) containerd.Status {
 }
 
 // Checks to see if c is present in cs
-func contains(cs []*containers.Container, c *containers.Container) bool {
+func contains(cs []*containersv1.Container, c *containersv1.Container) bool {
 	for _, container := range cs {
 		if container.GetMeta().GetRevision() == c.GetMeta().GetRevision() && container.GetMeta().GetName() == c.GetMeta().GetName() {
 			return true
@@ -476,11 +489,16 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	// Check if there are containers in our runtime that doesn't exist on the server.
 	for _, currentContainer := range currentContainers {
 		if !contains(clist, currentContainer) {
+
 			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetMeta().GetName())
+
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
 			err := c.runtime.Kill(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
+
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Deleting.String(), "")
 			err = c.runtime.Delete(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
@@ -492,10 +510,14 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	for _, container := range clist {
 		if !contains(currentContainers, container) {
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
+
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Pulling.String(), "")
 			err := c.runtime.Pull(ctx, container)
 			if err != nil {
 				c.logger.Error("error pulling image", "error", err, "container", container.GetMeta().GetName())
 			}
+
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Starting.String(), "")
 			err = c.runtime.Run(ctx, container)
 			if err != nil {
 				c.logger.Error("error running container", "error", err, "name", container.GetMeta().GetName())

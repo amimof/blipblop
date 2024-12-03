@@ -48,12 +48,19 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "NODE", "AGE")
+
+				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
 				for _, c := range containers {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n",
+					var status string
+					if c.GetStatus().GetExitStatus() != 0 {
+						exitDuration := cmdutil.FormatDuration(time.Since(c.GetStatus().GetExitTime().AsTime()))
+						status = fmt.Sprintf("Exited (%d) %s ago", c.GetStatus().GetExitStatus(), exitDuration)
+					}
+					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
 						c.GetStatus().GetPhase(),
+						status,
 						c.GetStatus().GetNode(),
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
 					)
