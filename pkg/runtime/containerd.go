@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -166,7 +165,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
 	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
+		if errdefs.IsNotFound(err) {
 			return nil
 		}
 		return err
@@ -183,11 +182,18 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 	// Make sure to stop tasks before deleting container. Using Kill here which is a forceful operation
 	if task != nil {
 		err = c.Kill(ctx, ctr)
-		if err != nil && !errors.Is(err, errdefs.ErrNotFound) {
+		if err != nil && !errdefs.IsNotFound(err) {
 			return err
 		}
 	}
-	return container.Delete(ctx, containerd.WithSnapshotCleanup)
+
+	// Delete the container
+	err = container.Delete(ctx, containerd.WithSnapshotCleanup)
+	if err != nil {
+		return fmt.Errorf("error deleting container and its tasks: %v", err)
+	}
+
+	return nil
 }
 
 func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
@@ -242,9 +248,10 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 
 func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, c.ns)
+
 	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
-		if errors.Is(err, errdefs.ErrNotFound) {
+		if errdefs.IsNotFound(err) {
 			return nil
 		}
 		return err
@@ -252,21 +259,33 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 
 	task, err := cont.Task(ctx, cio.Load)
 	if err != nil {
-		return err
-	}
-
-	// Wait
-	waitChan, err := task.Wait(ctx)
-	if err != nil {
+		if errdefs.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 
 	// Attempt to forcefully kill the task
-	if err = task.Kill(ctx, syscall.SIGQUIT); err != nil {
+	if err = task.Kill(ctx, syscall.SIGKILL); err != nil {
+		if !errdefs.IsNotFound(err) {
+			return err
+		}
+	}
+
+	// Wait
+	exitChan, err := task.Wait(ctx)
+	if err != nil {
 		return err
 	}
 
-	<-waitChan
+	// Handle exit status
+	select {
+	case exitStatus := <-exitChan:
+		c.logger.Info("task exited with status", "container", cont.ID(), "task", task.ID(), "exitStatus", exitStatus.ExitCode())
+	case <-time.After(10 * time.Second):
+		c.logger.Info("deadline exceeded waiting for task to exit", "container", cont.ID(), "task", task.ID())
+		return os.ErrDeadlineExceeded
+	}
 
 	// Delete the task
 	_, err = task.Delete(ctx)

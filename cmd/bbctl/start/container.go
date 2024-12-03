@@ -38,7 +38,7 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 			// Start containers
 			for _, cname := range args {
 				phase := ""
-				_, err = c.ContainerV1().Start(context.Background(), cname)
+				_, err = c.ContainerV1().Start(ctx, cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
