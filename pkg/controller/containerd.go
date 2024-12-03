@@ -15,7 +15,7 @@ import (
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/typeurl"
+	typeurl "github.com/containerd/typeurl/v2"
 )
 
 type ContainerdController struct {
@@ -117,7 +117,8 @@ func (c *ContainerdController) Run(ctx context.Context) {
 }
 
 func (c *ContainerdController) streamEvents(ctx context.Context) error {
-	eventCh, errCh := c.client.Subscribe(ctx)
+	filters := []string{fmt.Sprintf("namespace==%s", c.runtime.Namespace())}
+	eventCh, errCh := c.client.Subscribe(ctx, filters...)
 	for {
 		select {
 		case event := <-eventCh:
@@ -260,13 +261,23 @@ func (c *ContainerdController) exitHandler(e *events.TaskExit) {
 	if err != nil {
 		c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
 	}
+
 	ctr, err := c.clientset.ContainerV1().Get(ctx, e.ContainerID)
 	if err != nil {
 		c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
+		return
 	}
+
+	err = c.runtime.Delete(ctx, ctr)
+	if err != nil {
+		c.logger.Error("error deleting container", "id", id, "error", err)
+		return
+	}
+
 	err = c.runtime.Cleanup(ctx, ctr)
 	if err != nil {
 		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
+		return
 	}
 	// err = c.teardownNetworkForContainer(id)
 	// if err != nil {

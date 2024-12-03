@@ -190,10 +190,13 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 
 	err = c.runtime.Kill(ctx, &ctr)
 	if err != nil {
+		c.logger.Error("error killing container", "error", err)
 		return err
 	}
+
 	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
+		c.logger.Error("error deleting container", "error", err)
 		return err
 	}
 	return nil
