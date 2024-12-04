@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package blipblop.services.logs.v1;
+
+//import "google/protobuf/timestamp.proto";
+//import "google/protobuf/field_mask.proto";
+//import "google/api/annotations.proto";
+//import "validate/validate.proto";
+//import "api/services/events/v1/events.proto";
+//import "api/types/v1/meta.proto";
+
+option go_package = "github.com/amimof/blipblop/api/services/logs/v1;logs";
+
+service LogService {
+  rpc StreamLogs (stream LogRequest) returns (stream LogResponse);
+}
+
+service LogCollectorService {
+  rpc CollectLogs (stream LogResponse) returns (stream LogRequest);
+}
+
+message LogRequest {
+  string containerId = 1;
+}
+
+message LogResponse {
+  string logLine = 1;
+  string timestamp = 2;
+}
+

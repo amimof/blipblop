@@ -2,9 +2,12 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/services/logs/v1"
+	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
@@ -72,6 +75,38 @@ func (c *NodeController) Run(ctx context.Context) {
 		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, errCh)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
+		}
+	}()
+
+	// Log collector
+	logChan := make(chan *logsv1.LogResponse, 10)
+	logErrChan := make(chan error, 1)
+
+	go func() {
+		err := c.clientset.LogV1().ConnectToLogService(ctx, "nginx2", logChan, logErrChan)
+		if err != nil {
+			c.logger.Error("error connecting to log collector service", "error", err)
+		}
+	}()
+
+	// go func() {
+	// 	for l := range logChan {
+	// 		fmt.Printf("[%s] %s\n", l.Timestamp, l.LogLine)
+	// 	}
+	// 	// for {
+	// 	// 	select {
+	// 	// 	case l := <-logChan:
+	// 	// 		fmt.Printf("[%s] %s\n", l.Timestamp, l.LogLine)
+	// 	// 	}
+	// 	// }
+	// }()
+
+	// TESTING Periodically send message to clients
+	go func() {
+		res := &logs.LogResponse{LogLine: "this is a log statement", Timestamp: time.Now().String()}
+		for {
+			logChan <- res
+			time.Sleep(3 * time.Second)
 		}
 	}()
 
