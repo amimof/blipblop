@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -97,13 +98,15 @@ func (c *NodeController) Run(ctx context.Context) {
 
 	// TESTING Periodically send message to clients
 	go func() {
+		i := 0
 		for {
 			if startLogging {
 				log.Printf("Start logging now %t", startLogging)
 
-				req := &logsv1.LogStreamRequest{NodeId: c.nodeName, ContainerId: "nginx2", Log: &logsv1.LogItem{LogLine: "hello world!", Timestamp: time.Now().String()}}
+				req := &logsv1.LogStreamRequest{NodeId: c.nodeName, ContainerId: "nginx2", Log: &logsv1.LogItem{LogLine: fmt.Sprintf("%d hello world!", i), Timestamp: time.Now().String()}}
 				logChan <- req
 				time.Sleep(time.Second * 1)
+				i = i + 1
 			}
 		}
 	}()
