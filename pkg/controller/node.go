@@ -2,9 +2,13 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events/informer"
 	"github.com/amimof/blipblop/pkg/logger"
@@ -92,6 +96,47 @@ func (c *NodeController) Run(ctx context.Context) {
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
 		}
+	}()
+
+	// Log collector
+	logChan := make(chan *logsv1.LogStreamRequest, 10)
+	resChan := make(chan *logsv1.LogStreamResponse, 1)
+	logErrChan := make(chan error, 1)
+	var startLogging bool
+	go func() {
+		for e := range resChan {
+			startLogging = e.GetStart()
+		}
+	}()
+
+	go func() {
+		for e := range logErrChan {
+			log.Printf("channel err :%s\n", e)
+		}
+	}()
+
+	// TESTING Periodically send message to clients
+	go func() {
+		i := 0
+		for {
+			if startLogging {
+				log.Printf("Start logging now %t", startLogging)
+
+				req := &logsv1.LogStreamRequest{NodeId: c.nodeName, ContainerId: "nginx2", Log: &logsv1.LogItem{LogLine: fmt.Sprintf("%d hello world!", i), Timestamp: time.Now().String()}}
+				logChan <- req
+				time.Sleep(time.Second * 1)
+				i = i + 1
+			}
+		}
+	}()
+
+	go func() {
+		log.Println("Start LogStream")
+		err := c.clientset.LogV1().LogStream(ctx, c.nodeName, "nginx2", logChan, logErrChan, resChan)
+		if err != nil {
+			c.logger.Error("error connecting to log collector service", "error", err)
+		}
+		log.Println("Done streaming logs in agent")
 	}()
 
 	// Update status once connected
