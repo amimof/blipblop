@@ -2,11 +2,11 @@ package controller
 
 import (
 	"context"
+	"log"
 	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/api/services/logs/v1"
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
@@ -79,35 +79,42 @@ func (c *NodeController) Run(ctx context.Context) {
 	}()
 
 	// Log collector
-	logChan := make(chan *logsv1.LogResponse, 10)
+	logChan := make(chan *logsv1.LogStreamRequest, 10)
+	resChan := make(chan *logsv1.LogStreamResponse, 1)
 	logErrChan := make(chan error, 1)
-
+	var startLogging bool
 	go func() {
-		err := c.clientset.LogV1().ConnectToLogService(ctx, "nginx2", logChan, logErrChan)
-		if err != nil {
-			c.logger.Error("error connecting to log collector service", "error", err)
+		for e := range resChan {
+			startLogging = e.GetStart()
 		}
 	}()
 
-	// go func() {
-	// 	for l := range logChan {
-	// 		fmt.Printf("[%s] %s\n", l.Timestamp, l.LogLine)
-	// 	}
-	// 	// for {
-	// 	// 	select {
-	// 	// 	case l := <-logChan:
-	// 	// 		fmt.Printf("[%s] %s\n", l.Timestamp, l.LogLine)
-	// 	// 	}
-	// 	// }
-	// }()
+	go func() {
+		for e := range logErrChan {
+			log.Printf("channel err :%s\n", e)
+		}
+	}()
 
 	// TESTING Periodically send message to clients
 	go func() {
-		res := &logs.LogResponse{LogLine: "this is a log statement", Timestamp: time.Now().String()}
 		for {
-			logChan <- res
-			time.Sleep(3 * time.Second)
+			if startLogging {
+				log.Printf("Start logging now %t", startLogging)
+
+				req := &logsv1.LogStreamRequest{NodeId: c.nodeName, ContainerId: "nginx2", Log: &logsv1.LogItem{LogLine: "hello world!", Timestamp: time.Now().String()}}
+				logChan <- req
+				time.Sleep(time.Second * 1)
+			}
 		}
+	}()
+
+	go func() {
+		log.Println("Start LogStream")
+		err := c.clientset.LogV1().LogStream(ctx, c.nodeName, "nginx2", logChan, logErrChan, resChan)
+		if err != nil {
+			c.logger.Error("error connecting to log collector service", "error", err)
+		}
+		log.Println("Done streaming logs in agent")
 	}()
 
 	// Update status once connected
