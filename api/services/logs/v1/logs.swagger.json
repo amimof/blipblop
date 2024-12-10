@@ -7,9 +7,6 @@
   "tags": [
     {
       "name": "LogService"
-    },
-    {
-      "name": "LogCollectorService"
     }
   ],
   "consumes": [
@@ -48,15 +45,7 @@
         }
       }
     },
-    "v1LogRequest": {
-      "type": "object",
-      "properties": {
-        "containerId": {
-          "type": "string"
-        }
-      }
-    },
-    "v1LogResponse": {
+    "v1LogItem": {
       "type": "object",
       "properties": {
         "logLine": {
@@ -64,6 +53,28 @@
         },
         "timestamp": {
           "type": "string"
+        }
+      }
+    },
+    "v1LogStreamResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "start": {
+          "type": "boolean"
+        },
+        "log": {
+          "$ref": "#/definitions/v1LogItem"
+        }
+      }
+    },
+    "v1SubscribeResponse": {
+      "type": "object",
+      "properties": {
+        "log": {
+          "$ref": "#/definitions/v1LogItem"
         }
       }
     }

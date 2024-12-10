@@ -22,7 +22,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LogServiceClient interface {
-	StreamLogs(ctx context.Context, opts ...grpc.CallOption) (LogService_StreamLogsClient, error)
+	// rpc StreamLogs (stream LogRequest) returns (stream LogResponse);
+	LogStream(ctx context.Context, opts ...grpc.CallOption) (LogService_LogStreamClient, error)
+	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (LogService_SubscribeClient, error)
 }
 
 type logServiceClient struct {
@@ -33,31 +35,63 @@ func NewLogServiceClient(cc grpc.ClientConnInterface) LogServiceClient {
 	return &logServiceClient{cc}
 }
 
-func (c *logServiceClient) StreamLogs(ctx context.Context, opts ...grpc.CallOption) (LogService_StreamLogsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/blipblop.services.logs.v1.LogService/StreamLogs", opts...)
+func (c *logServiceClient) LogStream(ctx context.Context, opts ...grpc.CallOption) (LogService_LogStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/blipblop.services.logs.v1.LogService/LogStream", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &logServiceStreamLogsClient{stream}
+	x := &logServiceLogStreamClient{stream}
 	return x, nil
 }
 
-type LogService_StreamLogsClient interface {
-	Send(*LogRequest) error
-	Recv() (*LogResponse, error)
+type LogService_LogStreamClient interface {
+	Send(*LogStreamRequest) error
+	Recv() (*LogStreamResponse, error)
 	grpc.ClientStream
 }
 
-type logServiceStreamLogsClient struct {
+type logServiceLogStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *logServiceStreamLogsClient) Send(m *LogRequest) error {
+func (x *logServiceLogStreamClient) Send(m *LogStreamRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *logServiceStreamLogsClient) Recv() (*LogResponse, error) {
-	m := new(LogResponse)
+func (x *logServiceLogStreamClient) Recv() (*LogStreamResponse, error) {
+	m := new(LogStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *logServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (LogService_SubscribeClient, error) {
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[1], "/blipblop.services.logs.v1.LogService/Subscribe", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &logServiceSubscribeClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type LogService_SubscribeClient interface {
+	Recv() (*SubscribeResponse, error)
+	grpc.ClientStream
+}
+
+type logServiceSubscribeClient struct {
+	grpc.ClientStream
+}
+
+func (x *logServiceSubscribeClient) Recv() (*SubscribeResponse, error) {
+	m := new(SubscribeResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -68,7 +102,9 @@ func (x *logServiceStreamLogsClient) Recv() (*LogResponse, error) {
 // All implementations must embed UnimplementedLogServiceServer
 // for forward compatibility
 type LogServiceServer interface {
-	StreamLogs(LogService_StreamLogsServer) error
+	// rpc StreamLogs (stream LogRequest) returns (stream LogResponse);
+	LogStream(LogService_LogStreamServer) error
+	Subscribe(*SubscribeRequest, LogService_SubscribeServer) error
 	mustEmbedUnimplementedLogServiceServer()
 }
 
@@ -76,8 +112,11 @@ type LogServiceServer interface {
 type UnimplementedLogServiceServer struct {
 }
 
-func (UnimplementedLogServiceServer) StreamLogs(LogService_StreamLogsServer) error {
-	return status.Errorf(codes.Unimplemented, "method StreamLogs not implemented")
+func (UnimplementedLogServiceServer) LogStream(LogService_LogStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method LogStream not implemented")
+}
+func (UnimplementedLogServiceServer) Subscribe(*SubscribeRequest, LogService_SubscribeServer) error {
+	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
 }
 func (UnimplementedLogServiceServer) mustEmbedUnimplementedLogServiceServer() {}
 
@@ -92,30 +131,51 @@ func RegisterLogServiceServer(s grpc.ServiceRegistrar, srv LogServiceServer) {
 	s.RegisterService(&LogService_ServiceDesc, srv)
 }
 
-func _LogService_StreamLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(LogServiceServer).StreamLogs(&logServiceStreamLogsServer{stream})
+func _LogService_LogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(LogServiceServer).LogStream(&logServiceLogStreamServer{stream})
 }
 
-type LogService_StreamLogsServer interface {
-	Send(*LogResponse) error
-	Recv() (*LogRequest, error)
+type LogService_LogStreamServer interface {
+	Send(*LogStreamResponse) error
+	Recv() (*LogStreamRequest, error)
 	grpc.ServerStream
 }
 
-type logServiceStreamLogsServer struct {
+type logServiceLogStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *logServiceStreamLogsServer) Send(m *LogResponse) error {
+func (x *logServiceLogStreamServer) Send(m *LogStreamResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *logServiceStreamLogsServer) Recv() (*LogRequest, error) {
-	m := new(LogRequest)
+func (x *logServiceLogStreamServer) Recv() (*LogStreamRequest, error) {
+	m := new(LogStreamRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func _LogService_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(LogServiceServer).Subscribe(m, &logServiceSubscribeServer{stream})
+}
+
+type LogService_SubscribeServer interface {
+	Send(*SubscribeResponse) error
+	grpc.ServerStream
+}
+
+type logServiceSubscribeServer struct {
+	grpc.ServerStream
+}
+
+func (x *logServiceSubscribeServer) Send(m *SubscribeResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // LogService_ServiceDesc is the grpc.ServiceDesc for LogService service.
@@ -127,128 +187,15 @@ var LogService_ServiceDesc = grpc.ServiceDesc{
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "StreamLogs",
-			Handler:       _LogService_StreamLogs_Handler,
+			StreamName:    "LogStream",
+			Handler:       _LogService_LogStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
-	},
-	Metadata: "api/services/logs/v1/logs.proto",
-}
-
-// LogCollectorServiceClient is the client API for LogCollectorService service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type LogCollectorServiceClient interface {
-	CollectLogs(ctx context.Context, opts ...grpc.CallOption) (LogCollectorService_CollectLogsClient, error)
-}
-
-type logCollectorServiceClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewLogCollectorServiceClient(cc grpc.ClientConnInterface) LogCollectorServiceClient {
-	return &logCollectorServiceClient{cc}
-}
-
-func (c *logCollectorServiceClient) CollectLogs(ctx context.Context, opts ...grpc.CallOption) (LogCollectorService_CollectLogsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &LogCollectorService_ServiceDesc.Streams[0], "/blipblop.services.logs.v1.LogCollectorService/CollectLogs", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &logCollectorServiceCollectLogsClient{stream}
-	return x, nil
-}
-
-type LogCollectorService_CollectLogsClient interface {
-	Send(*LogResponse) error
-	Recv() (*LogRequest, error)
-	grpc.ClientStream
-}
-
-type logCollectorServiceCollectLogsClient struct {
-	grpc.ClientStream
-}
-
-func (x *logCollectorServiceCollectLogsClient) Send(m *LogResponse) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *logCollectorServiceCollectLogsClient) Recv() (*LogRequest, error) {
-	m := new(LogRequest)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// LogCollectorServiceServer is the server API for LogCollectorService service.
-// All implementations must embed UnimplementedLogCollectorServiceServer
-// for forward compatibility
-type LogCollectorServiceServer interface {
-	CollectLogs(LogCollectorService_CollectLogsServer) error
-	mustEmbedUnimplementedLogCollectorServiceServer()
-}
-
-// UnimplementedLogCollectorServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedLogCollectorServiceServer struct {
-}
-
-func (UnimplementedLogCollectorServiceServer) CollectLogs(LogCollectorService_CollectLogsServer) error {
-	return status.Errorf(codes.Unimplemented, "method CollectLogs not implemented")
-}
-func (UnimplementedLogCollectorServiceServer) mustEmbedUnimplementedLogCollectorServiceServer() {}
-
-// UnsafeLogCollectorServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to LogCollectorServiceServer will
-// result in compilation errors.
-type UnsafeLogCollectorServiceServer interface {
-	mustEmbedUnimplementedLogCollectorServiceServer()
-}
-
-func RegisterLogCollectorServiceServer(s grpc.ServiceRegistrar, srv LogCollectorServiceServer) {
-	s.RegisterService(&LogCollectorService_ServiceDesc, srv)
-}
-
-func _LogCollectorService_CollectLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(LogCollectorServiceServer).CollectLogs(&logCollectorServiceCollectLogsServer{stream})
-}
-
-type LogCollectorService_CollectLogsServer interface {
-	Send(*LogRequest) error
-	Recv() (*LogResponse, error)
-	grpc.ServerStream
-}
-
-type logCollectorServiceCollectLogsServer struct {
-	grpc.ServerStream
-}
-
-func (x *logCollectorServiceCollectLogsServer) Send(m *LogRequest) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *logCollectorServiceCollectLogsServer) Recv() (*LogResponse, error) {
-	m := new(LogResponse)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// LogCollectorService_ServiceDesc is the grpc.ServiceDesc for LogCollectorService service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var LogCollectorService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "blipblop.services.logs.v1.LogCollectorService",
-	HandlerType: (*LogCollectorServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "CollectLogs",
-			Handler:       _LogCollectorService_CollectLogs_Handler,
+			StreamName:    "Subscribe",
+			Handler:       _LogService_Subscribe_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
 		},
 	},
 	Metadata: "api/services/logs/v1/logs.proto",

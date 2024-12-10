@@ -12,19 +12,50 @@ package blipblop.services.logs.v1;
 option go_package = "github.com/amimof/blipblop/api/services/logs/v1;logs";
 
 service LogService {
-  rpc StreamLogs (stream LogRequest) returns (stream LogResponse);
+  // rpc StreamLogs (stream LogRequest) returns (stream LogResponse);
+  rpc LogStream(stream LogStreamRequest) returns (stream LogStreamResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
 }
 
-service LogCollectorService {
-  rpc CollectLogs (stream LogResponse) returns (stream LogRequest);
+// service LogCollectorService {
+//   // rpc CollectLogs (stream LogResponse) returns (stream LogRequest);
+//   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+// }
+
+message LogStreamRequest {
+  string container_id = 1;
+  string node_id = 2;
+  LogItem log = 3;
 }
 
-message LogRequest {
-  string containerId = 1;
+message LogStreamResponse {
+  string status = 1;
+  bool start = 2;
+  LogItem log = 3;
 }
 
-message LogResponse {
-  string logLine = 1;
-  string timestamp = 2;
+message SubscribeRequest {
+  string client_id = 1;
+  string container_id = 2;
+  string node_id = 3;
 }
+
+message SubscribeResponse {
+  LogItem log = 1;
+}
+
+message LogItem {
+  string log_line = 3;
+  string timestamp = 4;
+}
+
+// message LogRequest {
+//   string containerId = 1;
+//   string nodeId = 2;
+// }
+//
+// message LogResponse {
+//   string logLine = 1;
+//   string timestamp = 2;
+// }
 

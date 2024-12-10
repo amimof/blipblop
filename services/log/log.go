@@ -7,11 +7,11 @@ import (
 	"log"
 	"sync"
 
-	"github.com/amimof/blipblop/api/services/logs/v1"
+	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type NewServiceOption func(s *LogService)
@@ -29,25 +29,28 @@ func WithExchange(e *events.Exchange) NewServiceOption {
 }
 
 type LogService struct {
-	logs.UnimplementedLogCollectorServiceServer
-	logs.UnimplementedLogServiceServer
-	// local    nodesv1.NodeServiceClient
-	logger      logger.Logger
-	exchange    *events.Exchange
-	streams     map[string]logs.LogService_StreamLogsServer
-	nodeStreams map[string]logs.LogCollectorService_CollectLogsServer
-	mu          sync.Mutex
+	logsv1.UnimplementedLogServiceServer
+	logger   logger.Logger
+	exchange *events.Exchange
+	mu       sync.Mutex
+
+	nodeStreams   map[string]logsv1.LogService_LogStreamServer
+	clientStreams map[string]map[string]chan *logsv1.LogItem
+	controlCh     map[string]chan bool
 }
 
 func (s *LogService) Register(server *grpc.Server) error {
-	server.RegisterService(&logs.LogService_ServiceDesc, s)
-	server.RegisterService(&logs.LogCollectorService_ServiceDesc, s)
-	// containers.RegisterLogServiceServer(server, c)
+	server.RegisterService(&logsv1.LogService_ServiceDesc, s)
 	return nil
 }
 
-func (s *LogService) CollectLogs(stream logs.LogCollectorService_CollectLogsServer) error {
+func (s *LogService) LogStream(stream logsv1.LogService_LogStreamServer) error {
 	ctx := stream.Context()
+	nodeName := getNodeNameFromContext(ctx)
+	containerId := getContainerIdFromContext(ctx)
+
+	log.Println("node name", nodeName)
+	log.Println("container name", containerId)
 
 	// TESTING Periodically send message to clients
 	// go func() {
@@ -66,96 +69,44 @@ func (s *LogService) CollectLogs(stream logs.LogCollectorService_CollectLogsServ
 	// 	stream.Send(res)
 	// }()
 
-	// nodeName := uuid.New().String()
-	nodeName := "bbnode"
-
 	s.mu.Lock()
 	s.nodeStreams[nodeName] = stream
+	s.clientStreams[nodeName] = make(map[string]chan *logsv1.LogItem, 100)
+	s.clientStreams[nodeName][containerId] = make(chan *logsv1.LogItem, 100)
+	s.controlCh[nodeName] = make(chan bool, 1)
 	s.mu.Unlock()
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("Client is done streaming logs")
-			return ctx.Err()
-		default:
-			msg, err := stream.Recv()
-			if err == io.EOF {
-				// n.logger.Error("error receving from stream, stream probably closed", "node", nodeName)
-				log.Println("error receving from stream, stream probably closed")
-				return nil
-			}
+	controlCh := s.controlCh[nodeName]
 
-			if err != nil {
-				// n.logger.Error("error receving data from stream", "error", err, "node", nodeName)
-				log.Println("error receving data from stream", err)
-				return err
-			}
-
-			log.Println("Received log line from agent", msg.LogLine)
-
-			for _, s := range s.streams {
-				if err := s.Send(msg); err != nil {
-					log.Println("Error sending logline to client", err)
-				}
-			}
-
-			// if err := stream.Send(msg); err != nil {
-			// 	return err
-			// }A
-			// err = n.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: msg})
-			// if err != nil {
-			// 	return err
-			// }
-		}
-	}
-}
-
-func (s *LogService) StreamLogs(stream logs.LogService_StreamLogsServer) error {
-	ctx := stream.Context()
-
-	// TESTING Periodically send message to clients
-	// go func() {
-	// 	res := &logs.LogResponse{LogLine: "this is a log statement", Timestamp: time.Now().String()}
-	// 	for {
-	// 		stream.Send(res)
-	// 		time.Sleep(3 * time.Second)
-	// 	}
-	// }()
-
-	clientName := uuid.New().String()
-
-	s.mu.Lock()
-	s.streams[clientName] = stream
-	s.mu.Unlock()
-
-	// Remove client
+	// Cleanup
 	defer func() {
-		fmt.Printf("cleaning up after client disconnect %s\n", clientName)
-		delete(s.streams, clientName)
+		s.mu.Lock()
+		delete(s.nodeStreams, nodeName)
+		s.mu.Unlock()
+		close(s.controlCh[nodeName])
+	}()
+
+	go func() {
+		for signal := range controlCh {
+			log.Printf("Sending signal %t", signal)
+			if err := stream.Send(&logsv1.LogStreamResponse{Start: signal}); err != nil {
+				log.Printf("error sending log response signal %s: %t", err, signal)
+			}
+		}
 	}()
 
 	for {
 		select {
-		case <-ctx.Done():
-			fmt.Println("Client done?")
-			switch ctx.Err() {
-			case context.DeadlineExceeded:
-				log.Println("context timout exceeded")
-				return ctx.Err()
-			case context.Canceled:
-				log.Println("Client canceled")
-				return ctx.Err()
-			default:
-				log.Println("Client is done streaming logs for unknown reason")
-				return ctx.Err()
-			}
+		case <-stream.Context().Done():
+			log.Println("Context done, quitting out")
+			return nil
 		default:
-			msg, err := stream.Recv()
+
+			req, err := stream.Recv()
 			if err == io.EOF {
 				// n.logger.Error("error receving from stream, stream probably closed", "node", nodeName)
 				log.Println("error receving from stream, stream probably closed")
-				return nil
+				return err
 			}
 
 			if err != nil {
@@ -164,16 +115,19 @@ func (s *LogService) StreamLogs(stream logs.LogService_StreamLogsServer) error {
 				return err
 			}
 
-			log.Println("Received log request from client", msg.ContainerId)
-
-			// Find the agents tream
-			agentStream, ok := s.nodeStreams["bbnode"]
-			if !ok {
-				return fmt.Errorf("no agent connected with id", "a")
+			logMessage := &logsv1.LogItem{
+				LogLine:   req.GetLog().GetLogLine(),
+				Timestamp: req.GetLog().GetTimestamp(),
 			}
 
-			// Forward request to agent
-			err = agentStream.Send(msg)
+			log.Println("Received log line from node, forwarding to clients", nodeName, containerId)
+			s.clientStreams[nodeName][containerId] <- logMessage
+
+			// for _, s := range s.streams {
+			// 	if err := s.Send(msg); err != nil {
+			// 		log.Println("Error sending logline to client", err)
+			// 	}
+			// }
 
 			// if err := stream.Send(msg); err != nil {
 			// 	return err
@@ -186,11 +140,73 @@ func (s *LogService) StreamLogs(stream logs.LogService_StreamLogsServer) error {
 	}
 }
 
+func (s *LogService) Subscribe(req *logsv1.SubscribeRequest, stream logsv1.LogService_SubscribeServer) error {
+	log.Printf("Client %s subscribed to logs", req.ClientId)
+
+	nodeId := req.GetNodeId()
+	containerId := req.GetContainerId()
+
+	controlCh := s.getLogControlChannel(nodeId)
+	if controlCh == nil {
+		return fmt.Errorf("no agent found for ID %s", nodeId)
+	}
+
+	// Signal node to start streaming
+	controlCh <- true
+	defer func() {
+		controlCh <- false
+	}()
+
+	clientStream := s.clientStreams[nodeId][containerId]
+
+	for logMessage := range clientStream {
+		log.Println("Got message that i need to send forward")
+		res := &logsv1.SubscribeResponse{Log: logMessage}
+		if err := stream.Send(res); err != nil {
+			log.Printf("error sending log to client %s: %v", req.GetClientId(), err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *LogService) getLogControlChannel(nodeId string) chan bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.controlCh[nodeId]; !ok {
+		s.controlCh[nodeId] = make(chan bool, 1)
+	}
+	return s.controlCh[nodeId]
+}
+
+func getNodeNameFromContext(ctx context.Context) string {
+	return getKeyFromContext(ctx, "blipblop_node_name")
+}
+
+func getContainerIdFromContext(ctx context.Context) string {
+	return getKeyFromContext(ctx, "blipblop_container_name")
+}
+
+func getKeyFromContext(ctx context.Context, key string) string {
+	var keyValue string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if k, ok := md[key]; ok && len(k) > 0 {
+			keyValue = k[0]
+		}
+	}
+	return keyValue
+}
+
 func NewService(opts ...NewServiceOption) *LogService {
 	s := &LogService{
-		logger:      logger.ConsoleLogger{},
-		streams:     make(map[string]logs.LogService_StreamLogsServer),
-		nodeStreams: make(map[string]logs.LogCollectorService_CollectLogsServer),
+		logger: logger.ConsoleLogger{},
+		// streams: make(map[string]logsv1.LogService_StreamLogsServer),
+		// nodeStreams: make(map[string]map[string]logs.LogCollectorService_CollectLogsServer),
+		// nodeStreams: make(map[string]map[string]nodeStream),
+		nodeStreams:   make(map[string]logsv1.LogService_LogStreamServer, 10),
+		clientStreams: make(map[string]map[string]chan *logsv1.LogItem, 10),
+		controlCh:     make(map[string]chan bool, 1),
 	}
 
 	for _, opt := range opts {

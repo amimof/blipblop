@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/logs/v1"
+	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -24,19 +24,15 @@ func WithLogger(l logger.Logger) ClientOption {
 }
 
 type ClientV1 struct {
-	LogClient       logs.LogServiceClient
-	CollectClient   logs.LogCollectorServiceClient
-	mu              sync.Mutex
-	clientStream    logs.LogService_StreamLogsClient
-	collectorStream logs.LogCollectorService_CollectLogsClient
-	logger          logger.Logger
+	logger logger.Logger
+	client logsv1.LogServiceClient
 }
 
-func (c *ClientV1) LogService() logs.LogServiceClient {
-	return c.LogClient
+func (c *ClientV1) LogService() logsv1.LogServiceClient {
+	return c.client
 }
 
-func (c *ClientV1) StreamLogs(ctx context.Context, containerId string, receiveChan chan *logs.LogResponse, errChan chan error) error {
+func (c *ClientV1) StreamLogs(ctx context.Context, req *logsv1.SubscribeRequest, receiveChan chan *logsv1.SubscribeResponse, errChan chan error) error {
 	for {
 		// Check if the context is already canceled before starting a connection
 		select {
@@ -45,19 +41,12 @@ func (c *ClientV1) StreamLogs(ctx context.Context, containerId string, receiveCh
 		default:
 		}
 
-		// Start a new stream connection
-		stream, err := c.startStream(ctx)
+		// Start a new stream connectio
+		stream, err := c.startStream(ctx, req)
 		if err != nil {
-			c.logger.Info("error connecting to stream", "error", err)
+			errChan <- err
 			time.Sleep(2 * time.Second)
 			continue
-		}
-
-		// log.Println("Connected to stream")
-		c.logger.Info("connected to stream")
-
-		if err := stream.Send(&logs.LogRequest{ContainerId: containerId}); err != nil {
-			return err
 		}
 
 		// Stream handling
@@ -68,45 +57,41 @@ func (c *ClientV1) StreamLogs(ctx context.Context, containerId string, receiveCh
 
 			// Stream closed due to context cancellation
 			if errors.Is(streamErr, context.Canceled) {
+				errChan <- err
 				return err
 			}
 
 			// Backoff reconnect
-			c.logger.Error("reconnecting due to stream error", "error", streamErr)
 			time.Sleep(2 * time.Second)
 		}
 	}
 }
 
-func (c *ClientV1) startStream(ctx context.Context) (logs.LogService_StreamLogsClient, error) {
-	// mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
-	stream, err := c.LogClient.StreamLogs(ctx)
+func (c *ClientV1) startStream(ctx context.Context, req *logsv1.SubscribeRequest) (logsv1.LogService_SubscribeClient, error) {
+	stream, err := c.client.Subscribe(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)
 	}
 	return stream, nil
 }
 
-func (c *ClientV1) startCollect(ctx context.Context) (logs.LogCollectorService_CollectLogsClient, error) {
-	// mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
-	stream, err := c.CollectClient.CollectLogs(ctx)
+func (c *ClientV1) startCollect(ctx context.Context, nodeName string, containerName string) (logsv1.LogService_LogStreamClient, error) {
+	mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
+	mdCtx = metadata.AppendToOutgoingContext(mdCtx, "blipblop_container_name", containerName)
+
+	stream, err := c.client.LogStream(mdCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)
 	}
 	return stream, nil
 }
 
-func (c *ClientV1) handleStream(ctx context.Context, stream logs.LogService_StreamLogsClient, receiveChan chan<- *logs.LogResponse, errChan chan<- error) error {
+func (c *ClientV1) handleStream(ctx context.Context, stream logsv1.LogService_SubscribeClient, receiveChan chan<- *logsv1.SubscribeResponse, errChan chan<- error) error {
 	// Start receiving messages from the server
 	for {
 		select {
 		case <-ctx.Done():
-			err := stream.CloseSend()
-			if err != nil {
-				fmt.Println("Error closing send channel")
-				return err
-			}
-			return ctx.Err()
+			return nil
 		default:
 			response, err := stream.Recv()
 			if err != nil {
@@ -118,85 +103,103 @@ func (c *ClientV1) handleStream(ctx context.Context, stream logs.LogService_Stre
 
 				// Transient stream error
 				if s, ok := status.FromError(err); ok && isRetryableError(s.Code()) {
-					return fmt.Errorf("transient stream error %s %s: %v", s.Message(), s.Code(), err)
+					errChan <- err
+					return err
 				}
 
 				// Non-retryable error
 				errChan <- err
 				return err
 			}
-			// Send received message to chan
 			receiveChan <- response
 		}
 	}
 }
 
-func (c *ClientV1) handleCollect(ctx context.Context, stream logs.LogCollectorService_CollectLogsClient, receiveChan <-chan *logs.LogResponse, errChan chan<- error) error {
-	// Start receiving messages from the server
-	for {
-		select {
-		case <-ctx.Done():
-			return context.Canceled
-		default:
+func (c *ClientV1) handleCollect(ctx context.Context, stream logsv1.LogService_LogStreamClient, receiveChan <-chan *logsv1.LogStreamRequest, errChan chan<- error, respChan chan<- *logsv1.LogStreamResponse) error {
+	doneCh := make(chan struct{})
 
-			logreq, err := stream.Recv()
-			if err != nil {
+	// Goroutine for receiving messages
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				close(doneCh)
+				return
+			default:
+				response, err := stream.Recv()
+				if err != nil {
 
-				// Handle EOF and retryable gRPC errors
-				if errors.Is(err, io.EOF) {
-					return io.EOF
+					// Handle EOF and retryable gRPC errors
+					if errors.Is(err, io.EOF) {
+						return
+					}
+
+					// Transient stream error
+					if s, ok := status.FromError(err); ok && isRetryableError(s.Code()) {
+						errChan <- err
+						return
+					}
+
+					// Non-retryable error
+					errChan <- err
 				}
-
-				// Transient stream error
-				if s, ok := status.FromError(err); ok && isRetryableError(s.Code()) {
-					return fmt.Errorf("transient stream error %s %s: %v", s.Message(), s.Code(), err)
-				}
-
-				// Non-retryable error
-				errChan <- err
-				return err
-			}
-
-			c.logger.Info("request to stream logs for container", logreq.GetContainerId())
-			// Send received message to chan
-			// receiveChan <- &logs.LogResponse{LogLine: "this is a log line", Timestamp: time.Now().String()}
-			// stream.Send(&logs.LogResponse{LogLine: "this is a log line", Timestamp: time.Now().String()})
-			for res := range receiveChan {
-				stream.Send(res)
+				// Send received message to chan
+				respChan <- response
 			}
 		}
+	}()
+
+	// Goroutine for sending messages
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				close(doneCh)
+				return
+			case req, ok := <-receiveChan:
+				if !ok {
+					return
+				}
+				if err := stream.Send(req); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}
+	}()
+
+	<-doneCh
+
+	if err := stream.CloseSend(); err != nil {
+		return err
 	}
+
+	return nil
 }
 
 func isRetryableError(code codes.Code) bool {
 	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
 }
 
-func (c *ClientV1) ConnectToLogService(ctx context.Context, containerId string, receiveChan chan *logs.LogResponse, errChan chan error) error {
+func (c *ClientV1) LogStream(ctx context.Context, nodeName string, containerName string, receiveChan chan *logsv1.LogStreamRequest, errChan chan error, resChan chan<- *logsv1.LogStreamResponse) error {
 	for {
-
 		// Check if the context is already canceled before starting a connection
 		select {
 		case <-ctx.Done():
 			return nil
-		// case l := <-receiveChan:
-		// 	stream.Send(l)
 		default:
 		}
 
 		// Start a new stream connection
-		stream, err := c.startCollect(ctx)
+		stream, err := c.startCollect(ctx, nodeName, containerName)
 		if err != nil {
-			c.logger.Info("error connecting to stream", "error", err)
 			time.Sleep(2 * time.Second)
 			continue
 		}
 
-		// log.Println("Connected to stream")
-		c.logger.Info("connected to stream")
-
 		// Stream handling
-		streamErr := c.handleCollect(ctx, stream, receiveChan, errChan)
+		streamErr := c.handleCollect(ctx, stream, receiveChan, errChan, resChan)
 
 		// Log and retry on transiet errors
 		if streamErr != nil {
@@ -207,7 +210,6 @@ func (c *ClientV1) ConnectToLogService(ctx context.Context, containerId string, 
 			}
 
 			// Backoff reconnect
-			c.logger.Error("reconnecting due to stream error", "error", streamErr)
 			time.Sleep(2 * time.Second)
 		}
 
@@ -216,9 +218,8 @@ func (c *ClientV1) ConnectToLogService(ctx context.Context, containerId string, 
 
 func NewClientV1(conn *grpc.ClientConn, opts ...ClientOption) *ClientV1 {
 	c := &ClientV1{
-		LogClient:     logs.NewLogServiceClient(conn),
-		CollectClient: logs.NewLogCollectorServiceClient(conn),
-		logger:        logger.ConsoleLogger{},
+		client: logsv1.NewLogServiceClient(conn),
+		logger: logger.ConsoleLogger{},
 	}
 
 	for _, opt := range opts {
