@@ -53,14 +53,20 @@ func (c *LogController) Run(ctx context.Context) {
 			// present for the specific container
 			if _, ok := c.collectors[e.GetContainerId()]; !ok {
 				col := c.getOrCreateCollectorForContainer(e.GetContainerId())
-				go col.Start(reqChan)
+				go func() {
+					if err := col.Start(reqChan); err != nil {
+						c.logger.Error("collector couldn't start", "error", "container", e.GetContainerId())
+					}
+				}()
 			}
 
 			// If we get a signal to stop logging, then tell the collector to stop
 			// only if there is a collector present for the specific container
 			if !e.GetStart() {
 				col := c.getOrCreateCollectorForContainer(e.GetContainerId())
-				col.Stop()
+				if err := col.Stop(); err != nil {
+					c.logger.Error("couldn't stop collector", "error", err, "container", e.GetContainerId())
+				}
 				delete(c.collectors, e.GetContainerId())
 			}
 
