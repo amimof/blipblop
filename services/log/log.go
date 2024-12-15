@@ -37,7 +37,7 @@ type LogService struct {
 	nodeStreams map[string]logsv1.LogService_LogStreamServer
 	// clientStreams map[string]map[string]map[string]chan *logsv1.LogItem
 	clientStreams map[string]map[string]map[string]chan *logsv1.LogItem
-	controlCh     map[string]chan bool
+	controlCh     map[string]chan *logsv1.LogStreamResponse
 }
 
 func (s *LogService) Register(server *grpc.Server) error {
@@ -54,7 +54,7 @@ func (s *LogService) LogStream(stream logsv1.LogService_LogStreamServer) error {
 	s.nodeStreams[nodeName] = stream
 	s.clientStreams[nodeName] = make(map[string]map[string]chan *logsv1.LogItem, 100)
 	s.clientStreams[nodeName][containerId] = make(map[string]chan *logsv1.LogItem, 100)
-	s.controlCh[nodeName] = make(chan bool, 1)
+	s.controlCh[nodeName] = make(chan *logsv1.LogStreamResponse, 1)
 	s.mu.Unlock()
 
 	controlCh := s.controlCh[nodeName]
@@ -69,10 +69,9 @@ func (s *LogService) LogStream(stream logsv1.LogService_LogStreamServer) error {
 
 	// Control signal
 	go func() {
-		for signal := range controlCh {
-			log.Printf("Sending signal %t", signal)
-			if err := stream.Send(&logsv1.LogStreamResponse{Start: signal}); err != nil {
-				s.logger.Error("error sending log stream response signal", "signal", signal, "error", err)
+		for res := range controlCh {
+			if err := stream.Send(res); err != nil {
+				s.logger.Error("error sending log stream response", "res", res, "error", err)
 			}
 		}
 	}()
@@ -153,34 +152,39 @@ func (s *LogService) Subscribe(req *logsv1.SubscribeRequest, stream logsv1.LogSe
 
 func (s *LogService) signalNodeStart(nodeId, containerId string) {
 	controlCh := s.getLogControlChannel(nodeId)
+	res := &logsv1.LogStreamResponse{ContainerId: containerId, NodeId: nodeId, Start: false}
 
 	if controlCh == nil {
 		return
 	}
 
 	if _, ok := s.clientStreams[nodeId]; !ok {
-		controlCh <- false
+		res.Start = false
+		controlCh <- res
 		return
 	}
 
 	if _, ok := s.clientStreams[nodeId][containerId]; !ok {
-		controlCh <- false
+		res.Start = false
+		controlCh <- res
 		return
 	}
 
 	if len(s.clientStreams[nodeId][containerId]) == 0 {
-		controlCh <- false
+		res.Start = false
+		controlCh <- res
 		return
 	}
 
-	controlCh <- true
+	res.Start = true
+	controlCh <- res
 }
 
-func (s *LogService) getLogControlChannel(nodeId string) chan bool {
+func (s *LogService) getLogControlChannel(nodeId string) chan *logsv1.LogStreamResponse {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.controlCh[nodeId]; !ok {
-		s.controlCh[nodeId] = make(chan bool, 1)
+		s.controlCh[nodeId] = make(chan *logsv1.LogStreamResponse, 1)
 	}
 	return s.controlCh[nodeId]
 }
@@ -208,7 +212,7 @@ func NewService(opts ...NewServiceOption) *LogService {
 		logger:        logger.ConsoleLogger{},
 		nodeStreams:   make(map[string]logsv1.LogService_LogStreamServer, 10),
 		clientStreams: make(map[string]map[string]map[string]chan *logsv1.LogItem, 10),
-		controlCh:     make(map[string]chan bool, 1),
+		controlCh:     make(map[string]chan *logsv1.LogStreamResponse, 1),
 	}
 
 	for _, opt := range opts {

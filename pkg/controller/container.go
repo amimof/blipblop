@@ -133,7 +133,7 @@ func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv
 
 	// Delete container if it exists
 	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
-	if err := c.runtime.Delete(ctx, &ctr); err != nil {
+	if err = c.runtime.Delete(ctx, &ctr); err != nil {
 		return err
 	}
 

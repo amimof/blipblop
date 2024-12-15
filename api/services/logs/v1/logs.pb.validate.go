@@ -190,7 +190,9 @@ func (m *LogStreamResponse) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Status
+	// no validation rules for ContainerId
+
+	// no validation rules for NodeId
 
 	// no validation rules for Start
 
