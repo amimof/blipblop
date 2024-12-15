@@ -1,0 +1,85 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "api/services/logs/v1/logs.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "LogService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {},
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1LogItem": {
+      "type": "object",
+      "properties": {
+        "logLine": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      }
+    },
+    "v1LogStreamResponse": {
+      "type": "object",
+      "properties": {
+        "containerId": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "start": {
+          "type": "boolean"
+        },
+        "log": {
+          "$ref": "#/definitions/v1LogItem"
+        }
+      }
+    },
+    "v1SubscribeResponse": {
+      "type": "object",
+      "properties": {
+        "log": {
+          "$ref": "#/definitions/v1LogItem"
+        }
+      }
+    }
+  }
+}

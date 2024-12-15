@@ -1,7 +1,7 @@
 version: v1
 servers:
   - name: dev
-    address: bbnode:5743
+    address: localhost:5743
     tls:
       insecure: false
       ca: |
