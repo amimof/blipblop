@@ -59,7 +59,10 @@
     "v1LogStreamResponse": {
       "type": "object",
       "properties": {
-        "status": {
+        "containerId": {
+          "type": "string"
+        },
+        "nodeId": {
           "type": "string"
         },
         "start": {

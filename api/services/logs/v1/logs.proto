@@ -2,25 +2,12 @@ syntax = "proto3";
 
 package blipblop.services.logs.v1;
 
-//import "google/protobuf/timestamp.proto";
-//import "google/protobuf/field_mask.proto";
-//import "google/api/annotations.proto";
-//import "validate/validate.proto";
-//import "api/services/events/v1/events.proto";
-//import "api/types/v1/meta.proto";
-
 option go_package = "github.com/amimof/blipblop/api/services/logs/v1;logs";
 
 service LogService {
-  // rpc StreamLogs (stream LogRequest) returns (stream LogResponse);
   rpc LogStream(stream LogStreamRequest) returns (stream LogStreamResponse);
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
 }
-
-// service LogCollectorService {
-//   // rpc CollectLogs (stream LogResponse) returns (stream LogRequest);
-//   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
-// }
 
 message LogStreamRequest {
   string container_id = 1;
@@ -29,9 +16,10 @@ message LogStreamRequest {
 }
 
 message LogStreamResponse {
-  string status = 1;
-  bool start = 2;
-  LogItem log = 3;
+  string container_id = 1;
+  string node_id = 2;
+  bool start = 3;
+  LogItem log = 4;
 }
 
 message SubscribeRequest {
