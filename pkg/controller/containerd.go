@@ -15,6 +15,7 @@ import (
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/v2/pkg/cio"
 	typeurl "github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -310,6 +311,10 @@ func (c *ContainerdController) startHandler(e *events.TaskStart) {
 	if err != nil {
 		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskStart", "error", err)
 	}
+	err = c.setTaskIOConfig(e.ContainerID)
+	if err != nil {
+		c.logger.Error("error setting container IO config", "id", e.ContainerID, "event", "TaskStart", "error", err)
+	}
 }
 
 // TODO: Consider not updating container state on delete events since the container is already gone.
@@ -362,6 +367,10 @@ func (c *ContainerdController) resumedHandler(e *events.TaskResumed) {
 	if err != nil {
 		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskResumed", "error", err)
 	}
+	err = c.setTaskIOConfig(e.ContainerID)
+	if err != nil {
+		c.logger.Error("error setting container IO config", "id", e.ContainerID, "event", "TaskStart", "error", err)
+	}
 }
 
 func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
@@ -372,32 +381,19 @@ func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 }
 
 func (c *ContainerdController) setContainerState(id string) error {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-
+	ctx := context.Background()
 	hostname, _ := os.Hostname()
 
 	st := &containersv1.Status{
 		Node: hostname,
 		Ip:   "192.168.13.123",
-		// Pid:        pid,
-		// Phase:      phase,
-		// ExitStatus: exitStatus,
+		Task: &containersv1.TaskStatus{},
 	}
 
-	ctr, err := c.client.LoadContainer(ctx, id)
+	task, err := c.getTask(id)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			st.Phase = "Deleted"
-			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
-		}
-		return err
-	}
-
-	task, err := ctr.Task(ctx, nil)
-	if err != nil {
-		if errdefs.IsNotFound(err) {
-			st.Phase = "Deleted"
-			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 		}
 		return err
 	}
@@ -416,13 +412,55 @@ func (c *ContainerdController) setContainerState(id string) error {
 		return err
 	}
 
-	st.Pid = pid
 	st.Phase = phase
-	st.ExitStatus = exitStatus
-	st.ExitTime = timestamppb.New(exitTime)
+	st.Task.Pid = pid
+	st.Task.ExitStatus = exitStatus
+	st.Task.ExitTime = timestamppb.New(exitTime)
 
 	c.logger.Debug("setting container status state", "id", id, "status", st)
 	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
+}
+
+func (c *ContainerdController) setTaskIOConfig(id string) error {
+	ctx := context.Background()
+
+	task, err := c.getTask(id)
+	if err != nil {
+		return err
+	}
+
+	rtCtr, err := c.runtime.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	stdoutPath := getTaskIOConfig(ctx, task).StdoutPath
+	stderrPath := getTaskIOConfig(ctx, task).StderrPath
+
+	st := rtCtr.GetStatus()
+	st.Runtime = &containersv1.RuntimeStatus{
+		RuntimeEnv:     "",
+		RuntimeVersion: "",
+		StdoutPath:     stdoutPath,
+		StderrPath:     stderrPath,
+	}
+	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
+}
+
+func (c *ContainerdController) getTask(id string) (containerd.Task, error) {
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+
+	ctr, err := c.client.LoadContainer(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	task, err := ctr.Task(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }
 
 func getTaskPid(t containerd.Task) uint32 {
@@ -456,6 +494,11 @@ func getTaskStatus(ctx context.Context, t containerd.Task) containerd.Status {
 		}
 	}
 	return s
+}
+
+func getTaskIOConfig(ctx context.Context, t containerd.Task) *cio.Config {
+	c := t.IO().Config()
+	return &c
 }
 
 // Checks to see if c is present in cs

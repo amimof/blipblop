@@ -25,32 +25,33 @@ type LogCollector interface {
 	SetParser(parserFunc func(rawLog string) (*logsv1.LogStreamRequest, bool))
 }
 
-type CioCollector struct {
+type FileCollector struct {
 	stop        chan struct{}
-	NodeId      string
-	ContainerId string
+	nodeId      string
+	containerId string
+	filePath    string
 }
 
-func (c *CioCollector) cleanup() {
+func (c *FileCollector) cleanup() {
 }
 
 // Logs implements LogCollector.
-func (c *CioCollector) Logs() <-chan *logsv1.LogStreamRequest {
+func (c *FileCollector) Logs() <-chan *logsv1.LogStreamRequest {
 	panic("unimplemented")
 }
 
 // SetFilter implements LogCollector.
-func (c *CioCollector) SetFilter(filterFunc func(*logsv1.LogStreamRequest) bool) {
+func (c *FileCollector) SetFilter(filterFunc func(*logsv1.LogStreamRequest) bool) {
 	panic("unimplemented")
 }
 
 // SetParser implements LogCollector.
-func (c *CioCollector) SetParser(parserFunc func(rawLog string) (*logsv1.LogStreamRequest, bool)) {
+func (c *FileCollector) SetParser(parserFunc func(rawLog string) (*logsv1.LogStreamRequest, bool)) {
 	panic("unimplemented")
 }
 
 // Start implements LogCollector.
-func (c *CioCollector) Start(in chan *logsv1.LogStreamRequest) error {
+func (c *FileCollector) Start(in chan *logsv1.LogStreamRequest) error {
 	c.stop = make(chan struct{})
 
 	for {
@@ -60,8 +61,8 @@ func (c *CioCollector) Start(in chan *logsv1.LogStreamRequest) error {
 			return nil
 		default:
 			req := &logsv1.LogStreamRequest{
-				NodeId:      c.NodeId,
-				ContainerId: c.ContainerId,
+				NodeId:      c.nodeId,
+				ContainerId: c.containerId,
 				Log: &logsv1.LogItem{
 					LogLine:   "%d hello world!",
 					Timestamp: time.Now().String(),
@@ -74,14 +75,18 @@ func (c *CioCollector) Start(in chan *logsv1.LogStreamRequest) error {
 }
 
 // Stop implements LogCollector.
-func (c *CioCollector) Stop() error {
+func (c *FileCollector) Stop() error {
 	close(c.stop)
 	return nil
 }
 
-func NewCioCollector(containerId string) LogCollector {
-	return &CioCollector{
-		ContainerId: containerId,
+func NewFileCollector(filePath, nodeId, containerId string) (LogCollector, error) {
+	c := &FileCollector{
+		nodeId:      nodeId,
+		containerId: containerId,
 		stop:        make(chan struct{}),
+		filePath:    filePath,
 	}
+
+	return c, nil
 }

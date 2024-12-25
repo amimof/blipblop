@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -27,12 +28,24 @@ func WithLogControllerNodeName(nodeName string) NewLogControllerOption {
 	}
 }
 
-func (c *LogController) getOrCreateCollectorForContainer(containerId string) collector.LogCollector {
+func (c *LogController) getOrCreateCollectorForContainer(containerId string) (collector.LogCollector, error) {
+	ctr, err := c.runtime.Get(context.Background(), containerId)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ctr.GetStatus().GetRuntime().GetStdoutPath()) == 0 {
+		return nil, fmt.Errorf("task is missing path to stdout")
+	}
+
 	_, ok := c.collectors[containerId]
 	if !ok {
-		c.collectors[containerId] = collector.NewCioCollector(containerId)
+		c.collectors[containerId], err = collector.NewFileCollector(ctr.GetStatus().GetRuntime().GetStdoutPath(), c.nodeName, containerId)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return c.collectors[containerId]
+	return c.collectors[containerId], nil
 }
 
 func (c *LogController) Run(ctx context.Context) {
@@ -52,12 +65,13 @@ func (c *LogController) Run(ctx context.Context) {
 			// Create a collector and start logging only if there are no collectors already
 			// present for the specific container
 			if _, ok := c.collectors[e.GetContainerId()]; !ok {
-				col := c.getOrCreateCollectorForContainer(e.GetContainerId())
-				go func() {
-					if err := col.Start(reqChan); err != nil {
-						c.logger.Error("collector couldn't start", "error", "container", e.GetContainerId())
-					}
-				}()
+				if col, err := c.getOrCreateCollectorForContainer(e.GetContainerId()); err == nil {
+					go func() {
+						if err := col.Start(reqChan); err != nil {
+							c.logger.Error("collector couldn't start", "error", "container", e.GetContainerId())
+						}
+					}()
+				}
 			}
 
 			// If we get a signal to stop logging, then tell the collector to stop

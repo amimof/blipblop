@@ -274,16 +274,12 @@ func (m *Status) validate(all bool) error {
 
 	// no validation rules for Ip
 
-	// no validation rules for Pid
-
-	// no validation rules for ExitStatus
-
 	if all {
-		switch v := interface{}(m.GetExitTime()).(type) {
+		switch v := interface{}(m.GetTask()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, StatusValidationError{
-					field:  "ExitTime",
+					field:  "Task",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -291,23 +287,50 @@ func (m *Status) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, StatusValidationError{
-					field:  "ExitTime",
+					field:  "Task",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetExitTime()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetTask()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return StatusValidationError{
-				field:  "ExitTime",
+				field:  "Task",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
 		}
 	}
 
-	// no validation rules for Description
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return StatusMultiError(errors)
@@ -385,6 +408,246 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = StatusValidationError{}
+
+// Validate checks the field values on TaskStatus with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *TaskStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TaskStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in TaskStatusMultiError, or
+// nil if none found.
+func (m *TaskStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TaskStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Pid
+
+	// no validation rules for ExitStatus
+
+	if all {
+		switch v := interface{}(m.GetExitTime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "ExitTime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "ExitTime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExitTime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TaskStatusValidationError{
+				field:  "ExitTime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return TaskStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// TaskStatusMultiError is an error wrapping multiple validation errors
+// returned by TaskStatus.ValidateAll() if the designated constraints aren't met.
+type TaskStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TaskStatusMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TaskStatusMultiError) AllErrors() []error { return m }
+
+// TaskStatusValidationError is the validation error returned by
+// TaskStatus.Validate if the designated constraints aren't met.
+type TaskStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TaskStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TaskStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TaskStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TaskStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TaskStatusValidationError) ErrorName() string { return "TaskStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e TaskStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTaskStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TaskStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TaskStatusValidationError{}
+
+// Validate checks the field values on RuntimeStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *RuntimeStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RuntimeStatus with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in RuntimeStatusMultiError, or
+// nil if none found.
+func (m *RuntimeStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RuntimeStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for RuntimeEnv
+
+	// no validation rules for RuntimeVersion
+
+	// no validation rules for StdoutPath
+
+	// no validation rules for StderrPath
+
+	if len(errors) > 0 {
+		return RuntimeStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// RuntimeStatusMultiError is an error wrapping multiple validation errors
+// returned by RuntimeStatus.ValidateAll() if the designated constraints
+// aren't met.
+type RuntimeStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RuntimeStatusMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RuntimeStatusMultiError) AllErrors() []error { return m }
+
+// RuntimeStatusValidationError is the validation error returned by
+// RuntimeStatus.Validate if the designated constraints aren't met.
+type RuntimeStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RuntimeStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RuntimeStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RuntimeStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RuntimeStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RuntimeStatusValidationError) ErrorName() string { return "RuntimeStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e RuntimeStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRuntimeStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RuntimeStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RuntimeStatusValidationError{}
 
 // Validate checks the field values on Config with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
