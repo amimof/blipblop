@@ -15,4 +15,4 @@ type EventInformer interface {
 	Run(context.Context, <-chan *eventsv1.Event)
 }
 
-type EventHandlerFunc func(e *eventsv1.Event) error
+type EventHandlerFunc func(*eventsv1.Event) error

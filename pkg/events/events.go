@@ -17,6 +17,12 @@ const (
 type Object protoreflect.ProtoMessage
 
 func NewRequest(evType eventsv1.EventType, obj Object, labels ...map[string]string) *eventsv1.PublishRequest {
+	return &eventsv1.PublishRequest{
+		Event: NewEvent(evType, obj, labels...),
+	}
+}
+
+func NewEvent(evType eventsv1.EventType, obj Object, labels ...map[string]string) *eventsv1.Event {
 	// Merge the maps
 	l := map[string]string{}
 	for _, label := range labels {
@@ -25,14 +31,12 @@ func NewRequest(evType eventsv1.EventType, obj Object, labels ...map[string]stri
 		}
 	}
 	o, _ := anypb.New(obj)
-	return &eventsv1.PublishRequest{
-		Event: &eventsv1.Event{
-			Meta: &types.Meta{
-				Name:   uuid.New().String(),
-				Labels: l,
-			},
-			Type:   evType,
-			Object: o,
+	return &eventsv1.Event{
+		Meta: &types.Meta{
+			Name:   uuid.New().String(),
+			Labels: l,
 		},
+		Type:   evType,
+		Object: o,
 	}
 }

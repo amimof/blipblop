@@ -17,6 +17,7 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/scheduling"
 	"github.com/amimof/blipblop/pkg/server"
@@ -218,6 +219,8 @@ func main() {
 		events.WithLogger(log),
 	)
 
+	exchange2 := eventsv2.NewExchange()
+
 	// Setup services
 	eventService := event.NewService(
 		repository.NewEventBadgerRepository(db, repository.WithEventBadgerRepositoryMaxItems(5)),
@@ -240,7 +243,7 @@ func main() {
 	containerService := container.NewService(
 		repository.NewContainerBadgerRepository(db),
 		container.WithLogger(log),
-		container.WithExchange(exchange),
+		container.WithExchange(exchange2),
 	)
 
 	// Setup server
