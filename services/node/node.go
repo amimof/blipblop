@@ -12,7 +12,7 @@ import (
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/events/informer"
+	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/logger"
 	nodeutil "github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/repository"
@@ -31,7 +31,7 @@ func WithLogger(l logger.Logger) NewServiceOption {
 	}
 }
 
-func WithExchange(e *events.Exchange) NewServiceOption {
+func WithExchange(e *eventsv2.Exchange) NewServiceOption {
 	return func(s *NodeService) {
 		s.exchange = e
 	}
@@ -41,7 +41,7 @@ type NodeService struct {
 	nodesv1.UnimplementedNodeServiceServer
 	local    nodesv1.NodeServiceClient
 	logger   logger.Logger
-	exchange *events.Exchange
+	exchange *eventsv2.Exchange
 	streams  map[string]nodesv1.NodeService_ConnectServer
 	mu       sync.Mutex
 }
@@ -110,7 +110,8 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	n.mu.Unlock()
 
 	// Publish event that node is connected
-	err = n.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeConnect, node))
+	// err = n.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeConnect, node))
+	err = n.exchange.Publish(ctx, eventsv1.EventType_NodeConnect, events.NewEvent(eventsv1.EventType_NodeConnect, node))
 	if err != nil {
 		n.logger.Error("error publishing NodeConnect event", "error", err)
 	}
@@ -164,7 +165,8 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 				return err
 			}
 
-			err = n.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: msg})
+			// err = n.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: msg})
+			err = n.exchange.Publish(ctx, msg.GetType(), msg)
 			if err != nil {
 				return err
 			}
@@ -186,33 +188,13 @@ func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Even
 	}
 }
 
-// TODO: Probably not necessary to watch for node events
-func (n *NodeService) subscribe(ctx context.Context) {
-	ch, _ := n.exchange.Subscribe(ctx)
-
-	nodeEvt := make(chan *eventsv1.Event, 10)
-	ctrEvt := make(chan *eventsv1.Event, 10)
-
-	go broadcastEvent(ch, nodeEvt, ctrEvt)
-
-	nodeHandlers := informer.NodeEventHandlerFuncs{
-		OnForget: n.onForget,
-	}
-	nodeinformer := informer.NewNodeEventInformer(nodeHandlers)
-	go nodeinformer.Run(ctx, nodeEvt)
-
-	containerHandlers := informer.ContainerEventHandlerFuncs{
-		OnSchedule: n.onSchedule,
-		// OnCreate:   n.onContainerCreate,
-		OnDelete: n.onContainer,
-		OnUpdate: n.onContainer,
-		OnStart:  n.onContainer,
-		OnKill:   n.onContainer,
-		OnStop:   n.onContainer,
-	}
-
-	containerInformer := informer.NewContainerEventInformer(containerHandlers)
-	go containerInformer.Run(ctx, ctrEvt)
+func (n *NodeService) setupHandlers() {
+	n.exchange.On(eventsv2.ContainerDelete, n.onContainer)
+	n.exchange.On(eventsv2.ContainerUpdate, n.onContainer)
+	n.exchange.On(eventsv2.ContainerStart, n.onContainer)
+	n.exchange.On(eventsv2.ContainerKill, n.onContainer)
+	n.exchange.On(eventsv2.ContainerStop, n.onContainer)
+	n.exchange.On(eventsv2.Schedule, n.onSchedule)
 }
 
 func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {
@@ -230,7 +212,7 @@ func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {
 		},
 		UpdateMask: fm,
 	}
-	_, err := n.Update(context.Background(), req)
+	_, err := n.Update(ctx, req)
 	return err
 }
 
@@ -360,7 +342,7 @@ func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeS
 		logger:   s.logger,
 	}
 
-	go s.subscribe(context.Background())
+	s.setupHandlers()
 
 	return s
 }

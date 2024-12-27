@@ -225,13 +225,13 @@ func main() {
 	eventService := event.NewService(
 		repository.NewEventBadgerRepository(db, repository.WithEventBadgerRepositoryMaxItems(5)),
 		event.WithLogger(log),
-		event.WithExchange(exchange),
+		event.WithExchange(exchange2),
 	)
 
 	nodeService := node.NewService(
 		repository.NewNodeBadgerRepository(db),
 		node.WithLogger(log),
-		node.WithExchange(exchange),
+		node.WithExchange(exchange2),
 	)
 
 	containerSetService := containerset.NewService(

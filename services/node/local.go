@@ -8,6 +8,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
@@ -22,7 +23,7 @@ import (
 type local struct {
 	repo     repository.NodeRepository
 	mu       sync.Mutex
-	exchange *events.Exchange
+	exchange *eventsv2.Exchange
 	logger   logger.Logger
 }
 
@@ -77,7 +78,8 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeId)
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	err = l.exchange.Publish(ctx, eventsv2.NodeCreate, events.NewEvent(eventsv1.EventType_NodeCreate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeId, "event", "NodeCreate")
 	}
@@ -98,7 +100,8 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	err = l.exchange.Publish(ctx, eventsv2.NodeDelete, events.NewEvent(eventsv1.EventType_NodeDelete, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
@@ -155,7 +158,8 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	err = l.exchange.Publish(ctx, eventsv2.NodeUpdate, events.NewEvent(eventsv1.EventType_NodeUpdate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "NodeUpdate")
 	}
@@ -196,7 +200,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 
 	return &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
-	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeJoin, node))
+	}, l.exchange.Publish(ctx, eventsv1.EventType_NodeJoin, events.NewEvent(eventsv1.EventType_NodeJoin, node))
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
@@ -212,7 +216,7 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeForget, node))
+	err = l.exchange.Publish(ctx, eventsv2.NodeForget, events.NewEvent(eventsv1.EventType_NodeForget, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}

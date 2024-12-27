@@ -77,11 +77,11 @@ func TestExchange_Handler(t *testing.T) {
 	e := NewExchange()
 
 	// Attach multiple handlers, each modifying i
-	e.On(topic, func(e *eventsv1.Event) error {
+	e.On(topic, func(ctx context.Context, e *eventsv1.Event) error {
 		i = i + 1
 		return nil
 	})
-	e.On(topic, func(e *eventsv1.Event) error {
+	e.On(topic, func(ctx context.Context, e *eventsv1.Event) error {
 		i = i + 2
 		return nil
 	})
@@ -104,7 +104,7 @@ func TextExchange_FireOnceHandler(t *testing.T) {
 	e := NewExchange()
 
 	// Handler should be executed only once
-	e.Once(topic, func(e *eventsv1.Event) error {
+	e.Once(topic, func(ctx context.Context, e *eventsv1.Event) error {
 		i = i + 1
 		return nil
 	})

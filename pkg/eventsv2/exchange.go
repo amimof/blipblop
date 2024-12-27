@@ -2,6 +2,7 @@ package eventsv2
 
 import (
 	"context"
+	"log"
 	"sync"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -14,7 +15,7 @@ var (
 	_ Subscriber = &Exchange{}
 )
 
-type HandlerFunc func(*eventsv1.Event) error
+type HandlerFunc func(context.Context, *eventsv1.Event) error
 
 type Exchange struct {
 	topics             map[eventsv1.EventType][]chan *eventsv1.Event
@@ -33,6 +34,7 @@ func (e *Exchange) AddPublisher(forwarder Publisher) {
 
 // On registers a handler func for a certain event type
 func (e *Exchange) On(ev eventsv1.EventType, f HandlerFunc) {
+	log.Println("On", ev.String())
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.persistentHandlers[ev] = append(e.persistentHandlers[ev], f)
@@ -61,11 +63,13 @@ func (e *Exchange) Forward(ctx context.Context, t eventsv1.EventType, ev *events
 }
 
 // Subscribe subscribes to events of a certain event type
-func (e *Exchange) Subscribe(ctx context.Context, t eventsv1.EventType) <-chan *eventsv1.Event {
+func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) <-chan *eventsv1.Event {
 	ch := make(chan *eventsv1.Event, 10)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.topics[t] = append(e.topics[t], ch)
+	for _, evType := range t {
+		e.topics[evType] = append(e.topics[evType], ch)
+	}
 	return ch
 }
 
@@ -86,7 +90,9 @@ func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *events
 	// Run persistent handler funcs
 	if handlers, ok := e.persistentHandlers[t]; ok {
 		for _, handler := range handlers {
-			if err := handler(ev); err != nil {
+			log.Println("Running handler", ev.String())
+			if err := handler(ctx, ev); err != nil {
+				log.Println("error running handler", ev.String(), err)
 				e.errChan <- err
 			}
 		}
@@ -94,7 +100,7 @@ func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *events
 	// Run oneoff handler funcs
 	if handlers, ok := e.fireOnceHandlers[t]; ok {
 		for i, handler := range handlers {
-			if err := handler(ev); err != nil {
+			if err := handler(ctx, ev); err != nil {
 				e.errChan <- err
 			}
 			handlers = remove(handlers, i)

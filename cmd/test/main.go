@@ -23,7 +23,7 @@ func main() {
 	ch := exchange.Subscribe(context.Background(), evType)
 
 	// Add Handler
-	exchange.On(evType, func(e *eventsv1.Event) error {
+	exchange.On(evType, func(ctx context.Context, e *eventsv1.Event) error {
 		log.Println("Processing Data for event")
 		time.Sleep(time.Second + 1)
 		log.Println("Processing finished")
