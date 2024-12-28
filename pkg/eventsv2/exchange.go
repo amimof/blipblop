@@ -63,7 +63,7 @@ func (e *Exchange) Forward(ctx context.Context, t eventsv1.EventType, ev *events
 }
 
 // Subscribe subscribes to events of a certain event type
-func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) <-chan *eventsv1.Event {
+func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) chan *eventsv1.Event {
 	ch := make(chan *eventsv1.Event, 10)
 	e.mu.Lock()
 	defer e.mu.Unlock()

@@ -16,7 +16,6 @@ import (
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
-	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/scheduling"
@@ -215,10 +214,6 @@ func main() {
 	defer db.Close()
 
 	// Setup event exchange bus
-	exchange := events.NewExchange(
-		events.WithLogger(log),
-	)
-
 	exchange2 := eventsv2.NewExchange()
 
 	// Setup services
@@ -237,7 +232,7 @@ func main() {
 	containerSetService := containerset.NewService(
 		repository.NewContainerSetBadgerRepository(db),
 		containerset.WithLogger(log),
-		containerset.WithExchange(exchange),
+		containerset.WithExchange(exchange2),
 	)
 
 	containerService := container.NewService(

@@ -7,6 +7,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events/informer"
+	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
@@ -49,46 +50,33 @@ func WithNodeName(s string) NewNodeControllerOption {
 
 // func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 func (c *NodeController) Run(ctx context.Context) {
-	// Setup channels
-	evt := make(chan *eventsv1.Event, 10)
-	errChan := make(chan error, 1)
+	// Subscribe to events
+	evt, errCh := c.clientset.EventV1().Subscribe(ctx, eventsv2.ALL...)
 
-	nodeEvt := make(chan *eventsv1.Event, 10)
-	containerEvt := make(chan *eventsv1.Event, 10)
-
-	// Setup node handlers
-	nodeHandlers := informer.NodeEventHandlerFuncs{
-		OnCreate: c.onNodeCreate,
-		OnUpdate: c.onNodeUpdate,
-		OnDelete: c.onNodeDelete,
-		OnJoin:   c.onNodeJoin,
-		OnForget: c.onNodeForget,
-	}
+	// Setup Node Handlers
+	c.clientset.EventV1().On(eventsv2.NodeCreate, c.onNodeCreate)
+	c.clientset.EventV1().On(eventsv2.NodeUpdate, c.onNodeUpdate)
+	c.clientset.EventV1().On(eventsv2.NodeDelete, c.onNodeDelete)
+	c.clientset.EventV1().On(eventsv2.NodeJoin, c.onNodeJoin)
+	c.clientset.EventV1().On(eventsv2.NodeForget, c.onNodeForget)
 
 	// Setup container handlers
-	containerHandlers := informer.ContainerEventHandlerFuncs{
-		OnCreate: c.onContainerCreate,
-		OnDelete: c.onContainerDelete,
-		OnUpdate: c.onContainerUpdate,
-		OnStop:   c.onContainerStop,
-		OnKill:   c.onContainerKill,
-		OnStart:  c.onContainerStart,
-	}
+	c.clientset.EventV1().On(eventsv2.ContainerCreate, c.onContainerCreate)
+	c.clientset.EventV1().On(eventsv2.ContainerDelete, c.onContainerDelete)
+	c.clientset.EventV1().On(eventsv2.ContainerUpdate, c.onContainerUpdate)
+	c.clientset.EventV1().On(eventsv2.ContainerStop, c.onContainerStop)
+	c.clientset.EventV1().On(eventsv2.ContainerKill, c.onContainerKill)
+	c.clientset.EventV1().On(eventsv2.ContainerStart, c.onContainerStart)
 
-	// Run node informer
-	nodeInformer := informer.NewNodeEventInformer(nodeHandlers)
-	go nodeInformer.Run(ctx, nodeEvt)
-
-	// Run container informer
-	containerInformer := informer.NewContainerEventInformer(containerHandlers, informer.WithContainerEventInformerLogger(c.logger))
-	go containerInformer.Run(ctx, containerEvt)
-
-	// Start broadcasting incoming events to both node and container informers
-	go c.broadcastEvent(ctx, evt, nodeEvt, containerEvt)
+	go func() {
+		for e := range evt {
+			c.logger.Info("Got event", "event", e.GetType().String())
+		}
+	}()
 
 	// Connect with retry logic
 	go func() {
-		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, errChan)
+		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, errCh)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
 		}
@@ -100,15 +88,9 @@ func (c *NodeController) Run(ctx context.Context) {
 		c.logger.Error("error setting node state", "error", err)
 	}
 
-	// Handle messages
-	for {
-		select {
-		case err := <-errChan:
-			c.logger.Error("received stream error", "error", err)
-		case <-ctx.Done():
-			c.logger.Info("context canceled, shutting down controller")
-			return
-		}
+	// Handle errors
+	for e := range errCh {
+		c.logger.Error("received error on channel", "error", e)
 	}
 }
 

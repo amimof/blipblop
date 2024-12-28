@@ -53,7 +53,7 @@ var ALL = []eventsv1.EventType{
 }
 
 type Subscriber interface {
-	Subscribe(context.Context, ...eventsv1.EventType) <-chan *eventsv1.Event
+	Subscribe(context.Context, ...eventsv1.EventType) chan *eventsv1.Event
 	Unsubscribe(context.Context, eventsv1.EventType) error
 }
 
