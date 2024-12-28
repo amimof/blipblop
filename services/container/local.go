@@ -10,7 +10,6 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
@@ -25,7 +24,7 @@ import (
 type local struct {
 	repo     repository.ContainerRepository
 	mu       sync.Mutex
-	exchange *eventsv2.Exchange
+	exchange *events.Exchange
 	logger   logger.Logger
 }
 

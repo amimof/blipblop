@@ -16,7 +16,7 @@ import (
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
-	"github.com/amimof/blipblop/pkg/eventsv2"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/scheduling"
 	"github.com/amimof/blipblop/pkg/server"
@@ -214,7 +214,7 @@ func main() {
 	defer db.Close()
 
 	// Setup event exchange bus
-	exchange2 := eventsv2.NewExchange()
+	exchange2 := events.NewExchange()
 
 	// Setup services
 	eventService := event.NewService(

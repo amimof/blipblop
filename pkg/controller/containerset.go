@@ -9,7 +9,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/eventsv2"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/util"
@@ -30,14 +30,14 @@ func WithContainerSetLogger(l logger.Logger) NewContainerSetControllerOption {
 
 func (c *ContainerSetController) Run(ctx context.Context) {
 	// Subscribe to events
-	_, err := c.clientset.EventV1().Subscribe(ctx, eventsv2.ALL...)
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(eventsv2.ContainerCreate, c.onCreate)
-	c.clientset.EventV1().On(eventsv2.ContainerUpdate, func(ctx context.Context, e *eventsv1.Event) error {
+	c.clientset.EventV1().On(events.ContainerCreate, c.onCreate)
+	c.clientset.EventV1().On(events.ContainerUpdate, func(ctx context.Context, e *eventsv1.Event) error {
 		return nil
 	})
-	c.clientset.EventV1().On(eventsv2.ContainerDelete, c.onDelete)
+	c.clientset.EventV1().On(events.ContainerDelete, c.onDelete)
 
 	// Handle errors
 	for e := range err {

@@ -12,7 +12,6 @@ import (
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/logger"
 	nodeutil "github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/repository"
@@ -31,7 +30,7 @@ func WithLogger(l logger.Logger) NewServiceOption {
 	}
 }
 
-func WithExchange(e *eventsv2.Exchange) NewServiceOption {
+func WithExchange(e *events.Exchange) NewServiceOption {
 	return func(s *NodeService) {
 		s.exchange = e
 	}
@@ -41,7 +40,7 @@ type NodeService struct {
 	nodesv1.UnimplementedNodeServiceServer
 	local    nodesv1.NodeServiceClient
 	logger   logger.Logger
-	exchange *eventsv2.Exchange
+	exchange *events.Exchange
 	streams  map[string]nodesv1.NodeService_ConnectServer
 	mu       sync.Mutex
 }
@@ -189,12 +188,12 @@ func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Even
 }
 
 func (n *NodeService) setupHandlers() {
-	n.exchange.On(eventsv2.ContainerDelete, n.onContainer)
-	n.exchange.On(eventsv2.ContainerUpdate, n.onContainer)
-	n.exchange.On(eventsv2.ContainerStart, n.onContainer)
-	n.exchange.On(eventsv2.ContainerKill, n.onContainer)
-	n.exchange.On(eventsv2.ContainerStop, n.onContainer)
-	n.exchange.On(eventsv2.Schedule, n.onSchedule)
+	n.exchange.On(events.ContainerDelete, n.onContainer)
+	n.exchange.On(events.ContainerUpdate, n.onContainer)
+	n.exchange.On(events.ContainerStart, n.onContainer)
+	n.exchange.On(events.ContainerKill, n.onContainer)
+	n.exchange.On(events.ContainerStop, n.onContainer)
+	n.exchange.On(events.Schedule, n.onSchedule)
 }
 
 func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {

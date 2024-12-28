@@ -6,8 +6,7 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events/informer"
-	"github.com/amimof/blipblop/pkg/eventsv2"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
@@ -20,12 +19,6 @@ type NodeController struct {
 	logger                   logger.Logger
 	heartbeatIntervalSeconds int
 	nodeName                 string
-}
-
-type NodeEventHandlerFuncs struct {
-	OnNodeDelete informer.EventHandlerFunc
-	OnNodeJoin   informer.EventHandlerFunc
-	OnNodeForget informer.EventHandlerFunc
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -51,22 +44,22 @@ func WithNodeName(s string) NewNodeControllerOption {
 // func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
 func (c *NodeController) Run(ctx context.Context) {
 	// Subscribe to events
-	evt, errCh := c.clientset.EventV1().Subscribe(ctx, eventsv2.ALL...)
+	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Node Handlers
-	c.clientset.EventV1().On(eventsv2.NodeCreate, c.onNodeCreate)
-	c.clientset.EventV1().On(eventsv2.NodeUpdate, c.onNodeUpdate)
-	c.clientset.EventV1().On(eventsv2.NodeDelete, c.onNodeDelete)
-	c.clientset.EventV1().On(eventsv2.NodeJoin, c.onNodeJoin)
-	c.clientset.EventV1().On(eventsv2.NodeForget, c.onNodeForget)
+	c.clientset.EventV1().On(events.NodeCreate, c.onNodeCreate)
+	c.clientset.EventV1().On(events.NodeUpdate, c.onNodeUpdate)
+	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
+	c.clientset.EventV1().On(events.NodeJoin, c.onNodeJoin)
+	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
 
 	// Setup container handlers
-	c.clientset.EventV1().On(eventsv2.ContainerCreate, c.onContainerCreate)
-	c.clientset.EventV1().On(eventsv2.ContainerDelete, c.onContainerDelete)
-	c.clientset.EventV1().On(eventsv2.ContainerUpdate, c.onContainerUpdate)
-	c.clientset.EventV1().On(eventsv2.ContainerStop, c.onContainerStop)
-	c.clientset.EventV1().On(eventsv2.ContainerKill, c.onContainerKill)
-	c.clientset.EventV1().On(eventsv2.ContainerStart, c.onContainerStart)
+	c.clientset.EventV1().On(events.ContainerCreate, c.onContainerCreate)
+	c.clientset.EventV1().On(events.ContainerDelete, c.onContainerDelete)
+	c.clientset.EventV1().On(events.ContainerUpdate, c.onContainerUpdate)
+	c.clientset.EventV1().On(events.ContainerStop, c.onContainerStop)
+	c.clientset.EventV1().On(events.ContainerKill, c.onContainerKill)
+	c.clientset.EventV1().On(events.ContainerStart, c.onContainerStart)
 
 	go func() {
 		for e := range evt {

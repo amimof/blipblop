@@ -4,7 +4,7 @@ import (
 	"context"
 
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
-	"github.com/amimof/blipblop/pkg/eventsv2"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"google.golang.org/grpc"
@@ -18,7 +18,7 @@ func WithLogger(l logger.Logger) NewServiceOption {
 	}
 }
 
-func WithExchange(e *eventsv2.Exchange) NewServiceOption {
+func WithExchange(e *events.Exchange) NewServiceOption {
 	return func(s *ContainerSetService) {
 		s.exchange = e
 	}
@@ -28,7 +28,7 @@ type ContainerSetService struct {
 	containersetsv1.UnimplementedContainerSetServiceServer
 	local    containersetsv1.ContainerSetServiceClient
 	logger   logger.Logger
-	exchange *eventsv2.Exchange
+	exchange *events.Exchange
 }
 
 func (c *ContainerSetService) Register(server *grpc.Server) error {

@@ -6,7 +6,7 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/eventsv2"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/scheduling"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -52,10 +52,10 @@ func (c *SchedulerController) onContainerCreate(ctx context.Context, e *eventsv1
 
 func (c *SchedulerController) Run(ctx context.Context) {
 	// Subscribe to events
-	_, err := c.clientset.EventV1().Subscribe(ctx, eventsv2.ContainerCreate)
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.ContainerCreate)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(eventsv2.ContainerCreate, c.onContainerCreate)
+	c.clientset.EventV1().On(events.ContainerCreate, c.onContainerCreate)
 
 	// Handle errors
 	for e := range err {

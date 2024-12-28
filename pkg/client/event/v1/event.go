@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"time"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/eventsv2"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/google/uuid"
@@ -24,7 +22,7 @@ type ClientV1 struct {
 	id           string
 	eventService eventsv1.EventServiceClient
 	stream       eventsv1.EventService_SubscribeClient
-	exchange     eventsv2.Exchange
+	exchange     events.Exchange
 }
 
 func (c *ClientV1) EventService() eventsv1.EventServiceClient {
@@ -60,6 +58,7 @@ func (c *ClientV1) Create(ctx context.Context, e *eventsv1.Event) (*eventsv1.Eve
 func (c *ClientV1) Publish(ctx context.Context, obj events.Object, evt eventsv1.EventType) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	req := events.NewRequest(evt, obj)
+	// re := &eventsv1.PublishRequest{Event: event.NewEventFor(c.id, id, evt)}
 	_, err := c.eventService.Publish(ctx, req)
 	if err != nil {
 		return err
@@ -68,11 +67,11 @@ func (c *ClientV1) Publish(ctx context.Context, obj events.Object, evt eventsv1.
 }
 
 // On registers a handler func for a certain event type
-func (c *ClientV1) On(ev eventsv1.EventType, f eventsv2.HandlerFunc) {
+func (c *ClientV1) On(ev eventsv1.EventType, f events.HandlerFunc) {
 	c.exchange.On(ev, f)
 }
 
-func (c *ClientV1) Once(ev eventsv1.EventType, f eventsv2.HandlerFunc) {
+func (c *ClientV1) Once(ev eventsv1.EventType, f events.HandlerFunc) {
 	c.exchange.On(ev, f)
 }
 
@@ -93,13 +92,9 @@ func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) 
 			// Start a new stream connection
 			stream, err := c.startStream(ctx)
 			if err != nil {
-				log.Println("error connecting to event stream", "error", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
-
-			// log.Println("Connected to stream")
-			log.Println("connected to event stream")
 
 			// Stream handling
 			streamErr := c.handleStream(ctx, stream, errChan)
@@ -114,7 +109,6 @@ func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) 
 				}
 
 				// Backoff reconnect
-				log.Println("reconnecting due to stream error", "error", streamErr)
 				time.Sleep(2 * time.Second)
 			}
 
@@ -168,85 +162,6 @@ func isRetryableError(code codes.Code) bool {
 	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
 }
 
-// func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) (chan *eventsv1.Event, chan error) {
-// 	// Setup error channel
-// 	errChan := make(chan error, 10)
-//
-// 	// Subscribe to topics
-// 	bus := c.exchange.Subscribe(ctx, topics...)
-//
-// 	// Read from the stream
-// 	go func() {
-// 		backoff := 1 * time.Second
-// 		const maxBackoff = 30 * time.Second
-//
-// 		for {
-//
-// 			// Create gRPC stream
-// 			stream, err := c.eventService.Subscribe(ctx, &eventsv1.SubscribeRequest{ClientId: c.id})
-// 			if err != nil {
-// 				errChan <- err
-// 				if grpcErr, ok := status.FromError(err); ok && grpcErr.Code() == codes.Unavailable {
-// 					// Retry with backoff for transient errors
-// 					time.Sleep(backoff)
-// 					backoff = min(backoff*2, maxBackoff)
-// 					log.Println("Attempt reconnect in ", backoff)
-// 					continue
-// 				}
-// 				log.Println("Attempt reconnect in ", backoff)
-// 				return
-// 			}
-//
-// 			// Reset backoff on successful connection
-// 			backoff = 1 * time.Second
-//
-// 			// Store stream on the client for future use
-// 			if c.stream == nil {
-// 				c.stream = stream
-// 			}
-//
-// 			// Read from the stream
-// 			for {
-// 				response, err := c.stream.Recv()
-//
-// 				// Stream closed by server
-// 				if err == io.EOF {
-// 					errChan <- fmt.Errorf("server stream closed")
-// 					break
-// 				}
-//
-// 				// Handle transient errors
-// 				if err != nil {
-// 					if grpcErr, ok := status.FromError(err); ok {
-// 						errChan <- fmt.Errorf("gRPC stream error %v, code %v", grpcErr.Message(), grpcErr.Code())
-// 						if grpcErr.Code() == codes.Unavailable || grpcErr.Code() == codes.Internal {
-// 							// Break out to reconnect
-// 							break
-// 						}
-// 					}
-// 					errChan <- fmt.Errorf("non-gRPC error: %v", err)
-// 					return
-// 				}
-//
-// 				// Send the event to the exchange
-// 				if err := c.exchange.Publish(ctx, response.GetType(), response); err != nil {
-// 					errChan <- err
-// 				}
-//
-// 				// Handle context cancellation
-// 				select {
-// 				case <-ctx.Done():
-// 					errChan <- ctx.Err()
-// 					return
-// 				}
-// 			}
-//
-// 		}
-// 	}()
-//
-// 	return bus, errChan
-// }
-
 func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
 	if clientId == "" {
 		clientId = uuid.New().String()
@@ -254,6 +169,6 @@ func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
 	return &ClientV1{
 		eventService: eventsv1.NewEventServiceClient(conn),
 		id:           clientId,
-		exchange:     *eventsv2.NewExchange(),
+		exchange:     *events.NewExchange(),
 	}
 }

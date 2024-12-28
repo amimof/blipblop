@@ -10,11 +10,10 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/eventsv2"
 )
 
 func main() {
-	exchange := eventsv2.NewExchange()
+	exchange := events.NewExchange()
 
 	evType := eventsv1.EventType_ContainerCreate
 	ev := events.NewEvent(evType, &containers.Container{})
