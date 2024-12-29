@@ -22,7 +22,6 @@ type ClientV1 struct {
 	id           string
 	eventService eventsv1.EventServiceClient
 	exchange     events.Exchange
-	stream       eventsv1.EventService_SubscribeClient
 }
 
 func (c *ClientV1) EventService() eventsv1.EventServiceClient {
