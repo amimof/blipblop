@@ -21,7 +21,6 @@ import (
 type ClientV1 struct {
 	id           string
 	eventService eventsv1.EventServiceClient
-	stream       eventsv1.EventService_SubscribeClient
 	exchange     events.Exchange
 }
 

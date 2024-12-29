@@ -87,22 +87,6 @@ func (c *NodeController) Run(ctx context.Context) {
 	}
 }
 
-// Broadcaster reads from the input channel and sends each message to multiple output channels.
-func (n *NodeController) broadcastEvent(_ context.Context, input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Event) {
-	// Send the same message to each output channel
-	for event := range input {
-		for _, out := range outputs {
-			// event.Meta.Labels = metadata
-			out <- event
-		}
-	}
-
-	// Close all output channels
-	for _, out := range outputs {
-		close(out)
-	}
-}
-
 func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
 	return nil
 }

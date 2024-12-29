@@ -87,8 +87,8 @@ func TestExchange_Handler(t *testing.T) {
 	})
 
 	// Publish two events that should call the 2 above handlers
-	e.Publish(ctx, topic, event)
-	e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, topic, event)
 
 	if i != 6 {
 		t.Fatalf("Expected i to be 6, got %d", i)
@@ -110,9 +110,9 @@ func TextExchange_FireOnceHandler(t *testing.T) {
 	})
 
 	// Publish three events, only the first event fires the handler
-	e.Publish(ctx, topic, event)
-	e.Publish(ctx, topic, event)
-	e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, topic, event)
 
 	if i != 1 {
 		t.Fatalf("Expected i to be 1, got %d", i)

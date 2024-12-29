@@ -55,7 +55,9 @@ func (e *Exchange) Unsubscribe(context.Context, eventsv1.EventType) error {
 // Forward publishes the event using the publishers added to this exchange. Implements Forwarder.
 func (e *Exchange) Forward(ctx context.Context, t eventsv1.EventType, ev *eventsv1.Event) error {
 	for _, forwarder := range e.publishers {
-		forwarder.Publish(ctx, t, ev)
+		if err := forwarder.Publish(ctx, t, ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }
