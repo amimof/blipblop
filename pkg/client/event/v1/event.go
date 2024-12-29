@@ -22,6 +22,7 @@ type ClientV1 struct {
 	id           string
 	eventService eventsv1.EventServiceClient
 	exchange     events.Exchange
+	stream       eventsv1.EventService_SubscribeClient
 }
 
 func (c *ClientV1) EventService() eventsv1.EventServiceClient {
@@ -79,6 +80,9 @@ func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) 
 	bus := c.exchange.Subscribe(ctx, topics...)
 
 	go func() {
+		defer close(errChan)
+		defer close(bus)
+
 		for {
 			// Check if the context is already canceled before starting a connection
 			select {
