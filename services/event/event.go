@@ -3,13 +3,14 @@ package event
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 )
 
 var ErrClientExists = errors.New("client already exists")
@@ -58,12 +59,50 @@ func (n *EventService) Register(server *grpc.Server) error {
 }
 
 func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
-	return s.exchange.Forward(req, stream)
+	// Identify the client
+	ctx := stream.Context()
+	clientId := req.ClientId
+	peer, _ := peer.FromContext(ctx)
+
+	eventChan := s.exchange.Subscribe(ctx, events.ALL...)
+
+	s.logger.Debug("client connected", "clientId", clientId, "address", peer.Addr.String())
+
+	go func() {
+		for {
+			select {
+			case n := <-eventChan:
+
+				s.logger.Info("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+				err := stream.Send(n)
+				if err != nil {
+					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+					return
+				}
+			case <-ctx.Done():
+				s.logger.Info("client disconnected", "clientId", req.ClientId)
+
+				// Get node name from context
+				if md, ok := metadata.FromIncomingContext(ctx); ok {
+					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
+						_, err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
+						if err != nil {
+							s.logger.Error("error publishing event", "error", err)
+						}
+					}
+				}
+				return
+			}
+		}
+	}()
+
+	<-ctx.Done()
+	return nil
 }
 
 func (s *EventService) Publish(ctx context.Context, req *eventsv1.PublishRequest) (*eventsv1.PublishResponse, error) {
-	fmt.Println("PUBLISHING")
-	err := s.exchange.Publish(ctx, req)
+	s.logger.Info("Publishing event")
+	err := s.exchange.Publish(ctx, req.GetEvent().GetType(), req.GetEvent())
 	if err != nil {
 		return nil, err
 	}

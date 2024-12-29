@@ -214,33 +214,31 @@ func main() {
 	defer db.Close()
 
 	// Setup event exchange bus
-	exchange := events.NewExchange(
-		events.WithLogger(log),
-	)
+	exchange2 := events.NewExchange()
 
 	// Setup services
 	eventService := event.NewService(
 		repository.NewEventBadgerRepository(db, repository.WithEventBadgerRepositoryMaxItems(5)),
 		event.WithLogger(log),
-		event.WithExchange(exchange),
+		event.WithExchange(exchange2),
 	)
 
 	nodeService := node.NewService(
 		repository.NewNodeBadgerRepository(db),
 		node.WithLogger(log),
-		node.WithExchange(exchange),
+		node.WithExchange(exchange2),
 	)
 
 	containerSetService := containerset.NewService(
 		repository.NewContainerSetBadgerRepository(db),
 		containerset.WithLogger(log),
-		containerset.WithExchange(exchange),
+		containerset.WithExchange(exchange2),
 	)
 
 	containerService := container.NewService(
 		repository.NewContainerBadgerRepository(db),
 		container.WithLogger(log),
-		container.WithExchange(exchange),
+		container.WithExchange(exchange2),
 	)
 
 	// Setup server

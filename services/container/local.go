@@ -85,7 +85,8 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerCreate, container))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerCreate, container))
+	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerCreate, events.NewEvent(eventsv1.EventType_ContainerCreate, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
 	}
@@ -106,7 +107,8 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerDelete, container))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerDelete, container))
+	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerDelete, events.NewEvent(eventsv1.EventType_ContainerDelete, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "ContainerDelete")
 	}
@@ -120,7 +122,8 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerKill, container))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerKill, container))
+	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(eventsv1.EventType_ContainerKill, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing KILL event", "name", req.GetId(), "event", "ContainerKill")
 	}
@@ -134,7 +137,8 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerStart, container))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerStart, container))
+	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerStart, events.NewEvent(eventsv1.EventType_ContainerStart, container))
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +239,8 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 
 	// Only publish if spec is updated
 	if !proto.Equal(updated.Config, existing.Config) {
-		err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, ctr))
+		// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, ctr))
+		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 		}

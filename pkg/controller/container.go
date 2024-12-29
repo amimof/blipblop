@@ -2,12 +2,11 @@ package controller
 
 import (
 	"context"
-	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events/informer"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/node"
@@ -29,39 +28,20 @@ func WithContainerControllerLogger(l logger.Logger) NewContainerControllerOption
 }
 
 func (c *ContainerController) Run(ctx context.Context, stopCh <-chan struct{}) {
-	// Setup channels
-	evt := make(chan *eventsv1.Event, 10)
-	errChan := make(chan error, 10)
+	// Subscribe to events
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
-	// Setup handlers
-	handlers := informer.ContainerEventHandlerFuncs{
-		// OnCreate: c.onContainerCreate,
-		OnSchedule: c.onContainerCreate,
-		OnUpdate:   c.onContainerUpdate,
-		OnDelete:   c.onContainerDelete,
-		OnStart:    c.onContainerStart,
-		OnKill:     c.onContainerKill,
-		OnStop:     c.onContainerStop,
-	}
+	// Setup Handlers
+	c.clientset.EventV1().On(events.Schedule, c.onContainerCreate)
+	c.clientset.EventV1().On(events.ContainerUpdate, c.onContainerUpdate)
+	c.clientset.EventV1().On(events.ContainerDelete, c.onContainerDelete)
+	c.clientset.EventV1().On(events.ContainerStart, c.onContainerStart)
+	c.clientset.EventV1().On(events.ContainerKill, c.onContainerKill)
+	c.clientset.EventV1().On(events.ContainerStop, c.onContainerStop)
 
-	// Run ctrInformer
-	ctrInformer := informer.NewContainerEventInformer(handlers)
-	go ctrInformer.Run(ctx, evt)
-
-	// Subscribe with retry
-	for {
-		select {
-		case <-stopCh:
-			c.logger.Info("done watching, stopping subscription")
-			return
-		default:
-			if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
-				c.logger.Error("error occured during subscribe", "error", err)
-			}
-
-			c.logger.Info("attempting to re-subscribe to event server")
-			time.Sleep(5 * time.Second)
-		}
+	// Handle errors
+	for e := range err {
+		c.logger.Error("received error on channel", "error", e)
 	}
 }
 

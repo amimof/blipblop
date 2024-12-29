@@ -77,7 +77,8 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeId)
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	err = l.exchange.Publish(ctx, events.NodeCreate, events.NewEvent(eventsv1.EventType_NodeCreate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeId, "event", "NodeCreate")
 	}
@@ -98,7 +99,8 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	err = l.exchange.Publish(ctx, events.NodeDelete, events.NewEvent(eventsv1.EventType_NodeDelete, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
@@ -155,7 +157,8 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
+	err = l.exchange.Publish(ctx, events.NodeUpdate, events.NewEvent(eventsv1.EventType_NodeUpdate, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "NodeUpdate")
 	}
@@ -196,7 +199,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 
 	return &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
-	}, l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeJoin, node))
+	}, l.exchange.Publish(ctx, eventsv1.EventType_NodeJoin, events.NewEvent(eventsv1.EventType_NodeJoin, node))
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
@@ -212,7 +215,7 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeForget, node))
+	err = l.exchange.Publish(ctx, events.NodeForget, events.NewEvent(eventsv1.EventType_NodeForget, node))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}

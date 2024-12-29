@@ -3,14 +3,13 @@ package controller
 import (
 	"context"
 	"fmt"
-	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events/informer"
+	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/util"
@@ -30,36 +29,19 @@ func WithContainerSetLogger(l logger.Logger) NewContainerSetControllerOption {
 }
 
 func (c *ContainerSetController) Run(ctx context.Context) {
-	// Setup channels
-	evt := make(chan *eventsv1.Event, 10)
-	errChan := make(chan error, 10)
+	// Subscribe to events
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
-	// Define handlers
-	handlers := informer.ContainerSetEventHandlerFuncs{
-		OnCreate: c.onCreate,
-		OnUpdate: func(ctx context.Context, e *eventsv1.Event) error {
-			return nil
-		},
-		OnDelete: c.onDelete,
-	}
+	// Setup Handlers
+	c.clientset.EventV1().On(events.ContainerCreate, c.onCreate)
+	c.clientset.EventV1().On(events.ContainerUpdate, func(ctx context.Context, e *eventsv1.Event) error {
+		return nil
+	})
+	c.clientset.EventV1().On(events.ContainerDelete, c.onDelete)
 
-	// Run informer
-	informer := informer.NewContainerSetEventInformer(handlers)
-	go informer.Run(ctx, evt)
-
-	// Subscribe with retry
-	for {
-		select {
-		case <-ctx.Done():
-			c.logger.Info("done watching, stopping subscription")
-			return
-		default:
-			if err := c.clientset.EventV1().Subscribe(ctx, evt, errChan); err != nil {
-				c.logger.Error("error occured during subscribe", "error", err)
-			}
-			c.logger.Info("attempting to re-subscribe to event server")
-			time.Sleep(5 * time.Second)
-		}
+	// Handle errors
+	for e := range err {
+		c.logger.Error("received error on channel", "error", e)
 	}
 }
 

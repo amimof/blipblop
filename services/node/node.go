@@ -12,7 +12,6 @@ import (
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/events/informer"
 	"github.com/amimof/blipblop/pkg/logger"
 	nodeutil "github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/repository"
@@ -110,7 +109,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	n.mu.Unlock()
 
 	// Publish event that node is connected
-	err = n.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeConnect, node))
+	err = n.exchange.Publish(ctx, eventsv1.EventType_NodeConnect, events.NewEvent(eventsv1.EventType_NodeConnect, node))
 	if err != nil {
 		n.logger.Error("error publishing NodeConnect event", "error", err)
 	}
@@ -138,14 +137,6 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 		delete(n.streams, nodeName)
 	}()
 
-	// TESTING Periodically send message to clients
-	// go func() {
-	// 	for {
-	// 		stream.Send(&eventsv1.Event{Type: eventsv1.EventType_NodeJoin})
-	// 		time.Sleep(3 * time.Second)
-	// 	}
-	// }()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -164,7 +155,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 				return err
 			}
 
-			err = n.exchange.Publish(ctx, &eventsv1.PublishRequest{Event: msg})
+			err = n.exchange.Publish(ctx, msg.GetType(), msg)
 			if err != nil {
 				return err
 			}
@@ -172,66 +163,13 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	}
 }
 
-func broadcastEvent(input <-chan *eventsv1.Event, outputs ...chan *eventsv1.Event) {
-	// Send the same message to each output channel
-	for event := range input {
-		for _, out := range outputs {
-			out <- event
-		}
-	}
-
-	// Close all output channels
-	for _, out := range outputs {
-		close(out)
-	}
-}
-
-// TODO: Probably not necessary to watch for node events
-func (n *NodeService) subscribe(ctx context.Context) {
-	ch, _ := n.exchange.Subscribe(ctx)
-
-	nodeEvt := make(chan *eventsv1.Event, 10)
-	ctrEvt := make(chan *eventsv1.Event, 10)
-
-	go broadcastEvent(ch, nodeEvt, ctrEvt)
-
-	nodeHandlers := informer.NodeEventHandlerFuncs{
-		OnForget: n.onForget,
-	}
-	nodeinformer := informer.NewNodeEventInformer(nodeHandlers)
-	go nodeinformer.Run(ctx, nodeEvt)
-
-	containerHandlers := informer.ContainerEventHandlerFuncs{
-		OnSchedule: n.onSchedule,
-		// OnCreate:   n.onContainerCreate,
-		OnDelete: n.onContainer,
-		OnUpdate: n.onContainer,
-		OnStart:  n.onContainer,
-		OnKill:   n.onContainer,
-		OnStop:   n.onContainer,
-	}
-
-	containerInformer := informer.NewContainerEventInformer(containerHandlers)
-	go containerInformer.Run(ctx, ctrEvt)
-}
-
-func (n *NodeService) onForget(ctx context.Context, e *eventsv1.Event) error {
-	n.logger.Debug("got node forget, update node status", "node", e.GetObjectId())
-	fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
-	req := &nodesv1.UpdateNodeRequest{
-		Id: e.GetObjectId(),
-		Node: &nodesv1.Node{
-			Status: &nodesv1.Status{
-				State: nodeutil.StatusMissing,
-			},
-			Meta: &metav1.Meta{
-				Name: e.GetObjectId(),
-			},
-		},
-		UpdateMask: fm,
-	}
-	_, err := n.Update(context.Background(), req)
-	return err
+func (n *NodeService) setupHandlers() {
+	n.exchange.On(events.ContainerDelete, n.onContainer)
+	n.exchange.On(events.ContainerUpdate, n.onContainer)
+	n.exchange.On(events.ContainerStart, n.onContainer)
+	n.exchange.On(events.ContainerKill, n.onContainer)
+	n.exchange.On(events.ContainerStop, n.onContainer)
+	n.exchange.On(events.Schedule, n.onSchedule)
 }
 
 func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
@@ -273,41 +211,6 @@ func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
 	return nil
 }
 
-// func (n *NodeService) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
-// 	// Schedule container on every node
-// 	for nodeName, stream := range n.streams {
-//
-// 		// Extract the Container from the Event
-// 		var ctr containersv1.Container
-// 		if err := e.GetObject().UnmarshalTo(&ctr); err != nil {
-// 			return err
-// 		}
-//
-// 		// Lookup the Node
-// 		res, err := n.Get(context.Background(), &nodesv1.GetNodeRequest{Id: nodeName})
-// 		if err != nil {
-// 			return err
-// 		}
-//
-// 		node := res.GetNode()
-//
-// 		// See if nodeSelector matches labels on the node
-// 		nodeSelector := labels.NewCompositeSelectorFromMap(ctr.GetConfig().GetNodeSelector())
-// 		if !nodeSelector.Matches(node.GetMeta().GetLabels()) {
-// 			return nil
-// 		}
-//
-// 		// Schedule container on node
-// 		n.logger.Info("scheduling container", "node", nodeName, "container", ctr.GetMeta().GetName())
-// 		err = stream.Send(e)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-//
-// 	return nil
-// }
-
 func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error {
 	// Unmarshal Container from event
 	var ctr containersv1.Container
@@ -327,12 +230,6 @@ func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error 
 	if !ok {
 		return fmt.Errorf("node is not connected as %s", nodeName)
 	}
-
-	// n.logger.Info("metadata", "meta", e.Meta.Labels)
-	// msg := inttrace.ExtractMetadataFromContext(ctx)
-	// e.Meta.Labels = msg
-
-	n.logger.Info("metadata", "meta start container?", e.Meta.Labels)
 
 	// Forward event to node
 	n.logger.Info("forwarding event to node", "node", nodeName, "container", ctr.GetMeta().GetName(), "event", e.GetType().String())
@@ -360,7 +257,7 @@ func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeS
 		logger:   s.logger,
 	}
 
-	go s.subscribe(context.Background())
+	s.setupHandlers()
 
 	return s
 }

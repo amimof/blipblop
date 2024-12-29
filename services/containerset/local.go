@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
@@ -78,7 +77,7 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainer
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerSet.GetMeta().GetName())
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetCreate, containerSet))
+	err = l.exchange.Publish(ctx, events.ContainerSetCreate, events.NewEvent(events.ContainerSetCreate, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerCreate")
 	}
@@ -97,7 +96,7 @@ func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainer
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetDelete, containerSet))
+	err = l.exchange.Publish(ctx, events.ContainerSetDelete, events.NewEvent(events.ContainerSetDelete, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
 	}
@@ -137,7 +136,7 @@ func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainer
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerSetUpdate, containerSet))
+	err = l.exchange.Publish(ctx, events.ContainerSetUpdate, events.NewEvent(events.ContainerSetUpdate, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}

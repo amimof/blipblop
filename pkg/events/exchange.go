@@ -6,127 +6,116 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/logger"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 )
 
-type NewExchangeOption func(*Exchange)
+var (
+	_ Publisher  = &Exchange{}
+	_ Forwarder  = &Exchange{}
+	_ Subscriber = &Exchange{}
+)
 
-func WithLogger(l logger.Logger) NewExchangeOption {
-	return func(e *Exchange) {
-		e.logger = l
-	}
-}
+type HandlerFunc func(context.Context, *eventsv1.Event) error
 
 type Exchange struct {
-	subscribers map[string][]chan *eventsv1.Event
-	mu          sync.Mutex
-	logger      logger.Logger
+	topics             map[eventsv1.EventType][]chan *eventsv1.Event
+	persistentHandlers map[eventsv1.EventType][]HandlerFunc
+	fireOnceHandlers   map[eventsv1.EventType][]HandlerFunc
+	errChan            chan error
+	mu                 sync.Mutex
+	logger             logger.Logger
+	publishers         []Publisher
 }
 
-func (s *Exchange) Forward(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
-	// Identify the client
-	ctx := stream.Context()
-	clientId := req.ClientId
-	peer, _ := peer.FromContext(ctx)
-	eventChan := make(chan *eventsv1.Event)
+// AddPublisher adds a forwarder to this Exchange
+func (e *Exchange) AddPublisher(forwarder Publisher) {
+	e.publishers = append(e.publishers, forwarder)
+}
 
-	s.logger.Debug("client connected", "clientId", clientId, "address", peer.Addr.String())
+// On registers a handler func for a certain event type
+func (e *Exchange) On(ev eventsv1.EventType, f HandlerFunc) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.persistentHandlers[ev] = append(e.persistentHandlers[ev], f)
+}
 
-	s.mu.Lock()
-	s.subscribers[clientId] = append(s.subscribers[clientId], eventChan)
-	s.mu.Unlock()
-	go func() {
-		for {
-			select {
-			case n := <-eventChan:
+// Once attaches a handler to the specified event type. The handler func is only executed once
+func (e *Exchange) Once(ev eventsv1.EventType, f HandlerFunc) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.fireOnceHandlers[ev] = append(e.fireOnceHandlers[ev], f)
+}
 
-				s.logger.Debug("forwarding event from client", "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
-				err := stream.Send(n)
-				if err != nil {
-					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.Type, "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
-					return
-				}
-			case <-ctx.Done():
-				s.logger.Debug("client disconnected", "clientId", req.ClientId)
-				s.mu.Lock()
-				delete(s.subscribers, req.ClientId)
-				s.mu.Unlock()
-
-				// Get node name from context
-				if md, ok := metadata.FromIncomingContext(ctx); ok {
-					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
-						err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
-						if err != nil {
-							s.logger.Error("error publishing event", "error", err)
-						}
-					}
-				}
-				return
-			}
-		}
-	}()
-
-	<-ctx.Done()
+// Unsubscribe implements Subscriber.
+func (e *Exchange) Unsubscribe(context.Context, eventsv1.EventType) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	return nil
 }
 
-func (s *Exchange) Publish(ctx context.Context, req *eventsv1.PublishRequest) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for client, sub := range s.subscribers {
-		for _, ch := range sub {
-			select {
-			case ch <- req.Event:
-				s.logger.Debug("published event to client", "client", client, "event", req.GetEvent().GetType().String())
-			default:
-				s.logger.Debug("client is too slow to receive events", "client", client)
-			}
+// Forward publishes the event using the publishers added to this exchange. Implements Forwarder.
+func (e *Exchange) Forward(ctx context.Context, t eventsv1.EventType, ev *eventsv1.Event) error {
+	for _, forwarder := range e.publishers {
+		if err := forwarder.Publish(ctx, t, ev); err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
-func (s *Exchange) Subscribe(ctx context.Context) (<-chan *eventsv1.Event, <-chan error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	eventChan := make(chan *eventsv1.Event, 10)
-
-	clientId := "NOID"
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		clientIdMd := md.Get("blipblop_client_id")
-		if len(clientIdMd) > 0 {
-			clientId = clientIdMd[0]
-		}
+// Subscribe subscribes to events of a certain event type
+func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) chan *eventsv1.Event {
+	ch := make(chan *eventsv1.Event, 10)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, evType := range t {
+		e.topics[evType] = append(e.topics[evType], ch)
 	}
-
-	s.subscribers[clientId] = append(s.subscribers[clientId], eventChan)
-
-	return eventChan, nil
+	return ch
 }
 
-func (e *Exchange) Close() {
+// Publish publishes an event of a certain type
+func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *eventsv1.Event) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	for _, ch := range e.subscribers {
-		for _, sub := range ch {
-			close(sub)
+	// Publish to subscribers on the topic
+	if evChans, ok := e.topics[t]; ok {
+		for _, evChan := range evChans {
+			go func(ch chan *eventsv1.Event) {
+				ch <- ev
+			}(evChan)
 		}
 	}
+
+	// Run persistent handler funcs
+	if handlers, ok := e.persistentHandlers[t]; ok {
+		for _, handler := range handlers {
+			if err := handler(ctx, ev); err != nil {
+				e.errChan <- err
+			}
+		}
+	}
+	// Run oneoff handler funcs
+	if handlers, ok := e.fireOnceHandlers[t]; ok {
+		for i, handler := range handlers {
+			if err := handler(ctx, ev); err != nil {
+				e.errChan <- err
+			}
+			handlers = remove(handlers, i)
+		}
+	}
+	return nil
 }
 
-func NewExchange(opts ...NewExchangeOption) *Exchange {
-	e := &Exchange{
-		subscribers: make(map[string][]chan *eventsv1.Event),
-		logger:      logger.ConsoleLogger{},
-	}
+func remove(s []HandlerFunc, i int) []HandlerFunc {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
+}
 
-	for _, opt := range opts {
-		opt(e)
+func NewExchange() *Exchange {
+	return &Exchange{
+		topics:             make(map[eventsv1.EventType][]chan *eventsv1.Event),
+		persistentHandlers: make(map[eventsv1.EventType][]HandlerFunc),
+		errChan:            make(chan error),
 	}
-
-	return e
 }
