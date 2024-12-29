@@ -93,7 +93,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Contain
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetMeta().GetName(), ctr.GetStatus().GetPid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetMeta().GetName(), ctr.GetStatus().GetTask().GetPid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}

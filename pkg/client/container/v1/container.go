@@ -27,8 +27,8 @@ func WithEmitLabels(l labels.Label) CreateOption {
 
 type ClientV1 struct {
 	Client     containers.ContainerServiceClient
-	id         string
 	emitLabels labels.Label
+	id         string
 }
 
 func (c *ClientV1) SetNode(ctx context.Context, id, node string) error {
@@ -55,8 +55,7 @@ func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, phase string, d
 		Id: id,
 		Container: &containers.Container{
 			Status: &containers.Status{
-				Phase:       phase,
-				Description: desc,
+				Phase: phase,
 			},
 		},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.phase"}},

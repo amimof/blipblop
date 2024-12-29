@@ -61,17 +61,27 @@ message Container {
   blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
   Config config = 2 [(validate.rules).message.required = true];
   Status status = 3;
-  // repeated Event events = 4;
 }
 
 message Status {
 	string phase = 1;
 	string node = 2;
 	string ip = 3;
-  uint32 pid = 4;
-  uint32 exitStatus = 5;
-  google.protobuf.Timestamp exitTime = 6;
-  string description = 8;
+  TaskStatus task = 4;
+  RuntimeStatus runtime = 5;
+}
+
+message TaskStatus {
+  uint32 pid = 1;
+  uint32 exitStatus = 2;
+  google.protobuf.Timestamp exitTime = 3;
+}
+
+message RuntimeStatus {
+  string runtime_env = 1;
+  string runtime_version = 2;
+  string stdout_path = 3;
+  string stderr_path = 4;
 }
 
 message Config {

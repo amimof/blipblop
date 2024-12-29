@@ -14,11 +14,11 @@ import (
 )
 
 type NodeController struct {
-	clientset                *client.ClientSet
 	runtime                  runtime.Runtime
 	logger                   logger.Logger
-	heartbeatIntervalSeconds int
+	clientset                *client.ClientSet
 	nodeName                 string
+	heartbeatIntervalSeconds int
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -74,6 +74,39 @@ func (c *NodeController) Run(ctx context.Context) {
 			c.logger.Error("error connecting to server", "error", err)
 		}
 	}()
+
+	// // Log collector
+	// logChan := make(chan *logsv1.LogStreamRequest, 10)
+	// resChan := make(chan *logsv1.LogStreamResponse, 1)
+	// logErrChan := make(chan error, 1)
+	// var startLogging bool
+	//
+	// // Receive logging start/stop signal
+	// go func() {
+	// 	for e := range resChan {
+	// 		startLogging = e.GetStart()
+	// 	}
+	// }()
+	//
+	// // TESTING Periodically send message to clients. Replace this with actual container log
+	// go func() {
+	// 	var i int
+	// 	for {
+	// 		if startLogging {
+	// 			req := &logsv1.LogStreamRequest{NodeId: c.nodeName, ContainerId: "nginx2", Log: &logsv1.LogItem{LogLine: fmt.Sprintf("%d hello world!", i), Timestamp: time.Now().String()}}
+	// 			logChan <- req
+	// 			time.Sleep(time.Second * 1)
+	// 			i = i + 1
+	// 		}
+	// 	}
+	// }()
+	//
+	// go func() {
+	// 	err := c.clientset.LogV1().LogStream(ctx, c.nodeName, "nginx2", logChan, logErrChan, resChan)
+	// 	if err != nil {
+	// 		c.logger.Error("error connecting to log collector service", "error", err)
+	// 	}
+	// }()
 
 	// Update status once connected
 	err := c.clientset.NodeV1().SetState(ctx, c.nodeName, connectivity.Ready)
@@ -230,7 +263,7 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 
 	// Delete container if it exists
 	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
-	if err := c.runtime.Delete(ctx, &ctr); err != nil {
+	if err = c.runtime.Delete(ctx, &ctr); err != nil {
 		return err
 	}
 
