@@ -369,6 +369,9 @@
         "ip": {
           "type": "string"
         },
+        "reason": {
+          "type": "string"
+        },
         "task": {
           "$ref": "#/definitions/v1TaskStatus"
         },
@@ -609,6 +612,9 @@
         "exitTime": {
           "type": "string",
           "format": "date-time"
+        },
+        "description": {
+          "type": "string"
         }
       }
     },

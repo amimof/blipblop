@@ -125,6 +125,8 @@ func (s *LogService) Subscribe(req *logsv1.SubscribeRequest, stream logsv1.LogSe
 		return fmt.Errorf("no agent found for ID %s", nodeId)
 	}
 
+	s.clientStreams[nodeId] = map[string]map[string]chan *logsv1.LogItem{}
+	s.clientStreams[nodeId][containerId] = map[string]chan *logsv1.LogItem{}
 	s.clientStreams[nodeId][containerId][clientId] = make(chan *logsv1.LogItem)
 	clientStream := s.clientStreams[nodeId][containerId][clientId]
 

@@ -132,20 +132,20 @@ func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv
 	}
 
 	// Delete container if it exists
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String())
 	if err = c.runtime.Delete(ctx, &ctr); err != nil {
 		return err
 	}
 
 	// Pull image
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String(), "")
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String())
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
 	// Run container
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String(), "")
+	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String())
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err

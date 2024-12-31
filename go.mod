@@ -16,7 +16,6 @@ require (
 require (
 	github.com/containerd/console v1.0.4
 	github.com/containerd/containerd/api v1.8.0
-	github.com/containerd/containerd/v2 v2.0.1
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/dgraph-io/badger/v4 v4.3.0
 	github.com/envoyproxy/protoc-gen-validate v1.1.0

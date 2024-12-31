@@ -67,14 +67,16 @@ message Status {
 	string phase = 1;
 	string node = 2;
 	string ip = 3;
-  TaskStatus task = 4;
-  RuntimeStatus runtime = 5;
+  string reason = 4;
+  TaskStatus task = 5;
+  RuntimeStatus runtime = 6;
 }
 
 message TaskStatus {
   uint32 pid = 1;
   uint32 exitStatus = 2;
   google.protobuf.Timestamp exitTime = 3;
+  string description = 4;
 }
 
 message RuntimeStatus {

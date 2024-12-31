@@ -44,7 +44,7 @@ run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 
 .PHONY: run-node
 run-node: ; $(info $(M) running node) @ ## Run a node on localhost
-	$Q $(GO) run cmd/blipblop-node/main.go --tls-ca ./certs/ca.crt --port 5743
+	$Q $(GO) run cmd/blipblop-node/main.go --tls-ca ./certs/ca.crt --port 5743 --log-level debug
 
 # Build
 

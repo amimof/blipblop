@@ -239,7 +239,6 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 
 	// Only publish if spec is updated
 	if !proto.Equal(updated.Config, existing.Config) {
-		// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerUpdate, ctr))
 		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")

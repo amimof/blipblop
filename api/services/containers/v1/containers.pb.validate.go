@@ -274,6 +274,8 @@ func (m *Status) validate(all bool) error {
 
 	// no validation rules for Ip
 
+	// no validation rules for Reason
+
 	if all {
 		switch v := interface{}(m.GetTask()).(type) {
 		case interface{ ValidateAll() error }:
@@ -463,6 +465,8 @@ func (m *TaskStatus) validate(all bool) error {
 			}
 		}
 	}
+
+	// no validation rules for Description
 
 	if len(errors) > 0 {
 		return TaskStatusMultiError(errors)
