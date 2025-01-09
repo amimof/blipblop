@@ -369,9 +369,6 @@
         "ip": {
           "type": "string"
         },
-        "reason": {
-          "type": "string"
-        },
         "task": {
           "$ref": "#/definitions/v1TaskStatus"
         },
@@ -425,7 +422,8 @@
         "envvars": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "$ref": "#/definitions/v1EnvVar"
           }
         },
         "mounts": {
@@ -476,6 +474,17 @@
       "type": "object",
       "properties": {
         "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1EnvVar": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         }
       }
@@ -605,7 +614,7 @@
           "type": "integer",
           "format": "int64"
         },
-        "exitStatus": {
+        "exitCode": {
           "type": "integer",
           "format": "int64"
         },
@@ -613,7 +622,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": {
+        "error": {
           "type": "string"
         }
       }

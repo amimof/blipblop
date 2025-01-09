@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type ContainerdController struct {
@@ -414,14 +415,10 @@ func (c *ContainerdController) setContainerState(id string) error {
 	exitStatus = getTaskExitStatus(ctx, task)
 	exitTime = getTaskExitTime(ctx, task)
 
-	err = c.clientset.ContainerV1().SetNode(ctx, id, hostname)
-	if err != nil {
-		return err
-	}
-
+	st.Node = hostname
 	st.Phase = phase
-	st.Task.Pid = pid
-	st.Task.ExitStatus = exitStatus
+	st.Task.Pid = wrapperspb.UInt32(pid)
+	st.Task.ExitCode = wrapperspb.UInt32(exitStatus)
 	st.Task.ExitTime = timestamppb.New(exitTime)
 
 	ctr.Status = st
@@ -579,7 +576,7 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 
 			err = c.setContainerState(container.GetMeta().GetName())
 			if err != nil {
-				c.logger.Error("error setting container state", "container", container.GetMeta().GetName())
+				c.logger.Error("error setting container state", "container", container.GetMeta().GetName(), "error", err)
 			}
 		}
 	}

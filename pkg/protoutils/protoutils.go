@@ -67,5 +67,108 @@ func ApplyNestedField(target, source protoreflect.Message, path []string) error 
 		target.Set(field, target.NewField(field))
 	}
 
-	return ApplyNestedField(target.Mutable(field).Message(), source.Get(field).Message(), path[1:])
+	// return ApplyNestedField(target.Mutable(field).Message(), source.Get(field).Message(), path[1:])
+	r := ApplyNestedField(target.Mutable(field).Message(), source.Get(field).Message(), path[1:])
+	return r
+}
+
+// GenerateFieldMask compares two protobuf messages and generates a FieldMask with changed fields.
+func GenerateFieldMask(original, updated protoreflect.ProtoMessage) (*fieldmaskpb.FieldMask, error) {
+	if original == nil || updated == nil {
+		return nil, fmt.Errorf("both original and updated messages must be non-nil")
+	}
+
+	originalReflect := original.ProtoReflect()
+	updatedReflect := updated.ProtoReflect()
+
+	if originalReflect.Descriptor() != updatedReflect.Descriptor() {
+		return nil, fmt.Errorf("messages must have the same descriptor")
+	}
+
+	paths := []string{}
+	err := compareMessages(originalReflect, updatedReflect, "", &paths)
+	if err != nil {
+		return nil, err
+	}
+
+	return &fieldmaskpb.FieldMask{Paths: paths}, nil
+}
+
+func compareMessages(orig, upd protoreflect.Message, prefix string, paths *[]string) error {
+	fields := orig.Descriptor().Fields()
+	for i := 0; i < fields.Len(); i++ {
+		field := fields.Get(i)
+
+		// Get field values from both original and updated messages
+		origValue := orig.Get(field)
+		updValue := upd.Get(field)
+
+		// Build the current field path
+		currentPath := field.Name()
+		if prefix != "" {
+			currentPath = protoreflect.Name(fmt.Sprintf("%s.%s", prefix, field.Name()))
+		}
+
+		// Handle field types
+		switch {
+		case field.IsList():
+			// Compare lists
+			if !listEqual(origValue.List(), updValue.List()) {
+				*paths = append(*paths, string(currentPath))
+			}
+		case field.IsMap():
+			// Compare maps
+			if !mapEqual(origValue.Map(), updValue.Map()) {
+				*paths = append(*paths, string(currentPath))
+			}
+		case field.Kind() == protoreflect.MessageKind:
+			// Recurse into nested messages
+			if !origValue.Message().IsValid() && !updValue.Message().IsValid() {
+				continue
+			}
+			if origValue.Message().IsValid() && updValue.Message().IsValid() {
+				err := compareMessages(origValue.Message(), updValue.Message(), string(currentPath), paths)
+				if err != nil {
+					return err
+				}
+			} else {
+				*paths = append(*paths, string(currentPath))
+			}
+		default:
+			// Compare scalar fields
+			if origValue.Interface() != updValue.Interface() {
+				*paths = append(*paths, string(currentPath))
+			}
+		}
+	}
+
+	return nil
+}
+
+func listEqual(a, b protoreflect.List) bool {
+	if a.Len() != b.Len() {
+		return false
+	}
+	for i := 0; i < a.Len(); i++ {
+		if a.Get(i).Interface() != b.Get(i).Interface() {
+			return false
+		}
+	}
+	return true
+}
+
+func mapEqual(a, b protoreflect.Map) bool {
+	if a.Len() != b.Len() {
+		return false
+	}
+	equal := true
+	a.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+		if bv := b.Get(k); bv.IsValid() {
+			equal = v.Interface() == bv.Interface()
+		} else {
+			equal = false
+		}
+		return equal
+	})
+	return equal
 }

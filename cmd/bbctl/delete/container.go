@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/cmdutil"
-	"github.com/amimof/blipblop/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -37,42 +35,10 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			defer c.Close()
 
 			for _, cname := range args {
-				phase := ""
 				fmt.Printf("Requested to delete container %s\n", cname)
-
 				err = c.ContainerV1().Delete(ctx, cname)
 				if err != nil {
 					logrus.Fatal(err)
-				}
-
-				if viper.GetBool("wait") {
-					fmt.Println("Waiting for container to stop")
-					spinner := cmdutil.NewSpinner(cmdutil.WithPrefix(&phase))
-					spinner.Start()
-					defer spinner.Stop()
-
-					// Periodically get container phase
-					err = cmdutil.Watch(ctx, cname, func(stop cmdutil.StopFunc) error {
-						ctr, err := c.ContainerV1().Get(ctx, cname)
-						if err != nil {
-							if errors.IsNotFound(err) {
-								stop()
-
-								return nil
-							}
-							logrus.Fatal(err)
-						}
-
-						phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
-						if ctr.GetStatus().GetPhase() == "Deleted" {
-							stop()
-						}
-						return nil
-					})
-					if err != nil {
-						logrus.Fatal(err)
-					}
-					fmt.Printf("Container %s deleted\n", cname)
 				}
 			}
 		},

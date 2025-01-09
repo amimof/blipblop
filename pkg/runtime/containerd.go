@@ -55,6 +55,14 @@ func withMounts(m []*containers.Mount) oci.SpecOpts {
 	return oci.WithMounts(mounts)
 }
 
+func withEnvVars(envs []*containers.EnvVar) oci.SpecOpts {
+	envVars := make([]string, len(envs))
+	for i, env := range envs {
+		envVars[i] = fmt.Sprintf("%s=%s", env.GetName(), env.GetValue())
+	}
+	return oci.WithEnv(envVars)
+}
+
 func WithNamespace(ns string) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
 		c.ns = ns
@@ -93,7 +101,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Contain
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetMeta().GetName(), ctr.GetStatus().GetTask().GetPid(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetMeta().GetName(), ctr.GetStatus().GetTask().GetPid().GetValue(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
 	if err != nil {
 		return err
 	}
@@ -309,7 +317,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		oci.WithImageConfig(image),
 		oci.WithHostname(ctr.GetMeta().GetName()),
 		oci.WithImageConfig(image),
-		oci.WithEnv(ctr.GetConfig().GetEnvvars()),
+		withEnvVars(ctr.GetConfig().GetEnvvars()),
 		withMounts(ctr.GetConfig().GetMounts()),
 	}
 

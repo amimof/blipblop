@@ -10,8 +10,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"gopkg.in/yaml.v3"
 )
 
 func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
@@ -46,13 +46,17 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 				return err
 			}
 
-			b, err := yaml.Marshal(ctr)
+			marshaler := protojson.MarshalOptions{
+				EmitUnpopulated: true,
+				Indent:          "  ",
+			}
+			b, err := marshaler.Marshal(ctr)
 			if err != nil {
 				return err
 			}
 
-			// Create temporary file to hold the YAML
-			tmpFile, err := os.CreateTemp("", "*.yaml")
+			// Create temporary file to hold the JSON
+			tmpFile, err := os.CreateTemp("", "*.json")
 			if err != nil {
 				return err
 			}
@@ -86,7 +90,7 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			}
 
 			var updatedCtr containers.Container
-			err = yaml.Unmarshal(ub, &updatedCtr)
+			err = protojson.Unmarshal(ub, &updatedCtr)
 			if err != nil {
 				return err
 			}

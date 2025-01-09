@@ -27,7 +27,7 @@ Download the latest binaries under [relases](https://github.com/amimof/blipblop/
 
 Run the server.
 
-```shell
+```bash
 blipblop-server \
     --tls-key ./certs/server-key.pem \
     --tls-certificate ./certs/server.pem \
@@ -37,7 +37,7 @@ blipblop-server \
 
 Run any number of node instances
 
-```
+```bash
 blipblop-node \
     --tls-ca ./certs/ca.crt \
     --port 5743
@@ -45,7 +45,7 @@ blipblop-node \
 
 Use `bbctl` to interact with the cluster
 
-```
+```bash
 bbctl -s server-hostname.foo.com:5700 get nodes
 ```
 

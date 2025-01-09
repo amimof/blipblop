@@ -8,6 +8,7 @@ import "google/api/annotations.proto";
 import "validate/validate.proto";
 import "api/services/events/v1/events.proto";
 import "api/types/v1/meta.proto";
+import "google/protobuf/wrappers.proto";
 
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
@@ -67,16 +68,15 @@ message Status {
 	string phase = 1;
 	string node = 2;
 	string ip = 3;
-  string reason = 4;
-  TaskStatus task = 5;
-  RuntimeStatus runtime = 6;
+  TaskStatus task = 4;
+  RuntimeStatus runtime = 5;
 }
 
 message TaskStatus {
-  uint32 pid = 1;
-  uint32 exitStatus = 2;
+  google.protobuf.UInt32Value pid = 1;
+  google.protobuf.UInt32Value exitCode = 2;
   google.protobuf.Timestamp exitTime = 3;
-  string description = 4;
+  google.protobuf.StringValue error = 4;
 }
 
 message RuntimeStatus {
@@ -87,9 +87,9 @@ message RuntimeStatus {
 }
 
 message Config {
-	string image = 1[ (validate.rules).string.min_len = 1];
+	string image = 1 [ (validate.rules).string.min_len = 1];
 	repeated string args = 2;
-	repeated string envvars = 3;
+	repeated EnvVar envvars = 3;
 	repeated Mount mounts = 4;
 	repeated PortMapping portMappings = 5; 
   map<string, string> nodeSelector = 6;
@@ -100,6 +100,11 @@ message Mount {
 	string type = 2;
 	string source = 3;
 	repeated string options = 4;
+}
+
+message EnvVar {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  string value = 2 [(validate.rules).string.min_len = 1];
 }
 
 message PortMapping {

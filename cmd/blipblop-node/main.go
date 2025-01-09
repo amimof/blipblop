@@ -192,13 +192,13 @@ func main() {
 	go nodeCtrl.Run(ctx)
 	log.Info("started node controller")
 
-	logCtrl, err := controller.NewLogController(cs, runtime, controller.WithLogControllerNodeName(n.GetMeta().GetName()))
-	if err != nil {
-		log.Error("error setting up Log Controller", "error", err)
-		return
-	}
-	go logCtrl.Run(ctx)
-	log.Info("started log controller")
+	// logCtrl, err := controller.NewLogController(cs, runtime, controller.WithLogControllerNodeName(n.GetMeta().GetName()))
+	// if err != nil {
+	// 	log.Error("error setting up Log Controller", "error", err)
+	// 	return
+	// }
+	// go logCtrl.Run(ctx)
+	// log.Info("started log controller")
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)

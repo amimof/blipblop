@@ -67,23 +67,23 @@ func (c *ClientV1) SetTaskStatus(ctx context.Context, id string, phase string) e
 	return nil
 }
 
-func (c *ClientV1) SetTaskReason(ctx context.Context, id string, reason string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n := &containers.UpdateContainerRequest{
-		Id: id,
-		Container: &containers.Container{
-			Status: &containers.Status{
-				Reason: reason,
-			},
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.reason"}},
-	}
-	_, err := c.Client.Update(ctx, n)
-	if err != nil {
-		return err
-	}
-	return nil
-}
+// func (c *ClientV1) SetTaskReason(ctx context.Context, id string, reason string) error {
+// 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+// 	n := &containers.UpdateContainerRequest{
+// 		Id: id,
+// 		Container: &containers.Container{
+// 			Status: &containers.Status{
+// 				Reason: reason,
+// 			},
+// 		},
+// 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.reason"}},
+// 	}
+// 	_, err := c.Client.Update(ctx, n)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.Status) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
@@ -92,7 +92,7 @@ func (c *ClientV1) SetStatus(ctx context.Context, id string, status *containers.
 		Container: &containers.Container{
 			Status: status,
 		},
-		// UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status"}},
+		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status"}},
 	}
 	_, err := c.Client.Update(ctx, n)
 	if err != nil {

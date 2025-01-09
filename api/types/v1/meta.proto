@@ -13,8 +13,6 @@ message Meta {
   map<string, string> labels = 2;
 	google.protobuf.Timestamp created = 3 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
     format: "date"
-  }, (validate.rules).timestamp = {
-    required: true,
   }];
 	google.protobuf.Timestamp updated = 4;
 	uint64 revision = 5;
