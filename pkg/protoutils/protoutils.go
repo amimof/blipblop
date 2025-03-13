@@ -9,6 +9,34 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
+func listEqual(a, b protoreflect.List) bool {
+	if a.Len() != b.Len() {
+		return false
+	}
+	for i := 0; i < a.Len(); i++ {
+		if a.Get(i).Interface() != b.Get(i).Interface() {
+			return false
+		}
+	}
+	return true
+}
+
+func mapEqual(a, b protoreflect.Map) bool {
+	if a.Len() != b.Len() {
+		return false
+	}
+	equal := true
+	a.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+		if bv := b.Get(k); bv.IsValid() {
+			equal = v.Interface() == bv.Interface()
+		} else {
+			equal = false
+		}
+		return equal
+	})
+	return equal
+}
+
 // ApplyFieldMaskToNewMessage creates a new message containing only the fields specified in the FieldMask.
 // If mask is nil then source is returned in its original unalterned state
 func ApplyFieldMaskToNewMessage(source proto.Message, mask *fieldmaskpb.FieldMask) (proto.Message, error) {
@@ -145,30 +173,35 @@ func compareMessages(orig, upd protoreflect.Message, prefix string, paths *[]str
 	return nil
 }
 
-func listEqual(a, b protoreflect.List) bool {
-	if a.Len() != b.Len() {
-		return false
-	}
-	for i := 0; i < a.Len(); i++ {
-		if a.Get(i).Interface() != b.Get(i).Interface() {
-			return false
-		}
-	}
-	return true
-}
+type MergeFunc[T any] func(item T) string
 
-func mapEqual(a, b protoreflect.Map) bool {
-	if a.Len() != b.Len() {
-		return false
+func MergeSlices[T any](base, patch []T, keyFunc MergeFunc[T], mergeItem func(base, patch T) T) []T {
+	baseMap := make(map[string]T, len(base))
+	order := make([]string, 0, len(base))
+	for _, item := range base {
+		key := keyFunc(item)
+		baseMap[key] = item
+		order = append(order, key)
 	}
-	equal := true
-	a.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
-		if bv := b.Get(k); bv.IsValid() {
-			equal = v.Interface() == bv.Interface()
+
+	// Process patch items.
+	for _, p := range patch {
+		key := keyFunc(p)
+		if _, exists := baseMap[key]; exists {
+			// Update the existing item.
+			baseMap[key] = mergeItem(baseMap[key], p)
 		} else {
-			equal = false
+			// Add new items and record their key order.
+			baseMap[key] = p
+			order = append(order, key)
 		}
-		return equal
-	})
-	return equal
+	}
+
+	// Build the merged slice preserving the order.
+	merged := make([]T, 0, len(order))
+	for _, key := range order {
+		merged = append(merged, baseMap[key])
+	}
+
+	return merged
 }

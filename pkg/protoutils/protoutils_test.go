@@ -4,19 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	jsonpatch "github.com/evanphx/json-patch"
 )
 
 func TestImmutableFields(t *testing.T) {
-	// immutableUpdate := &containersv1.Container{
-	// 	Meta: &metav1.Meta{
-	// 		Name: "asd",
-	// 	},
-	// 	Status: &containersv1.Status{},
-	// }
-
 	existingContainer := &containersv1.Container{
 		Meta: &metav1.Meta{
 			Name: "test-container",
@@ -114,4 +109,44 @@ func StrategicMergePatch(target, patch *containersv1.Container) (*containersv1.C
 	}
 
 	return &c, nil
+}
+
+func TestMergeSlices(t *testing.T) {
+	type envVars struct {
+		Name  string
+		Value string
+	}
+
+	// Define the base slice of Port items.
+	basePorts := []envVars{
+		{Name: "http", Value: "80"},
+		{Name: "https", Value: "443"},
+	}
+
+	// Define the patch slice of Port items.
+	patchPorts := []envVars{
+		{Name: "https", Value: "8443"},
+		{Name: "admin", Value: "8080"},
+		{Name: "http", Value: "8080"},
+	}
+
+	merged := MergeSlices(basePorts, patchPorts,
+		func(item envVars) string {
+			return item.Name
+		},
+		func(base, patch envVars) envVars {
+			if patch.Value != "" {
+				base.Value = patch.Value
+			}
+			return base
+		},
+	)
+
+	expect := []envVars{
+		{Name: "http", Value: "8080"},
+		{Name: "https", Value: "8443"},
+		{Name: "admin", Value: "8080"},
+	}
+
+	assert.Equal(t, expect, merged)
 }

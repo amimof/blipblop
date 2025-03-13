@@ -546,6 +546,9 @@
     "v1Mount": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "destination": {
           "type": "string"
         },
@@ -566,6 +569,9 @@
     "v1PortMapping": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "hostPort": {
           "type": "integer",
           "format": "int64"

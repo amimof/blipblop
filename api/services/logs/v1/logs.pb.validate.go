@@ -104,7 +104,7 @@ type LogStreamRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LogStreamRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -239,7 +239,7 @@ type LogStreamResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LogStreamResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -347,7 +347,7 @@ type SubscribeRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SubscribeRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -476,7 +476,7 @@ type SubscribeResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SubscribeResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -580,7 +580,7 @@ type LogItemMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LogItemMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -277,6 +277,67 @@ func mergePatch(original, update *containers.Container) (*containers.Container, 
 	return &c, nil
 }
 
+func strategicMerge(base, patch *containers.Container) *containers.Container {
+	mergedEnvVars := protoutils.MergeSlices(base.Config.Envvars, patch.Config.Envvars,
+		func(e *containers.EnvVar) string {
+			return e.Name
+		},
+		func(base, patch *containers.EnvVar) *containers.EnvVar {
+			if patch.Value != "" {
+				base.Value = patch.Value
+			}
+			return base
+		},
+	)
+
+	mergedPorts := protoutils.MergeSlices(base.Config.PortMappings, patch.Config.PortMappings,
+		func(e *containers.PortMapping) string {
+			return e.Name
+		},
+		func(base, patch *containers.PortMapping) *containers.PortMapping {
+			if patch.ContainerPort != 0 {
+				base.ContainerPort = patch.ContainerPort
+			}
+			return base
+		},
+	)
+
+	mergedMounts := protoutils.MergeSlices(base.Config.Mounts, patch.Config.Mounts,
+		func(e *containers.Mount) string {
+			return e.Name
+		},
+		func(base, patch *containers.Mount) *containers.Mount {
+			return patch
+		},
+	)
+
+	mergeArgs := protoutils.MergeSlices(base.Config.Args, patch.Config.Args,
+		func(e string) string {
+			return e
+		},
+		func(base, patch string) string {
+			if patch != "" {
+				base = patch
+			}
+			return base
+		},
+	)
+
+	patch.Config.Envvars = nil
+	patch.Config.PortMappings = nil
+	patch.Config.Mounts = nil
+	patch.Config.Args = nil
+
+	proto.Merge(base, patch)
+
+	base.Config.Envvars = mergedEnvVars
+	base.Config.PortMappings = mergedPorts
+	base.Config.Mounts = mergedMounts
+	base.Config.Args = mergeArgs
+
+	return base
+}
+
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -310,7 +371,8 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 
 	// TODO: Handle errors
 	updated := maskedUpdate.(*containers.Container)
-	proto.Merge(existing, updated)
+	// proto.Merge(existing, updated)
+	existing = strategicMerge(existing, updated)
 
 	// Validate
 	err = existing.Validate()

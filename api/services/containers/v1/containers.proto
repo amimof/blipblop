@@ -96,10 +96,11 @@ message Config {
 }
 
 message Mount {
-	string destination = 1;
-	string type = 2;
-	string source = 3;
-	repeated string options = 4;
+  string name = 1 [ (validate.rules).string.min_len = 1];
+	string destination = 2;
+	string type = 3;
+	string source = 4;
+	repeated string options = 5;
 }
 
 message EnvVar {
@@ -108,10 +109,11 @@ message EnvVar {
 }
 
 message PortMapping {
-	uint32 hostPort = 1;
-	uint32 containerPort = 2;
-	string protocol = 3;
-	string hostIP = 4;
+  string name = 1 [(validate.rules).string.min_len = 1];
+	uint32 hostPort = 2;
+	uint32 containerPort = 3;
+	string protocol = 4;
+	string hostIP = 5;
 }
 
 enum Phase {
