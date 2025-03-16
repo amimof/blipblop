@@ -94,6 +94,21 @@ func initDB(c containersv1.ContainerServiceClient) error {
 		}
 	}
 
+	bareBoneContainer := &containersv1.Container{
+		Meta: &types.Meta{
+			Name: "bare-container",
+		},
+		Config: &containersv1.Config{
+			Image: "docker.io/library/nginx:latest",
+		},
+	}
+
+	// Create bare bone container so test nilness
+	_, err := c.Create(ctx, &containersv1.CreateContainerRequest{Container: bareBoneContainer})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -175,16 +190,12 @@ func TestContainerService_Update(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name string
-		// container string
+		name   string
 		expect *containersv1.Container
-		input  *containersv1.UpdateContainerRequest
-		// patch     []createOpts
-		patch *containersv1.Container
+		patch  *containersv1.Container
 	}{
 		{
 			name: "should only update container image",
-			// container: "test-container-1",
 			patch: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "test-container-1",
@@ -238,14 +249,6 @@ func TestContainerService_Update(t *testing.T) {
 		},
 		{
 			name: "should add to environment variables",
-			// container: "test-container-2",
-			// patch: []createOpts{
-			// 	withImage("docker.io/library/nginx:latest"),
-			// 	withEnvVar(
-			// 		&containersv1.EnvVar{Name: "HTTPS_PROXY", Value: "proxy.a.b:8443"},
-			// 		&containersv1.EnvVar{Name: "HTTP_PROXY", Value: "new-proxy.foo.com:8080"},
-			// 	),
-			// },
 			patch: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "test-container-2",
@@ -264,7 +267,6 @@ func TestContainerService_Update(t *testing.T) {
 					},
 				},
 			},
-
 			expect: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "test-container-2",
@@ -314,11 +316,6 @@ func TestContainerService_Update(t *testing.T) {
 		},
 		{
 			name: "should replace volume mounts",
-			// container: "test-container-3",
-			// patch: []createOpts{
-			// 	withImage("docker.io/library/nginx:latest"),
-			// 	withMounts(&containersv1.Mount{Name: "temp", Destination: "/etc/nginx/config.d", Source: "/var/lib/nginx/config"}),
-			// },
 			patch: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "test-container-3",
@@ -378,11 +375,6 @@ func TestContainerService_Update(t *testing.T) {
 		},
 		{
 			name: "should add label to node selector",
-			// container: "test-container-4",
-			// patch: []createOpts{
-			// 	withImage("docker.io/library/nginx:latest"),
-			// 	withNodeSelector("blipblop.io/unschedulable", "true"),
-			// },
 			patch: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "test-container-4",
@@ -440,11 +432,6 @@ func TestContainerService_Update(t *testing.T) {
 		},
 		{
 			name: "should replace args",
-			// container: "test-container-5",
-			// patch: []createOpts{
-			// 	withImage("docker.io/library/nginx:latest"),
-			// 	withArgs([]string{"--log-level debug", "--insecure-skip-verify"}),
-			// },
 			patch: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "test-container-5",
@@ -499,18 +486,36 @@ func TestContainerService_Update(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should add to empty Args field",
+			patch: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "bare-container",
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+				},
+			},
+			expect: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "bare-container",
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+				},
+			},
+		},
 	}
 
+	// Run tests
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			// req := createPatch(tt.container, "", tt.patch...)
 			req := &containersv1.UpdateContainerRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
 			res, err := client.Update(ctx, req)
 			if err != nil {
 				t.Fatal("error updating container", err)
 			}
 
-			// exp := createExpectedResponse(tt.container, tt.patch...)
 			exp := tt.expect
 			// Ignore timestamps
 			res.Container.Meta.Created = nil

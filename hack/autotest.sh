@@ -43,7 +43,7 @@ __down() {
   nerdctl rm blipblop-server
 
   # Kill & remove nodes
-  for i in $(seq $count); do 
+  for i in $(seq $count); do
     nerdctl kill blipblop-node-$i
     nerdctl rm blipblop-node-$i
   done
@@ -51,17 +51,18 @@ __down() {
 }
 
 __usage() {
-    p="$(basename $0)"
-    echo "usage: $p [up|down]"
+  p="$(basename $0)"
+  echo "usage: $p [up|down]"
 }
 
 case "$1" in
-  'up')
-    __up
-    ;;
-  'down')
-    __down
-    ;;
-  *) 
+'up')
+  __up
+  ;;
+'down')
+  __down
+  ;;
+*)
   __usage
+  ;;
 esac

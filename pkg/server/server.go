@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/reflection"
 )
 
 func init() {
@@ -54,6 +55,8 @@ func New(opts ...NewServerOption) (*Server, error) {
 	}
 
 	server.grpcServer = grpc.NewServer(server.grpcOpts...)
+
+	reflection.Register(server.grpcServer)
 
 	return server, nil
 }

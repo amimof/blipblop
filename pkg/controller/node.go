@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -137,19 +136,24 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 			c.logger.Error("failed running handler", "error", err)
 			// _ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Error.String())
 			// _ = c.clientset.ContainerV1().SetTaskReason(ctx, ctr.GetMeta().GetName(), err.Error())
-			ctr.GetStatus().GetTask().Error = wrapperspb.String(err.Error())
-			_ = c.clientset.ContainerV1().Update(ctx, ctr.GetMeta().GetName(), &ctr)
+			_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{
+				Task: &containersv1.TaskStatus{
+					Error: wrapperspb.String(err.Error()),
+				},
+			})
 			return err
 		}
 
 		// Reset previous errors
 		if ctr.GetStatus().GetTask().GetExitCode().String() != "" {
 			// TODO: The "OK" here is temporary and needs to be replaced by something more concice
-			ctr.GetStatus().GetTask().Error = wrapperspb.String("")
-			_ = c.clientset.ContainerV1().Update(ctx, ctr.GetMeta().GetName(), &ctr)
+			_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{
+				Task: &containersv1.TaskStatus{
+					Error: wrapperspb.String(""),
+				},
+			})
 		}
 
-		fmt.Println("After handler", &ctr)
 		return nil
 	}
 }

@@ -142,7 +142,7 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 	if err != nil {
 		return nil, err
 	}
-	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerKill, container))
+
 	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(eventsv1.EventType_ContainerKill, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing KILL event", "name", req.GetId(), "event", "ContainerKill")
@@ -157,11 +157,12 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 	if err != nil {
 		return nil, err
 	}
-	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_ContainerStart, container))
+
 	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerStart, events.NewEvent(eventsv1.EventType_ContainerStart, container))
 	if err != nil {
 		return nil, err
 	}
+
 	return &containers.StartContainerResponse{
 		Id: req.GetId(),
 	}, nil
@@ -278,31 +279,49 @@ func mergePatch(original, update *containers.Container) (*containers.Container, 
 }
 
 func strategicMerge(base, patch *containers.Container) *containers.Container {
-	mergedEnvVars := protoutils.MergeSlices(base.Config.Envvars, patch.Config.Envvars,
+	tmp := proto.Clone(base).(*containers.Container)
+	tmp.Config.Envvars = nil
+	tmp.Config.PortMappings = nil
+	tmp.Config.Mounts = nil
+	tmp.Config.Args = nil
+
+	proto.Merge(tmp, patch)
+
+	tmp.Config.Envvars = base.Config.Envvars
+	tmp.Config.PortMappings = base.Config.PortMappings
+	tmp.Config.Mounts = base.Config.Mounts
+	tmp.Config.Args = base.Config.Args
+
+	// Skip if patch doesn't contain anything meaningful
+	if patch.Config == nil {
+		return tmp
+	}
+
+	mergedEnvVars := protoutils.MergeSlices(tmp.Config.Envvars, patch.Config.Envvars,
 		func(e *containers.EnvVar) string {
 			return e.Name
 		},
-		func(base, patch *containers.EnvVar) *containers.EnvVar {
+		func(tmp, patch *containers.EnvVar) *containers.EnvVar {
 			if patch.Value != "" {
-				base.Value = patch.Value
+				tmp.Value = patch.Value
 			}
-			return base
+			return tmp
 		},
 	)
 
-	mergedPorts := protoutils.MergeSlices(base.Config.PortMappings, patch.Config.PortMappings,
+	mergedPorts := protoutils.MergeSlices(tmp.Config.PortMappings, patch.Config.PortMappings,
 		func(e *containers.PortMapping) string {
 			return e.Name
 		},
-		func(base, patch *containers.PortMapping) *containers.PortMapping {
+		func(tmp, patch *containers.PortMapping) *containers.PortMapping {
 			if patch.ContainerPort != 0 {
-				base.ContainerPort = patch.ContainerPort
+				tmp.ContainerPort = patch.ContainerPort
 			}
-			return base
+			return tmp
 		},
 	)
 
-	mergedMounts := protoutils.MergeSlices(base.Config.Mounts, patch.Config.Mounts,
+	mergedMounts := protoutils.MergeSlices(tmp.Config.Mounts, patch.Config.Mounts,
 		func(e *containers.Mount) string {
 			return e.Name
 		},
@@ -315,27 +334,20 @@ func strategicMerge(base, patch *containers.Container) *containers.Container {
 		func(e string) string {
 			return e
 		},
-		func(base, patch string) string {
+		func(tmp, patch string) string {
 			if patch != "" {
-				base = patch
+				tmp = patch
 			}
-			return base
+			return tmp
 		},
 	)
 
-	patch.Config.Envvars = nil
-	patch.Config.PortMappings = nil
-	patch.Config.Mounts = nil
-	patch.Config.Args = nil
+	tmp.Config.Envvars = mergedEnvVars
+	tmp.Config.PortMappings = mergedPorts
+	tmp.Config.Mounts = mergedMounts
+	tmp.Config.Args = mergeArgs
 
-	proto.Merge(base, patch)
-
-	base.Config.Envvars = mergedEnvVars
-	base.Config.PortMappings = mergedPorts
-	base.Config.Mounts = mergedMounts
-	base.Config.Args = mergeArgs
-
-	return base
+	return tmp
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {

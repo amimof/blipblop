@@ -71,8 +71,8 @@ bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BINARY
 
 .PHONY: docker_build
 docker_build: ; $(info $(M) building docker image) @ ## Build docker image
-	docker build -t amimof/blipblop:${VERSION} .
-	dcker tag amimof/blipblop:${VERSION} amimof/blipblop:latest
+	docker build -t ghcr.io/amimof/blipblop:${VERSION} .
+	docker tag ghcr.io/amimof/blipblop:${VERSION} ghcr.io/amimof/blipblop:latest
 
 .PHONY: protos
 protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos

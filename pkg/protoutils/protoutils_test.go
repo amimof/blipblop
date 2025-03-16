@@ -111,6 +111,41 @@ func StrategicMergePatch(target, patch *containersv1.Container) (*containersv1.C
 	return &c, nil
 }
 
+func TestMergeNilSlices(t *testing.T) {
+	type envVars struct {
+		Name  string
+		Value string
+	}
+
+	// Define the patch slice of Port items.
+	patchPorts := []envVars{
+		{Name: "https", Value: "8443"},
+		{Name: "admin", Value: "8080"},
+		{Name: "http", Value: "8080"},
+	}
+
+	// Simulate nil basePorts
+	merged := MergeSlices(nil, patchPorts,
+		func(item envVars) string {
+			return item.Name
+		},
+		func(base, patch envVars) envVars {
+			if patch.Value != "" {
+				base.Value = patch.Value
+			}
+			return base
+		},
+	)
+
+	expect := []envVars{
+		{Name: "https", Value: "8443"},
+		{Name: "admin", Value: "8080"},
+		{Name: "http", Value: "8080"},
+	}
+
+	assert.Equal(t, expect, merged)
+}
+
 func TestMergeSlices(t *testing.T) {
 	type envVars struct {
 		Name  string

@@ -10,6 +10,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -75,7 +76,7 @@ func (c *ClientV1) Once(ev eventsv1.EventType, f events.HandlerFunc) {
 }
 
 func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) (chan *eventsv1.Event, chan error) {
-	errChan := make(chan error, 10)
+	errChan := make(chan error, 100)
 	bus := c.exchange.Subscribe(ctx, topics...)
 
 	go func() {
@@ -171,6 +172,6 @@ func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
 	return &ClientV1{
 		eventService: eventsv1.NewEventServiceClient(conn),
 		id:           clientId,
-		exchange:     *events.NewExchange(),
+		exchange:     *events.NewExchange(events.WithExchangeLogger(logger.ConsoleLogger{})),
 	}
 }

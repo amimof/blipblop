@@ -32,8 +32,8 @@ type ContainerService struct {
 }
 
 func (c *ContainerService) Register(server *grpc.Server) error {
-	server.RegisterService(&containers.ContainerService_ServiceDesc, c)
-	// containers.RegisterContainerServiceServer(server, c)
+	// server.RegisterService(&containers.ContainerService_ServiceDesc, c)
+	containers.RegisterContainerServiceServer(server, c)
 	return nil
 }
 

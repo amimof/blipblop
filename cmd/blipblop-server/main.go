@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net"
@@ -23,7 +24,6 @@ import (
 	"github.com/amimof/blipblop/services/container"
 	"github.com/amimof/blipblop/services/containerset"
 	"github.com/amimof/blipblop/services/event"
-	logsvc "github.com/amimof/blipblop/services/log"
 	"github.com/amimof/blipblop/services/node"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -171,14 +171,13 @@ func main() {
 		fmt.Printf("error parsing log level: %v", err)
 		os.Exit(1)
 	}
-	log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	// log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
+	log = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl, AddSource: true}))
 
 	// Setup TLS configuration based on flags
 	var serverOpts []server.NewServerOption
 	var gatewayOpts []server.NewGatewayOption
-	serverAddr := net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort))
 	if tlsCertificate != "" && tlsCertificateKey != "" {
-		serverAddr = net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
 
 		creds, err := credentials.NewServerTLSFromFile(tlsCertificate, tlsCertificateKey)
 		if err != nil {
@@ -192,9 +191,18 @@ func main() {
 			log.Error("error loading x509 cert key pair", "error", err)
 			os.Exit(1)
 		}
+		caCert, err := os.ReadFile(tlsCACertificate)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
+			return
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(caCert) {
+			fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
+		}
 		gatewayOpts = append(gatewayOpts,
 			server.WithGrpcDialOption(
-				grpc.WithTransportCredentials(creds),
+				grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: certPool, Certificates: []tls.Certificate{cert}})),
 			),
 			server.WithTLSConfig(&tls.Config{
 				Certificates: []tls.Certificate{cert},
@@ -215,7 +223,7 @@ func main() {
 	defer db.Close()
 
 	// Setup event exchange bus
-	exchange2 := events.NewExchange()
+	exchange2 := events.NewExchange(events.WithExchangeLogger(log))
 
 	// Setup services
 	eventService := event.NewService(
@@ -242,7 +250,7 @@ func main() {
 		container.WithExchange(exchange2),
 	)
 
-	logService := logsvc.NewService(logsvc.WithLogger(log))
+	// logService := logsvc.NewService(logsvc.WithLogger(log))
 
 	// Setup server
 	s, err := server.New(serverOpts...)
@@ -252,13 +260,17 @@ func main() {
 	}
 
 	// Register services to gRPC server
-	err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService)
+	// err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService)
+	err = s.RegisterService(eventService, nodeService, containerSetService, containerService)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)
 	}
 	go serveTCP(s)
 	go serveUnix(s)
+
+	// Used by clientset and the gateway to connect internally
+	socketAddr := fmt.Sprintf("unix://%s", socketPath)
 
 	// Setup gateway
 	ctx := context.Background()
@@ -267,7 +279,7 @@ func main() {
 
 	gw, err := server.NewGateway(
 		ctx,
-		serverAddr,
+		socketAddr,
 		server.DefaultMux,
 		gatewayOpts...,
 	)
@@ -279,7 +291,6 @@ func main() {
 	go serveGateway(gw)
 
 	// Setup a clientset for the controllers
-	socketAddr := fmt.Sprintf("unix://%s", socketPath)
 	cs, err := client.New(ctx, socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())

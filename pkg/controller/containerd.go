@@ -384,10 +384,10 @@ func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 func (c *ContainerdController) setContainerState(id string) error {
 	// Get container from server
 	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().Get(ctx, id)
-	if err != nil {
-		return err
-	}
+	// ctr, err := c.clientset.ContainerV1().Get(ctx, id)
+	// if err != nil {
+	// 	return err
+	// }
 
 	ctx = namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	hostname, _ := os.Hostname()
@@ -421,10 +421,8 @@ func (c *ContainerdController) setContainerState(id string) error {
 	st.Task.ExitCode = wrapperspb.UInt32(exitStatus)
 	st.Task.ExitTime = timestamppb.New(exitTime)
 
-	ctr.Status = st
-
 	c.logger.Debug("setting container status", "id", id, "status", st)
-	return c.clientset.ContainerV1().Update(ctx, id, ctr)
+	return c.clientset.ContainerV1().Status(ctx, id, st)
 }
 
 func (c *ContainerdController) setTaskIOConfig(id string) error {
@@ -452,7 +450,7 @@ func (c *ContainerdController) setTaskIOConfig(id string) error {
 	}
 
 	fmt.Println("Patsh", stdoutPath, stderrPath)
-	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
+	return c.clientset.ContainerV1().Status(ctx, id, st)
 }
 
 func (c *ContainerdController) getTask(id string) (containerd.Task, error) {
