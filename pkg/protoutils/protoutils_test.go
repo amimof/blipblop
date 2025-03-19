@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/blipblop/api/types/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	jsonpatch "github.com/evanphx/json-patch"
 )
@@ -184,4 +186,76 @@ func TestMergeSlices(t *testing.T) {
 	}
 
 	assert.Equal(t, expect, merged)
+}
+
+func TestClearRepeatedFields(t *testing.T) {
+	baseContainer := containersv1.Container{
+		Meta: &types.Meta{
+			Name: "test-container",
+			Labels: map[string]string{
+				"team":        "backend",
+				"environment": "production",
+				"role":        "root",
+			},
+		},
+		Config: &containersv1.Config{
+			Image: "docker.io/library/nginx:latest",
+			PortMappings: []*containersv1.PortMapping{
+				{
+					Name:          "http",
+					HostPort:      8080,
+					ContainerPort: 80,
+					Protocol:      "TCP",
+				},
+			},
+			Envvars: []*containersv1.EnvVar{
+				{
+					Name:  "HTTP_PROXY",
+					Value: "proxy.foo.com",
+				},
+			},
+			Args: []string{
+				"--config /mnt/cfg/config.yaml",
+			},
+			Mounts: []*containersv1.Mount{
+				{
+					Name:        "temp",
+					Source:      "/tmp",
+					Destination: "/mnt/tmp",
+					Type:        "bind",
+				},
+			},
+			NodeSelector: map[string]string{
+				"blipblop.io/arch": "amd64",
+				"blipblop.io/os":   "linux",
+			},
+		},
+	}
+	expect := containersv1.Container{
+		Meta: &types.Meta{
+			Name: "test-container",
+			Labels: map[string]string{
+				"team":        "backend",
+				"environment": "production",
+				"role":        "root",
+			},
+		},
+		Config: &containersv1.Config{
+			Image:        "docker.io/library/nginx:latest",
+			PortMappings: []*containersv1.PortMapping{},
+			Envvars:      []*containersv1.EnvVar{},
+			Args:         []string{},
+			Mounts:       []*containersv1.Mount{},
+			NodeSelector: map[string]string{
+				"blipblop.io/arch": "amd64",
+				"blipblop.io/os":   "linux",
+			},
+		},
+	}
+
+	ClearRepeatedFields(&baseContainer)
+
+	if !proto.Equal(&baseContainer, &expect) {
+		t.Errorf("\ngot:\n%v\nwant:\n%v", &baseContainer, &expect)
+	}
 }

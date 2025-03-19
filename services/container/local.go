@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -225,129 +224,64 @@ func removeImmutableFields(dst *containers.Container) error {
 	return nil
 }
 
-// mergePatch uses json to apply the patch to the target
-func mergePatch(original, update *containers.Container) (*containers.Container, error) {
-	originalb, err := protojson.Marshal(original)
-	if err != nil {
-		return nil, err
-	}
-
-	patchb, err := protojson.Marshal(update)
-	if err != nil {
-		return nil, err
-	}
-
-	// patchb, err := jsonpatch.CreateMergePatch(originalb, updateb)
-	// if err != nil {
-	// 	fmt.Printf("error creating merge patch")
-	// 	return nil, err
-	// }
-
-	// patchb, err := removeReadOnlyFields(updateb, []string{"metadata.name"})
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// patch, err := jsonpatch.DecodePatch(patchb)
-	// if err != nil {
-	// 	fmt.Printf("error decoding merge patch")
-	// 	return nil, err
-	// }
-	//
-	// modified, err := patch.Apply(originalb)
-	// if err != nil {
-	// 	fmt.Printf("error applying merge patch")
-	// 	return nil, err
-	// }
-
-	modified, err := jsonpatch.MergePatch(originalb, patchb)
-	if err != nil {
-		return nil, err
-	}
-
-	var c containers.Container
-	err = protojson.Unmarshal(modified, &c)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("original: %s\n\n", string(originalb))
-	fmt.Printf("patch: %s\n\n", string(patchb))
-	fmt.Printf("modified: %s\n\n", string(modified))
-
-	return &c, nil
-}
-
-func strategicMerge(base, patch *containers.Container) *containers.Container {
-	tmp := proto.Clone(base).(*containers.Container)
-	tmp.Config.Envvars = nil
-	tmp.Config.PortMappings = nil
-	tmp.Config.Mounts = nil
-	tmp.Config.Args = nil
-
-	proto.Merge(tmp, patch)
-
-	tmp.Config.Envvars = base.Config.Envvars
-	tmp.Config.PortMappings = base.Config.PortMappings
-	tmp.Config.Mounts = base.Config.Mounts
-	tmp.Config.Args = base.Config.Args
-
+func merge(base, patch *containers.Container) *containers.Container {
 	// Skip if patch doesn't contain anything meaningful
 	if patch.Config == nil {
-		return tmp
+		return base
 	}
 
-	mergedEnvVars := protoutils.MergeSlices(tmp.Config.Envvars, patch.Config.Envvars,
-		func(e *containers.EnvVar) string {
-			return e.Name
+	merged := protoutils.StrategicMerge(base, patch,
+		func(b, p *containers.Container) {
+			b.Config.Envvars = protoutils.MergeSlices(b.Config.Envvars, p.Config.Envvars,
+				func(e *containers.EnvVar) string {
+					return e.Name
+				},
+				func(b, p *containers.EnvVar) *containers.EnvVar {
+					if p.Value != "" {
+						b.Value = p.Value
+					}
+					return b
+				},
+			)
 		},
-		func(tmp, patch *containers.EnvVar) *containers.EnvVar {
-			if patch.Value != "" {
-				tmp.Value = patch.Value
-			}
-			return tmp
+		func(b, p *containers.Container) {
+			b.Config.PortMappings = protoutils.MergeSlices(b.Config.PortMappings, p.Config.PortMappings,
+				func(e *containers.PortMapping) string {
+					return e.Name
+				},
+				func(b, p *containers.PortMapping) *containers.PortMapping {
+					if p.ContainerPort != 0 {
+						b = p
+					}
+					return b
+				},
+			)
+		},
+		func(b, p *containers.Container) {
+			b.Config.Mounts = protoutils.MergeSlices(b.Config.Mounts, p.Config.Mounts,
+				func(e *containers.Mount) string {
+					return e.Name
+				},
+				func(b, p *containers.Mount) *containers.Mount {
+					return p
+				},
+			)
+		},
+		func(b, p *containers.Container) {
+			b.Config.Args = protoutils.MergeSlices(b.Config.Args, p.Config.Args,
+				func(e string) string {
+					return e
+				},
+				func(b, p string) string {
+					if p != "" {
+						b = p
+					}
+					return b
+				},
+			)
 		},
 	)
-
-	mergedPorts := protoutils.MergeSlices(tmp.Config.PortMappings, patch.Config.PortMappings,
-		func(e *containers.PortMapping) string {
-			return e.Name
-		},
-		func(tmp, patch *containers.PortMapping) *containers.PortMapping {
-			if patch.ContainerPort != 0 {
-				tmp.ContainerPort = patch.ContainerPort
-			}
-			return tmp
-		},
-	)
-
-	mergedMounts := protoutils.MergeSlices(tmp.Config.Mounts, patch.Config.Mounts,
-		func(e *containers.Mount) string {
-			return e.Name
-		},
-		func(base, patch *containers.Mount) *containers.Mount {
-			return patch
-		},
-	)
-
-	mergeArgs := protoutils.MergeSlices(base.Config.Args, patch.Config.Args,
-		func(e string) string {
-			return e
-		},
-		func(tmp, patch string) string {
-			if patch != "" {
-				tmp = patch
-			}
-			return tmp
-		},
-	)
-
-	tmp.Config.Envvars = mergedEnvVars
-	tmp.Config.PortMappings = mergedPorts
-	tmp.Config.Mounts = mergedMounts
-	tmp.Config.Args = mergeArgs
-
-	return tmp
+	return merged
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
@@ -383,8 +317,7 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 
 	// TODO: Handle errors
 	updated := maskedUpdate.(*containers.Container)
-	// proto.Merge(existing, updated)
-	existing = strategicMerge(existing, updated)
+	existing = merge(existing, updated)
 
 	// Validate
 	err = existing.Validate()

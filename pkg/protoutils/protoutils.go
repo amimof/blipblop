@@ -205,3 +205,37 @@ func MergeSlices[T any](base, patch []T, keyFunc MergeFunc[T], mergeItem func(ba
 
 	return merged
 }
+
+// FIX: Doesn't work on map fields
+func ClearRepeatedFields(msg proto.Message) {
+	m := msg.ProtoReflect()
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.IsList():
+			m.Clear(fd)
+		case fd.IsMap():
+			break
+		case fd.Kind() == protoreflect.MessageKind && m.Has(fd):
+			ClearRepeatedFields(v.Message().Interface())
+		}
+		return true
+	})
+}
+
+// StrategicMerge merges patch into base strategically as defined by provided merge funcs.
+// Non-repated fields are cleared recursively before mergefuncs are applied to avoid dupliced list elements.
+// Does not currently support removal of list-elements.
+func StrategicMerge[T proto.Message](base, patch T, mergeFuncs ...func(b, p T)) T {
+	tmp := proto.Clone(base).(T)
+	patchClone := proto.Clone(patch).(T)
+
+	ClearRepeatedFields(patchClone)
+
+	proto.Merge(tmp, patchClone)
+
+	for _, mergeFunc := range mergeFuncs {
+		mergeFunc(tmp, patch)
+	}
+
+	return tmp
+}

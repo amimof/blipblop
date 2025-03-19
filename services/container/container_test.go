@@ -487,7 +487,84 @@ func TestContainerService_Update(t *testing.T) {
 			},
 		},
 		{
-			name: "should add to empty Args field",
+			name: "should add to port mappings",
+			patch: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-6",
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+					PortMappings: []*containersv1.PortMapping{
+						{
+							Name:          "metrics",
+							ContainerPort: 9000,
+						},
+						{
+							Name:          "http",
+							HostPort:      8088,
+							ContainerPort: 80,
+							Protocol:      "TCP",
+						},
+						{
+							Name:          "https",
+							ContainerPort: 8443,
+						},
+					},
+				},
+			},
+			expect: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-6",
+					Labels: map[string]string{
+						"team":        "backend",
+						"environment": "production",
+						"role":        "root",
+					},
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+					PortMappings: []*containersv1.PortMapping{
+						{
+							Name:          "http",
+							HostPort:      8088,
+							ContainerPort: 80,
+							Protocol:      "TCP",
+						},
+						{
+							Name:          "metrics",
+							ContainerPort: 9000,
+						},
+						{
+							Name:          "https",
+							ContainerPort: 8443,
+						},
+					},
+					Envvars: []*containersv1.EnvVar{
+						{
+							Name:  "HTTP_PROXY",
+							Value: "proxy.foo.com",
+						},
+					},
+					Args: []string{
+						"--config /mnt/cfg/config.yaml",
+					},
+					Mounts: []*containersv1.Mount{
+						{
+							Name:        "temp",
+							Source:      "/tmp",
+							Destination: "/mnt/tmp",
+							Type:        "bind",
+						},
+					},
+					NodeSelector: map[string]string{
+						"blipblop.io/arch": "amd64",
+						"blipblop.io/os":   "linux",
+					},
+				},
+			},
+		},
+		{
+			name: "should add to empty args field",
 			patch: &containersv1.Container{
 				Meta: &types.Meta{
 					Name: "bare-container",
