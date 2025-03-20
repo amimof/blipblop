@@ -308,10 +308,6 @@ func main() {
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Schduler Controller")
 
-	// containerCtrl := controller.NewContainerController(cs, runtime, controller.WithContainerControllerLogger(log))
-	// go containerCtrl.Run(ctx)
-	// log.Info("Started Container Controller")
-
 	// Wait for exit signal, begin shutdown process after this point
 	<-exit
 	cancel()

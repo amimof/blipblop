@@ -41,6 +41,124 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
+func removeReadOnlyFields(b []byte, fieldPaths []string) ([]byte, error) {
+	var patchMap map[string]interface{}
+	if err := json.Unmarshal(b, &patchMap); err != nil {
+		return nil, err
+	}
+
+	// Remove excluded fields
+	for _, fieldPath := range fieldPaths {
+		parts := strings.Split(fieldPath, ".")
+		removeNestedField(patchMap, parts)
+	}
+
+	patchJSON, err := json.Marshal(patchMap)
+	if err != nil {
+		return nil, err
+	}
+
+	mergedJSON, err := jsonpatch.MergePatch(b, patchJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	return mergedJSON, nil
+}
+
+func removeNestedField(m map[string]interface{}, fields []string) {
+	if len(fields) == 0 {
+		return
+	}
+
+	key := fields[0]
+
+	if len(fields) == 1 {
+		delete(m, key)
+		return
+	}
+
+	if nestedMap, ok := m[key].(map[string]interface{}); ok {
+		removeNestedField(nestedMap, fields[1:])
+	}
+}
+
+func removeImmutableFields(dst *containers.Container) error {
+	if dst.Meta == nil {
+		return nil
+	}
+	if dst.Meta.Name != "" {
+		dst.Meta.Name = ""
+	}
+
+	if dst.Meta.Created != nil {
+		dst.Meta.Created = nil
+	}
+
+	return nil
+}
+
+func merge(base, patch *containers.Container) *containers.Container {
+	// Skip if patch doesn't contain anything meaningful
+	if patch.Config == nil {
+		return base
+	}
+
+	// Merge lists strategically using merge keys
+	merged := protoutils.StrategicMerge(base, patch,
+		func(b, p *containers.Container) {
+			b.Config.Envvars = protoutils.MergeSlices(b.Config.Envvars, p.Config.Envvars,
+				func(e *containers.EnvVar) string {
+					return e.Name
+				},
+				func(b, p *containers.EnvVar) *containers.EnvVar {
+					if p.Value != "" {
+						b.Value = p.Value
+					}
+					return b
+				},
+			)
+		},
+		func(b, p *containers.Container) {
+			b.Config.PortMappings = protoutils.MergeSlices(b.Config.PortMappings, p.Config.PortMappings,
+				func(e *containers.PortMapping) string {
+					return e.Name
+				},
+				func(b, p *containers.PortMapping) *containers.PortMapping {
+					if p.ContainerPort != 0 {
+						b = p
+					}
+					return b
+				},
+			)
+		},
+		func(b, p *containers.Container) {
+			b.Config.Mounts = protoutils.MergeSlices(b.Config.Mounts, p.Config.Mounts,
+				func(e *containers.Mount) string {
+					return e.Name
+				},
+				func(b, p *containers.Mount) *containers.Mount {
+					return p
+				},
+			)
+		},
+		func(b, p *containers.Container) {
+			b.Config.Args = protoutils.MergeSlices(b.Config.Args, p.Config.Args,
+				func(e string) string {
+					return e
+				},
+				func(b, p string) string {
+					if p != "" {
+						b = p
+					}
+					return b
+				},
+			)
+		},
+	)
+	return merged
+}
+
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
 	// Validate request
 	err := req.Validate()
@@ -167,123 +285,6 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 	}, nil
 }
 
-func removeReadOnlyFields(b []byte, fieldPaths []string) ([]byte, error) {
-	var patchMap map[string]interface{}
-	if err := json.Unmarshal(b, &patchMap); err != nil {
-		return nil, err
-	}
-
-	// Remove excluded fields
-	for _, fieldPath := range fieldPaths {
-		parts := strings.Split(fieldPath, ".")
-		removeNestedField(patchMap, parts)
-	}
-
-	patchJSON, err := json.Marshal(patchMap)
-	if err != nil {
-		return nil, err
-	}
-
-	mergedJSON, err := jsonpatch.MergePatch(b, patchJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	return mergedJSON, nil
-}
-
-func removeNestedField(m map[string]interface{}, fields []string) {
-	if len(fields) == 0 {
-		return
-	}
-
-	key := fields[0]
-
-	if len(fields) == 1 {
-		delete(m, key)
-		return
-	}
-
-	if nestedMap, ok := m[key].(map[string]interface{}); ok {
-		removeNestedField(nestedMap, fields[1:])
-	}
-}
-
-func removeImmutableFields(dst *containers.Container) error {
-	if dst.Meta == nil {
-		return nil
-	}
-	if dst.Meta.Name != "" {
-		dst.Meta.Name = ""
-	}
-
-	if dst.Meta.Created != nil {
-		dst.Meta.Created = nil
-	}
-
-	return nil
-}
-
-func merge(base, patch *containers.Container) *containers.Container {
-	// Skip if patch doesn't contain anything meaningful
-	if patch.Config == nil {
-		return base
-	}
-
-	merged := protoutils.StrategicMerge(base, patch,
-		func(b, p *containers.Container) {
-			b.Config.Envvars = protoutils.MergeSlices(b.Config.Envvars, p.Config.Envvars,
-				func(e *containers.EnvVar) string {
-					return e.Name
-				},
-				func(b, p *containers.EnvVar) *containers.EnvVar {
-					if p.Value != "" {
-						b.Value = p.Value
-					}
-					return b
-				},
-			)
-		},
-		func(b, p *containers.Container) {
-			b.Config.PortMappings = protoutils.MergeSlices(b.Config.PortMappings, p.Config.PortMappings,
-				func(e *containers.PortMapping) string {
-					return e.Name
-				},
-				func(b, p *containers.PortMapping) *containers.PortMapping {
-					if p.ContainerPort != 0 {
-						b = p
-					}
-					return b
-				},
-			)
-		},
-		func(b, p *containers.Container) {
-			b.Config.Mounts = protoutils.MergeSlices(b.Config.Mounts, p.Config.Mounts,
-				func(e *containers.Mount) string {
-					return e.Name
-				},
-				func(b, p *containers.Mount) *containers.Mount {
-					return p
-				},
-			)
-		},
-		func(b, p *containers.Container) {
-			b.Config.Args = protoutils.MergeSlices(b.Config.Args, p.Config.Args,
-				func(e string) string {
-					return e
-				},
-				func(b, p string) string {
-					if p != "" {
-						b = p
-					}
-					return b
-				},
-			)
-		},
-	)
-	return merged
-}
-
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -294,7 +295,6 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 		return nil, err
 	}
 
-	// updateMask := req.GetUpdateMask()
 	updateContainer := req.GetContainer()
 
 	// Get existing container from repo
