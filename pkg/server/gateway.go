@@ -59,7 +59,6 @@ func (g *Gateway) Shutdown(ctx context.Context) error {
 func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux, opts ...NewGatewayOption) (*Gateway, error) {
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		// grpc.WithBlock(),
 	}
 
 	g := &Gateway{

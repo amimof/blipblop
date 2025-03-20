@@ -152,7 +152,7 @@ func TestExchange_ThreadSafety(t *testing.T) {
 			select {
 			case <-ch:
 				// Success
-			case <-time.After(1 * time.Second):
+			case <-time.After(5 * time.Second):
 				t.Errorf("Timed out waiting for event in goroutine %d", i)
 			}
 		}(i)

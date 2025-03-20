@@ -39,11 +39,12 @@ run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 		--tls-key ./certs/server.key \
 		--tls-certificate ./certs/server.crt \
 		--tls-host 0.0.0.0 \
-		--tcp-tls-host 0.0.0.0
+		--tcp-tls-host 0.0.0.0 \
+		--log-level debug
 
 .PHONY: run-node
 run-node: ; $(info $(M) running node) @ ## Run a node on localhost
-	$Q $(GO) run cmd/blipblop-node/main.go --tls-ca ./certs/ca.crt --port 5743
+	$Q $(GO) run cmd/blipblop-node/main.go --tls-ca ./certs/ca.crt --port 5743 --log-level debug
 
 # Build
 
@@ -70,8 +71,8 @@ bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BINARY
 
 .PHONY: docker_build
 docker_build: ; $(info $(M) building docker image) @ ## Build docker image
-	docker build -t amimof/blipblop:${VERSION} .
-	dcker tag amimof/blipblop:${VERSION} amimof/blipblop:latest
+	docker build -t ghcr.io/amimof/blipblop:${VERSION} .
+	docker tag ghcr.io/amimof/blipblop:${VERSION} ghcr.io/amimof/blipblop:latest
 
 .PHONY: protos
 protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos

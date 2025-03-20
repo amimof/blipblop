@@ -39,6 +39,9 @@ func (i *containerInMemRepo) List(ctx context.Context, l ...labels.Label) ([]*co
 
 func (i *containerInMemRepo) Get(ctx context.Context, key string) (*containers.Container, error) {
 	item := i.cache.Get(key)
+	if item == nil {
+		return nil, ErrNotFound
+	}
 	if item.Value == nil {
 		return nil, ErrNotFound
 	}

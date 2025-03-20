@@ -332,7 +332,8 @@
         "envvars": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "$ref": "#/definitions/v1EnvVar"
           }
         },
         "mounts": {
@@ -380,6 +381,17 @@
       "type": "object",
       "properties": {
         "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1EnvVar": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         }
       }
@@ -433,6 +445,9 @@
     "v1Mount": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "destination": {
           "type": "string"
         },
@@ -453,6 +468,9 @@
     "v1PortMapping": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "hostPort": {
           "type": "integer",
           "format": "int64"

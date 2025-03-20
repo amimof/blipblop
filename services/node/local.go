@@ -55,6 +55,10 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 	}, nil
 }
 
+func merge(base, patch *nodes.Node) *nodes.Node {
+	return protoutils.StrategicMerge(base, patch)
+}
+
 func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Create")
 	defer span.End()
@@ -123,47 +127,64 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 }
 
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
-	ctx, span := tracer.Start(ctx, "node.Update")
-	defer span.End()
-
-	updateMask := req.GetUpdateMask()
-	updateNode := req.GetNode()
-	existing, err := l.Repo().Get(ctx, req.GetId())
-	if err != nil {
-		return nil, l.handleError(err, "couldn't GET node from repo", "name", updateNode.GetMeta().GetName())
-	}
-
-	// Apply the FieldMask selectively
-	maskedUpdate, err := protoutils.ApplyFieldMaskToNewMessage(updateNode, updateMask)
-	if err != nil {
-		return nil, err
-	}
-	proto.Merge(existing, maskedUpdate)
-
-	existing.GetMeta().Updated = timestamppb.Now()
-
-	err = existing.Validate()
+	// Validate request
+	err := req.Validate()
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.Repo().Update(ctx, existing)
+	updateObj := req.GetNode()
+
+	// Get existingObj container from repo
+	existingObj, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", existing.GetMeta().GetName())
+		return nil, l.handleError(err, "couldn't GET node from repo", "name", updateObj.GetMeta().GetName())
 	}
 
-	node, err := l.Repo().Get(ctx, req.GetId())
+	// Generate field mask
+	genFieldMask, err := protoutils.GenerateFieldMask(existingObj, updateObj)
 	if err != nil {
 		return nil, err
 	}
 
-	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
-	err = l.exchange.Publish(ctx, events.NodeUpdate, events.NewEvent(eventsv1.EventType_NodeUpdate, node))
+	// Handle partial update
+	maskedUpdate, err := protoutils.ApplyFieldMaskToNewMessage(updateObj, genFieldMask)
 	if err != nil {
-		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "NodeUpdate")
+		return nil, err
 	}
+
+	// TODO: Handle errors
+	updated := maskedUpdate.(*nodes.Node)
+	existingObj = merge(existingObj, updated)
+
+	// Validate
+	err = existingObj.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	// Update in repo
+	err = l.Repo().Update(ctx, existingObj)
+	if err != nil {
+		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", existingObj.GetMeta().GetName())
+	}
+
+	// Retreive the container again so that we can include it in an event
+	obj, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	// Only publish if spec is updated
+	if !proto.Equal(updateObj, obj) {
+		err = l.exchange.Publish(ctx, eventsv1.EventType_NodeUpdate, events.NewEvent(eventsv1.EventType_NodeUpdate, obj))
+		if err != nil {
+			return nil, l.handleError(err, "error publishing UPDATE event", "name", existingObj.GetMeta().GetName(), "event", "ContainerUpdate")
+		}
+	}
+
 	return &nodes.UpdateNodeResponse{
-		Node: existing,
+		Node: existingObj,
 	}, nil
 }
 

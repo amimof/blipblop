@@ -11,6 +11,7 @@ import (
 	containerv1 "github.com/amimof/blipblop/pkg/client/container/v1"
 	containersetv1 "github.com/amimof/blipblop/pkg/client/containerset/v1"
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
+	logv1 "github.com/amimof/blipblop/pkg/client/log/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/google/uuid"
@@ -120,9 +121,10 @@ func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
 type ClientSet struct {
 	conn                 *grpc.ClientConn
 	NodeV1Client         *nodev1.ClientV1
-	ContainerV1Client    *containerv1.ClientV1
+	ContainerV1Client    containerv1.ClientV1
 	containerSetV1Client *containersetv1.ClientV1
 	eventV1Client        *eventv1.ClientV1
+	logV1Client          *logv1.ClientV1
 	mu                   sync.Mutex
 	grpcOpts             []grpc.DialOption
 	tlsConfig            *tls.Config
@@ -138,12 +140,16 @@ func (c *ClientSet) ContainerSetV1() *containersetv1.ClientV1 {
 	return c.containerSetV1Client
 }
 
-func (c *ClientSet) ContainerV1() *containerv1.ClientV1 {
+func (c *ClientSet) ContainerV1() containerv1.ClientV1 {
 	return c.ContainerV1Client
 }
 
 func (c *ClientSet) EventV1() *eventv1.ClientV1 {
 	return c.eventV1Client
+}
+
+func (c *ClientSet) LogV1() *logv1.ClientV1 {
+	return c.logV1Client
 }
 
 func (c *ClientSet) State() connectivity.State {
@@ -224,9 +230,10 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 
 	c.conn = conn
 	c.NodeV1Client = nodev1.NewClientV1(conn, nodev1.WithLogger(c.logger))
-	c.ContainerV1Client = containerv1.NewClientV1(conn, c.clientId)
+	c.ContainerV1Client = containerv1.NewClientV1WithConn(conn, c.clientId)
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
+	c.logV1Client = logv1.NewClientV1(conn)
 
 	return c, nil
 }

@@ -183,7 +183,7 @@ type ContainerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ContainerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -274,16 +274,12 @@ func (m *Status) validate(all bool) error {
 
 	// no validation rules for Ip
 
-	// no validation rules for Pid
-
-	// no validation rules for ExitStatus
-
 	if all {
-		switch v := interface{}(m.GetExitTime()).(type) {
+		switch v := interface{}(m.GetTask()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, StatusValidationError{
-					field:  "ExitTime",
+					field:  "Task",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -291,23 +287,50 @@ func (m *Status) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, StatusValidationError{
-					field:  "ExitTime",
+					field:  "Task",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetExitTime()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetTask()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return StatusValidationError{
-				field:  "ExitTime",
+				field:  "Task",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
 		}
 	}
 
-	// no validation rules for Description
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return StatusMultiError(errors)
@@ -322,7 +345,7 @@ type StatusMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StatusMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -386,6 +409,329 @@ var _ interface {
 	ErrorName() string
 } = StatusValidationError{}
 
+// Validate checks the field values on TaskStatus with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *TaskStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on TaskStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in TaskStatusMultiError, or
+// nil if none found.
+func (m *TaskStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *TaskStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetPid()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "Pid",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "Pid",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPid()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TaskStatusValidationError{
+				field:  "Pid",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetExitCode()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "ExitCode",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "ExitCode",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExitCode()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TaskStatusValidationError{
+				field:  "ExitCode",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetExitTime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "ExitTime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "ExitTime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetExitTime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TaskStatusValidationError{
+				field:  "ExitTime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetError()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "Error",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TaskStatusValidationError{
+					field:  "Error",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetError()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TaskStatusValidationError{
+				field:  "Error",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return TaskStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// TaskStatusMultiError is an error wrapping multiple validation errors
+// returned by TaskStatus.ValidateAll() if the designated constraints aren't met.
+type TaskStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m TaskStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m TaskStatusMultiError) AllErrors() []error { return m }
+
+// TaskStatusValidationError is the validation error returned by
+// TaskStatus.Validate if the designated constraints aren't met.
+type TaskStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e TaskStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e TaskStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e TaskStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e TaskStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e TaskStatusValidationError) ErrorName() string { return "TaskStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e TaskStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sTaskStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = TaskStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = TaskStatusValidationError{}
+
+// Validate checks the field values on RuntimeStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *RuntimeStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RuntimeStatus with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in RuntimeStatusMultiError, or
+// nil if none found.
+func (m *RuntimeStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RuntimeStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for RuntimeEnv
+
+	// no validation rules for RuntimeVersion
+
+	// no validation rules for StdoutPath
+
+	// no validation rules for StderrPath
+
+	if len(errors) > 0 {
+		return RuntimeStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// RuntimeStatusMultiError is an error wrapping multiple validation errors
+// returned by RuntimeStatus.ValidateAll() if the designated constraints
+// aren't met.
+type RuntimeStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RuntimeStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RuntimeStatusMultiError) AllErrors() []error { return m }
+
+// RuntimeStatusValidationError is the validation error returned by
+// RuntimeStatus.Validate if the designated constraints aren't met.
+type RuntimeStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RuntimeStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RuntimeStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RuntimeStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RuntimeStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RuntimeStatusValidationError) ErrorName() string { return "RuntimeStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e RuntimeStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRuntimeStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RuntimeStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RuntimeStatusValidationError{}
+
 // Validate checks the field values on Config with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -416,6 +762,40 @@ func (m *Config) validate(all bool) error {
 			return err
 		}
 		errors = append(errors, err)
+	}
+
+	for idx, item := range m.GetEnvvars() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConfigValidationError{
+						field:  fmt.Sprintf("Envvars[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConfigValidationError{
+						field:  fmt.Sprintf("Envvars[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConfigValidationError{
+					field:  fmt.Sprintf("Envvars[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	for idx, item := range m.GetMounts() {
@@ -501,7 +881,7 @@ type ConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -586,6 +966,17 @@ func (m *Mount) validate(all bool) error {
 
 	var errors []error
 
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := MountValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	// no validation rules for Destination
 
 	// no validation rules for Type
@@ -605,7 +996,7 @@ type MountMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m MountMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -669,6 +1060,126 @@ var _ interface {
 	ErrorName() string
 } = MountValidationError{}
 
+// Validate checks the field values on EnvVar with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *EnvVar) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on EnvVar with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in EnvVarMultiError, or nil if none found.
+func (m *EnvVar) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *EnvVar) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := EnvVarValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if utf8.RuneCountInString(m.GetValue()) < 1 {
+		err := EnvVarValidationError{
+			field:  "Value",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return EnvVarMultiError(errors)
+	}
+
+	return nil
+}
+
+// EnvVarMultiError is an error wrapping multiple validation errors returned by
+// EnvVar.ValidateAll() if the designated constraints aren't met.
+type EnvVarMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m EnvVarMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m EnvVarMultiError) AllErrors() []error { return m }
+
+// EnvVarValidationError is the validation error returned by EnvVar.Validate if
+// the designated constraints aren't met.
+type EnvVarValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e EnvVarValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e EnvVarValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e EnvVarValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e EnvVarValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e EnvVarValidationError) ErrorName() string { return "EnvVarValidationError" }
+
+// Error satisfies the builtin error interface
+func (e EnvVarValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sEnvVar.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = EnvVarValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = EnvVarValidationError{}
+
 // Validate checks the field values on PortMapping with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -691,6 +1202,17 @@ func (m *PortMapping) validate(all bool) error {
 
 	var errors []error
 
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := PortMappingValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	// no validation rules for HostPort
 
 	// no validation rules for ContainerPort
@@ -712,7 +1234,7 @@ type PortMappingMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PortMappingMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -843,7 +1365,7 @@ type EventMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EventMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -954,7 +1476,7 @@ type GetContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GetContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1085,7 +1607,7 @@ type GetContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GetContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1227,7 +1749,7 @@ type CreateContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CreateContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1358,7 +1880,7 @@ type CreateContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CreateContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1540,7 +2062,7 @@ type UpdateContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpdateContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1671,7 +2193,7 @@ type UpdateContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpdateContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1784,7 +2306,7 @@ type DeleteContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DeleteContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1888,7 +2410,7 @@ type DeleteContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DeleteContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1992,7 +2514,7 @@ type ListContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2128,7 +2650,7 @@ type ListContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2241,7 +2763,7 @@ type StartContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StartContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2345,7 +2867,7 @@ type StartContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StartContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2458,7 +2980,7 @@ type StopContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StopContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2562,7 +3084,7 @@ type StopContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StopContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2677,7 +3199,7 @@ type KillContainerRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KillContainerRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2781,7 +3303,7 @@ type KillContainerResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KillContainerResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

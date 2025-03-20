@@ -8,6 +8,7 @@ import "google/api/annotations.proto";
 import "validate/validate.proto";
 import "api/services/events/v1/events.proto";
 import "api/types/v1/meta.proto";
+import "google/protobuf/wrappers.proto";
 
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
@@ -61,40 +62,58 @@ message Container {
   blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
   Config config = 2 [(validate.rules).message.required = true];
   Status status = 3;
-  // repeated Event events = 4;
 }
 
 message Status {
 	string phase = 1;
 	string node = 2;
 	string ip = 3;
-  uint32 pid = 4;
-  uint32 exitStatus = 5;
-  google.protobuf.Timestamp exitTime = 6;
-  string description = 8;
+  TaskStatus task = 4;
+  RuntimeStatus runtime = 5;
+}
+
+message TaskStatus {
+  google.protobuf.UInt32Value pid = 1;
+  google.protobuf.UInt32Value exitCode = 2;
+  google.protobuf.Timestamp exitTime = 3;
+  google.protobuf.StringValue error = 4;
+}
+
+message RuntimeStatus {
+  string runtime_env = 1;
+  string runtime_version = 2;
+  string stdout_path = 3;
+  string stderr_path = 4;
 }
 
 message Config {
-	string image = 1[ (validate.rules).string.min_len = 1];
+	string image = 1 [ (validate.rules).string.min_len = 1];
 	repeated string args = 2;
-	repeated string envvars = 3;
+	repeated EnvVar envvars = 3;
 	repeated Mount mounts = 4;
 	repeated PortMapping portMappings = 5; 
   map<string, string> nodeSelector = 6;
 }
 
 message Mount {
-	string destination = 1;
-	string type = 2;
-	string source = 3;
-	repeated string options = 4;
+  string name = 1 [ (validate.rules).string.min_len = 1];
+	string destination = 2;
+	string type = 3;
+	string source = 4;
+	repeated string options = 5;
+}
+
+message EnvVar {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  string value = 2 [(validate.rules).string.min_len = 1];
 }
 
 message PortMapping {
-	uint32 hostPort = 1;
-	uint32 containerPort = 2;
-	string protocol = 3;
-	string hostIP = 4;
+  string name = 1 [(validate.rules).string.min_len = 1];
+	uint32 hostPort = 2;
+	uint32 containerPort = 3;
+	string protocol = 4;
+	string hostIP = 5;
 }
 
 enum Phase {

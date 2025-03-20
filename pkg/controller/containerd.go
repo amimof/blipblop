@@ -13,10 +13,12 @@ import (
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
+	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type ContainerdController struct {
@@ -273,7 +275,7 @@ func (c *ContainerdController) exitHandler(e *events.TaskExit) {
 	// 	return
 	// }
 
-	// _ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String(), "")
+	// _ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String())
 	// err = c.runtime.Delete(ctx, ctr)
 	// if err != nil {
 	// 	c.logger.Error("error deleting container", "id", id, "error", err)
@@ -348,6 +350,10 @@ func (c *ContainerdController) execStartedHandler(e *events.TaskExecStarted) {
 	if err != nil {
 		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecStarted", "error", err)
 	}
+	err = c.setTaskIOConfig(e.ContainerID)
+	if err != nil {
+		c.logger.Error("error setting container IO config", "id", e.ContainerID, "event", "TaskStart", "error", err)
+	}
 }
 
 func (c *ContainerdController) pausedHandler(e *events.TaskPaused) {
@@ -362,6 +368,10 @@ func (c *ContainerdController) resumedHandler(e *events.TaskResumed) {
 	if err != nil {
 		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskResumed", "error", err)
 	}
+	err = c.setTaskIOConfig(e.ContainerID)
+	if err != nil {
+		c.logger.Error("error setting container IO config", "id", e.ContainerID, "event", "TaskStart", "error", err)
+	}
 }
 
 func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
@@ -372,34 +382,28 @@ func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 }
 
 func (c *ContainerdController) setContainerState(id string) error {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+	// Get container from server
+	ctx := context.Background()
+	// ctr, err := c.clientset.ContainerV1().Get(ctx, id)
+	// if err != nil {
+	// 	return err
+	// }
 
+	ctx = namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	hostname, _ := os.Hostname()
 
 	st := &containersv1.Status{
-		Node: hostname,
-		Ip:   "192.168.13.123",
-		// Pid:        pid,
-		// Phase:      phase,
-		// ExitStatus: exitStatus,
+		Node:    hostname,
+		Ip:      "192.168.13.123",
+		Task:    &containersv1.TaskStatus{},
+		Runtime: &containersv1.RuntimeStatus{},
 	}
 
-	ctr, err := c.client.LoadContainer(ctx, id)
+	task, err := c.getTask(id)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			st.Phase = "Deleted"
-			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
 		}
-		return err
-	}
-
-	task, err := ctr.Task(ctx, nil)
-	if err != nil {
-		if errdefs.IsNotFound(err) {
-			st.Phase = "Deleted"
-			return c.clientset.ContainerV1().SetStatus(ctx, id, st)
-		}
-		return err
 	}
 
 	var pid, exitStatus uint32
@@ -411,18 +415,58 @@ func (c *ContainerdController) setContainerState(id string) error {
 	exitStatus = getTaskExitStatus(ctx, task)
 	exitTime = getTaskExitTime(ctx, task)
 
-	err = c.clientset.ContainerV1().SetNode(ctx, id, hostname)
+	st.Node = hostname
+	st.Phase = phase
+	st.Task.Pid = wrapperspb.UInt32(pid)
+	st.Task.ExitCode = wrapperspb.UInt32(exitStatus)
+	st.Task.ExitTime = timestamppb.New(exitTime)
+
+	c.logger.Debug("setting container status", "id", id, "status", st)
+	return c.clientset.ContainerV1().Status(ctx, id, st)
+}
+
+func (c *ContainerdController) setTaskIOConfig(id string) error {
+	ctx := context.Background()
+
+	task, err := c.getTask(id)
 	if err != nil {
 		return err
 	}
 
-	st.Pid = pid
-	st.Phase = phase
-	st.ExitStatus = exitStatus
-	st.ExitTime = timestamppb.New(exitTime)
+	rtCtr, err := c.runtime.Get(ctx, id)
+	if err != nil {
+		return err
+	}
 
-	c.logger.Debug("setting container status state", "id", id, "status", st)
-	return c.clientset.ContainerV1().SetStatus(ctx, id, st)
+	stdoutPath := getTaskIOConfig(ctx, task).Stdout
+	stderrPath := getTaskIOConfig(ctx, task).Stdin
+
+	st := rtCtr.GetStatus()
+	st.Runtime = &containersv1.RuntimeStatus{
+		RuntimeEnv:     "",
+		RuntimeVersion: "",
+		StdoutPath:     stdoutPath,
+		StderrPath:     stderrPath,
+	}
+
+	fmt.Println("Patsh", stdoutPath, stderrPath)
+	return c.clientset.ContainerV1().Status(ctx, id, st)
+}
+
+func (c *ContainerdController) getTask(id string) (containerd.Task, error) {
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+
+	ctr, err := c.client.LoadContainer(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	task, err := ctr.Task(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }
 
 func getTaskPid(t containerd.Task) uint32 {
@@ -456,6 +500,11 @@ func getTaskStatus(ctx context.Context, t containerd.Task) containerd.Status {
 		}
 	}
 	return s
+}
+
+func getTaskIOConfig(_ context.Context, t containerd.Task) *cio.Config {
+	c := t.IO().Config()
+	return &c
 }
 
 // Checks to see if c is present in cs
@@ -492,13 +541,13 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 
 			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetMeta().GetName())
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Stopping.String(), "")
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Stopping.String())
 			err := c.runtime.Kill(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Deleting.String(), "")
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Deleting.String())
 			err = c.runtime.Delete(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
@@ -511,16 +560,21 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 		if !contains(currentContainers, container) {
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Pulling.String(), "")
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Pulling.String())
 			err := c.runtime.Pull(ctx, container)
 			if err != nil {
 				c.logger.Error("error pulling image", "error", err, "container", container.GetMeta().GetName())
 			}
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Starting.String(), "")
+			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Starting.String())
 			err = c.runtime.Run(ctx, container)
 			if err != nil {
 				c.logger.Error("error running container", "error", err, "name", container.GetMeta().GetName())
+			}
+
+			err = c.setContainerState(container.GetMeta().GetName())
+			if err != nil {
+				c.logger.Error("error setting container state", "container", container.GetMeta().GetName(), "error", err)
 			}
 		}
 	}

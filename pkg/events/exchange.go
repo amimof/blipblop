@@ -14,7 +14,10 @@ var (
 	_ Subscriber = &Exchange{}
 )
 
-type HandlerFunc func(context.Context, *eventsv1.Event) error
+type (
+	HandlerFunc       func(context.Context, *eventsv1.Event) error
+	NewExchangeOption func(*Exchange)
+)
 
 type Exchange struct {
 	topics             map[eventsv1.EventType][]chan *eventsv1.Event
@@ -24,6 +27,12 @@ type Exchange struct {
 	mu                 sync.Mutex
 	logger             logger.Logger
 	publishers         []Publisher
+}
+
+func WithExchangeLogger(l logger.Logger) NewExchangeOption {
+	return func(e *Exchange) {
+		e.logger = l
+	}
 }
 
 // AddPublisher adds a forwarder to this Exchange
@@ -91,10 +100,13 @@ func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *events
 	if handlers, ok := e.persistentHandlers[t]; ok {
 		for _, handler := range handlers {
 			if err := handler(ctx, ev); err != nil {
-				e.errChan <- err
+				go func(err error) {
+					e.errChan <- err
+				}(err)
 			}
 		}
 	}
+
 	// Run oneoff handler funcs
 	if handlers, ok := e.fireOnceHandlers[t]; ok {
 		for i, handler := range handlers {
@@ -104,6 +116,7 @@ func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *events
 			handlers = remove(handlers, i)
 		}
 	}
+
 	return nil
 }
 
@@ -112,10 +125,17 @@ func remove(s []HandlerFunc, i int) []HandlerFunc {
 	return s[:len(s)-1]
 }
 
-func NewExchange() *Exchange {
-	return &Exchange{
+func NewExchange(opts ...NewExchangeOption) *Exchange {
+	e := &Exchange{
 		topics:             make(map[eventsv1.EventType][]chan *eventsv1.Event),
 		persistentHandlers: make(map[eventsv1.EventType][]HandlerFunc),
 		errChan:            make(chan error),
+		logger:             logger.ConsoleLogger{},
 	}
+
+	for _, opt := range opts {
+		opt(e)
+	}
+
+	return e
 }

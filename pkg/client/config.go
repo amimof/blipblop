@@ -32,20 +32,20 @@ func getServer(servers []*Server, name string) *Server {
 
 func (c *Config) Validate() error {
 	if c.Current == "" {
-		return fmt.Errorf("Current cannot be empty")
+		return fmt.Errorf("current cannot be empty")
 	}
 
 	if len(c.Servers) <= 0 {
-		return fmt.Errorf("No servers are configured")
+		return fmt.Errorf("no servers are configured")
 	}
 
 	if s := getServer(c.Servers, c.Current); s == nil {
-		return fmt.Errorf("Couldn't find a server matching %s", c.Current)
+		return fmt.Errorf("couldn't find a server matching %s", c.Current)
 	}
 
 	for _, s := range c.Servers {
 		if err := s.Validate(); err != nil {
-			return fmt.Errorf("Server validation failed: %v", err)
+			return fmt.Errorf("server validation failed: %v", err)
 		}
 	}
 	return nil
@@ -53,11 +53,11 @@ func (c *Config) Validate() error {
 
 func (s *Server) Validate() error {
 	if s.Name == "" {
-		return fmt.Errorf("Name cannot be empty")
+		return fmt.Errorf("name cannot be empty")
 	}
 
 	if s.Address == "" {
-		return fmt.Errorf("Address cannot be empty")
+		return fmt.Errorf("address cannot be empty")
 	}
 
 	return nil

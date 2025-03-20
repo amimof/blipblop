@@ -11,6 +11,7 @@ import (
 	"github.com/amimof/blipblop/cmd/bbctl/delete"
 	"github.com/amimof/blipblop/cmd/bbctl/edit"
 	"github.com/amimof/blipblop/cmd/bbctl/get"
+	"github.com/amimof/blipblop/cmd/bbctl/log"
 	"github.com/amimof/blipblop/cmd/bbctl/run"
 	"github.com/amimof/blipblop/cmd/bbctl/start"
 	"github.com/amimof/blipblop/cmd/bbctl/stop"
@@ -94,6 +95,7 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.AddCommand(start.NewCmdStart(&cfg))
 	rootCmd.AddCommand(create.NewCmdCreate(&cfg))
 	rootCmd.AddCommand(edit.NewCmdEdit(&cfg))
+	rootCmd.AddCommand(log.NewCmdLog(&cfg))
 
 	return rootCmd
 }

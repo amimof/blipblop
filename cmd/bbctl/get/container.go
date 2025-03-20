@@ -1,7 +1,6 @@
 package get
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -13,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
@@ -52,9 +51,9 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
 				for _, c := range containers {
 					var status string
-					if c.GetStatus().GetExitStatus() != 0 {
-						exitDuration := cmdutil.FormatDuration(time.Since(c.GetStatus().GetExitTime().AsTime()))
-						status = fmt.Sprintf("Exited (%d) %s ago", c.GetStatus().GetExitStatus(), exitDuration)
+					if c.GetStatus().GetTask().GetExitCode().GetValue() != 0 {
+						exitDuration := cmdutil.FormatDuration(time.Since(c.GetStatus().GetTask().GetExitTime().AsTime()))
+						status = fmt.Sprintf("Exited (%d) %s ago", c.GetStatus().GetTask().GetExitCode().GetValue(), exitDuration)
 					}
 					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
@@ -70,19 +69,22 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			wr.Flush()
 
 			if len(args) == 1 {
-				var b bytes.Buffer
-				enc := yaml.NewEncoder(&b)
-				enc.SetIndent(2)
+
 				cname := args[0]
 				container, err := c.ContainerV1().Get(context.Background(), cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				err = enc.Encode(&container)
+
+				marshaler := protojson.MarshalOptions{
+					EmitUnpopulated: true,
+					Indent:          "  ",
+				}
+				b, err := marshaler.Marshal(container)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Printf("%s\n", b.String())
+				fmt.Printf("%s\n", string(b))
 			}
 		},
 	}

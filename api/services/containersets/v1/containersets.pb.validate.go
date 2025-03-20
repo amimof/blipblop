@@ -150,7 +150,7 @@ type ContainerSetMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ContainerSetMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -261,7 +261,7 @@ type GetContainerSetRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GetContainerSetRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -392,7 +392,7 @@ type GetContainerSetResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GetContainerSetResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -534,7 +534,7 @@ type CreateContainerSetRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CreateContainerSetRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -665,7 +665,7 @@ type CreateContainerSetResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CreateContainerSetResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -836,7 +836,7 @@ type UpdateContainerSetRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpdateContainerSetRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -967,7 +967,7 @@ type UpdateContainerSetResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpdateContainerSetResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1080,7 +1080,7 @@ type DeleteContainerSetRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DeleteContainerSetRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1184,7 +1184,7 @@ type DeleteContainerSetResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DeleteContainerSetResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1288,7 +1288,7 @@ type ListContainerSetRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListContainerSetRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1424,7 +1424,7 @@ type ListContainerSetResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListContainerSetResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

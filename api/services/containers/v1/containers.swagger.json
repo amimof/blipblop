@@ -135,8 +135,7 @@
                   "$ref": "#/definitions/v1Config"
                 },
                 "status": {
-                  "$ref": "#/definitions/containersv1Status",
-                  "title": "repeated Event events = 4;"
+                  "$ref": "#/definitions/containersv1Status"
                 }
               }
             }
@@ -215,8 +214,7 @@
                   "$ref": "#/definitions/v1Config"
                 },
                 "status": {
-                  "$ref": "#/definitions/containersv1Status",
-                  "title": "repeated Event events = 4;"
+                  "$ref": "#/definitions/containersv1Status"
                 }
               }
             }
@@ -371,20 +369,11 @@
         "ip": {
           "type": "string"
         },
-        "pid": {
-          "type": "integer",
-          "format": "int64"
+        "task": {
+          "$ref": "#/definitions/v1TaskStatus"
         },
-        "exitStatus": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "exitTime": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "description": {
-          "type": "string"
+        "runtime": {
+          "$ref": "#/definitions/v1RuntimeStatus"
         }
       }
     },
@@ -433,7 +422,8 @@
         "envvars": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "object",
+            "$ref": "#/definitions/v1EnvVar"
           }
         },
         "mounts": {
@@ -468,8 +458,7 @@
           "$ref": "#/definitions/v1Config"
         },
         "status": {
-          "$ref": "#/definitions/containersv1Status",
-          "title": "repeated Event events = 4;"
+          "$ref": "#/definitions/containersv1Status"
         }
       }
     },
@@ -485,6 +474,17 @@
       "type": "object",
       "properties": {
         "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1EnvVar": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
           "type": "string"
         }
       }
@@ -546,6 +546,9 @@
     "v1Mount": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "destination": {
           "type": "string"
         },
@@ -566,6 +569,9 @@
     "v1PortMapping": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string"
+        },
         "hostPort": {
           "type": "integer",
           "format": "int64"
@@ -582,10 +588,47 @@
         }
       }
     },
+    "v1RuntimeStatus": {
+      "type": "object",
+      "properties": {
+        "runtimeEnv": {
+          "type": "string"
+        },
+        "runtimeVersion": {
+          "type": "string"
+        },
+        "stdoutPath": {
+          "type": "string"
+        },
+        "stderrPath": {
+          "type": "string"
+        }
+      }
+    },
     "v1StartContainerResponse": {
       "type": "object",
       "properties": {
         "id": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TaskStatus": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "exitTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {
           "type": "string"
         }
       }
