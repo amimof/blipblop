@@ -98,15 +98,13 @@ func removeImmutableFields(dst *containers.Container) error {
 	return nil
 }
 
+// Merge lists strategically using merge keys
 func merge(base, patch *containers.Container) *containers.Container {
-	// Skip if patch doesn't contain anything meaningful
-	if patch.Config == nil {
-		return base
-	}
-
-	// Merge lists strategically using merge keys
 	merged := protoutils.StrategicMerge(base, patch,
 		func(b, p *containers.Container) {
+			if patch.Config == nil {
+				return
+			}
 			b.Config.Envvars = protoutils.MergeSlices(b.Config.Envvars, p.Config.Envvars,
 				func(e *containers.EnvVar) string {
 					return e.Name
@@ -120,6 +118,9 @@ func merge(base, patch *containers.Container) *containers.Container {
 			)
 		},
 		func(b, p *containers.Container) {
+			if patch.Config == nil {
+				return
+			}
 			b.Config.PortMappings = protoutils.MergeSlices(b.Config.PortMappings, p.Config.PortMappings,
 				func(e *containers.PortMapping) string {
 					return e.Name
@@ -133,6 +134,9 @@ func merge(base, patch *containers.Container) *containers.Container {
 			)
 		},
 		func(b, p *containers.Container) {
+			if patch.Config == nil {
+				return
+			}
 			b.Config.Mounts = protoutils.MergeSlices(b.Config.Mounts, p.Config.Mounts,
 				func(e *containers.Mount) string {
 					return e.Name
@@ -143,6 +147,9 @@ func merge(base, patch *containers.Container) *containers.Container {
 			)
 		},
 		func(b, p *containers.Container) {
+			if patch.Config == nil {
+				return
+			}
 			b.Config.Args = protoutils.MergeSlices(b.Config.Args, p.Config.Args,
 				func(e string) string {
 					return e
@@ -285,7 +292,7 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 	}, nil
 }
 
-func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -328,7 +335,44 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	// Update the container
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
+		return nil, l.handleError(err, "couldn't PATCH container in repo", "name", existing.GetMeta().GetName())
+	}
+
+	// Retreive the container again so that we can include it in an event
+	ctr, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	// Only publish if spec is updated
+	if !proto.Equal(updateContainer.Config, ctr.Config) {
+		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerPatch, events.NewEvent(eventsv1.EventType_ContainerPatch, ctr))
+		if err != nil {
+			return nil, l.handleError(err, "error publishing PATCH event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
+		}
+	}
+
+	return &containers.UpdateContainerResponse{
+		Container: existing,
+	}, nil
+}
+
+func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Validate request
+	err := req.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	updateContainer := req.GetContainer()
+
+	// Update the container
+	err = l.Repo().Update(ctx, updateContainer)
+	if err != nil {
+		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", updateContainer.GetMeta().GetName())
 	}
 
 	// Retreive the container again so that we can include it in an event
@@ -341,12 +385,12 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	if !proto.Equal(updateContainer.Config, ctr.Config) {
 		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
+			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "ContainerUpdate")
 		}
 	}
 
 	return &containers.UpdateContainerResponse{
-		Container: existing,
+		Container: ctr,
 	}, nil
 }
 

@@ -34,10 +34,12 @@ service ContainerService {
     option (google.api.http) = {
       put: "/api/v1/containers/{container.meta.name}"
       body: "container"
-      additional_bindings {
-        patch: "/api/v1/containers/{container.meta.name}"
-        body: "container"
-      }
+    };
+	}
+	rpc Patch(UpdateContainerRequest) returns (UpdateContainerResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/containers/{container.meta.name}"
+      body: "container"
     };
 	}
 	rpc Delete(DeleteContainerRequest) returns (DeleteContainerResponse) {

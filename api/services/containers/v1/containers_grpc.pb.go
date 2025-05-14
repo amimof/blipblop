@@ -26,6 +26,7 @@ type ContainerServiceClient interface {
 	List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error)
 	Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
 	Update(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error)
+	Patch(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error)
 	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error)
 	Start(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*StartContainerResponse, error)
 	Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error)
@@ -75,6 +76,15 @@ func (c *containerServiceClient) Update(ctx context.Context, in *UpdateContainer
 	return out, nil
 }
 
+func (c *containerServiceClient) Patch(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error) {
+	out := new(UpdateContainerResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Patch", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error) {
 	out := new(DeleteContainerResponse)
 	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Delete", in, out, opts...)
@@ -110,6 +120,7 @@ type ContainerServiceServer interface {
 	List(context.Context, *ListContainerRequest) (*ListContainerResponse, error)
 	Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
 	Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error)
+	Patch(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error)
 	Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error)
 	Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error)
 	Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error)
@@ -131,6 +142,9 @@ func (UnimplementedContainerServiceServer) Create(context.Context, *CreateContai
 }
 func (UnimplementedContainerServiceServer) Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedContainerServiceServer) Patch(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Patch not implemented")
 }
 func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
@@ -226,6 +240,24 @@ func _ContainerService_Update_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContainerService_Patch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContainerServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.containers.v1.ContainerService/Patch",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContainerServiceServer).Patch(ctx, req.(*UpdateContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ContainerService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteContainerRequest)
 	if err := dec(in); err != nil {
@@ -302,6 +334,10 @@ var ContainerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _ContainerService_Update_Handler,
+		},
+		{
+			MethodName: "Patch",
+			Handler:    _ContainerService_Patch_Handler,
 		},
 		{
 			MethodName: "Delete",

@@ -192,7 +192,8 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 	nodeMockClient := nodes.NewMockNodeServiceClient(ctrl)
 	// clientV1 := containers.ClientV1{Client: containerMockClient}
 	clientV1 := containers.NewClientV1(containers.WithClient(containerMockClient))
-	nodesV1 := nodes.ClientV1{Client: nodeMockClient}
+	nodesV1 := nodes.NewClientV1(nodes.WithClient(nodeMockClient))
+	// nodesV1 := nodes.ClientV1{Client: nodeMockClient}
 
 	// Setup Mocks
 	mocks := map[string]want{
@@ -214,7 +215,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 	}
 
 	// Setup Scheduler
-	cs := &client.ClientSet{ContainerV1Client: clientV1, NodeV1Client: &nodesV1}
+	cs := &client.ClientSet{ContainerV1Client: clientV1, NodeV1Client: nodesV1}
 	scheduler := NewHorizontalScheduler(cs)
 
 	cases := map[string]struct {

@@ -410,10 +410,12 @@ func (c *ContainerdController) setContainerState(id string) error {
 	var phase string
 	var exitTime time.Time
 
-	pid = getTaskPid(task)
-	phase = getTaskProcessStatus(ctx, task)
-	exitStatus = getTaskExitStatus(ctx, task)
-	exitTime = getTaskExitTime(ctx, task)
+	ts, err := getTaskStatus(ctx, task)
+	if err == nil {
+		phase = string(ts.Status)
+		exitStatus = ts.ExitStatus
+		exitTime = ts.ExitTime
+	}
 
 	st.Node = hostname
 	st.Phase = phase
@@ -477,29 +479,28 @@ func getTaskPid(t containerd.Task) uint32 {
 	return pid
 }
 
-func getTaskProcessStatus(ctx context.Context, t containerd.Task) string {
-	return string(getTaskStatus(ctx, t).Status)
-}
+// func getTaskProcessStatus(ctx context.Context, t containerd.Task) string {
+// 	return string(getTaskStatus(ctx, t).Status)
+// }
+//
+// func getTaskExitStatus(ctx context.Context, t containerd.Task) uint32 {
+// 	return getTaskStatus(ctx, t).ExitStatus
+// }
+//
+// func getTaskExitTime(ctx context.Context, t containerd.Task) time.Time {
+// 	return getTaskStatus(ctx, t).ExitTime
+// }
 
-func getTaskExitStatus(ctx context.Context, t containerd.Task) uint32 {
-	return getTaskStatus(ctx, t).ExitStatus
-}
-
-func getTaskExitTime(ctx context.Context, t containerd.Task) time.Time {
-	return getTaskStatus(ctx, t).ExitTime
-}
-
-func getTaskStatus(ctx context.Context, t containerd.Task) containerd.Status {
-	s := containerd.Status{
-		Status:     containerd.Unknown,
-		ExitStatus: uint32(0),
-	}
+func getTaskStatus(ctx context.Context, t containerd.Task) (containerd.Status, error) {
+	s := containerd.Status{}
 	if t != nil {
-		if status, err := t.Status(ctx); err == nil {
-			s = status
+		status, err := t.Status(ctx)
+		if err != nil {
+			return s, err
 		}
+		s = status
 	}
-	return s
+	return s, nil
 }
 
 func getTaskIOConfig(_ context.Context, t containerd.Task) *cio.Config {
@@ -541,13 +542,13 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 
 			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetMeta().GetName())
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Stopping.String())
+			_ = c.clientset.ContainerV1().Status(ctx, currentContainer.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
 			err := c.runtime.Kill(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, currentContainer.GetMeta().GetName(), containersv1.Phase_Deleting.String())
+			_ = c.clientset.ContainerV1().Status(ctx, currentContainer.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
 			err = c.runtime.Delete(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
@@ -560,13 +561,13 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 		if !contains(currentContainers, container) {
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Pulling.String())
+			_ = c.clientset.ContainerV1().Status(ctx, container.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
 			err := c.runtime.Pull(ctx, container)
 			if err != nil {
 				c.logger.Error("error pulling image", "error", err, "container", container.GetMeta().GetName())
 			}
 
-			_ = c.clientset.ContainerV1().SetTaskStatus(ctx, container.GetMeta().GetName(), containersv1.Phase_Starting.String())
+			_ = c.clientset.ContainerV1().Status(ctx, container.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 			err = c.runtime.Run(ctx, container)
 			if err != nil {
 				c.logger.Error("error running container", "error", err, "name", container.GetMeta().GetName())

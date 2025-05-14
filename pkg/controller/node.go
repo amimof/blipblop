@@ -5,6 +5,7 @@ import (
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
@@ -110,7 +111,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	// }()
 
 	// Update status once connected
-	err := c.clientset.NodeV1().SetState(ctx, c.nodeName, connectivity.Ready)
+	err := c.clientset.NodeV1().Status(ctx, c.nodeName, &nodes.Status{State: connectivity.Ready.String()})
 	if err != nil {
 		c.logger.Error("error setting node state", "error", err)
 	}
@@ -134,7 +135,7 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 		err = h(ctx, ev)
 		if err != nil {
 			c.logger.Error("failed running handler", "error", err)
-			// _ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Error.String())
+			// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Error.String())
 			// _ = c.clientset.ContainerV1().SetTaskReason(ctx, ctr.GetMeta().GetName(), err.Error())
 			_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{
 				Task: &containersv1.TaskStatus{
@@ -197,13 +198,13 @@ func (c *NodeController) onContainerCreate(ctx context.Context, e *eventsv1.Even
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -221,14 +222,14 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
 	err = c.runtime.Kill(ctx, &ctr)
 	if err != nil {
 		c.logger.Error("error killing container", "error", err)
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
 	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
 		c.logger.Error("error deleting container", "error", err)
@@ -246,25 +247,25 @@ func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Even
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
 	err = c.runtime.Kill(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
 	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -281,7 +282,7 @@ func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event)
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
 	err = c.runtime.Kill(ctx, &ctr)
 	if err != nil {
 		return err
@@ -300,20 +301,20 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
 	// Delete container if it exists
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
 	if err = c.runtime.Delete(ctx, &ctr); err != nil {
 		return err
 	}
 
 	// Pull image
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Pulling.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
 	// Run container
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Starting.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -331,7 +332,7 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Stopping.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
 	err = c.runtime.Stop(ctx, &ctr)
 	if err != nil {
 		return err

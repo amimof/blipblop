@@ -104,6 +104,7 @@
         "ContainerCreate",
         "ContainerDelete",
         "ContainerUpdate",
+        "ContainerPatch",
         "ContainerStart",
         "ContainerGet",
         "ContainerList",

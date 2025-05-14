@@ -45,7 +45,8 @@ enum EventType {
 	ContainerCreate = 0;
 	ContainerDelete = 1;
   ContainerUpdate = 2;
-  ContainerStart = 3;
+  ContainerPatch = 3;
+  ContainerStart = 4;
   ContainerGet = 5;
   ContainerList = 6;
   ContainerKill = 7;
