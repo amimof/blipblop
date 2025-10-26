@@ -120,7 +120,7 @@ func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
 
 type ClientSet struct {
 	conn                 *grpc.ClientConn
-	NodeV1Client         *nodev1.ClientV1
+	NodeV1Client         nodev1.ClientV1
 	ContainerV1Client    containerv1.ClientV1
 	containerSetV1Client *containersetv1.ClientV1
 	eventV1Client        *eventv1.ClientV1
@@ -132,7 +132,7 @@ type ClientSet struct {
 	logger               logger.Logger
 }
 
-func (c *ClientSet) NodeV1() *nodev1.ClientV1 {
+func (c *ClientSet) NodeV1() nodev1.ClientV1 {
 	return c.NodeV1Client
 }
 
@@ -229,7 +229,7 @@ func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSe
 	}
 
 	c.conn = conn
-	c.NodeV1Client = nodev1.NewClientV1(conn, nodev1.WithLogger(c.logger))
+	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.clientId, nodev1.WithLogger(c.logger))
 	c.ContainerV1Client = containerv1.NewClientV1WithConn(conn, c.clientId)
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)

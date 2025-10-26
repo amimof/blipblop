@@ -10,6 +10,7 @@ import (
 
 	"github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,15 +20,37 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
-type ClientOption func(*ClientV1)
+// type ClientOption func(*clientV1)
 
-func WithLogger(l logger.Logger) ClientOption {
-	return func(c *ClientV1) {
+type CreateOption func(c *clientV1) error
+
+func WithLogger(l logger.Logger) CreateOption {
+	return func(c *clientV1) error {
 		c.logger = l
+		return nil
 	}
 }
 
-type ClientV1 struct {
+func WithClient(client nodes.NodeServiceClient) CreateOption {
+	return func(c *clientV1) error {
+		c.Client = client
+		return nil
+	}
+}
+
+type ClientV1 interface {
+	Status(context.Context, string, *nodes.Status) error
+	Create(context.Context, *nodes.Node, ...CreateOption) error
+	Update(context.Context, string, *nodes.Node) error
+	Get(context.Context, string) (*nodes.Node, error)
+	Delete(context.Context, string) error
+	List(context.Context, ...labels.Label) ([]*nodes.Node, error)
+	Join(context.Context, *nodes.Node) error
+	Forget(context.Context, string) error
+	Connect(context.Context, string, chan *events.Event, chan error) error
+}
+
+type clientV1 struct {
 	Client nodes.NodeServiceClient
 	id     string
 	mu     sync.Mutex
@@ -35,11 +58,11 @@ type ClientV1 struct {
 	logger logger.Logger
 }
 
-func (c *ClientV1) NodeService() nodes.NodeServiceClient {
+func (c *clientV1) NodeService() nodes.NodeServiceClient {
 	return c.Client
 }
 
-func (c *ClientV1) Delete(ctx context.Context, id string) error {
+func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.Client.Delete(ctx, &nodes.DeleteNodeRequest{Id: id})
 	if err != nil {
@@ -48,7 +71,7 @@ func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (c *ClientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
+func (c *clientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	n, err := c.Client.Get(ctx, &nodes.GetNodeRequest{Id: id})
 	if err != nil {
@@ -57,7 +80,7 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
 	return n.GetNode(), nil
 }
 
-func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
+func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodes.Node, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	n, err := c.Client.List(ctx, &nodes.ListNodeRequest{})
 	if err != nil {
@@ -66,16 +89,25 @@ func (c *ClientV1) List(ctx context.Context) ([]*nodes.Node, error) {
 	return n.Nodes, nil
 }
 
-func (c *ClientV1) Update(ctx context.Context, node *nodes.Node) error {
+func (c *clientV1) Update(ctx context.Context, id string, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.Client.Update(ctx, &nodes.UpdateNodeRequest{Id: node.GetMeta().GetName(), Node: node})
+	_, err := c.Client.Update(ctx, &nodes.UpdateNodeRequest{Id: id, Node: node})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
+func (c *clientV1) Create(ctx context.Context, node *nodes.Node, opts ...CreateOption) error {
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	_, err := c.Client.Create(ctx, &nodes.CreateNodeRequest{Node: node})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clientV1) Join(ctx context.Context, node *nodes.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.Client.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
@@ -84,7 +116,7 @@ func (c *ClientV1) Join(ctx context.Context, node *nodes.Node) error {
 	return nil
 }
 
-func (c *ClientV1) Forget(ctx context.Context, n string) error {
+func (c *clientV1) Forget(ctx context.Context, n string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	req := &nodes.ForgetRequest{
 		Id: n,
@@ -96,7 +128,16 @@ func (c *ClientV1) Forget(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *ClientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *events.Event, errChan chan error) error {
+func (c *clientV1) Status(ctx context.Context, id string, status *nodes.Status) error {
+	node, err := c.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	node.Status = status
+	return c.Update(ctx, id, node)
+}
+
+func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *events.Event, errChan chan error) error {
 	for {
 		// Check if the context is already canceled before starting a connection
 		select {
@@ -135,7 +176,7 @@ func (c *ClientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 	}
 }
 
-func (c *ClientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {
+func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {
 	mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
 	stream, err := c.Client.Connect(mdCtx)
 	if err != nil {
@@ -144,7 +185,7 @@ func (c *ClientV1) startStream(ctx context.Context, nodeName string) (nodes.Node
 	return stream, nil
 }
 
-func (c *ClientV1) handleStream(ctx context.Context, stream nodes.NodeService_ConnectClient, receiveChan chan<- *events.Event, errChan chan<- error) error {
+func (c *clientV1) handleStream(ctx context.Context, stream nodes.NodeService_ConnectClient, receiveChan chan<- *events.Event, errChan chan<- error) error {
 	// Start receiving messages from the server
 	for {
 		select {
@@ -178,7 +219,7 @@ func isRetryableError(code codes.Code) bool {
 	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
 }
 
-func (c *ClientV1) SendMessage(ctx context.Context, msg *events.Event) error {
+func (c *clientV1) SendMessage(ctx context.Context, msg *events.Event) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -190,7 +231,7 @@ func (c *ClientV1) SendMessage(ctx context.Context, msg *events.Event) error {
 	return nil
 }
 
-func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connectivity.State) error {
+func (c *clientV1) SetState(ctx context.Context, nodeName string, state connectivity.State) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	n := &nodes.UpdateNodeRequest{
 		Id: nodeName,
@@ -208,9 +249,18 @@ func (c *ClientV1) SetState(ctx context.Context, nodeName string, state connecti
 	return nil
 }
 
-func NewClientV1(conn *grpc.ClientConn, opts ...ClientOption) *ClientV1 {
-	c := &ClientV1{
+func NewClientV1(opts ...CreateOption) ClientV1 {
+	c := &clientV1{}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+func NewClientV1WithConn(conn *grpc.ClientConn, clientId string, opts ...CreateOption) ClientV1 {
+	c := &clientV1{
 		Client: nodes.NewNodeServiceClient(conn),
+		id:     clientId,
 		logger: logger.ConsoleLogger{},
 	}
 

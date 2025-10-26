@@ -173,7 +173,7 @@ func createPatch(name, image string, opts ...createOpts) *containersv1.UpdateCon
 	return &containersv1.UpdateContainerRequest{Container: ctr, Id: name}
 }
 
-func TestContainerService_Update(t *testing.T) {
+func Test_ContainerService_Patch(t *testing.T) {
 	server, _ := initTestServer()
 	defer server.Stop()
 
@@ -582,13 +582,72 @@ func TestContainerService_Update(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should only update status",
+			patch: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-7",
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+				},
+				Status: &containersv1.Status{
+					Phase: "RUNNING",
+				},
+			},
+			expect: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-7",
+					Labels: map[string]string{
+						"team":        "backend",
+						"environment": "production",
+						"role":        "root",
+					},
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+					PortMappings: []*containersv1.PortMapping{
+						{
+							Name:          "http",
+							HostPort:      8080,
+							ContainerPort: 80,
+							Protocol:      "TCP",
+						},
+					},
+					Envvars: []*containersv1.EnvVar{
+						{
+							Name:  "HTTP_PROXY",
+							Value: "proxy.foo.com",
+						},
+					},
+					Args: []string{
+						"--config /mnt/cfg/config.yaml",
+					},
+					Mounts: []*containersv1.Mount{
+						{
+							Name:        "temp",
+							Source:      "/tmp",
+							Destination: "/mnt/tmp",
+							Type:        "bind",
+						},
+					},
+					NodeSelector: map[string]string{
+						"blipblop.io/arch": "amd64",
+						"blipblop.io/os":   "linux",
+					},
+				},
+				Status: &containersv1.Status{
+					Phase: "RUNNING",
+				},
+			},
+		},
 	}
 
 	// Run tests
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &containersv1.UpdateContainerRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
-			res, err := client.Update(ctx, req)
+			res, err := client.Patch(ctx, req)
 			if err != nil {
 				t.Fatal("error updating container", err)
 			}

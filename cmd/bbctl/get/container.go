@@ -69,7 +69,6 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			wr.Flush()
 
 			if len(args) == 1 {
-
 				cname := args[0]
 				container, err := c.ContainerV1().Get(context.Background(), cname)
 				if err != nil {

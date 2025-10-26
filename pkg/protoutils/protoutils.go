@@ -2,6 +2,7 @@ package protoutils
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -234,7 +235,9 @@ func StrategicMerge[T proto.Message](base, patch T, mergeFuncs ...func(b, p T)) 
 	proto.Merge(tmp, patchClone)
 
 	for _, mergeFunc := range mergeFuncs {
-		mergeFunc(tmp, patch)
+		if !reflect.ValueOf(patch).IsNil() {
+			mergeFunc(tmp, patch)
+		}
 	}
 
 	return tmp

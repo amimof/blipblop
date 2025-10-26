@@ -158,7 +158,7 @@
         ]
       },
       "patch": {
-        "operationId": "ContainerService_Update2",
+        "operationId": "ContainerService_Patch",
         "responses": {
           "200": {
             "description": "A successful response.",

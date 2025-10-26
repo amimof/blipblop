@@ -34,14 +34,6 @@ func WithClient(client containers.ContainerServiceClient) CreateOption {
 
 type ClientV1 interface {
 	Status(context.Context, string, *containers.Status) error
-
-	// DEPRECATED: Use Status() instead
-	SetNode(context.Context, string, string) error
-	// DEPRECATED: Use Status() instead
-	SetTaskStatus(context.Context, string, string) error
-	// DEPRECATED: Use Status() instead
-	// SetStatus(context.Context, string, *containers.Status) error
-
 	Kill(context.Context, string) (*containers.KillContainerResponse, error)
 	Stop(context.Context, string) (*containers.KillContainerResponse, error)
 	Start(context.Context, string) (*containers.StartContainerResponse, error)
@@ -81,40 +73,6 @@ func (c *clientV1) SetNode(ctx context.Context, id, node string) error {
 			},
 		},
 		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.node"}},
-	}
-	_, err := c.Client.Update(ctx, n)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *clientV1) SetTaskStatus(ctx context.Context, id string, phase string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n := &containers.UpdateContainerRequest{
-		Id: id,
-		Container: &containers.Container{
-			Status: &containers.Status{
-				Phase: phase,
-			},
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.phase"}},
-	}
-	_, err := c.Client.Update(ctx, n)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *clientV1) SetStatus(ctx context.Context, id string, status *containers.Status) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n := &containers.UpdateContainerRequest{
-		Id: id,
-		Container: &containers.Container{
-			Status: status,
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status"}},
 	}
 	_, err := c.Client.Update(ctx, n)
 	if err != nil {

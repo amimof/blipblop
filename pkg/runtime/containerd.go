@@ -93,7 +93,9 @@ func (c *ContainerdRuntime) Namespace() string {
 	return c.ns
 }
 
-// GC performs any tasks necessary to clean up the environment from danglig configuration. Such as tearing down the network
+// Cleanup performs any tasks necessary to clean up the environment from danglig configuration. Such as tearing down the network
+// TODO: Find a way of not accepting a Container object because we might not have access to one.
+// For example after a delete event, the container is alreay removed and by that point we are unable to perform any cleanup.
 func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Container) error {
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
@@ -101,7 +103,13 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Contain
 	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err := networking.DeleteCNINetwork(ctx, c.cni, ctr.GetMeta().GetName(), ctr.GetStatus().GetTask().GetPid().GetValue(), gocni.WithLabels(cniLabels), gocni.WithCapabilityPortMap(mappings))
+	err := networking.DeleteCNINetwork(ctx,
+		c.cni,
+		ctr.GetMeta().GetName(),
+		ctr.GetStatus().GetTask().GetPid().GetValue(),
+		gocni.WithLabels(cniLabels),
+		gocni.WithCapabilityPortMap(mappings),
+	)
 	if err != nil {
 		return err
 	}
@@ -357,8 +365,28 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		return err
 	}
 
+	// ctr.GetConfig().GetPortMappings()
+	pm := networking.ParseCNIPortMappings(ctr.GetConfig().PortMappings...)
+
 	// Start the  task
+	err = c.setupCNINetworkForTask(ctx, task, gocni.WithCapabilityPortMap(pm))
+	if err != nil {
+		return err
+	}
+
+	// Setup networking
 	return task.Start(ctx)
+}
+
+func (c *ContainerdRuntime) setupCNINetworkForTask(ctx context.Context, t containerd.Task, opts ...gocni.NamespaceOpts) error {
+	// Setup networking
+	c.logger.Info("Pid for this task is", "pid", fmt.Sprintf("%d", t.Pid()))
+
+	_, err := networking.CreateCNINetwork(ctx, c.cni, t.ID(), t.Pid(), opts...)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {

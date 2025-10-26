@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1 "github.com/amimof/blipblop/api/services/containers/v1"
+	containers "github.com/amimof/blipblop/api/services/containers/v1"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
 )
@@ -43,14 +43,14 @@ func (m *MockContainerServiceClient) EXPECT() *MockContainerServiceClientMockRec
 }
 
 // Create mocks base method.
-func (m *MockContainerServiceClient) Create(ctx context.Context, in *v1.CreateContainerRequest, opts ...grpc.CallOption) (*v1.CreateContainerResponse, error) {
+func (m *MockContainerServiceClient) Create(ctx context.Context, in *containers.CreateContainerRequest, opts ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Create", varargs...)
-	ret0, _ := ret[0].(*v1.CreateContainerResponse)
+	ret0, _ := ret[0].(*containers.CreateContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -63,14 +63,14 @@ func (mr *MockContainerServiceClientMockRecorder) Create(ctx, in any, opts ...an
 }
 
 // Delete mocks base method.
-func (m *MockContainerServiceClient) Delete(ctx context.Context, in *v1.DeleteContainerRequest, opts ...grpc.CallOption) (*v1.DeleteContainerResponse, error) {
+func (m *MockContainerServiceClient) Delete(ctx context.Context, in *containers.DeleteContainerRequest, opts ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
-	ret0, _ := ret[0].(*v1.DeleteContainerResponse)
+	ret0, _ := ret[0].(*containers.DeleteContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -83,14 +83,14 @@ func (mr *MockContainerServiceClientMockRecorder) Delete(ctx, in any, opts ...an
 }
 
 // Get mocks base method.
-func (m *MockContainerServiceClient) Get(ctx context.Context, in *v1.GetContainerRequest, opts ...grpc.CallOption) (*v1.GetContainerResponse, error) {
+func (m *MockContainerServiceClient) Get(ctx context.Context, in *containers.GetContainerRequest, opts ...grpc.CallOption) (*containers.GetContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Get", varargs...)
-	ret0, _ := ret[0].(*v1.GetContainerResponse)
+	ret0, _ := ret[0].(*containers.GetContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -103,14 +103,14 @@ func (mr *MockContainerServiceClientMockRecorder) Get(ctx, in any, opts ...any) 
 }
 
 // Kill mocks base method.
-func (m *MockContainerServiceClient) Kill(ctx context.Context, in *v1.KillContainerRequest, opts ...grpc.CallOption) (*v1.KillContainerResponse, error) {
+func (m *MockContainerServiceClient) Kill(ctx context.Context, in *containers.KillContainerRequest, opts ...grpc.CallOption) (*containers.KillContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Kill", varargs...)
-	ret0, _ := ret[0].(*v1.KillContainerResponse)
+	ret0, _ := ret[0].(*containers.KillContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -123,14 +123,14 @@ func (mr *MockContainerServiceClientMockRecorder) Kill(ctx, in any, opts ...any)
 }
 
 // List mocks base method.
-func (m *MockContainerServiceClient) List(ctx context.Context, in *v1.ListContainerRequest, opts ...grpc.CallOption) (*v1.ListContainerResponse, error) {
+func (m *MockContainerServiceClient) List(ctx context.Context, in *containers.ListContainerRequest, opts ...grpc.CallOption) (*containers.ListContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "List", varargs...)
-	ret0, _ := ret[0].(*v1.ListContainerResponse)
+	ret0, _ := ret[0].(*containers.ListContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -142,15 +142,35 @@ func (mr *MockContainerServiceClientMockRecorder) List(ctx, in any, opts ...any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockContainerServiceClient)(nil).List), varargs...)
 }
 
+// Patch mocks base method.
+func (m *MockContainerServiceClient) Patch(ctx context.Context, in *containers.UpdateContainerRequest, opts ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Patch", varargs...)
+	ret0, _ := ret[0].(*containers.UpdateContainerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Patch indicates an expected call of Patch.
+func (mr *MockContainerServiceClientMockRecorder) Patch(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Patch", reflect.TypeOf((*MockContainerServiceClient)(nil).Patch), varargs...)
+}
+
 // Start mocks base method.
-func (m *MockContainerServiceClient) Start(ctx context.Context, in *v1.StartContainerRequest, opts ...grpc.CallOption) (*v1.StartContainerResponse, error) {
+func (m *MockContainerServiceClient) Start(ctx context.Context, in *containers.StartContainerRequest, opts ...grpc.CallOption) (*containers.StartContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Start", varargs...)
-	ret0, _ := ret[0].(*v1.StartContainerResponse)
+	ret0, _ := ret[0].(*containers.StartContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -163,14 +183,14 @@ func (mr *MockContainerServiceClientMockRecorder) Start(ctx, in any, opts ...any
 }
 
 // Update mocks base method.
-func (m *MockContainerServiceClient) Update(ctx context.Context, in *v1.UpdateContainerRequest, opts ...grpc.CallOption) (*v1.UpdateContainerResponse, error) {
+func (m *MockContainerServiceClient) Update(ctx context.Context, in *containers.UpdateContainerRequest, opts ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Update", varargs...)
-	ret0, _ := ret[0].(*v1.UpdateContainerResponse)
+	ret0, _ := ret[0].(*containers.UpdateContainerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -57,7 +57,7 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				cports = append(cports, &containers.PortMapping{HostPort: pm.Source, ContainerPort: pm.Destination})
+				cports = append(cports, &containers.PortMapping{Name: pm.String(), HostPort: pm.Source, ContainerPort: pm.Destination})
 			}
 
 			err = c.ContainerV1().Create(ctx, &containers.Container{

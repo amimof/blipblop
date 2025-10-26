@@ -65,6 +65,10 @@ func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateCon
 	return c.local.Update(ctx, req)
 }
 
+func (c *ContainerService) Patch(ctx context.Context, req *containers.UpdateContainerRequest) (*containers.UpdateContainerResponse, error) {
+	return c.local.Patch(ctx, req)
+}
+
 func NewService(repo repository.ContainerRepository, opts ...NewServiceOption) *ContainerService {
 	s := &ContainerService{
 		logger: logger.ConsoleLogger{},

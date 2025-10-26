@@ -1,5 +1,5 @@
 #!/bin/env bash
-count=5
+count=2
 
 __up() {
 
@@ -7,12 +7,14 @@ __up() {
   nerdctl run \
     -d \
     --name blipblop-server \
+    --hostname blipblop-server \
     -v /etc/blipblop/tls:/etc/blipblop/tls \
     -p 5743:5743 \
     ghcr.io/amimof/blipblop:latest \
     blipblop-server \
     --tls-key /etc/blipblop/tls/server.key \
     --tls-certificate /etc/blipblop/tls/server.crt \
+    --tls-ca /etc/blipblop/tls/ca.crt \
     --tls-host 0.0.0.0 \
     --tcp-tls-host 0.0.0.0
 
@@ -21,6 +23,7 @@ __up() {
     nerdctl run \
       -d \
       --name blipblop-node-$i \
+      --hostname blipblop-node-$i \
       --privileged \
       -v /run/containerd/containerd.sock:/run/containerd/containerd.sock \
       -v /etc/blipblop/tls:/etc/blipblop/tls \

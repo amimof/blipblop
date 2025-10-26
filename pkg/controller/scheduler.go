@@ -33,7 +33,7 @@ func (c *SchedulerController) onContainerCreate(ctx context.Context, e *eventsv1
 	}
 
 	// Update container status
-	_ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Scheduling.String())
+	_ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Scheduling.String()})
 
 	containerProto, err := anypb.New(&ctr)
 	if err != nil {
