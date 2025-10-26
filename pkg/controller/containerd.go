@@ -243,6 +243,9 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 }
 
 // TODO: Experimental, might remove later
+// BUG: So this will basically always fail whenever a container is deleted. After a delete, the container
+// object is removed from the database so we are never able to Get() it here. So we need to figure out
+// to cleanup without relying on fething container from the API.
 func (c *ContainerdController) teardownNetworkForContainer(id string) error {
 	ctx := context.Background()
 	ctr, err := c.clientset.ContainerV1().Get(ctx, id)
@@ -322,6 +325,8 @@ func (c *ContainerdController) deleteHandler(e *events.TaskDelete) {
 	if err != nil {
 		c.logger.Error("error setting container state", "id", id, "event", "TaskDelete", "error", err)
 	}
+
+	c.logger.Info("tearing down network", "id", e.ContainerID)
 	err = c.teardownNetworkForContainer(id)
 	if err != nil {
 		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)

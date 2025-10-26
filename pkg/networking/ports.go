@@ -35,8 +35,8 @@ func ParsePorts(p string) (*PortMapping, error) {
 	return &PortMapping{uint32(src), uint32(dst)}, nil
 }
 
-func (p *PortMapping) String() {
-	fmt.Printf("%d:%d", p.Source, p.Destination)
+func (p *PortMapping) String() string {
+	return fmt.Sprintf("%d:%d", p.Source, p.Destination)
 }
 
 func ParseCNIPortMapping(pm *containers.PortMapping) gocni.PortMapping {

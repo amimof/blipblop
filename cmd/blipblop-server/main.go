@@ -191,6 +191,8 @@ func main() {
 			log.Error("error loading x509 cert key pair", "error", err)
 			os.Exit(1)
 		}
+		// TODO: This effectively forces user to provide CA certificate. Need to implement
+		// so that ca cert pool is added to the grpc dial option contitionally
 		caCert, err := os.ReadFile(tlsCACertificate)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
