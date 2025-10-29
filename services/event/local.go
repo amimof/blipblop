@@ -5,6 +5,7 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/repository"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 )
 
@@ -15,9 +16,15 @@ type local struct {
 	// logger   logger.Logger
 }
 
-var _ eventsv1.EventServiceClient = &local{}
+var (
+	_      eventsv1.EventServiceClient = &local{}
+	tracer                             = otel.GetTracerProvider().Tracer("blipblop-server")
+)
 
 func (n *local) Create(ctx context.Context, req *eventsv1.CreateEventRequest, _ ...grpc.CallOption) (*eventsv1.CreateEventResponse, error) {
+	ctx, span := tracer.Start(ctx, "event.Create")
+	defer span.End()
+
 	err := n.repo.Create(ctx, req.GetEvent())
 	if err != nil {
 		return nil, err
@@ -26,6 +33,9 @@ func (n *local) Create(ctx context.Context, req *eventsv1.CreateEventRequest, _ 
 }
 
 func (n *local) Get(ctx context.Context, req *eventsv1.GetEventRequest, _ ...grpc.CallOption) (*eventsv1.GetEventResponse, error) {
+	ctx, span := tracer.Start(ctx, "event.Get")
+	defer span.End()
+
 	e, err := n.repo.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -34,6 +44,9 @@ func (n *local) Get(ctx context.Context, req *eventsv1.GetEventRequest, _ ...grp
 }
 
 func (n *local) Delete(ctx context.Context, req *eventsv1.DeleteEventRequest, _ ...grpc.CallOption) (*eventsv1.DeleteEventResponse, error) {
+	ctx, span := tracer.Start(ctx, "event.Delete")
+	defer span.End()
+
 	err := n.repo.Delete(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -42,6 +55,9 @@ func (n *local) Delete(ctx context.Context, req *eventsv1.DeleteEventRequest, _ 
 }
 
 func (n *local) List(ctx context.Context, req *eventsv1.ListEventRequest, _ ...grpc.CallOption) (*eventsv1.ListEventResponse, error) {
+	ctx, span := tracer.Start(ctx, "event.List")
+	defer span.End()
+
 	l, err := n.repo.List(ctx)
 	if err != nil {
 		return nil, err

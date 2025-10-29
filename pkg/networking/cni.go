@@ -12,6 +12,7 @@ import (
 
 	gocni "github.com/containerd/go-cni"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 )
 
 const (
@@ -49,7 +50,9 @@ const (
 
 //"dataDir": "%s",
 
-var defaultCNIConf = fmt.Sprintf(`
+var (
+	tracer         = otel.GetTracerProvider().Tracer("blipblop-node")
+	defaultCNIConf = fmt.Sprintf(`
 {
     "cniVersion": "0.4.0",
     "name": "%s",
@@ -80,6 +83,7 @@ var defaultCNIConf = fmt.Sprintf(`
     ]
 }
 `, defaultNetworkName, defaultBridgeName, CNIDataDir, defaultSubnet, defaultSubnetGw)
+)
 
 // netID generates the network IF based on task name and task PID
 func netID(id string, pid uint32) string {
@@ -97,14 +101,14 @@ func InitNetwork() (gocni.CNI, error) {
 	// Create directories
 	_, err := os.Stat(CNIConfDir)
 	if !os.IsNotExist(err) {
-		if err := os.MkdirAll(CNIConfDir, 0755); err != nil {
+		if err := os.MkdirAll(CNIConfDir, 0o755); err != nil {
 			return nil, fmt.Errorf("cannot create directory: '%s'. error: %w", CNIConfDir, err)
 		}
 	}
 
 	// Create network config file
 	netconfig := path.Join(CNIConfDir, defaultCNIConfFilename)
-	if err := os.WriteFile(netconfig, []byte(defaultCNIConf), 0644); err != nil {
+	if err := os.WriteFile(netconfig, []byte(defaultCNIConf), 0o644); err != nil {
 		return nil, fmt.Errorf("cannot write network config: '%s'. error: %w", defaultCNIConfFilename, err)
 	}
 
@@ -129,6 +133,9 @@ func InitNetwork() (gocni.CNI, error) {
 
 // CreateCNINetwork creates a CNI network interface and attaches it to the context
 func CreateCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
+	ctx, span := tracer.Start(ctx, "networking.cni.Create")
+	defer span.End()
+
 	i := netID(id, pid)
 	n := netNamespace(pid)
 	result, err := cni.Setup(ctx, i, n, opts...)
@@ -140,6 +147,9 @@ func CreateCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32,
 }
 
 func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32, opts ...gocni.NamespaceOpts) error {
+	ctx, span := tracer.Start(ctx, "networking.cni.Destroy")
+	defer span.End()
+
 	i := netID(id, pid)
 	n := netNamespace(pid)
 	err := cni.Remove(ctx, i, n, opts...)

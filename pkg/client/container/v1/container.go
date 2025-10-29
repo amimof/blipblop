@@ -6,6 +6,7 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/util"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -144,6 +145,10 @@ func (c *clientV1) Get(ctx context.Context, id string) (*containers.Container, e
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+
+	tracer := otel.Tracer("bbctl")
+	ctx, span := tracer.Start(ctx, "bbctl.get.container")
+	defer span.End()
 
 	mergedLabels := util.MergeLabels(l...)
 	res, err := c.Client.List(ctx, &containers.ListContainerRequest{Selector: mergedLabels})

@@ -242,58 +242,22 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 	}
 }
 
-// TODO: Experimental, might remove later
-// BUG: So this will basically always fail whenever a container is deleted. After a delete, the container
-// object is removed from the database so we are never able to Get() it here. So we need to figure out
-// to cleanup without relying on fething container from the API.
-func (c *ContainerdController) teardownNetworkForContainer(id string) error {
-	ctx := context.Background()
-	ctr, err := c.clientset.ContainerV1().Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	err = c.runtime.Cleanup(context.Background(), ctr)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
+// exitHandler is run whenever a container task exits. This is usually a good opportunity to perform
+// cleanup tasks because the task is not yet removed. See deleteHandler for handling deletions.
 func (c *ContainerdController) exitHandler(e *events.TaskExit) {
-	err := c.setContainerState(e.ID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
-	}
-	// ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-	//
-	// id := e.ContainerID
-	// err := c.setContainerState(id)
-	// if err != nil {
-	// 	c.logger.Error("error setting container state", "id", id, "event", "TaskExit", "error", err)
-	// }
-	//
-	// ctr, err := c.clientset.ContainerV1().Get(ctx, e.ContainerID)
-	// if err != nil {
-	// 	c.logger.Error("error getting container", "error", err, "containerID", e.ContainerID)
-	// 	return
-	// }
+	ctx := context.Background()
+	id := e.ID
 
-	// _ = c.clientset.ContainerV1().SetTaskStatus(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Deleting.String())
-	// err = c.runtime.Delete(ctx, ctr)
-	// if err != nil {
-	// 	c.logger.Error("error deleting container", "id", id, "error", err)
-	// 	return
-	// }
-	//
-	// err = c.runtime.Cleanup(ctx, ctr)
-	// if err != nil {
-	// 	c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
-	// 	return
-	// }
-	// err = c.teardownNetworkForContainer(id)
-	// if err != nil {
-	// 	c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
-	// }
+	c.logger.Info("tearing down network for container", "id", id)
+	err := c.runtime.Cleanup(ctx, id)
+	if err != nil {
+		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
+	}
+
+	err = c.setContainerState(e.ID)
+	if err != nil {
+		c.logger.Error("error setting container state", "id", e.ID, "event", "TaskExit", "error", err)
+	}
 }
 
 func (c *ContainerdController) createHandler(e *events.TaskCreate) {
@@ -317,20 +281,8 @@ func (c *ContainerdController) startHandler(e *events.TaskStart) {
 	}
 }
 
-// TODO: Consider not updating container state on delete events since the container is already gone.
-// In other words, there will never be anything to update after a delete event. Keeping this as-is for verbosity
 func (c *ContainerdController) deleteHandler(e *events.TaskDelete) {
-	id := e.ContainerID
-	err := c.setContainerState(id)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", id, "event", "TaskDelete", "error", err)
-	}
-
-	c.logger.Info("tearing down network", "id", e.ContainerID)
-	err = c.teardownNetworkForContainer(id)
-	if err != nil {
-		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
-	}
+	c.logger.Debug("handler not implemented", "event", "TaskDelete")
 }
 
 func (c *ContainerdController) ioHandler(e *events.TaskIO) {

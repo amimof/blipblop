@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -175,7 +174,7 @@ func (c *ClientSet) ID() string {
 	return c.clientId
 }
 
-func New(ctx context.Context, server string, opts ...NewClientOption) (*ClientSet, error) {
+func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	// Define connection backoff policy
 	backoffConfig := backoff.Config{
 		BaseDelay:  time.Second,       // Initial delay before retry

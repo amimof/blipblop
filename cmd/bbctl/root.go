@@ -26,13 +26,14 @@ var (
 		Short:         "Distributed containerd workloads",
 		Long:          `bbctl is a command line tool for interacting with blipblop-server.`,
 	}
-	config     string
-	verbosity  string
-	server     string
-	insecure   bool
-	tlsCACert  string
-	tlsCert    string
-	tlsCertKey string
+	config       string
+	verbosity    string
+	server       string
+	insecure     bool
+	tlsCACert    string
+	tlsCert      string
+	tlsCertKey   string
+	otelEndpoint string
 )
 
 func init() {
@@ -83,6 +84,7 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.PersistentFlags().StringVarP(&tlsCACert, "tls-ca-certificate", "", "", "CA Certificate file path")
 	rootCmd.PersistentFlags().StringVarP(&tlsCert, "tls-certificate", "", "", "Certificate file path")
 	rootCmd.PersistentFlags().StringVarP(&tlsCertKey, "tls-certificate-key", "", "", "Certificate key file path")
+	rootCmd.PersistentFlags().StringVarP(&otelEndpoint, "otel-endpoint", "", "", "Endpoint address of OpenTelemetry collector")
 	rootCmd.PersistentFlags().BoolVarP(&insecure, "insecure", "i", false, "Skip TLS certificate verification")
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "v", "v", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
 

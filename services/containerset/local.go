@@ -11,6 +11,7 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,7 +26,10 @@ type local struct {
 	logger   logger.Logger
 }
 
-var _ containersetsv1.ContainerSetServiceClient = &local{}
+var (
+	_      containersetsv1.ContainerSetServiceClient = &local{}
+	tracer                                           = otel.GetTracerProvider().Tracer("blipblop-server")
+)
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
@@ -38,6 +42,9 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 }
 
 func (l *local) Get(ctx context.Context, req *containersetsv1.GetContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.GetContainerSetResponse, error) {
+	ctx, span := tracer.Start(ctx, "containerset.Get")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
@@ -48,6 +55,9 @@ func (l *local) Get(ctx context.Context, req *containersetsv1.GetContainerSetReq
 }
 
 func (l *local) List(ctx context.Context, req *containersetsv1.ListContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.ListContainerSetResponse, error) {
+	ctx, span := tracer.Start(ctx, "containerset.List")
+	defer span.End()
+
 	ctrs, err := l.Repo().List(ctx)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
@@ -87,6 +97,9 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainer
 }
 
 func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.DeleteContainerSetResponse, error) {
+	ctx, span := tracer.Start(ctx, "containerset.Delete")
+	defer span.End()
+
 	containerSet, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
@@ -106,6 +119,9 @@ func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainer
 }
 
 func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.UpdateContainerSetResponse, error) {
+	ctx, span := tracer.Start(ctx, "containerset.Update")
+	defer span.End()
+
 	updateMask := req.GetUpdateMask()
 	updateContainerSet := req.GetContainerSet()
 	existing, err := l.Repo().Get(ctx, req.GetId())

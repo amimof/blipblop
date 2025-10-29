@@ -28,8 +28,7 @@ type local struct {
 
 var (
 	_      nodes.NodeServiceClient = &local{}
-	tracer                         = otel.GetTracerProvider().Tracer("node")
-	// tracer                         = otel.Tracer("blipblop/nodes")
+	tracer                         = otel.GetTracerProvider().Tracer("blipblop-server")
 )
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
@@ -68,7 +67,7 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
 	}
 
-	nodeId := node.Meta.GetName()
+	nodeID := node.Meta.GetName()
 	node.Meta.Created = timestamppb.Now()
 
 	err := req.Validate()
@@ -78,13 +77,13 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 
 	err = l.Repo().Create(ctx, node)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeId)
+		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeID)
 	}
 
 	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
 	err = l.exchange.Publish(ctx, events.NodeCreate, events.NewEvent(eventsv1.EventType_NodeCreate, node))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeId, "event", "NodeCreate")
+		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeID, "event", "NodeCreate")
 	}
 	return &nodes.CreateNodeResponse{
 		Node: node,
@@ -114,7 +113,7 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 }
 
 func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
-	_, span := tracer.Start(ctx, "ListNodes")
+	ctx, span := tracer.Start(ctx, "node.List")
 	defer span.End()
 
 	nodeList, err := l.Repo().List(ctx)
@@ -127,6 +126,9 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 }
 
 func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Update")
+	defer span.End()
+
 	// Validate request
 	err := req.Validate()
 	if err != nil {
@@ -192,24 +194,24 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	ctx, span := tracer.Start(ctx, "node.Join")
 	defer span.End()
 
-	nodeId := req.GetNode().GetMeta().GetName()
+	nodeID := req.GetNode().GetMeta().GetName()
 
-	if nodeId == "" {
+	if nodeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "node name cannot be empty")
 	}
 
-	node, err := l.Repo().Get(ctx, nodeId)
+	node, err := l.Repo().Get(ctx, nodeID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			if _, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node}); err != nil {
-				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeId)
+				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeID)
 			}
 		} else {
-			return nil, l.handleError(err, "couldn't GET node", "name", nodeId)
+			return nil, l.handleError(err, "couldn't GET node", "name", nodeID)
 		}
 	}
 
-	res, err := l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeId, Node: req.GetNode()})
+	res, err := l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeID, Node: req.GetNode()})
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,10 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
 
 type ContainerController struct {
 	clientset *client.ClientSet
@@ -50,6 +53,8 @@ func (c *ContainerController) Reconcile(ctx context.Context) error {
 }
 
 func (c *ContainerController) onContainerCreate(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := tracer.Start(ctx, "container.Create")
+	defer span.End()
 	// Extract ScheduleRequest embedded in the event
 	var req eventsv1.ScheduleRequest
 	if err := obj.GetObject().UnmarshalTo(&req); err != nil {

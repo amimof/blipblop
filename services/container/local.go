@@ -15,6 +15,7 @@ import (
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
 	jsonpatch "github.com/evanphx/json-patch/v5"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,7 +30,10 @@ type local struct {
 	logger   logger.Logger
 }
 
-var _ containers.ContainerServiceClient = &local{}
+var (
+	_      containers.ContainerServiceClient = &local{}
+	tracer                                   = otel.GetTracerProvider().Tracer("blipblop-server")
+)
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
@@ -167,6 +171,9 @@ func merge(base, patch *containers.Container) *containers.Container {
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Get")
+	defer span.End()
+
 	// Validate request
 	err := req.Validate()
 	if err != nil {
@@ -184,6 +191,9 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.List")
+	defer span.End()
+
 	// Validate request
 	err := req.Validate()
 	if err != nil {
@@ -201,6 +211,9 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 }
 
 func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Create")
+	defer span.End()
+
 	container := req.GetContainer()
 	container.GetMeta().Created = timestamppb.Now()
 
@@ -243,6 +256,9 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Delete")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
@@ -262,14 +278,22 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Kill")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(eventsv1.EventType_ContainerKill, container))
+	ev := eventsv1.EventType_ContainerStop
+	if req.ForceKill {
+		ev = eventsv1.EventType_ContainerKill
+	}
+
+	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(ev, container))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing KILL event", "name", req.GetId(), "event", "ContainerKill")
+		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
 	}
 	return &containers.KillContainerResponse{
 		Id: req.GetId(),
@@ -277,6 +301,9 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 }
 
 func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Start")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -293,6 +320,9 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 }
 
 func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Patch")
+	defer span.End()
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -358,6 +388,9 @@ func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerReques
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Update")
+	defer span.End()
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

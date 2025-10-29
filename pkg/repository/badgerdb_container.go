@@ -8,10 +8,14 @@ import (
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/dgraph-io/badger/v4"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/proto"
 )
 
-var containerPrefix = []byte("container")
+var (
+	containerPrefix = []byte("container")
+	tracer          = otel.GetTracerProvider().Tracer("blipblop-server")
+)
 
 type ContainerID string
 
@@ -30,6 +34,9 @@ func NewContainerBadgerRepository(db *badger.DB) *containerBadgerRepo {
 }
 
 func (r *containerBadgerRepo) Get(ctx context.Context, id string) (*containers.Container, error) {
+	_, span := tracer.Start(ctx, "container.Get")
+	defer span.End()
+
 	res := &containers.Container{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := ContainerID(id).String()

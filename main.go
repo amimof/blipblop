@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	cmd "github.com/amimof/blipblop/cmd/bbctl"
+	"github.com/amimof/blipblop/pkg/trace"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,6 +24,14 @@ var (
 
 func main() {
 	cmd.SetVersionInfo(VERSION, COMMIT, DATE, BRANCH, GOVERSION)
+
+	ctx := context.Background()
+	shutdownTraceProvider, err := trace.InitTracing(ctx, "bbctl", VERSION, "192.168.5.15:4317")
+	if err != nil {
+		logrus.Fatalf("error setting up tracing: %v", err)
+	}
+	defer shutdownTraceProvider(ctx)
+
 	if err := cmd.NewDefaultCommand().Execute(); err != nil {
 		logrus.Error(err)
 		os.Exit(1)
