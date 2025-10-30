@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 )
 
 func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
@@ -27,8 +28,12 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			tracer := otel.Tracer("bbctl")
+			ctx, span := tracer.Start(ctx, "bbctl.delete.container")
+			defer span.End()
+
 			// Setup client
-			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

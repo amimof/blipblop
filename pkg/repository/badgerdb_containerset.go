@@ -28,6 +28,9 @@ func NewContainerSetBadgerRepository(db *badger.DB) *containerSetBadgerRepo {
 }
 
 func (r *containerSetBadgerRepo) Get(ctx context.Context, id string) (*containersetsv1.ContainerSet, error) {
+	_, span := tracer.Start(ctx, "repo.containerset.Get")
+	defer span.End()
+
 	res := &containersetsv1.ContainerSet{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := ContainerSetID(id).String()
@@ -49,6 +52,9 @@ func (r *containerSetBadgerRepo) Get(ctx context.Context, id string) (*container
 }
 
 func (r *containerSetBadgerRepo) List(ctx context.Context) ([]*containersetsv1.ContainerSet, error) {
+	_, span := tracer.Start(ctx, "repo.containerset.List")
+	defer span.End()
+
 	var result []*containersetsv1.ContainerSet
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -82,6 +88,9 @@ func (r *containerSetBadgerRepo) List(ctx context.Context) ([]*containersetsv1.C
 }
 
 func (r *containerSetBadgerRepo) Create(ctx context.Context, container *containersetsv1.ContainerSet) error {
+	_, span := tracer.Start(ctx, "repo.containerset.Create")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := ContainerSetID(container.GetMeta().GetName()).String()
 		b, err := proto.Marshal(container)
@@ -93,6 +102,9 @@ func (r *containerSetBadgerRepo) Create(ctx context.Context, container *containe
 }
 
 func (r *containerSetBadgerRepo) Delete(ctx context.Context, id string) error {
+	_, span := tracer.Start(ctx, "repo.containerset.Delete")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := ContainerSetID(id).String()
 		err := txn.Delete([]byte(key))
@@ -107,5 +119,8 @@ func (r *containerSetBadgerRepo) Delete(ctx context.Context, id string) error {
 }
 
 func (r *containerSetBadgerRepo) Update(ctx context.Context, container *containersetsv1.ContainerSet) error {
+	_, span := tracer.Start(ctx, "repo.containerset.Update")
+	defer span.End()
+
 	return r.Create(ctx, container)
 }

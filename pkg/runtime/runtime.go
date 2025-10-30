@@ -18,7 +18,7 @@ type Runtime interface {
 	Kill(context.Context, *containers.Container) error
 	Stop(context.Context, *containers.Container) error
 	Run(context.Context, *containers.Container) error
-	Cleanup(context.Context, *containers.Container) error
+	Cleanup(context.Context, string) error
 	Pull(context.Context, *containers.Container) error
 	Labels(context.Context) (labels.Label, error)
 	Namespace() string

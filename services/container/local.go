@@ -2,10 +2,8 @@ package container
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -14,11 +12,14 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
-	jsonpatch "github.com/evanphx/json-patch/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -29,7 +30,10 @@ type local struct {
 	logger   logger.Logger
 }
 
-var _ containers.ContainerServiceClient = &local{}
+var (
+	_      containers.ContainerServiceClient = &local{}
+	tracer                                   = otel.GetTracerProvider().Tracer("blipblop-server")
+)
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def := []any{"error", err.Error()}
@@ -39,63 +43,6 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 		return status.Error(codes.NotFound, err.Error())
 	}
 	return status.Error(codes.Internal, err.Error())
-}
-
-func removeReadOnlyFields(b []byte, fieldPaths []string) ([]byte, error) {
-	var patchMap map[string]interface{}
-	if err := json.Unmarshal(b, &patchMap); err != nil {
-		return nil, err
-	}
-
-	// Remove excluded fields
-	for _, fieldPath := range fieldPaths {
-		parts := strings.Split(fieldPath, ".")
-		removeNestedField(patchMap, parts)
-	}
-
-	patchJSON, err := json.Marshal(patchMap)
-	if err != nil {
-		return nil, err
-	}
-
-	mergedJSON, err := jsonpatch.MergePatch(b, patchJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	return mergedJSON, nil
-}
-
-func removeNestedField(m map[string]interface{}, fields []string) {
-	if len(fields) == 0 {
-		return
-	}
-
-	key := fields[0]
-
-	if len(fields) == 1 {
-		delete(m, key)
-		return
-	}
-
-	if nestedMap, ok := m[key].(map[string]interface{}); ok {
-		removeNestedField(nestedMap, fields[1:])
-	}
-}
-
-func removeImmutableFields(dst *containers.Container) error {
-	if dst.Meta == nil {
-		return nil
-	}
-	if dst.Meta.Name != "" {
-		dst.Meta.Name = ""
-	}
-
-	if dst.Meta.Created != nil {
-		dst.Meta.Created = nil
-	}
-
-	return nil
 }
 
 // Merge lists strategically using merge keys
@@ -167,23 +114,38 @@ func merge(base, patch *containers.Container) *containers.Container {
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Get", trace.WithSpanKind(trace.SpanKindServer))
+	span.SetAttributes(
+		attribute.String("service", "Container"),
+		attribute.String("container.id", req.GetId()),
+	)
+	defer span.End()
+
 	// Validate request
 	err := req.Validate()
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	// Get container from repo
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
+		span.RecordError(err)
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
 	}
+
+	span.SetAttributes(attribute.String("container.name", container.GetMeta().GetName()))
+
 	return &containers.GetContainerResponse{
 		Container: container,
 	}, nil
 }
 
 func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.List")
+	defer span.End()
+
 	// Validate request
 	err := req.Validate()
 	if err != nil {
@@ -201,6 +163,9 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 }
 
 func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Create")
+	defer span.End()
+
 	container := req.GetContainer()
 	container.GetMeta().Created = timestamppb.Now()
 
@@ -210,21 +175,21 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 		return nil, err
 	}
 
-	containerId := container.GetMeta().GetName()
+	containerID := container.GetMeta().GetName()
 
 	// Chec if container already exists
-	if existing, _ := l.Get(ctx, &containers.GetContainerRequest{Id: containerId}); existing != nil {
+	if existing, _ := l.Get(ctx, &containers.GetContainerRequest{Id: containerID}); existing != nil {
 		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
 	}
 
 	// Create container in repo
 	err = l.Repo().Create(ctx, container)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerId)
+		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerID)
 	}
 
 	// Get the created container from repo
-	container, err = l.Repo().Get(ctx, containerId)
+	container, err = l.Repo().Get(ctx, containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +208,9 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
 func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Delete")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
@@ -262,14 +230,22 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 }
 
 func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Kill")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(eventsv1.EventType_ContainerKill, container))
+	ev := eventsv1.EventType_ContainerStop
+	if req.ForceKill {
+		ev = eventsv1.EventType_ContainerKill
+	}
+
+	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(ev, container))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing KILL event", "name", req.GetId(), "event", "ContainerKill")
+		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
 	}
 	return &containers.KillContainerResponse{
 		Id: req.GetId(),
@@ -277,6 +253,9 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 }
 
 func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Start")
+	defer span.End()
+
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -293,6 +272,9 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 }
 
 func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Patch")
+	defer span.End()
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -358,6 +340,9 @@ func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerReques
 }
 
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.Update")
+	defer span.End()
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -368,6 +353,12 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	}
 
 	updateContainer := req.GetContainer()
+
+	// Get the existing container before updating so we can compare specs
+	existingContainer, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
 
 	// Update the container
 	err = l.Repo().Update(ctx, updateContainer)
@@ -382,7 +373,10 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	}
 
 	// Only publish if spec is updated
-	if !proto.Equal(updateContainer.Config, ctr.Config) {
+	updVal := protoreflect.ValueOfMessage(updateContainer.GetConfig().ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existingContainer.GetConfig().ProtoReflect())
+	if !updVal.Equal(newVal) {
+		l.logger.Debug("container was updated, emitting event to listeners", "event", "ContainerUpdate", "name", ctr.GetMeta().GetName())
 		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "ContainerUpdate")

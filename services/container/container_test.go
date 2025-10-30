@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const bufSize = 1024 * 1024
@@ -39,8 +40,7 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 	return lis.Dial()
 }
 
-func initDB(c containersv1.ContainerServiceClient) error {
-	ctx := context.Background()
+func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 	baseContainer := containersv1.Container{
 		Meta: &types.Meta{
 			Name: "test-container",
@@ -112,65 +112,156 @@ func initDB(c containersv1.ContainerServiceClient) error {
 	return nil
 }
 
-type genericContainer struct {
-	*containersv1.Container
-}
+// type createOpts func(*containersv1.Container)
+//
+// func withImage(i string) createOpts {
+// 	return func(c *containersv1.Container) {
+// 		c.Config.Image = i
+// 	}
+// }
+//
+// func withEnvVar(ev ...*containersv1.EnvVar) createOpts {
+// 	return func(c *containersv1.Container) {
+// 		c.Config.Envvars = ev
+// 	}
+// }
+//
+// func withPortMapping(pm ...*containersv1.PortMapping) createOpts {
+// 	return func(c *containersv1.Container) {
+// 		c.Config.PortMappings = pm
+// 	}
+// }
+//
+// func withArgs(args []string) createOpts {
+// 	return func(c *containersv1.Container) {
+// 		c.Config.Args = args
+// 	}
+// }
+//
+// func withMounts(mounts ...*containersv1.Mount) createOpts {
+// 	return func(c *containersv1.Container) {
+// 		c.Config.Mounts = mounts
+// 	}
+// }
+//
+// func withNodeSelector(key, val string) createOpts {
+// 	return func(c *containersv1.Container) {
+// 		c.Config.NodeSelector = make(map[string]string)
+// 		c.Config.NodeSelector[key] = val
+// 	}
+// }
+//
+// // createPatch creates a base update request. Add additional fields using createOpts
+// func createPatch(name, image string, opts ...createOpts) *containersv1.UpdateContainerRequest {
+// 	ctr := &containersv1.Container{
+// 		Meta: &types.Meta{
+// 			Name: name,
+// 		},
+// 		Config: &containersv1.Config{
+// 			Image: image,
+// 		},
+// 	}
+//
+// 	for _, opt := range opts {
+// 		opt(ctr)
+// 	}
+//
+// 	return &containersv1.UpdateContainerRequest{Container: ctr, Id: name}
+// }
 
-type createOpts func(*containersv1.Container)
+func Test_ContainerService_Equal(t *testing.T) {
+	server, _ := initTestServer()
+	defer server.Stop()
 
-func withImage(i string) createOpts {
-	return func(c *containersv1.Container) {
-		c.Config.Image = i
+	ctx := context.Background()
+	conn, err := grpc.Dial("bufnet", grpc.WithContextDialer(bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
 	}
-}
+	defer conn.Close()
 
-func withEnvVar(ev ...*containersv1.EnvVar) createOpts {
-	return func(c *containersv1.Container) {
-		c.Config.Envvars = ev
+	client := containersv1.NewContainerServiceClient(conn)
+	if err := initDB(ctx, client); err != nil {
+		log.Fatalf("error initializing DB: %v", err)
 	}
-}
 
-func withPortMapping(pm ...*containersv1.PortMapping) createOpts {
-	return func(c *containersv1.Container) {
-		c.Config.PortMappings = pm
-	}
-}
-
-func withArgs(args []string) createOpts {
-	return func(c *containersv1.Container) {
-		c.Config.Args = args
-	}
-}
-
-func withMounts(mounts ...*containersv1.Mount) createOpts {
-	return func(c *containersv1.Container) {
-		c.Config.Mounts = mounts
-	}
-}
-
-func withNodeSelector(key, val string) createOpts {
-	return func(c *containersv1.Container) {
-		c.Config.NodeSelector = make(map[string]string)
-		c.Config.NodeSelector[key] = val
-	}
-}
-
-// createPatch creates a base update request. Add additional fields using createOpts
-func createPatch(name, image string, opts ...createOpts) *containersv1.UpdateContainerRequest {
-	ctr := &containersv1.Container{
-		Meta: &types.Meta{
-			Name: name,
+	testCases := []struct {
+		name   string
+		expect *containersv1.Container
+		patch  *containersv1.Container
+	}{
+		{
+			name: "should be equal",
+			patch: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-1",
+				},
+				Config: &containersv1.Config{
+					// Updates image tag
+					Image: "docker.io/library/nginx:v1.27.3",
+				},
+			},
+			expect: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container",
+					Labels: map[string]string{
+						"team":        "backend",
+						"environment": "production",
+						"role":        "root",
+					},
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:v1.27.3",
+					PortMappings: []*containersv1.PortMapping{
+						{
+							Name:          "http",
+							HostPort:      8080,
+							ContainerPort: 80,
+							Protocol:      "TCP",
+						},
+					},
+					Envvars: []*containersv1.EnvVar{
+						{
+							Name:  "HTTP_PROXY",
+							Value: "proxy.foo.com",
+						},
+					},
+					Args: []string{
+						"--config /mnt/cfg/config.yaml",
+					},
+					Mounts: []*containersv1.Mount{
+						{
+							Name:        "temp",
+							Source:      "/tmp",
+							Destination: "/mnt/tmp",
+							Type:        "bind",
+						},
+					},
+					NodeSelector: map[string]string{
+						"blipblop.io/arch": "amd64",
+						"blipblop.io/os":   "linux",
+					},
+				},
+			},
 		},
-		Config: &containersv1.Config{
-			Image: image,
-		},
 	}
 
-	for _, opt := range opts {
-		opt(ctr)
-	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &containersv1.UpdateContainerRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
+			res, err := client.Patch(ctx, req)
+			if err != nil {
+				t.Fatal("error updating container", err)
+			}
 
-	return &containersv1.UpdateContainerRequest{Container: ctr, Id: name}
+			expectedVal := protoreflect.ValueOfMessage(tt.expect.GetConfig().ProtoReflect())
+			resultVal := protoreflect.ValueOfMessage(res.GetContainer().GetConfig().ProtoReflect())
+
+			if !resultVal.Equal(expectedVal) {
+				t.Errorf("\ngot:\n%v\nwant:\n%v", resultVal, expectedVal)
+			}
+		})
+	}
 }
 
 func Test_ContainerService_Patch(t *testing.T) {
@@ -185,7 +276,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 	defer conn.Close()
 
 	client := containersv1.NewContainerServiceClient(conn)
-	if err := initDB(client); err != nil {
+	if err := initDB(ctx, client); err != nil {
 		log.Fatalf("error initializing DB: %v", err)
 	}
 

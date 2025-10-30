@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -32,8 +33,12 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
 
+			tracer := otel.Tracer("bbctl")
+			ctx, span := tracer.Start(ctx, "bbctl.get.container")
+			defer span.End()
+
 			// Setup client
-			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
@@ -48,14 +53,14 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 					logrus.Fatal(err)
 				}
 
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
 				for _, c := range containers {
 					var status string
 					if c.GetStatus().GetTask().GetExitCode().GetValue() != 0 {
 						exitDuration := cmdutil.FormatDuration(time.Since(c.GetStatus().GetTask().GetExitTime().AsTime()))
 						status = fmt.Sprintf("Exited (%d) %s ago", c.GetStatus().GetTask().GetExitCode().GetValue(), exitDuration)
 					}
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
+					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
 						c.GetStatus().GetPhase(),
@@ -66,7 +71,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				}
 			}
 
-			wr.Flush()
+			_ = wr.Flush()
 
 			if len(args) == 1 {
 				cname := args[0]

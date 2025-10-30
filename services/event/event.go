@@ -61,12 +61,12 @@ func (n *EventService) Register(server *grpc.Server) error {
 func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
 	// Identify the client
 	ctx := stream.Context()
-	clientId := req.ClientId
+	clientID := req.ClientId
 	peer, _ := peer.FromContext(ctx)
 
 	eventChan := s.exchange.Subscribe(ctx, events.ALL...)
 
-	s.logger.Debug("client connected", "clientId", clientId, "address", peer.Addr.String())
+	s.logger.Debug("client connected", "clientId", clientID, "address", peer.Addr.String())
 
 	go func() {
 		for {

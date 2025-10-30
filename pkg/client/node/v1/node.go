@@ -20,21 +20,17 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
-// type ClientOption func(*clientV1)
-
-type CreateOption func(c *clientV1) error
+type CreateOption func(c *clientV1)
 
 func WithLogger(l logger.Logger) CreateOption {
-	return func(c *clientV1) error {
+	return func(c *clientV1) {
 		c.logger = l
-		return nil
 	}
 }
 
 func WithClient(client nodes.NodeServiceClient) CreateOption {
-	return func(c *clientV1) error {
+	return func(c *clientV1) {
 		c.Client = client
-		return nil
 	}
 }
 

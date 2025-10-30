@@ -16,12 +16,15 @@ import (
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
+	"github.com/amimof/blipblop/pkg/trace"
+	"google.golang.org/grpc"
 
 	// "github.com/amimof/blipblop/pkg/runtime"
 	rt "github.com/amimof/blipblop/pkg/runtime"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
 var (
@@ -46,6 +49,7 @@ var (
 	logLevel           string
 	nodeFile           string
 	runtimeNamespace   string
+	otelEndpoint       string
 )
 
 func init() {
@@ -58,6 +62,7 @@ func init() {
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for containers")
+	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -141,9 +146,18 @@ func main() {
 	ctx = namespaces.WithNamespace(ctx, runtimeNamespace)
 	defer cancel()
 
+	if len(otelEndpoint) > 0 {
+		shutdownTraceProvider, err := trace.InitTracing(ctx, "blipblop-node", VERSION, otelEndpoint)
+		if err != nil {
+			log.Error("error setting up tracing", "error", err)
+			os.Exit(0)
+		}
+		defer shutdownTraceProvider(ctx)
+	}
+
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	cs, err := client.New(ctx, serverAddr, client.WithTLSConfig(tlsConfig), client.WithLogger(log))
+	cs, err := client.New(serverAddr, client.WithGrpcDialOption(grpc.WithStatsHandler(otelgrpc.NewClientHandler())), client.WithTLSConfig(tlsConfig), client.WithLogger(log))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}

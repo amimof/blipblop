@@ -21,6 +21,7 @@ import (
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/scheduling"
 	"github.com/amimof/blipblop/pkg/server"
+	"github.com/amimof/blipblop/pkg/trace"
 	"github.com/amimof/blipblop/services/container"
 	"github.com/amimof/blipblop/services/containerset"
 	"github.com/amimof/blipblop/services/event"
@@ -29,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -72,6 +74,7 @@ var (
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
+	otelEndpoint      string
 
 	log *slog.Logger
 )
@@ -87,6 +90,7 @@ func init() {
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
+	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
@@ -184,7 +188,7 @@ func main() {
 			log.Error("error loading tls certificate pair", "error", err)
 			os.Exit(1)
 		}
-		serverOpts = append(serverOpts, server.WithGrpcOption(grpc.Creds(creds)))
+		serverOpts = append(serverOpts, server.WithGrpcOption(grpc.Creds(creds), grpc.StatsHandler(otelgrpc.NewServerHandler())))
 
 		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
 		if err != nil {
@@ -279,6 +283,16 @@ func main() {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Setup tracing
+	if len(otelEndpoint) > 0 {
+		shutdownTraceProvider, err := trace.InitTracing(ctx, "blipblop-server", VERSION, otelEndpoint)
+		if err != nil {
+			log.Error("error setting up tracing", "error", err)
+			os.Exit(1)
+		}
+		defer shutdownTraceProvider(ctx)
+	}
+
 	gw, err := server.NewGateway(
 		ctx,
 		socketAddr,
@@ -293,7 +307,7 @@ func main() {
 	go serveGateway(gw)
 
 	// Setup a clientset for the controllers
-	cs, err := client.New(ctx, socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
+	cs, err := client.New(socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -308,7 +322,7 @@ func main() {
 	sched := scheduling.NewHorizontalScheduler(cs)
 	schedulerCtrl := controller.NewSchedulerController(cs, sched)
 	go schedulerCtrl.Run(ctx)
-	log.Info("Started Schduler Controller")
+	log.Info("Started Scheduler Controller")
 
 	// Wait for exit signal, begin shutdown process after this point
 	<-exit

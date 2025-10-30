@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,8 +34,12 @@ func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
 
+			tracer := otel.Tracer("bbctl")
+			ctx, span := tracer.Start(ctx, "bbctl.get.containerset")
+			defer span.End()
+
 			// Setup client
-			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
@@ -48,9 +53,9 @@ func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\n", "NAME", "REVISION", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\n", "NAME", "REVISION", "AGE")
 				for _, c := range containers {
-					fmt.Fprintf(wr, "%s\t%d\t%s\n",
+					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
@@ -58,7 +63,7 @@ func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
 				}
 			}
 
-			wr.Flush()
+			_ = wr.Flush()
 
 			if len(args) == 1 {
 				var b bytes.Buffer

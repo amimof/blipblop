@@ -22,10 +22,13 @@ import (
 	"github.com/containerd/containerd/oci"
 	gocni "github.com/containerd/go-cni"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const labelPrefix = "blipblop"
+
+var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
 
 type ContainerdRuntime struct {
 	client *containerd.Client
@@ -93,31 +96,58 @@ func (c *ContainerdRuntime) Namespace() string {
 	return c.ns
 }
 
-// Cleanup performs any tasks necessary to clean up the environment from danglig configuration. Such as tearing down the network
-// TODO: Find a way of not accepting a Container object because we might not have access to one.
-// For example after a delete event, the container is alreay removed and by that point we are unable to perform any cleanup.
-func (c *ContainerdRuntime) Cleanup(ctx context.Context, ctr *containers.Container) error {
-	ctx = namespaces.WithNamespace(ctx, c.ns)
+// Cleanup performs any tasks necessary to clean up the environment from danglig configuration.
+// Such as tearing down the network.
+func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Cleanup")
+	defer span.End()
 
-	// Tear down CNI network
-	mappings := networking.ParseCNIPortMappings(ctr.GetConfig().GetPortMappings()...)
+	ctx = namespaces.WithNamespace(ctx, c.ns)
+	ctr, err := c.client.LoadContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	t, err := ctr.Task(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	// Get metadata from labels
+	ctrLabels, err := ctr.Labels(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Unmarshal ports label
+	b := ctrLabels["blipblop/ports"]
+	cniports := []gocni.PortMapping{}
+	err = json.Unmarshal([]byte(b), &cniports)
+	if err != nil {
+		return err
+	}
+
+	// Delete CNI Network
 	cniLabels := labels.New()
 	cniLabels.Set("IgnoreUnknown", "1")
-	err := networking.DeleteCNINetwork(ctx,
+	err = networking.DeleteCNINetwork(ctx,
 		c.cni,
-		ctr.GetMeta().GetName(),
-		ctr.GetStatus().GetTask().GetPid().GetValue(),
+		t.ID(),
+		t.Pid(),
 		gocni.WithLabels(cniLabels),
-		gocni.WithCapabilityPortMap(mappings),
+		gocni.WithCapabilityPortMap(cniports),
 	)
 	if err != nil {
 		return err
 	}
 
-	return c.Delete(ctx, ctr)
+	return nil
 }
 
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.List")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 	ctrs, err := c.client.Containers(ctx)
 	if err != nil {
@@ -151,6 +181,9 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 }
 
 func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Container, error) {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Get")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 	ctrs, err := c.List(ctx)
 	if err != nil {
@@ -165,6 +198,9 @@ func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Co
 }
 
 func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container) error {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Pull")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 	_, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
@@ -176,6 +212,9 @@ func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container)
 // Delete deletes the container and any tasks associated with it.
 // Tasks will be forcefully stopped if running.
 func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Container) error {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Delete")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
@@ -213,6 +252,9 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 }
 
 func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Stop")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
 	if err != nil {
@@ -254,6 +296,11 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 		}
 	}
 
+	// Perform cleanup
+	if err := c.Cleanup(ctx, task.ID()); err != nil {
+		return err
+	}
+
 	// Delete the task
 	if _, err := task.Delete(ctx); err != nil {
 		return err
@@ -263,6 +310,9 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 }
 
 func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Kill")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
@@ -303,12 +353,20 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 		return os.ErrDeadlineExceeded
 	}
 
+	// Perform cleanup
+	if err := c.Cleanup(ctx, task.ID()); err != nil {
+		return err
+	}
+
 	// Delete the task
 	_, err = task.Delete(ctx)
 	return err
 }
 
 func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) error {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Run")
+	defer span.End()
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the image. Assumes that image has been pulled beforehand

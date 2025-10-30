@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -32,8 +33,12 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			tracer := otel.Tracer("bbctl")
+			ctx, span := tracer.Start(ctx, "bbctl.get.node")
+			defer span.End()
+
 			// Setup client
-			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
@@ -47,9 +52,9 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "AGE")
 				for _, n := range nodes {
-					fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n",
+					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n",
 						n.GetMeta().GetName(),
 						n.GetMeta().GetRevision(),
 						n.GetStatus().GetState(),
@@ -58,7 +63,7 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 				}
 			}
 
-			wr.Flush()
+			_ = wr.Flush()
 
 			if len(args) == 1 {
 				name := args[0]

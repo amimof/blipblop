@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 )
 
 func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
@@ -31,8 +32,12 @@ func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			tracer := otel.Tracer("bbctl")
+			ctx, span := tracer.Start(ctx, "bbctl.get.event")
+			defer span.End()
+
 			// Setup client
-			c, err := client.New(ctx, cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
@@ -42,7 +47,7 @@ func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
 			// List all events
-			fmt.Fprintf(wr, "%s\t%s\n", "TYPE", "AGE")
+			_, _ = fmt.Fprintf(wr, "%s\t%s\n", "TYPE", "AGE")
 			if len(args) == 1 {
 				events, err := c.EventV1().List(ctx)
 				if err != nil {
@@ -50,7 +55,7 @@ func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 				}
 
 				for _, event := range events {
-					fmt.Fprintf(wr, "%s\t%s\n",
+					_, _ = fmt.Fprintf(wr, "%s\t%s\n",
 						event.GetType().String(),
 						cmdutil.FormatDuration(time.Since(event.GetMeta().GetCreated().AsTime())),
 					)
@@ -58,7 +63,7 @@ func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 
 			}
 
-			wr.Flush()
+			_ = wr.Flush()
 		},
 	}
 
