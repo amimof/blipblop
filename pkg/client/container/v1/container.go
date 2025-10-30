@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 var (
@@ -52,6 +51,10 @@ type clientV1 struct {
 }
 
 func (c *clientV1) Status(ctx context.Context, id string, status *containers.Status) error {
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Status")
+	defer span.End()
+
 	ctr, err := c.Get(ctx, id)
 	if err != nil {
 		return err
@@ -64,25 +67,11 @@ func (c *clientV1) Status(ctx context.Context, id string, status *containers.Sta
 	return err
 }
 
-func (c *clientV1) SetNode(ctx context.Context, id, node string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n := &containers.UpdateContainerRequest{
-		Id: id,
-		Container: &containers.Container{
-			Status: &containers.Status{
-				Node: node,
-			},
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.node"}},
-	}
-	_, err := c.Client.Update(ctx, n)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *clientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Kill")
+	defer span.End()
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	resp, err := c.Client.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
 	if err != nil {
@@ -92,6 +81,10 @@ func (c *clientV1) Kill(ctx context.Context, id string) (*containers.KillContain
 }
 
 func (c *clientV1) Stop(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Start")
+	defer span.End()
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	resp, err := c.Client.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: false})
 	if err != nil {
@@ -101,6 +94,10 @@ func (c *clientV1) Stop(ctx context.Context, id string) (*containers.KillContain
 }
 
 func (c *clientV1) Start(ctx context.Context, id string) (*containers.StartContainerResponse, error) {
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Start")
+	defer span.End()
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	resp, err := c.Client.Start(ctx, &containers.StartContainerRequest{Id: id})
 	if err != nil {
@@ -111,6 +108,10 @@ func (c *clientV1) Start(ctx context.Context, id string) (*containers.StartConta
 }
 
 func (c *clientV1) Create(ctx context.Context, ctr *containers.Container, opts ...CreateOption) error {
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Update")
+	defer span.End()
+
 	for _, opt := range opts {
 		err := opt(c)
 		if err != nil {
@@ -126,6 +127,10 @@ func (c *clientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 }
 
 func (c *clientV1) Update(ctx context.Context, id string, ctr *containers.Container) error {
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Update")
+	defer span.End()
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.Client.Update(ctx, &containers.UpdateContainerRequest{Id: id, Container: ctr})
 	if err != nil {
@@ -136,6 +141,11 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *containers.Contai
 
 func (c *clientV1) Get(ctx context.Context, id string) (*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Get")
+	defer span.End()
+
 	res, err := c.Client.Get(ctx, &containers.GetContainerRequest{Id: id})
 	if err != nil {
 		return nil, err
@@ -146,8 +156,8 @@ func (c *clientV1) Get(ctx context.Context, id string) (*containers.Container, e
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.Container, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 
-	tracer := otel.Tracer("bbctl")
-	ctx, span := tracer.Start(ctx, "bbctl.get.container")
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.List")
 	defer span.End()
 
 	mergedLabels := util.MergeLabels(l...)
@@ -160,6 +170,11 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.C
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+
+	tracer := otel.Tracer("client-v1")
+	ctx, span := tracer.Start(ctx, "client.container.Delete")
+
+	defer span.End()
 	_, err := c.Client.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
 	if err != nil {
 		return err

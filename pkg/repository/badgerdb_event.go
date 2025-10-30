@@ -31,6 +31,9 @@ type eventBadgerRepo struct {
 }
 
 func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*events.Event, error) {
+	_, span := tracer.Start(ctx, "repo.event.Get")
+	defer span.End()
+
 	res := &events.Event{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := EventID(id).String()
@@ -49,6 +52,9 @@ func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*events.Event, er
 }
 
 func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
+	_, span := tracer.Start(ctx, "repo.event.List")
+	defer span.End()
+
 	var result []*events.Event
 	err := r.db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
@@ -75,6 +81,9 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
 }
 
 func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error {
+	_, span := tracer.Start(ctx, "repo.event.Create")
+	defer span.End()
+
 	// Did we hit the limit?
 	res, err := r.List(ctx)
 	if err != nil {
@@ -101,6 +110,9 @@ func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error
 }
 
 func (r *eventBadgerRepo) Delete(ctx context.Context, id string) error {
+	_, span := tracer.Start(ctx, "repo.event.Delete")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := EventID(id).String()
 		return txn.Delete([]byte(key))
@@ -108,6 +120,9 @@ func (r *eventBadgerRepo) Delete(ctx context.Context, id string) error {
 }
 
 func (r *eventBadgerRepo) Update(ctx context.Context, event *events.Event) error {
+	_, span := tracer.Start(ctx, "repo.event.Update")
+	defer span.End()
+
 	return r.Create(ctx, event)
 }
 

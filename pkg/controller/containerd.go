@@ -408,7 +408,6 @@ func (c *ContainerdController) setTaskIOConfig(id string) error {
 		StderrPath:     stderrPath,
 	}
 
-	fmt.Println("Patsh", stdoutPath, stderrPath)
 	return c.clientset.ContainerV1().Status(ctx, id, st)
 }
 

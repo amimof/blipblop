@@ -28,6 +28,9 @@ func NewNodeBadgerRepository(db *badger.DB) *nodeBadgerRepo {
 }
 
 func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error) {
+	_, span := tracer.Start(ctx, "repo.node.Get")
+	defer span.End()
+
 	res := &nodes.Node{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := NodeID(id).String()
@@ -49,6 +52,9 @@ func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error
 }
 
 func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
+	_, span := tracer.Start(ctx, "repo.node.List")
+	defer span.End()
+
 	var result []*nodes.Node
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -82,6 +88,9 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 }
 
 func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodes.Node) error {
+	_, span := tracer.Start(ctx, "repo.node.Create")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := NodeID(node.GetMeta().GetName()).String()
 		b, err := proto.Marshal(node)
@@ -93,6 +102,9 @@ func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodes.Node) error {
 }
 
 func (r *nodeBadgerRepo) Delete(ctx context.Context, id string) error {
+	_, span := tracer.Start(ctx, "repo.node.Delete")
+	defer span.End()
+
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := NodeID(id).String()
 		return txn.Delete([]byte(key))
@@ -100,5 +112,8 @@ func (r *nodeBadgerRepo) Delete(ctx context.Context, id string) error {
 }
 
 func (r *nodeBadgerRepo) Update(ctx context.Context, node *nodes.Node) error {
+	_, span := tracer.Start(ctx, "repo.node.Update")
+	defer span.End()
+
 	return r.Create(ctx, node)
 }

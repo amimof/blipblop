@@ -53,8 +53,9 @@ func (c *ContainerController) Reconcile(ctx context.Context) error {
 }
 
 func (c *ContainerController) onContainerCreate(ctx context.Context, obj *eventsv1.Event) error {
-	ctx, span := tracer.Start(ctx, "container.Create")
+	ctx, span := tracer.Start(ctx, "controller.container.OnCreate")
 	defer span.End()
+
 	// Extract ScheduleRequest embedded in the event
 	var req eventsv1.ScheduleRequest
 	if err := obj.GetObject().UnmarshalTo(&req); err != nil {
@@ -101,6 +102,7 @@ func (c *ContainerController) onContainerCreate(ctx context.Context, obj *events
 	if err != nil {
 		return err
 	}
+
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -108,11 +110,22 @@ func (c *ContainerController) onContainerCreate(ctx context.Context, obj *events
 	return nil
 }
 
-func (c *ContainerController) onContainerUpdate(ctx context.Context, _ *eventsv1.Event) error {
-	return nil
+func (c *ContainerController) onContainerUpdate(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := tracer.Start(ctx, "controller.container.OnUpdate")
+	defer span.End()
+
+	err := c.onContainerStop(ctx, obj)
+	if err != nil {
+		return err
+	}
+
+	return c.onContainerStart(ctx, obj)
 }
 
 func (c *ContainerController) onContainerDelete(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := tracer.Start(ctx, "controller.container.OnDelete")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
@@ -130,6 +143,9 @@ func (c *ContainerController) onContainerDelete(ctx context.Context, obj *events
 }
 
 func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := tracer.Start(ctx, "controller.container.OnStart")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
@@ -160,6 +176,9 @@ func (c *ContainerController) onContainerStart(ctx context.Context, obj *eventsv
 }
 
 func (c *ContainerController) onContainerKill(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := tracer.Start(ctx, "controller.container.OnKill")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {
@@ -174,6 +193,9 @@ func (c *ContainerController) onContainerKill(ctx context.Context, obj *eventsv1
 }
 
 func (c *ContainerController) onContainerStop(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := tracer.Start(ctx, "controller.container.OnStop")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := obj.Object.UnmarshalTo(&ctr)
 	if err != nil {

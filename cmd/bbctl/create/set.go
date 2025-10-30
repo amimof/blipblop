@@ -40,7 +40,11 @@ func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Fatalf("error closing client connection: %v", err)
+				}
+			}()
 
 			cname := args[0]
 

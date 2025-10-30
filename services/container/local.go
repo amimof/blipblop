@@ -16,10 +16,13 @@ import (
 	"github.com/amimof/blipblop/pkg/repository"
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -171,20 +174,29 @@ func merge(base, patch *containers.Container) *containers.Container {
 }
 
 func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
-	ctx, span := tracer.Start(ctx, "container.Get")
+	ctx, span := tracer.Start(ctx, "container.Get", trace.WithSpanKind(trace.SpanKindServer))
+	span.SetAttributes(
+		attribute.String("service", "Container"),
+		attribute.String("container.id", req.GetId()),
+	)
 	defer span.End()
 
 	// Validate request
 	err := req.Validate()
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	// Get container from repo
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
+		span.RecordError(err)
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
 	}
+
+	span.SetAttributes(attribute.String("container.name", container.GetMeta().GetName()))
+
 	return &containers.GetContainerResponse{
 		Container: container,
 	}, nil
@@ -223,21 +235,21 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 		return nil, err
 	}
 
-	containerId := container.GetMeta().GetName()
+	containerID := container.GetMeta().GetName()
 
 	// Chec if container already exists
-	if existing, _ := l.Get(ctx, &containers.GetContainerRequest{Id: containerId}); existing != nil {
+	if existing, _ := l.Get(ctx, &containers.GetContainerRequest{Id: containerID}); existing != nil {
 		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
 	}
 
 	// Create container in repo
 	err = l.Repo().Create(ctx, container)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerId)
+		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerID)
 	}
 
 	// Get the created container from repo
-	container, err = l.Repo().Get(ctx, containerId)
+	container, err = l.Repo().Get(ctx, containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -402,6 +414,12 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 
 	updateContainer := req.GetContainer()
 
+	// Get the existing container before updating so we can compare specs
+	existingContainer, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
 	// Update the container
 	err = l.Repo().Update(ctx, updateContainer)
 	if err != nil {
@@ -415,7 +433,10 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	}
 
 	// Only publish if spec is updated
-	if !proto.Equal(updateContainer.Config, ctr.Config) {
+	updVal := protoreflect.ValueOfMessage(updateContainer.GetConfig().ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existingContainer.GetConfig().ProtoReflect())
+	if !updVal.Equal(newVal) {
+		l.logger.Debug("container was updated, emitting event to listeners", "event", "ContainerUpdate", "name", ctr.GetMeta().GetName())
 		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "ContainerUpdate")

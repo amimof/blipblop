@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -28,8 +30,12 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
+
+			tracer := otel.Tracer("bbctl")
+			ctx, span := tracer.Start(ctx, "bbctl.edit.container")
+			defer span.End()
 
 			// Setup client
 			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
@@ -37,7 +43,11 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 				logrus.Fatalf("error setting up client: %v", err)
 				return err
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Fatalf("error closing client connection: %v", err)
+				}
+			}()
 
 			cname := args[0]
 
@@ -60,7 +70,11 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer tmpFile.Close()
+			defer func() {
+				if err := tmpFile.Close(); err != nil {
+					logrus.Fatalf("error closing tmp file: %v", err)
+				}
+			}()
 
 			_, err = tmpFile.Write(b)
 			if err != nil {
