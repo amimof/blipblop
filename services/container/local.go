@@ -2,10 +2,8 @@ package container
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -14,7 +12,6 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/protoutils"
 	"github.com/amimof/blipblop/pkg/repository"
-	jsonpatch "github.com/evanphx/json-patch/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -46,63 +43,6 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 		return status.Error(codes.NotFound, err.Error())
 	}
 	return status.Error(codes.Internal, err.Error())
-}
-
-func removeReadOnlyFields(b []byte, fieldPaths []string) ([]byte, error) {
-	var patchMap map[string]interface{}
-	if err := json.Unmarshal(b, &patchMap); err != nil {
-		return nil, err
-	}
-
-	// Remove excluded fields
-	for _, fieldPath := range fieldPaths {
-		parts := strings.Split(fieldPath, ".")
-		removeNestedField(patchMap, parts)
-	}
-
-	patchJSON, err := json.Marshal(patchMap)
-	if err != nil {
-		return nil, err
-	}
-
-	mergedJSON, err := jsonpatch.MergePatch(b, patchJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	return mergedJSON, nil
-}
-
-func removeNestedField(m map[string]interface{}, fields []string) {
-	if len(fields) == 0 {
-		return
-	}
-
-	key := fields[0]
-
-	if len(fields) == 1 {
-		delete(m, key)
-		return
-	}
-
-	if nestedMap, ok := m[key].(map[string]interface{}); ok {
-		removeNestedField(nestedMap, fields[1:])
-	}
-}
-
-func removeImmutableFields(dst *containers.Container) error {
-	if dst.Meta == nil {
-		return nil
-	}
-	if dst.Meta.Name != "" {
-		dst.Meta.Name = ""
-	}
-
-	if dst.Meta.Created != nil {
-		dst.Meta.Created = nil
-	}
-
-	return nil
 }
 
 // Merge lists strategically using merge keys

@@ -71,7 +71,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				}
 			}
 
-			wr.Flush()
+			_ = wr.Flush()
 
 			if len(args) == 1 {
 				cname := args[0]

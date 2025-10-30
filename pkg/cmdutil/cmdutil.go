@@ -38,7 +38,7 @@ func WithPrefix(str *string) NewSpinnerOpt {
 func (s *Spinner) Start() {
 	chars := []rune{'⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'}
 	i := 0
-	fmt.Fprint(os.Stdout, "\033[?25l")
+	_, _ = fmt.Fprint(os.Stdout, "\033[?25l")
 	go func() {
 		for {
 			fmt.Printf("%s %c\r", *s.Prefix, chars[i%len(chars)])
@@ -53,7 +53,7 @@ func (s *Spinner) Start() {
 
 func (s *Spinner) Stop() {
 	s.stop = true
-	fmt.Fprint(os.Stdout, "\033[?25h")
+	_, _ = fmt.Fprint(os.Stdout, "\033[?25h")
 }
 
 func FormatPhase(phase string) string {

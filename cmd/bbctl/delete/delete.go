@@ -5,11 +5,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	wait               bool
-	waitTimeoutSeconds uint64
-)
-
 func NewCmdDelete(cfg *client.Config) *cobra.Command {
 	deleteCmd := &cobra.Command{
 		Use:     "delete",

@@ -339,14 +339,8 @@ func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
 }
 
 func (c *ContainerdController) setContainerState(id string) error {
-	// Get container from server
 	ctx := context.Background()
-	// ctr, err := c.clientset.ContainerV1().Get(ctx, id)
-	// if err != nil {
-	// 	return err
-	// }
-
-	ctx = namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
 	hostname, _ := os.Hostname()
 
 	st := &containersv1.Status{
@@ -426,26 +420,6 @@ func (c *ContainerdController) getTask(id string) (containerd.Task, error) {
 
 	return task, nil
 }
-
-func getTaskPid(t containerd.Task) uint32 {
-	pid := uint32(0)
-	if t != nil {
-		pid = t.Pid()
-	}
-	return pid
-}
-
-// func getTaskProcessStatus(ctx context.Context, t containerd.Task) string {
-// 	return string(getTaskStatus(ctx, t).Status)
-// }
-//
-// func getTaskExitStatus(ctx context.Context, t containerd.Task) uint32 {
-// 	return getTaskStatus(ctx, t).ExitStatus
-// }
-//
-// func getTaskExitTime(ctx context.Context, t containerd.Task) time.Time {
-// 	return getTaskStatus(ctx, t).ExitTime
-// }
 
 func getTaskStatus(ctx context.Context, t containerd.Task) (containerd.Status, error) {
 	s := containerd.Status{}

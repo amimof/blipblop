@@ -16,19 +16,17 @@ var (
 	ContainerHealthUnhealthy = "unhealthy"
 )
 
-type CreateOption func(c *clientV1) error
+type CreateOption func(c *clientV1)
 
 func WithEmitLabels(l labels.Label) CreateOption {
-	return func(c *clientV1) error {
+	return func(c *clientV1) {
 		c.emitLabels = l
-		return nil
 	}
 }
 
 func WithClient(client containers.ContainerServiceClient) CreateOption {
-	return func(c *clientV1) error {
+	return func(c *clientV1) {
 		c.Client = client
-		return nil
 	}
 }
 
@@ -113,10 +111,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 	defer span.End()
 
 	for _, opt := range opts {
-		err := opt(c)
-		if err != nil {
-			return err
-		}
+		opt(c)
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.Client.Create(ctx, &containers.CreateContainerRequest{Container: ctr})

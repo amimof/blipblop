@@ -9,13 +9,12 @@ import (
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/types/v1"
-	metav1 "github.com/amimof/blipblop/api/types/v1"
 	jsonpatch "github.com/evanphx/json-patch"
 )
 
 func TestImmutableFields(t *testing.T) {
 	existingContainer := &containersv1.Container{
-		Meta: &metav1.Meta{
+		Meta: &types.Meta{
 			Name: "test-container",
 		},
 		Config: &containersv1.Config{
