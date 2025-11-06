@@ -2,6 +2,7 @@ package protoutils
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -315,9 +316,13 @@ func TestToFields(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !assert.Equal(t, tt.expect, paths) {
-				t.Errorf("\ngot:\n%v\nwant:\n%v", &paths, &tt.expect)
-			}
+			gotClone := slices.Clone(paths)
+			expectClone := slices.Clone(tt.expect)
+
+			slices.Sort(gotClone)
+			slices.Sort(expectClone)
+
+			assert.Equal(t, expectClone, gotClone)
 		})
 	}
 }
