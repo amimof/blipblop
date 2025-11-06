@@ -63,9 +63,9 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
-						c.GetStatus().GetPhase(),
+						c.GetStatus().GetPhase().GetValue(),
 						status,
-						c.GetStatus().GetNode(),
+						c.GetStatus().GetNode().GetValue(),
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
 					)
 				}

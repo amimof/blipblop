@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type want struct {
@@ -94,7 +95,7 @@ var testContainers = []*containersv1.Container{
 			Image: "docker.io/library/redis:latest",
 		},
 		Status: &containersv1.Status{
-			Node: "node-a",
+			Node: wrapperspb.String("node-a"),
 		},
 	},
 	{
@@ -108,7 +109,7 @@ var testContainers = []*containersv1.Container{
 			Image: "docker.io/library/redis:latest",
 		},
 		Status: &containersv1.Status{
-			Node: "node-b",
+			Node: wrapperspb.String("node-b"),
 		},
 	},
 	{
@@ -122,7 +123,7 @@ var testContainers = []*containersv1.Container{
 			Image: "docker.io/library/redis:latest",
 		},
 		Status: &containersv1.Status{
-			Node: "node-c",
+			Node: wrapperspb.String("node-c"),
 		},
 	},
 
@@ -138,7 +139,7 @@ var testContainers = []*containersv1.Container{
 			Image: "docker.io/library/redis:latest",
 		},
 		Status: &containersv1.Status{
-			Node: "node-a",
+			Node: wrapperspb.String("node-a"),
 		},
 	},
 	{
@@ -152,7 +153,7 @@ var testContainers = []*containersv1.Container{
 			Image: "docker.io/library/redis:latest",
 		},
 		Status: &containersv1.Status{
-			Node: "node-b",
+			Node: wrapperspb.String("node-b"),
 		},
 	},
 }

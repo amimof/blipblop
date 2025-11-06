@@ -123,6 +123,44 @@ func GenerateFieldMask(original, updated protoreflect.ProtoMessage) (*fieldmaskp
 	return &fieldmaskpb.FieldMask{Paths: paths}, nil
 }
 
+// ClearProto resets fields on the proto message recursively
+func ClearProto(in protoreflect.Message) {
+	in.Range(func(fd protoreflect.FieldDescriptor, _ protoreflect.Value) bool {
+		in.Clear(fd)
+		return true
+	})
+	in.SetUnknown(nil)
+}
+
+func isWrapperField(fd protoreflect.FieldDescriptor) bool {
+	if fd.Kind() != protoreflect.MessageKind {
+		return false
+	}
+	switch string(fd.Message().FullName()) {
+	case "google.protobuf.StringValue",
+		"google.protobuf.Int32Value",
+		"google.protobuf.Int64Value",
+		"google.protobuf.UInt32Value",
+		"google.protobuf.UInt64Value",
+		"google.protobuf.BoolValue",
+		"google.protobuf.FloatValue",
+		"google.protobuf.DoubleValue",
+		"google.protobuf.BytesValue":
+		return true
+	default:
+		return false
+	}
+}
+
+func unwrapWrapper(m protoreflect.Message) (any, bool) {
+	// wrappers always have a single field named "value"
+	fd := m.Descriptor().Fields().ByName("value")
+	if fd == nil || !m.Has(fd) {
+		return nil, false
+	}
+	return m.Get(fd).Interface(), true
+}
+
 func compareMessages(orig, upd protoreflect.Message, prefix string, paths *[]string) error {
 	fields := orig.Descriptor().Fields()
 	for i := 0; i < fields.Len(); i++ {
@@ -138,6 +176,10 @@ func compareMessages(orig, upd protoreflect.Message, prefix string, paths *[]str
 			currentPath = protoreflect.Name(fmt.Sprintf("%s.%s", prefix, field.Name()))
 		}
 
+		// Get presence + values
+		oHas := orig.Has(field)
+		uHas := upd.Has(field)
+
 		// Handle field types
 		switch {
 		case field.IsList():
@@ -150,28 +192,65 @@ func compareMessages(orig, upd protoreflect.Message, prefix string, paths *[]str
 			if !mapEqual(origValue.Map(), updValue.Map()) {
 				*paths = append(*paths, string(currentPath))
 			}
-		case field.Kind() == protoreflect.MessageKind:
-			// Recurse into nested messages
-			if !origValue.Message().IsValid() && !updValue.Message().IsValid() {
+		case field.Kind() == protoreflect.MessageKind && isWrapperField(field):
+
+			// Treat wrappers like scalars; never emit ".value"
+			if oHas != uHas {
+				*paths = append(*paths, string(currentPath))
 				continue
 			}
-			if origValue.Message().IsValid() && updValue.Message().IsValid() {
-				err := compareMessages(origValue.Message(), updValue.Message(), string(currentPath), paths)
-				if err != nil {
-					return err
-				}
-			} else {
+			ov, _ := unwrapWrapper(origValue.Message())
+			uv, _ := unwrapWrapper(updValue.Message())
+			if !reflect.DeepEqual(ov, uv) {
 				*paths = append(*paths, string(currentPath))
 			}
+		case field.Kind() == protoreflect.MessageKind:
+			switch {
+			case !oHas && !uHas: // Nothing present on either side
+				continue
+			case !oHas && uHas:
+				collectPresentLeafPaths(updValue.Message(), string(currentPath), paths)
+			default:
+				// both present - recurse
+				if err := compareMessages(origValue.Message(), updValue.Message(), string(currentPath), paths); err != nil {
+					return err
+				}
+			}
 		default:
-			// Compare scalar fields
-			if origValue.Interface() != updValue.Interface() {
+			// fmt.Println("scalar")
+			// scalar / enum
+			if oHas != uHas {
+				// presence changed (set or cleared)
+				*paths = append(*paths, string(currentPath))
+				continue
+			}
+			if uHas && (origValue.Interface() != updValue.Interface()) {
 				*paths = append(*paths, string(currentPath))
 			}
 		}
 	}
 
 	return nil
+}
+
+// Walks a message and appends leaf paths for all PRESENT fields.
+func collectPresentLeafPaths(m protoreflect.Message, prefix string, paths *[]string) {
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		p := prefix + "." + string(fd.Name())
+
+		switch {
+		case fd.IsList(), fd.IsMap():
+			*paths = append(*paths, p)
+		case fd.Kind() == protoreflect.MessageKind && isWrapperField(fd):
+			*paths = append(*paths, p)
+		case fd.Kind() == protoreflect.MessageKind:
+			// descend only into PRESENT submessages
+			collectPresentLeafPaths(v.Message(), p, paths)
+		default:
+			*paths = append(*paths, p)
+		}
+		return true
+	})
 }
 
 type MergeFunc[T any] func(item T) string
@@ -207,6 +286,7 @@ func MergeSlices[T any](base, patch []T, keyFunc MergeFunc[T], mergeItem func(ba
 	return merged
 }
 
+// ClearRepeatedFields will clear fields thare are of kind list
 // FIX: Doesn't work on map fields
 func ClearRepeatedFields(msg proto.Message) {
 	m := msg.ProtoReflect()

@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const bufSize = 1024 * 1024
@@ -169,6 +171,66 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 // 	return &containersv1.UpdateContainerRequest{Container: ctr, Id: name}
 // }
 
+func Test_ContainerService_Status(t *testing.T) {
+	server, _ := initTestServer()
+	defer server.Stop()
+
+	ctx := context.Background()
+	conn, err := grpc.Dial("bufnet", grpc.WithContextDialer(bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
+	}
+	defer conn.Close()
+
+	client := containersv1.NewContainerServiceClient(conn)
+	if err := initDB(ctx, client); err != nil {
+		log.Fatalf("error initializing DB: %v", err)
+	}
+
+	testCases := []struct {
+		name        string
+		expect      *containersv1.Status
+		patch       *containersv1.Status
+		containerID string
+		mask        string
+	}{
+		{
+			name:        "should be equal",
+			containerID: "test-container-1",
+			mask:        "phase",
+			patch: &containersv1.Status{
+				Phase: wrapperspb.String("creating"),
+			},
+			expect: &containersv1.Status{
+				Phase: wrapperspb.String("creating"),
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &containersv1.UpdateStatusRequest{Id: tt.containerID, Status: tt.patch, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{tt.mask}}}
+			_, err := client.UpdateStatus(ctx, req)
+			if err != nil {
+				t.Fatal("error updating container", err)
+			}
+
+			expectedVal := protoreflect.ValueOfMessage(tt.expect.ProtoReflect())
+
+			updated, err := client.Get(ctx, &containersv1.GetContainerRequest{Id: tt.containerID})
+			if err != nil {
+				t.Fatal("error getting container", err)
+			}
+
+			resultVal := protoreflect.ValueOfMessage(updated.GetContainer().GetStatus().ProtoReflect())
+
+			if !resultVal.Equal(expectedVal) {
+				t.Errorf("\ngot:\n%v\nwant:\n%v", resultVal, expectedVal)
+			}
+		})
+	}
+}
+
 func Test_ContainerService_Equal(t *testing.T) {
 	server, _ := initTestServer()
 	defer server.Stop()
@@ -242,6 +304,7 @@ func Test_ContainerService_Equal(t *testing.T) {
 						"blipblop.io/os":   "linux",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 	}
@@ -336,6 +399,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"blipblop.io/os":   "linux",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -403,6 +467,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"blipblop.io/os":   "linux",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -462,6 +527,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"blipblop.io/os":   "linux",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -519,6 +585,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"blipblop.io/unschedulable": "true",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -575,6 +642,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"blipblop.io/os":   "linux",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -652,6 +720,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"blipblop.io/os":   "linux",
 					},
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -671,6 +740,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 				Config: &containersv1.Config{
 					Image: "docker.io/library/nginx:latest",
 				},
+				Status: &containersv1.Status{},
 			},
 		},
 		{
@@ -683,7 +753,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Image: "docker.io/library/nginx:latest",
 				},
 				Status: &containersv1.Status{
-					Phase: "RUNNING",
+					Phase: wrapperspb.String("RUNNING"),
 				},
 			},
 			expect: &containersv1.Container{
@@ -728,7 +798,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					},
 				},
 				Status: &containersv1.Status{
-					Phase: "RUNNING",
+					Phase: wrapperspb.String("RUNNING"),
 				},
 			},
 		},

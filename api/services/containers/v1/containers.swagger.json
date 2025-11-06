@@ -354,6 +354,111 @@
           "ContainerService"
         ]
       }
+    },
+    "/api/v1/containers/{id}/status": {
+      "put": {
+        "operationId": "ContainerService_UpdateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.phase",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.node",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.ip",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.task.pid",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "status.task.exitCode",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "status.task.exitTime",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "status.task.error",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.runtime.runtimeEnv",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.runtime.runtimeVersion",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.runtime.stdoutPath",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.runtime.stderrPath",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -638,6 +743,14 @@
       "properties": {
         "container": {
           "$ref": "#/definitions/v1Container"
+        }
+      }
+    },
+    "v1UpdateStatusResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
         }
       }
     }

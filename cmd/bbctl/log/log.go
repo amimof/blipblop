@@ -80,7 +80,7 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 					case e := <-errChan:
 						fmt.Printf("error %v\n", e)
 					default:
-						err = c.LogV1().StreamLogs(ctx, &logs.SubscribeRequest{NodeId: ctr.GetStatus().GetNode(), ContainerId: ctr.GetMeta().GetName(), ClientId: clientId}, logChan, errChan)
+						err = c.LogV1().StreamLogs(ctx, &logs.SubscribeRequest{NodeId: ctr.GetStatus().GetNode().String(), ContainerId: ctr.GetMeta().GetName(), ClientId: clientId}, logChan, errChan)
 						if err != nil {
 							fmt.Println("Error streaming", err)
 							return

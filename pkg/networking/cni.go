@@ -11,156 +11,198 @@ import (
 	"strings"
 
 	gocni "github.com/containerd/go-cni"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 )
 
-const (
+var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
+
+type Manager interface {
+	Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
+	Detach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
+	Check(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
+}
+
+type CNIManager struct {
+	cni       gocni.CNI
+	cniOpts   []gocni.Opt
+	cniNsOpts []gocni.NamespaceOpts
+
 	// CNIBinDir describes the directory where the CNI binaries are stored
-	CNIBinDir = "/opt/cni/bin"
+	CNIBinDir string
 
 	// CNIConfDir describes the directory where the CNI plugin's configuration is stored
-	CNIConfDir = "/etc/cni/net.d"
+	CNIConfDir string
 
 	// NetNSPathFmt gives the path to the a process network namespace, given the pid
-	NetNSPathFmt = "/proc/%d/ns/net"
+	NetNSPathFmt string
 
 	// CNIDataDir is the directory CNI stores allocated IP for containers
-	CNIDataDir = "/var/run/cni"
+	CNIDataDir string
 
 	// defaultCNIConfFilename is the vanity filename of default CNI configuration file
-	defaultCNIConfFilename = "10-blipblop.conflist"
+	DefaultCNIConfFilename string
 
 	// defaultNetworkName names the "docker-bridge"-like CNI plugin-chain installed when no other CNI configuration is present.
 	// This value appears in iptables comments created by CNI.
-	defaultNetworkName = "blipblop-cni-bridge"
+	DefaultNetworkName string
 
 	// defaultBridgeName is the default bridge device name used in the defaultCNIConf
-	defaultBridgeName = "blipblop0"
+	DefaultBridgeName string
 
 	// defaultSubnet is the default subnet used in the defaultCNIConf -- this value is set to not collide with common container networking subnets:
-	defaultSubnet = "10.69.0.0/16"
+	DefaultSubnet string
 
 	// defaultSubnetGw is the gateway used for the subnet as defined in defaultSubnet
-	defaultSubnetGw = "10.69.0.1"
+	DefaultSubnetGw string
 
 	// defaultIfPrefix is the interface name to be created in the container
-	defaultIfPrefix = "eth"
-)
+	DefaultIfPrefix string
 
-//"dataDir": "%s",
-
-var (
-	tracer         = otel.GetTracerProvider().Tracer("blipblop-node")
-	defaultCNIConf = fmt.Sprintf(`
-{
-    "cniVersion": "0.4.0",
-    "name": "%s",
-    "plugins": [
-      {
-        "type": "bridge",
-        "bridge": "%s",
-        "isGateway": true,
-        "ipMasq": true,
-				"hairpinMode": true,
-        "ipam": {
-            "type": "host-local",
-						"routes": [{ "dst": "0.0.0.0/0" }],
-						"dataDir": "%s",
-						"ranges": [[{
-							"subnet": "%s",
-							"gateway": "%s"
-						}]]
-        }
-      },
-      {
-        "type": "portmap",
-        "capabilities": {"portMappings": true}
-      },
-      {
-        "type": "firewall"
-      }
-    ]
+	// DefaultCNIConf is the CNI configuration file used by pluginsto setup networking
+	DefaultCNIConf string
 }
-`, defaultNetworkName, defaultBridgeName, CNIDataDir, defaultSubnet, defaultSubnetGw)
-)
+
+type CNIManagerOpts func(*CNIManager) error
+
+func WithNamespaceOpts(opts ...gocni.NamespaceOpts) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.cniNsOpts = append(m.cniNsOpts, opts...)
+		return nil
+	}
+}
+
+func WithCNIOpt(opt ...gocni.Opt) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.cniOpts = append(m.cniOpts, opt...)
+		return nil
+	}
+}
+
+func WithCNIBinDir(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.CNIBinDir = s
+		return nil
+	}
+}
+
+func WithCNIConfDir(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.CNIConfDir = s
+		return nil
+	}
+}
+
+func WithNetNSPathFmt(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.NetNSPathFmt = s
+		return nil
+	}
+}
+
+func WithCNIDataDir(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.CNIDataDir = s
+		return nil
+	}
+}
+
+func WithDefaultCNIConfFilename(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.DefaultCNIConfFilename = s
+		return nil
+	}
+}
+
+func WithDefaultNetworkName(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.DefaultNetworkName = s
+		return nil
+	}
+}
+
+func WithDefaultBridgeName(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.DefaultBridgeName = s
+		return nil
+	}
+}
+
+func WithDefaultSubnet(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.DefaultSubnet = s
+		return nil
+	}
+}
+
+func WithDefaultIfPrefix(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.DefaultIfPrefix = s
+		return nil
+	}
+}
+
+func WithDefaultCNIConf(s string) CNIManagerOpts {
+	return func(m *CNIManager) error {
+		m.DefaultCNIConf = s
+		return nil
+	}
+}
 
 // netID generates the network IF based on task name and task PID
-func netID(id string, pid uint32) string {
+func (c *CNIManager) netID(id string, pid uint32) string {
 	return fmt.Sprintf("%s-%d", id, pid)
 }
 
 // netNamespace generates the namespace path based on task PID.
-func netNamespace(pid uint32) string {
-	return fmt.Sprintf(NetNSPathFmt, pid)
+func (c *CNIManager) netNamespace(pid uint32) string {
+	return fmt.Sprintf(c.NetNSPathFmt, pid)
 }
 
-// InitNetwork ...
-func InitNetwork() (gocni.CNI, error) {
-	logrus.Printf("Writing CNI network configuration to %s/%s", CNIConfDir, defaultCNIConfFilename)
-	// Create directories
-	_, err := os.Stat(CNIConfDir)
-	if !os.IsNotExist(err) {
-		if err := os.MkdirAll(CNIConfDir, 0o755); err != nil {
-			return nil, fmt.Errorf("cannot create directory: '%s'. error: %w", CNIConfDir, err)
-		}
-	}
+// Attach implements Manager.
+func (c *CNIManager) Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error {
+	ctx, span := tracer.Start(ctx, "networking.cni.Attach")
+	defer span.End()
 
-	// Create network config file
-	netconfig := path.Join(CNIConfDir, defaultCNIConfFilename)
-	if err := os.WriteFile(netconfig, []byte(defaultCNIConf), 0o644); err != nil {
-		return nil, fmt.Errorf("cannot write network config: '%s'. error: %w", defaultCNIConfFilename, err)
-	}
+	netnsPath := c.netNamespace(containerPID)
 
-	// Initialize CNI library
-	cni, err := gocni.New(
-		gocni.WithMinNetworkCount(2),
-		gocni.WithPluginConfDir(CNIConfDir),
-		gocni.WithPluginDir([]string{CNIBinDir}),
-		gocni.WithInterfacePrefix(defaultIfPrefix),
+	_, err := c.cni.Setup(
+		ctx,
+		containerID,
+		netnsPath,
+		opts...,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error initializing cni: %w", err)
-	}
-
-	// Load the cni configuration
-	if err := cni.Load(gocni.WithLoNetwork, gocni.WithConfListFile(filepath.Join(CNIConfDir, defaultCNIConfFilename))); err != nil {
-		return nil, fmt.Errorf("failed to load cni configuration: %w", err)
-	}
-
-	return cni, nil
-}
-
-// CreateCNINetwork creates a CNI network interface and attaches it to the context
-func CreateCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
-	ctx, span := tracer.Start(ctx, "networking.cni.Create")
-	defer span.End()
-
-	i := netID(id, pid)
-	n := netNamespace(pid)
-	result, err := cni.Setup(ctx, i, n, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup network for task %q: %w", id, err)
-	}
-
-	return result, nil
-}
-
-func DeleteCNINetwork(ctx context.Context, cni gocni.CNI, id string, pid uint32, opts ...gocni.NamespaceOpts) error {
-	ctx, span := tracer.Start(ctx, "networking.cni.Destroy")
-	defer span.End()
-
-	i := netID(id, pid)
-	n := netNamespace(pid)
-	err := cni.Remove(ctx, i, n, opts...)
-	if err != nil {
-		return fmt.Errorf("failed to teardown network for task: %q, %v", id, err)
+		return err
 	}
 	return nil
 }
 
-func GetIPAddress(id string) (net.IP, error) {
-	netdir := path.Join(CNIDataDir, defaultNetworkName)
+// Check implements Manager.
+func (c *CNIManager) Check(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error {
+	ctx, span := tracer.Start(ctx, "networking.cni.Check")
+	defer span.End()
+
+	netnsPath := c.netNamespace(containerPID)
+
+	return c.cni.Check(
+		ctx,
+		containerID,
+		netnsPath,
+		opts...,
+	)
+}
+
+// Detach implements Manager.
+func (c *CNIManager) Detach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error {
+	ctx, span := tracer.Start(ctx, "networking.cni.Detach")
+	defer span.End()
+
+	netnsPath := c.netNamespace(containerPID)
+	return c.cni.Remove(ctx, containerID, netnsPath, opts...)
+}
+
+func (c *CNIManager) GetIPAddress(id string) (net.IP, error) {
+	netdir := path.Join(c.CNIDataDir, c.DefaultNetworkName)
 	fileinfos, err := os.ReadDir(netdir)
 	if err != nil {
 		return nil, err
@@ -184,4 +226,121 @@ func GetIPAddress(id string) (net.IP, error) {
 		}
 	}
 	return nil, fmt.Errorf("couldn't find IP Address for %s", id)
+}
+
+func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
+	m := &CNIManager{
+		CNIBinDir:              "/opt/cni/bin",
+		CNIConfDir:             "/etc/cni/net.d",
+		NetNSPathFmt:           "/proc/%d/ns/net",
+		CNIDataDir:             "/var/run/cni",
+		DefaultCNIConfFilename: "10-blipblop.conflist",
+		DefaultNetworkName:     "bridge",
+		DefaultBridgeName:      "blipblop0",
+		DefaultSubnet:          "10.69.0.0/16",
+		DefaultSubnetGw:        "10.69.0.1",
+		DefaultIfPrefix:        "eth",
+	}
+
+	m.DefaultCNIConf = fmt.Sprintf(`
+{
+  "cniVersion": "1.0.0",
+  "name": "%s",
+  "plugins": [
+    {
+      "type": "bridge",
+      "bridge": "%s",
+      "isGateway": true,
+      "ipMasq": true,
+      "hairpinMode": true,
+      "ipam": {
+				"dataDir": "%s",
+        "ranges": [
+          [
+            {
+							"subnet": "%s",
+              "gateway": "%s"
+            }
+          ]
+        ],
+        "routes": [
+          {
+            "dst": "0.0.0.0/0"
+          }
+        ],
+        "type": "host-local"
+      }
+    },
+    {
+      "type": "portmap",
+      "capabilities": {
+        "portMappings": true
+      }
+    },
+    {
+      "type": "firewall",
+      "ingressPolicy": "same-bridge"
+    },
+    {
+      "type": "tuning"
+    }
+  ]
+}
+`, m.DefaultNetworkName, m.DefaultBridgeName, m.CNIDataDir, m.DefaultSubnet, m.DefaultSubnetGw)
+
+	// Apply manager opts
+	for _, opt := range opts {
+		if err := opt(m); err != nil {
+			return nil, err
+		}
+	}
+
+	// Append cni opts to a list of default opts
+	newOpts := []gocni.Opt{
+		gocni.WithMinNetworkCount(2),
+		gocni.WithPluginConfDir(m.CNIConfDir),
+		gocni.WithPluginDir([]string{m.CNIBinDir}),
+		gocni.WithInterfacePrefix(m.DefaultIfPrefix),
+	}
+	newOpts = append(newOpts, m.cniOpts...)
+
+	// Create directories
+	_, err := os.Stat(m.CNIConfDir)
+	if !os.IsNotExist(err) {
+		if err := os.MkdirAll(m.CNIConfDir, 0o755); err != nil {
+			return nil, fmt.Errorf("cannot create directory: '%s'. error: %w", m.CNIConfDir, err)
+		}
+	}
+
+	netconfig := path.Join(m.CNIConfDir, m.DefaultCNIConfFilename)
+	if err := os.WriteFile(netconfig, []byte(m.DefaultCNIConf), 0o644); err != nil {
+		return nil, fmt.Errorf("cannot write network config: '%s'. error: %w", m.DefaultCNIConfFilename, err)
+	}
+
+	// Initialize CNI library
+	cni, err := gocni.New(
+		newOpts...,
+	// m.cniOpts...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing cni: %w", err)
+	}
+
+	// TODO: Prefer using WithConfListBytes instead so we're guaranteed to laod exactly
+	// the config we generated (no directory scanning surprised)
+	// Append cni opts to list of defaults
+	loadOpts := []gocni.Opt{
+		gocni.WithLoNetwork,
+		gocni.WithConfListFile(filepath.Join(m.CNIConfDir, m.DefaultCNIConfFilename)),
+	}
+
+	// Load the cni configuration
+	err = cni.Load(loadOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load cni configuration: %w", err)
+	}
+
+	m.cni = cni
+
+	return m, nil
 }

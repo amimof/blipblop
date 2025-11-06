@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/containerd/containerd"
+	containerd "github.com/containerd/containerd/v2/client"
 )
 
 func ConnectContainerd(address string) (*containerd.Client, error) {

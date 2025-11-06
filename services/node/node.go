@@ -220,7 +220,7 @@ func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error 
 	}
 
 	// Figure out which node the container is running on
-	nodeName := ctr.GetStatus().GetNode()
+	nodeName := ctr.GetStatus().GetNode().String()
 	if nodeName == "" {
 		return fmt.Errorf("container is missing node in status")
 	}
