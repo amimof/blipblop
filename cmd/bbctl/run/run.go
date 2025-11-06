@@ -94,8 +94,8 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 					if err != nil {
 						logrus.Fatal(err)
 					}
-					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase())
-					if ctr.GetStatus().GetPhase() == "running" {
+					phase = cmdutil.FormatPhase(ctr.GetStatus().GetPhase().String())
+					if ctr.GetStatus().GetPhase().String() == "running" {
 						stop()
 					}
 					return nil

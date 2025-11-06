@@ -183,8 +183,9 @@ func main() {
 		log.Error("error joining node to server", "error", err)
 		return
 	}
+
 	// Create networking
-	cni, err := networking.InitNetwork()
+	cni, err := networking.NewCNIManager()
 	if err != nil {
 		log.Error("error initializing networking", "error", err)
 		return

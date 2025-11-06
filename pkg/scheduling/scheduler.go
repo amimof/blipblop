@@ -128,7 +128,7 @@ func (s *horizontal) Schedule(ctx context.Context, c *containers.Container) (*no
 		// Remove nodes that already have containers from the same set
 		var containersInSet []*nodes.Node
 		for _, ctr := range ctrs {
-			containersInSet = excludeByName(filteredNodes, ctr.GetStatus().GetNode())
+			containersInSet = excludeByName(filteredNodes, ctr.GetStatus().GetNode().String())
 		}
 
 		// If no nodes are available, then schedule on a node that has containers from same set

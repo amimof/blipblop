@@ -201,3 +201,23 @@ func (mr *MockContainerServiceClientMockRecorder) Update(ctx, in any, opts ...an
 	varargs := append([]any{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockContainerServiceClient)(nil).Update), varargs...)
 }
+
+// UpdateStatus mocks base method.
+func (m *MockContainerServiceClient) UpdateStatus(ctx context.Context, in *containers.UpdateStatusRequest, opts ...grpc.CallOption) (*containers.UpdateStatusResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "UpdateStatus", varargs...)
+	ret0, _ := ret[0].(*containers.UpdateStatusResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateStatus indicates an expected call of UpdateStatus.
+func (mr *MockContainerServiceClientMockRecorder) UpdateStatus(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockContainerServiceClient)(nil).UpdateStatus), varargs...)
+}

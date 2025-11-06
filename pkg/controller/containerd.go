@@ -13,11 +13,8 @@ import (
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/cio"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -62,10 +59,10 @@ type RuntimeHandlerFuncs struct {
 	OnImageCreate      func(*events.ImageCreate)
 	OnImageUpdate      func(*events.ImageUpdate)
 	OnImageDelete      func(*events.ImageDelete)
-	OnContentDelete    func(*events.ContentDelete)
 	OnContainerCreate  func(*events.ContainerCreate)
 	OnContainerUpdate  func(*events.ContainerUpdate)
 	OnContainerDelete  func(*events.ContainerDelete)
+	OnContentDelete    func(*events.ContentDelete)
 }
 
 func (c *ContainerdController) AddHandler(h *RuntimeHandlerFuncs) {
@@ -242,9 +239,9 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 	}
 }
 
-// exitHandler is run whenever a container task exits. This is usually a good opportunity to perform
+// onTaskExitHandler is run whenever a container task exits. This is usually a good opportunity to perform
 // cleanup tasks because the task is not yet removed. See deleteHandler for handling deletions.
-func (c *ContainerdController) exitHandler(e *events.TaskExit) {
+func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
 	ctx := context.Background()
 	id := e.ID
 
@@ -254,188 +251,121 @@ func (c *ContainerdController) exitHandler(e *events.TaskExit) {
 		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 	}
 
-	err = c.setContainerState(e.ID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ID, "event", "TaskExit", "error", err)
+	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
+	st := &containersv1.Status{
+		Phase: wrapperspb.String("stopped"),
 	}
-}
-
-func (c *ContainerdController) createHandler(e *events.TaskCreate) {
-	err := c.setContainerState(e.ContainerID)
+	err = c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "phase")
 	if err != nil {
 		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
 	}
 }
 
-func (c *ContainerdController) containerCreateHandler(e *events.ContainerCreate) {
-	err := c.setContainerState(e.ID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
-	}
-}
-
-func (c *ContainerdController) startHandler(e *events.TaskStart) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskStart", "error", err)
-	}
-}
-
-func (c *ContainerdController) deleteHandler(e *events.TaskDelete) {
-	c.logger.Debug("handler not implemented", "event", "TaskDelete")
-}
-
-func (c *ContainerdController) ioHandler(e *events.TaskIO) {
-}
-
-func (c *ContainerdController) oomHandler(e *events.TaskOOM) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskOOM", "error", err)
-	}
-}
-
-func (c *ContainerdController) execAddedHandler(e *events.TaskExecAdded) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecAdded", "error", err)
-	}
-}
-
-func (c *ContainerdController) execStartedHandler(e *events.TaskExecStarted) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecStarted", "error", err)
-	}
-	err = c.setTaskIOConfig(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container IO config", "id", e.ContainerID, "event", "TaskStart", "error", err)
-	}
-}
-
-func (c *ContainerdController) pausedHandler(e *events.TaskPaused) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskPaused", "error", err)
-	}
-}
-
-func (c *ContainerdController) resumedHandler(e *events.TaskResumed) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskResumed", "error", err)
-	}
-	err = c.setTaskIOConfig(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container IO config", "id", e.ContainerID, "event", "TaskStart", "error", err)
-	}
-}
-
-func (c *ContainerdController) checkpointedHandler(e *events.TaskCheckpointed) {
-	err := c.setContainerState(e.ContainerID)
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCheckpointed", "error", err)
-	}
-}
-
-func (c *ContainerdController) setContainerState(id string) error {
-	ctx := context.Background()
-	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
+func (c *ContainerdController) onTaskCreateHandler(e *events.TaskCreate) {
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	hostname, _ := os.Hostname()
 
 	st := &containersv1.Status{
-		Node:    hostname,
-		Ip:      "192.168.13.123",
-		Task:    &containersv1.TaskStatus{},
-		Runtime: &containersv1.RuntimeStatus{},
+		Node:  wrapperspb.String(hostname),
+		Phase: wrapperspb.String("created"),
 	}
 
-	task, err := c.getTask(id)
+	err := c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "node", "phase")
 	if err != nil {
-		if errdefs.IsNotFound(err) {
-			st.Phase = "Deleted"
-		}
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
 	}
-
-	var pid, exitStatus uint32
-	var phase string
-	var exitTime time.Time
-
-	ts, err := getTaskStatus(ctx, task)
-	if err == nil {
-		phase = string(ts.Status)
-		exitStatus = ts.ExitStatus
-		exitTime = ts.ExitTime
-	}
-
-	st.Node = hostname
-	st.Phase = phase
-	st.Task.Pid = wrapperspb.UInt32(pid)
-	st.Task.ExitCode = wrapperspb.UInt32(exitStatus)
-	st.Task.ExitTime = timestamppb.New(exitTime)
-
-	c.logger.Debug("setting container status", "id", id, "status", st)
-	return c.clientset.ContainerV1().Status(ctx, id, st)
 }
 
-func (c *ContainerdController) setTaskIOConfig(id string) error {
-	ctx := context.Background()
-
-	task, err := c.getTask(id)
-	if err != nil {
-		return err
-	}
-
-	rtCtr, err := c.runtime.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	stdoutPath := getTaskIOConfig(ctx, task).Stdout
-	stderrPath := getTaskIOConfig(ctx, task).Stdin
-
-	st := rtCtr.GetStatus()
-	st.Runtime = &containersv1.RuntimeStatus{
-		RuntimeEnv:     "",
-		RuntimeVersion: "",
-		StdoutPath:     stdoutPath,
-		StderrPath:     stderrPath,
-	}
-
-	return c.clientset.ContainerV1().Status(ctx, id, st)
+func (c *ContainerdController) onContainerCreateHandler(e *events.ContainerCreate) {
+	// err := c.setContainerState(e.ID)
+	// if err != nil {
+	// 	c.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
+	// }
 }
 
-func (c *ContainerdController) getTask(id string) (containerd.Task, error) {
+func (c *ContainerdController) onTaskStartHandler(e *events.TaskStart) {
 	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+	hostname, _ := os.Hostname()
 
-	ctr, err := c.client.LoadContainer(ctx, id)
-	if err != nil {
-		return nil, err
+	st := &containersv1.Status{
+		Node:  wrapperspb.String(hostname),
+		Phase: wrapperspb.String("running"),
 	}
 
-	task, err := ctr.Task(ctx, nil)
+	err := c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "node", "phase")
 	if err != nil {
-		return nil, err
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
 	}
-
-	return task, nil
 }
 
-func getTaskStatus(ctx context.Context, t containerd.Task) (containerd.Status, error) {
-	s := containerd.Status{}
-	if t != nil {
-		status, err := t.Status(ctx)
-		if err != nil {
-			return s, err
-		}
-		s = status
-	}
-	return s, nil
+func (c *ContainerdController) onTaskDeleteHandler(e *events.TaskDelete) {
+	c.logger.Debug("handler not implemented", "event", "TaskDelete")
 }
 
-func getTaskIOConfig(_ context.Context, t containerd.Task) *cio.Config {
-	c := t.IO().Config()
-	return &c
+func (c *ContainerdController) onTaskIOHandler(e *events.TaskIO) {
+	c.logger.Debug("handler not implemented", "event", "TaskIO")
+}
+
+func (c *ContainerdController) onTaskOOMHandler(e *events.TaskOOM) {
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+	hostname, _ := os.Hostname()
+
+	st := &containersv1.Status{
+		Node:  wrapperspb.String(hostname),
+		Phase: wrapperspb.String("oom"),
+	}
+
+	err := c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "node", "phase")
+	if err != nil {
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
+	}
+}
+
+func (c *ContainerdController) onTaskExecAddedHandler(e *events.TaskExecAdded) {
+	c.logger.Debug("handler not implemented", "event", "TaskIO")
+}
+
+func (c *ContainerdController) onTaskExecStartedHandler(e *events.TaskExecStarted) {
+	c.logger.Debug("handler not implemented", "event", "TaskIO")
+}
+
+func (c *ContainerdController) onTaskPausedHandler(e *events.TaskPaused) {
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+	hostname, _ := os.Hostname()
+
+	st := &containersv1.Status{
+		Node:  wrapperspb.String(hostname),
+		Phase: wrapperspb.String("paused"),
+	}
+
+	err := c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "node", "phase")
+	if err != nil {
+		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
+	}
+}
+
+func (c *ContainerdController) onTaskResumedHandler(e *events.TaskResumed) {
+	c.logger.Debug("handler not implemented", "event", "TaskIO")
+}
+
+func (c *ContainerdController) onTaskCeckpointedHandler(e *events.TaskCheckpointed) {
+	c.logger.Debug("handler not implemented", "event", "TaskIO")
+}
+
+func (c *ContainerdController) onImageCreateHandler(e *events.ImageCreate) {
+	c.logger.Debug("image created", "event", "ImageCreate", "image", e.GetName())
+}
+
+func (c *ContainerdController) onSnapshotPrepareHandler(e *events.SnapshotPrepare) {
+	c.logger.Debug("image created", "event", "SnapshotPrepare", "snapshotter", e.GetSnapshotter())
+}
+
+func (c *ContainerdController) onSnapshotCommitHandler(e *events.SnapshotCommit) {
+	c.logger.Debug("image created", "event", "SnapshotCommit", "snapshotter", e.GetSnapshotter(), "name", e.GetName())
+}
+
+func (c *ContainerdController) onSnapshotRemoveHandler(e *events.SnapshotRemove) {
+	c.logger.Debug("image created", "event", "SnapshotRemove", "snapshotter", e.GetSnapshotter())
 }
 
 // Checks to see if c is present in cs
@@ -472,13 +402,11 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 
 			c.logger.Info("removing container from runtime since it's not expected to exist", "name", currentContainer.GetMeta().GetName())
 
-			_ = c.clientset.ContainerV1().Status(ctx, currentContainer.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
 			err := c.runtime.Kill(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", currentContainer.GetMeta().GetName())
 			}
 
-			_ = c.clientset.ContainerV1().Status(ctx, currentContainer.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
 			err = c.runtime.Delete(ctx, currentContainer)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", currentContainer.GetMeta().GetName())
@@ -491,22 +419,16 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 		if !contains(currentContainers, container) {
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", container.GetMeta().GetName())
 
-			_ = c.clientset.ContainerV1().Status(ctx, container.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
 			err := c.runtime.Pull(ctx, container)
 			if err != nil {
 				c.logger.Error("error pulling image", "error", err, "container", container.GetMeta().GetName())
 			}
 
-			_ = c.clientset.ContainerV1().Status(ctx, container.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 			err = c.runtime.Run(ctx, container)
 			if err != nil {
 				c.logger.Error("error running container", "error", err, "name", container.GetMeta().GetName())
 			}
 
-			err = c.setContainerState(container.GetMeta().GetName())
-			if err != nil {
-				c.logger.Error("error setting container state", "container", container.GetMeta().GetName(), "error", err)
-			}
 		}
 	}
 	return nil
@@ -521,18 +443,22 @@ func NewContainerdController(client *containerd.Client, cs *client.ClientSet, rt
 	}
 
 	handlers := &RuntimeHandlerFuncs{
-		OnTaskExit:         eh.exitHandler,
-		OnTaskCreate:       eh.createHandler,
-		OnTaskStart:        eh.startHandler,
-		OnTaskDelete:       eh.deleteHandler,
-		OnTaskIO:           eh.ioHandler,
-		OnTaskOOM:          eh.oomHandler,
-		OnTaskExecAdded:    eh.execAddedHandler,
-		OnTaskExecStarted:  eh.execStartedHandler,
-		OnTaskPaused:       eh.pausedHandler,
-		OnTaskResumed:      eh.resumedHandler,
-		OnTaskCheckpointed: eh.checkpointedHandler,
-		OnContainerCreate:  eh.containerCreateHandler,
+		OnTaskExit:         eh.onTaskExitHandler,
+		OnTaskCreate:       eh.onTaskCreateHandler,
+		OnTaskStart:        eh.onTaskStartHandler,
+		OnTaskDelete:       eh.onTaskDeleteHandler,
+		OnTaskIO:           eh.onTaskIOHandler,
+		OnTaskOOM:          eh.onTaskOOMHandler,
+		OnTaskExecAdded:    eh.onTaskExecAddedHandler,
+		OnTaskExecStarted:  eh.onTaskExecStartedHandler,
+		OnTaskPaused:       eh.onTaskPausedHandler,
+		OnTaskResumed:      eh.onTaskResumedHandler,
+		OnTaskCheckpointed: eh.onTaskCeckpointedHandler,
+		OnContainerCreate:  eh.onContainerCreateHandler,
+		OnImageCreate:      eh.onImageCreateHandler,
+		OnSnapshotPrepare:  eh.onSnapshotPrepareHandler,
+		OnSnapshotCommit:   eh.onSnapshotCommitHandler,
+		OnSnapshotRemove:   eh.onSnapshotRemoveHandler,
 	}
 
 	eh.handlers = handlers

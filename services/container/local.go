@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -173,6 +174,11 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	err := req.ValidateAll()
 	if err != nil {
 		return nil, err
+	}
+
+	// Initialize status field if empty
+	if container.GetStatus() == nil {
+		container.Status = &containers.Status{}
 	}
 
 	containerID := container.GetMeta().GetName()
@@ -339,6 +345,63 @@ func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerReques
 	}, nil
 }
 
+func applyMaskedUpdate(dst, src *containers.Status, mask *fieldmaskpb.FieldMask) error {
+	if mask == nil || len(mask.Paths) == 0 {
+		return status.Error(codes.InvalidArgument, "update_mask is required")
+	}
+
+	for _, p := range mask.Paths {
+		switch p {
+		case "ip":
+			if src.Ip == nil {
+				continue
+			}
+			dst.Ip = src.Ip
+		case "node":
+			if src.Node == nil {
+				continue
+			}
+			dst.Node = src.Node
+		case "phase":
+			if src.Phase == nil {
+				continue
+			}
+			dst.Phase = src.Phase
+		default:
+			return fmt.Errorf("unknown mask path %q", p)
+		}
+	}
+
+	return nil
+}
+
+// UpdateStatus implements containers.ContainerServiceClient.
+func (l *local) UpdateStatus(ctx context.Context, req *containers.UpdateStatusRequest, opts ...grpc.CallOption) (*containers.UpdateStatusResponse, error) {
+	ctx, span := tracer.Start(ctx, "container.UpdateStatus")
+	defer span.End()
+
+	// Get the existing container before updating so we can compare specs
+	existingContainer, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply mask safely
+	base := proto.Clone(existingContainer.Status).(*containers.Status)
+	if err := applyMaskedUpdate(base, req.Status, req.UpdateMask); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
+	}
+
+	existingContainer.Status = base
+	if err := l.Repo().Update(ctx, existingContainer); err != nil {
+		return nil, err
+	}
+
+	return &containers.UpdateStatusResponse{
+		Id: existingContainer.GetMeta().GetName(),
+	}, nil
+}
+
 func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Update")
 	defer span.End()
@@ -352,7 +415,9 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 		return nil, err
 	}
 
+	// Increase revision before updating
 	updateContainer := req.GetContainer()
+	updateContainer.Meta.Revision++
 
 	// Get the existing container before updating so we can compare specs
 	existingContainer, err := l.Repo().Get(ctx, req.GetId())

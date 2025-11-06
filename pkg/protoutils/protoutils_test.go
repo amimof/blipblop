@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/types/v1"
@@ -28,15 +29,12 @@ func TestImmutableFields(t *testing.T) {
 			},
 		},
 		Status: &containersv1.Status{
-			Phase: "idle",
-			Node:  "bbnode",
+			Phase: wrapperspb.String("idle"),
+			Node:  wrapperspb.String("bbnode"),
 		},
 	}
 
 	patchContainer := &containersv1.Container{
-		// Meta: &metav1.Meta{
-		// 	Name: "test-container-new",
-		// },
 		Config: &containersv1.Config{
 			Image: "test-image-new",
 			PortMappings: []*containersv1.PortMapping{
@@ -52,27 +50,7 @@ func TestImmutableFields(t *testing.T) {
 				},
 			},
 		},
-		// Status: &containersv1.Status{
-		// 	Phase: "running",
-		// 	Node:  "bbmaster",
-		// },
 	}
-
-	// maskedUpdate, err := ApplyFieldMaskToNewMessage(updateContainer, &fieldmaskpb.FieldMask{})
-	// if err != nil {
-	// 	t.Errorf("error %v", err)
-	// }
-	//
-	// fmt.Printf("update: %+v\n", maskedUpdate)
-	//
-	// proto.Merge(existingContainer, updateContainer)
-	// //
-	// fmt.Printf("%+v\n", existingContainer)
-	//
-	// proto.Merge(updateContainer, immutableUpdate)
-	// fmt.Printf("%+v\n", updateContainer)
-
-	// fmt.Printf("They are same? %t", reflect.DeepEqual(existingContainer.GetConfig(), updateContainer.GetConfig()))
 
 	updated, err := StrategicMergePatch(existingContainer, patchContainer)
 	if err != nil {
@@ -92,11 +70,6 @@ func StrategicMergePatch(target, patch *containersv1.Container) (*containersv1.C
 	if err != nil {
 		return nil, err
 	}
-
-	// p, err := jsonpatch.CreateMergePatch(targetb, patchb)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	b, err := jsonpatch.MergePatch(targetb, patchb)
 	if err != nil {
@@ -256,5 +229,95 @@ func TestClearRepeatedFields(t *testing.T) {
 
 	if !proto.Equal(&baseContainer, &expect) {
 		t.Errorf("\ngot:\n%v\nwant:\n%v", &baseContainer, &expect)
+	}
+}
+
+func TestClearProto(t *testing.T) {
+	testCases := []struct {
+		name    string
+		message proto.Message
+		expect  proto.Message
+	}{
+		{
+			name:   "should reset all fields on message",
+			expect: &containersv1.Status{},
+			message: &containersv1.Status{
+				Phase: wrapperspb.String("running"),
+				Node:  wrapperspb.String("localhost"),
+				Task: &containersv1.TaskStatus{
+					Pid:   wrapperspb.UInt32(17778),
+					Error: wrapperspb.String("exit code 0"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ClearProto(tt.message.ProtoReflect())
+			if !proto.Equal(tt.message, tt.expect) {
+				t.Errorf("\ngot:\n%v\nwant:\n%v", tt.message, tt.expect)
+			}
+		})
+	}
+}
+
+func TestToFields(t *testing.T) {
+	testCases := []struct {
+		name    string
+		message proto.Message
+		expect  []string
+	}{
+		{
+			name:   "should have field paths for wrappers",
+			expect: []string{"phase", "node", "task.pid", "task.error"},
+			message: &containersv1.Status{
+				Phase: wrapperspb.String("running"),
+				Node:  wrapperspb.String("localhost"),
+				Task: &containersv1.TaskStatus{
+					Pid:   wrapperspb.UInt32(17778),
+					Error: wrapperspb.String("exit code 0"),
+				},
+			},
+		},
+		{
+			name:   "should have field paths for scalars",
+			expect: []string{"node", "ip", "runtime.runtime_version", "runtime.runtime_env"},
+			message: &containersv1.Status{
+				Node: wrapperspb.String("node-01"),
+				Ip:   wrapperspb.String("172.19.1.123"),
+				Runtime: &containersv1.RuntimeStatus{
+					RuntimeEnv:     "containerd",
+					RuntimeVersion: "v1.7",
+				},
+			},
+		},
+		{
+			name:   "should have field paths for lists",
+			expect: []string{"config.image", "config.args"},
+			message: &containersv1.Container{
+				Config: &containersv1.Config{
+					Image: "docker.io/prometheus/prom:latest",
+					Args:  []string{"--debug", "--insecure"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			empty := proto.Clone(tt.message)
+			ClearProto(empty.ProtoReflect())
+			paths := []string{}
+
+			err := compareMessages(empty.ProtoReflect(), tt.message.ProtoReflect(), "", &paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !assert.Equal(t, tt.expect, paths) {
+				t.Errorf("\ngot:\n%v\nwant:\n%v", &paths, &tt.expect)
+			}
+		})
 	}
 }

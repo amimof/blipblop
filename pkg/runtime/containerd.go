@@ -32,7 +32,7 @@ var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
 
 type ContainerdRuntime struct {
 	client *containerd.Client
-	cni    gocni.CNI
+	cni    networking.Manager
 	logger logger.Logger
 	ns     string
 }
@@ -128,14 +128,9 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 	}
 
 	// Delete CNI Network
-	cniLabels := labels.New()
-	cniLabels.Set("IgnoreUnknown", "1")
-	err = networking.DeleteCNINetwork(ctx,
-		c.cni,
-		t.ID(),
-		t.Pid(),
-		gocni.WithLabels(cniLabels),
+	err = c.cni.Detach(ctx, ctr.ID(), t.Pid(),
 		gocni.WithCapabilityPortMap(cniports),
+		gocni.WithArgs("IgnoreUnknown", "true"),
 	)
 	if err != nil {
 		return err
@@ -251,6 +246,10 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 	return nil
 }
 
+// Stop stops containers associated with the name of provided container instance.
+// Stop will attempt to gracefully stop tasks, but will eventually do it forcefully
+// if timeout is reached. Stop does not perform any garbage colletion and it is
+// up to the caller to call Cleanup() after calling Stop()
 func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Stop")
 	defer span.End()
@@ -274,7 +273,7 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 
 	// Attempt gracefull shutdown
 	if err = task.Kill(ctx, syscall.SIGTERM); err != nil {
-		return err
+		return fmt.Errorf("failed to kill task gracefully %w", err)
 	}
 
 	timeoutChan := make(chan error)
@@ -288,18 +287,18 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 		timer.Stop()
 		err = exitStatus.Error()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get exit status from task %w", err)
 		}
 	case err = <-timeoutChan:
 		if err != nil {
-			return err
+			return fmt.Errorf("got error waiting for tsk to finish %w", err)
 		}
 	}
 
 	// Perform cleanup
-	if err := c.Cleanup(ctx, task.ID()); err != nil {
-		return err
-	}
+	// if err := c.Cleanup(ctx, task.ID()); err != nil {
+	// 	return err
+	// }
 
 	// Delete the task
 	if _, err := task.Delete(ctx); err != nil {
@@ -426,32 +425,22 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	// ctr.GetConfig().GetPortMappings()
 	pm := networking.ParseCNIPortMappings(ctr.GetConfig().PortMappings...)
 
+	// Setup networking
+	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
+	err = c.cni.Attach(ctx, cont.ID(), task.Pid(), attachOpts...)
+	if err != nil {
+		return err
+	}
+
 	// Start the  task
-	err = c.setupCNINetworkForTask(ctx, task, gocni.WithCapabilityPortMap(pm))
-	if err != nil {
-		return err
-	}
-
-	// Setup networking
 	return task.Start(ctx)
-}
-
-func (c *ContainerdRuntime) setupCNINetworkForTask(ctx context.Context, t containerd.Task, opts ...gocni.NamespaceOpts) error {
-	// Setup networking
-	c.logger.Info("Pid for this task is", "pid", fmt.Sprintf("%d", t.Pid()))
-
-	_, err := networking.CreateCNINetwork(ctx, c.cni, t.ID(), t.Pid(), opts...)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 	return nil, nil
 }
 
-func NewContainerdRuntimeClient(client *containerd.Client, cni gocni.CNI, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
+func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manager, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
 	runtime := &ContainerdRuntime{client: client, cni: cni, logger: logger.ConsoleLogger{}, ns: DefaultNamespace}
 
 	for _, opt := range opts {

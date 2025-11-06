@@ -268,11 +268,92 @@ func (m *Status) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Phase
+	if all {
+		switch v := interface{}(m.GetPhase()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Phase",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Phase",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPhase()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Phase",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
-	// no validation rules for Node
+	if all {
+		switch v := interface{}(m.GetNode()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Node",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Node",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNode()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Node",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
-	// no validation rules for Ip
+	if all {
+		switch v := interface{}(m.GetIp()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Ip",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Ip",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetIp()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Ip",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if all {
 		switch v := interface{}(m.GetTask()).(type) {
@@ -3368,3 +3449,291 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = KillContainerResponseValidationError{}
+
+// Validate checks the field values on UpdateStatusRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateStatusRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateStatusRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateStatusRequestMultiError, or nil if none found.
+func (m *UpdateStatusRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateStatusRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if m.GetUpdateMask() == nil {
+		err := UpdateStatusRequestValidationError{
+			field:  "UpdateMask",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdateMask()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "UpdateMask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "UpdateMask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdateMask()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateStatusRequestValidationError{
+				field:  "UpdateMask",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if m.GetStatus() == nil {
+		err := UpdateStatusRequestValidationError{
+			field:  "Status",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetStatus()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateStatusRequestValidationError{
+				field:  "Status",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateStatusRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateStatusRequestMultiError is an error wrapping multiple validation
+// errors returned by UpdateStatusRequest.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateStatusRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateStatusRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateStatusRequestMultiError) AllErrors() []error { return m }
+
+// UpdateStatusRequestValidationError is the validation error returned by
+// UpdateStatusRequest.Validate if the designated constraints aren't met.
+type UpdateStatusRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateStatusRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateStatusRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateStatusRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateStatusRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateStatusRequestValidationError) ErrorName() string {
+	return "UpdateStatusRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateStatusRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateStatusRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateStatusRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateStatusRequestValidationError{}
+
+// Validate checks the field values on UpdateStatusResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateStatusResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateStatusResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateStatusResponseMultiError, or nil if none found.
+func (m *UpdateStatusResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateStatusResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if len(errors) > 0 {
+		return UpdateStatusResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateStatusResponseMultiError is an error wrapping multiple validation
+// errors returned by UpdateStatusResponse.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateStatusResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateStatusResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateStatusResponseMultiError) AllErrors() []error { return m }
+
+// UpdateStatusResponseValidationError is the validation error returned by
+// UpdateStatusResponse.Validate if the designated constraints aren't met.
+type UpdateStatusResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateStatusResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateStatusResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateStatusResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateStatusResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateStatusResponseValidationError) ErrorName() string {
+	return "UpdateStatusResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateStatusResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateStatusResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateStatusResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateStatusResponseValidationError{}

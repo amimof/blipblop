@@ -104,7 +104,6 @@ func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error
 			return err
 		}
 
-		fmt.Println("CREATING")
 		return txn.Set([]byte(key), b)
 	})
 }
