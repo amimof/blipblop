@@ -249,7 +249,7 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 		ev = eventsv1.EventType_ContainerKill
 	}
 
-	err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerKill, events.NewEvent(ev, container))
+	err = l.exchange.Publish(ctx, ev, events.NewEvent(ev, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
 	}
@@ -367,6 +367,18 @@ func applyMaskedUpdate(dst, src *containers.Status, mask *fieldmaskpb.FieldMask)
 				continue
 			}
 			dst.Phase = src.Phase
+		case "task.pid":
+			if src.GetTask().Pid == nil {
+				continue
+			}
+			fmt.Println(dst.GetTask())
+			fmt.Println(src.GetTask())
+			dst.GetTask().Pid = src.GetTask().Pid
+		case "task.error":
+			if src.GetTask().Error == nil {
+				continue
+			}
+			dst.Task.Error = src.Task.Error
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}

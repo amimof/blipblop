@@ -15,11 +15,11 @@ import (
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/util"
 	"github.com/containerd/console"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/oci"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	gocni "github.com/containerd/go-cni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"go.opentelemetry.io/otel"
@@ -308,6 +308,8 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 	return nil
 }
 
+// Kill forcefully stops the container and tasks within by sending SIGKILL to the process.
+// Like Stop(), Kill() does not perform garbage collection. Use Gleanup() for this.
 func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Kill")
 	defer span.End()
@@ -350,11 +352,6 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	case <-time.After(10 * time.Second):
 		c.logger.Info("deadline exceeded waiting for task to exit", "container", cont.ID(), "task", task.ID())
 		return os.ErrDeadlineExceeded
-	}
-
-	// Perform cleanup
-	if err := c.Cleanup(ctx, task.ID()); err != nil {
-		return err
 	}
 
 	// Delete the task

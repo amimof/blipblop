@@ -11,9 +11,9 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -62,6 +62,7 @@ type RuntimeHandlerFuncs struct {
 	OnContainerCreate  func(*events.ContainerCreate)
 	OnContainerUpdate  func(*events.ContainerUpdate)
 	OnContainerDelete  func(*events.ContainerDelete)
+	OnContentCreate    func(*events.ContentCreate)
 	OnContentDelete    func(*events.ContentDelete)
 }
 
@@ -218,6 +219,10 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 		if handlers.OnImageDelete != nil {
 			handlers.OnImageDelete(t)
 		}
+	case *events.ContentCreate:
+		if handlers.OnContentCreate != nil {
+			handlers.OnContentCreate(t)
+		}
 	case *events.ContentDelete:
 		if handlers.OnContentDelete != nil {
 			handlers.OnContentDelete(t)
@@ -242,22 +247,32 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj in
 // onTaskExitHandler is run whenever a container task exits. This is usually a good opportunity to perform
 // cleanup tasks because the task is not yet removed. See deleteHandler for handling deletions.
 func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
-	ctx := context.Background()
-	id := e.ID
+	c.logger.Debug("task exited", "event", "TaskExit", "container", e.GetContainerID(), "execID", e.GetID())
 
-	c.logger.Info("tearing down network for container", "id", id)
-	err := c.runtime.Cleanup(ctx, id)
-	if err != nil {
-		c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
-	}
+	id := e.GetID()
+	containerID := e.GetContainerID()
 
-	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
-	st := &containersv1.Status{
-		Phase: wrapperspb.String("stopped"),
-	}
-	err = c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "phase")
-	if err != nil {
-		c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskCreate", "error", err)
+	// This if-clause is an intermediate fix to prevent receving events for non-init tasks.
+	// For example if a user creates an exec task with tty we would otherwise get that event here.
+	// This isn't bulletproof since in theory the user can give the exec-id the same value as the container id.
+	// rendering this if useless and pontentially dangerous.
+	if id == containerID {
+		ctx := context.Background()
+		ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
+
+		c.logger.Info("tearing down network for container", "id", id)
+		err := c.runtime.Cleanup(ctx, id)
+		if err != nil {
+			c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
+		}
+
+		st := &containersv1.Status{
+			Phase: wrapperspb.String("stopped"),
+		}
+		err = c.clientset.ContainerV1().Status().Update(ctx, containerID, st, "phase")
+		if err != nil {
+			c.logger.Error("error setting container state", "id", containerID, "event", "TaskCreate", "error", err)
+		}
 	}
 }
 
@@ -277,10 +292,16 @@ func (c *ContainerdController) onTaskCreateHandler(e *events.TaskCreate) {
 }
 
 func (c *ContainerdController) onContainerCreateHandler(e *events.ContainerCreate) {
-	// err := c.setContainerState(e.ID)
-	// if err != nil {
-	// 	c.logger.Error("error setting container state", "id", e.ID, "event", "ContainerCreate", "error", err)
-	// }
+	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+
+	st := &containersv1.Status{
+		Phase: wrapperspb.String("creating"),
+	}
+
+	err := c.clientset.ContainerV1().Status().Update(ctx, e.GetID(), st, "phase")
+	if err != nil {
+		c.logger.Error("error setting container state", "id", e.GetID(), "event", "ContainerCreate", "error", err)
+	}
 }
 
 func (c *ContainerdController) onTaskStartHandler(e *events.TaskStart) {
@@ -299,7 +320,7 @@ func (c *ContainerdController) onTaskStartHandler(e *events.TaskStart) {
 }
 
 func (c *ContainerdController) onTaskDeleteHandler(e *events.TaskDelete) {
-	c.logger.Debug("handler not implemented", "event", "TaskDelete")
+	c.logger.Debug("task deleted", "event", "TaskDelete", "container", e.GetContainerID(), "pid", e.GetID(), "exitStatus", e.GetExitStatus())
 }
 
 func (c *ContainerdController) onTaskIOHandler(e *events.TaskIO) {
@@ -322,11 +343,23 @@ func (c *ContainerdController) onTaskOOMHandler(e *events.TaskOOM) {
 }
 
 func (c *ContainerdController) onTaskExecAddedHandler(e *events.TaskExecAdded) {
-	c.logger.Debug("handler not implemented", "event", "TaskIO")
+	c.logger.Debug("task exec added", "event", "TaskExecAdded", "container", e.GetContainerID(), "execID", e.GetExecID())
 }
 
 func (c *ContainerdController) onTaskExecStartedHandler(e *events.TaskExecStarted) {
-	c.logger.Debug("handler not implemented", "event", "TaskIO")
+	// ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
+
+	// st := &containersv1.Status{
+	// 	Phase: wrapperspb.String("running"),
+	// 	Task: &containersv1.TaskStatus{
+	// 		Pid: wrapperspb.UInt32(e.GetPid()),
+	// 	},
+	// }
+	//
+	// err := c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "phase", "task.pid")
+	// if err != nil {
+	// 	c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecStarted", "error", err)
+	// }
 }
 
 func (c *ContainerdController) onTaskPausedHandler(e *events.TaskPaused) {
@@ -353,19 +386,27 @@ func (c *ContainerdController) onTaskCeckpointedHandler(e *events.TaskCheckpoint
 }
 
 func (c *ContainerdController) onImageCreateHandler(e *events.ImageCreate) {
-	c.logger.Debug("image created", "event", "ImageCreate", "image", e.GetName())
+	c.logger.Debug("image created", "event", "ImageCreate", "image", e.GetName(), e.GetLabels)
 }
 
 func (c *ContainerdController) onSnapshotPrepareHandler(e *events.SnapshotPrepare) {
-	c.logger.Debug("image created", "event", "SnapshotPrepare", "snapshotter", e.GetSnapshotter())
+	c.logger.Debug("snapshot prepared", "event", "SnapshotPrepare", "snapshotter", e.GetSnapshotter())
 }
 
 func (c *ContainerdController) onSnapshotCommitHandler(e *events.SnapshotCommit) {
-	c.logger.Debug("image created", "event", "SnapshotCommit", "snapshotter", e.GetSnapshotter(), "name", e.GetName())
+	c.logger.Debug("snapshot commited", "event", "SnapshotCommit", "snapshotter", e.GetSnapshotter(), "name", e.GetName())
 }
 
 func (c *ContainerdController) onSnapshotRemoveHandler(e *events.SnapshotRemove) {
-	c.logger.Debug("image created", "event", "SnapshotRemove", "snapshotter", e.GetSnapshotter())
+	c.logger.Debug("snapshot removed", "event", "SnapshotRemove", "snapshotter", e.GetSnapshotter())
+}
+
+func (c *ContainerdController) onContentCreateHandler(e *events.ContentCreate) {
+	c.logger.Debug("content created", "event", "ContentCreate", "digest", e.GetDigest(), "size", e.GetSize())
+}
+
+func (c *ContainerdController) onContentDeleteHandler(e *events.ContentDelete) {
+	c.logger.Debug("content deleted", "event", "ContentDelete", "digest", e.GetDigest())
 }
 
 // Checks to see if c is present in cs
@@ -378,7 +419,7 @@ func contains(cs []*containersv1.Container, c *containersv1.Container) bool {
 	return false
 }
 
-// Recouncile ensures that desired containers matches with containers
+// Reconcile ensures that desired containers matches with containers
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
@@ -431,6 +472,7 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 
 		}
 	}
+
 	return nil
 }
 
@@ -459,6 +501,8 @@ func NewContainerdController(client *containerd.Client, cs *client.ClientSet, rt
 		OnSnapshotPrepare:  eh.onSnapshotPrepareHandler,
 		OnSnapshotCommit:   eh.onSnapshotCommitHandler,
 		OnSnapshotRemove:   eh.onSnapshotRemoveHandler,
+		OnContentCreate:    eh.onContentCreateHandler,
+		OnContentDelete:    eh.onContentDeleteHandler,
 	}
 
 	eh.handlers = handlers

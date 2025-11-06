@@ -21,8 +21,8 @@ import (
 
 	// "github.com/amimof/blipblop/pkg/runtime"
 	rt "github.com/amimof/blipblop/pkg/runtime"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/namespaces"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )

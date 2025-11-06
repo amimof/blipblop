@@ -43,7 +43,7 @@ func WithNodeName(s string) NewNodeControllerOption {
 	}
 }
 
-// func (c *NodeController) Run(ctx context.Context, stopCh <-chan struct{}) {
+// Run implements controller
 func (c *NodeController) Run(ctx context.Context) {
 	// Subscribe to events
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
@@ -76,39 +76,6 @@ func (c *NodeController) Run(ctx context.Context) {
 			c.logger.Error("error connecting to server", "error", err)
 		}
 	}()
-
-	// // Log collector
-	// logChan := make(chan *logsv1.LogStreamRequest, 10)
-	// resChan := make(chan *logsv1.LogStreamResponse, 1)
-	// logErrChan := make(chan error, 1)
-	// var startLogging bool
-	//
-	// // Receive logging start/stop signal
-	// go func() {
-	// 	for e := range resChan {
-	// 		startLogging = e.GetStart()
-	// 	}
-	// }()
-	//
-	// // TESTING Periodically send message to clients. Replace this with actual container log
-	// go func() {
-	// 	var i int
-	// 	for {
-	// 		if startLogging {
-	// 			req := &logsv1.LogStreamRequest{NodeId: c.nodeName, ContainerId: "nginx2", Log: &logsv1.LogItem{LogLine: fmt.Sprintf("%d hello world!", i), Timestamp: time.Now().String()}}
-	// 			logChan <- req
-	// 			time.Sleep(time.Second * 1)
-	// 			i = i + 1
-	// 		}
-	// 	}
-	// }()
-	//
-	// go func() {
-	// 	err := c.clientset.LogV1().LogStream(ctx, c.nodeName, "nginx2", logChan, logErrChan, resChan)
-	// 	if err != nil {
-	// 		c.logger.Error("error connecting to log collector service", "error", err)
-	// 	}
-	// }()
 
 	// Update status once connected
 	err := c.clientset.NodeV1().Status(ctx, c.nodeName, &nodes.Status{State: connectivity.Ready.String()})
@@ -186,6 +153,7 @@ func (c *NodeController) onNodeForget(ctx context.Context, obj *eventsv1.Event) 
 	return nil
 }
 
+// When this is run we can assume that the container has been scheduled
 func (c *NodeController) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
 	// Get the container
 	var ctr containersv1.Container
@@ -194,15 +162,17 @@ func (c *NodeController) onContainerCreate(ctx context.Context, e *eventsv1.Even
 		return err
 	}
 
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+	containerID := ctr.GetMeta().GetName()
 
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
+
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("scheduled")}, "phase")
+
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
 		return err
 	}
 
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
 		return err
@@ -300,9 +270,9 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 
 	// Delete container if it exists
 	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
-	if err = c.runtime.Delete(ctx, &ctr); err != nil {
-		return err
-	}
+	// if err = c.runtime.Delete(ctx, &ctr); err != nil {
+	// 	return err
+	// }
 
 	// Pull image
 	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
@@ -336,6 +306,12 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 		return err
 	}
 
+	err = c.runtime.Delete(ctx, &ctr)
+	if err != nil {
+		c.logger.Error("error deleting container", "error", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -359,31 +335,5 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		opt(m)
 	}
 
-	// Setup tracing
-	// exporter, err := otlptracehttp.New(context.Background(), otlptracehttp.WithInsecure(), otlptracehttp.WithEndpoint("192.168.13.123:4318"))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defaultResource := resource.Default()
-	//
-	// mergedResources, err := resource.Merge(
-	// 	defaultResource,
-	// 	resource.NewWithAttributes(
-	// 		defaultResource.SchemaURL(),
-	// 		semconv.ServiceNameKey.String("blipblop-node"),
-	// 	),
-	// )
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//
-	// tracer := sdktrace.NewTracerProvider(
-	// 	sdktrace.WithBatcher(exporter),
-	// 	sdktrace.WithSampler(sdktrace.AlwaysSample()),
-	// 	sdktrace.WithResource(mergedResources),
-	// )
-	//
-	// otel.SetTracerProvider(tracer)
-	//
 	return m, nil
 }
