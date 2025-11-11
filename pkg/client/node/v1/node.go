@@ -14,7 +14,6 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -35,7 +34,7 @@ func WithClient(client nodes.NodeServiceClient) CreateOption {
 }
 
 type ClientV1 interface {
-	Status(context.Context, string, *nodes.Status) error
+	Status() StatusClientV1
 	Create(context.Context, *nodes.Node, ...CreateOption) error
 	Update(context.Context, string, *nodes.Node) error
 	Get(context.Context, string) (*nodes.Node, error)
@@ -44,6 +43,20 @@ type ClientV1 interface {
 	Join(context.Context, *nodes.Node) error
 	Forget(context.Context, string) error
 	Connect(context.Context, string, chan *events.Event, chan error) error
+}
+
+type StatusClientV1 interface {
+	Update(context.Context, string, *nodes.Status, ...string) error
+}
+
+type statusClientV1 struct {
+	client nodes.NodeServiceClient
+}
+
+func (s *clientV1) Status() StatusClientV1 {
+	return &statusClientV1{
+		client: s.Client,
+	}
 }
 
 type clientV1 struct {
@@ -56,6 +69,27 @@ type clientV1 struct {
 
 func (c *clientV1) NodeService() nodes.NodeServiceClient {
 	return c.Client
+}
+
+// Update implements StatusClientV1.
+func (s *statusClientV1) Update(ctx context.Context, id string, status *nodes.Status, path ...string) error {
+	// Construct field mask
+	mask := &fieldmaskpb.FieldMask{
+		Paths: path,
+	}
+
+	req := &nodes.UpdateStatusRequest{
+		Id:         id,
+		UpdateMask: mask,
+		Status:     status,
+	}
+
+	_, err := s.client.UpdateStatus(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
@@ -122,15 +156,6 @@ func (c *clientV1) Forget(ctx context.Context, n string) error {
 		return err
 	}
 	return nil
-}
-
-func (c *clientV1) Status(ctx context.Context, id string, status *nodes.Status) error {
-	node, err := c.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	node.Status = status
-	return c.Update(ctx, id, node)
 }
 
 func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *events.Event, errChan chan error) error {
@@ -227,24 +252,23 @@ func (c *clientV1) SendMessage(ctx context.Context, msg *events.Event) error {
 	return nil
 }
 
-func (c *clientV1) SetState(ctx context.Context, nodeName string, state connectivity.State) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	n := &nodes.UpdateNodeRequest{
-		Id: nodeName,
-		Node: &nodes.Node{
-			Status: &nodes.Status{
-				State: state.String(),
-			},
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.state"}},
-	}
-	_, err := c.Client.Update(ctx, n)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
+//	func (c *clientV1) SetState(ctx context.Context, nodeName string, state connectivity.State) error {
+//		ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+//		n := &nodes.UpdateNodeRequest{
+//			Id: nodeName,
+//			Node: &nodes.Node{
+//				Status: &nodes.Status{
+//					State: state.String(),
+//				},
+//			},
+//			UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"status.state"}},
+//		}
+//		_, err := c.Client.Update(ctx, n)
+//		if err != nil {
+//			return err
+//		}
+//		return nil
+//	}
 func NewClientV1(opts ...CreateOption) ClientV1 {
 	c := &clientV1{}
 	for _, opt := range opts {

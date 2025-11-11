@@ -10,7 +10,6 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	nodeutil "github.com/amimof/blipblop/pkg/node"
@@ -20,6 +19,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type NewServiceOption func(s *NodeService)
@@ -78,6 +78,10 @@ func (n *NodeService) Forget(ctx context.Context, req *nodesv1.ForgetRequest) (*
 	return n.local.Forget(ctx, req)
 }
 
+func (n *NodeService) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatusRequest) (*nodesv1.UpdateStatusResponse, error) {
+	return n.local.UpdateStatus(ctx, req)
+}
+
 func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	ctx := stream.Context()
 
@@ -116,17 +120,12 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 
 	defer func() {
 		n.logger.Info("removing node stream", "node", nodeName)
-		fm := &fieldmaskpb.FieldMask{Paths: []string{"status.state"}}
-		_, err := n.Update(ctx,
-			&nodesv1.UpdateNodeRequest{
+		fm := &fieldmaskpb.FieldMask{Paths: []string{"phase"}}
+		_, err := n.UpdateStatus(ctx,
+			&nodesv1.UpdateStatusRequest{
 				Id: node.GetMeta().GetName(),
-				Node: &nodesv1.Node{
-					Status: &nodesv1.Status{
-						State: nodeutil.StatusMissing,
-					},
-					Meta: &metav1.Meta{
-						Name: node.GetMeta().GetName(),
-					},
+				Status: &nodesv1.Status{
+					Phase: wrapperspb.String(nodeutil.StatusMissing),
 				},
 				UpdateMask: fm,
 			},

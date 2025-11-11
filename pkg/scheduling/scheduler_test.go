@@ -43,7 +43,7 @@ var testNodes = &nodesv1.ListNodeResponse{
 				Name: "node-c",
 			},
 			Status: &nodesv1.Status{
-				State: node.StatusReady,
+				Phase: wrapperspb.String(node.StatusReady),
 			},
 		},
 		{
@@ -51,7 +51,7 @@ var testNodes = &nodesv1.ListNodeResponse{
 				Name: "node-d",
 			},
 			Status: &nodesv1.Status{
-				State: node.StatusMissing,
+				Phase: wrapperspb.String(node.StatusMissing),
 			},
 		},
 	},
@@ -252,7 +252,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						Name: "node-c",
 					},
 					Status: &nodesv1.Status{
-						State: node.StatusReady,
+						Phase: wrapperspb.String(node.StatusReady),
 					},
 				},
 			},

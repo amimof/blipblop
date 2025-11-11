@@ -135,6 +135,66 @@
         ]
       }
     },
+    "/api/v1/nodes/{id}/status": {
+      "put": {
+        "operationId": "NodeService_UpdateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.phase",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.ip.dns",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.hostname",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.runtime",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NodeService"
+        ]
+      }
+    },
     "/api/v1/nodes/{node.meta.name}": {
       "put": {
         "operationId": "NodeService_Update",
@@ -319,7 +379,16 @@
     "nodesv1Status": {
       "type": "object",
       "properties": {
-        "state": {
+        "phase": {
+          "type": "string"
+        },
+        "ip": {
+          "$ref": "#/definitions/v1IPStatus"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "runtime": {
           "type": "string"
         }
       }
@@ -417,6 +486,59 @@
         }
       }
     },
+    "v1IPLinkStatus": {
+      "type": "object",
+      "properties": {
+        "link": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "mac": {
+          "type": "string"
+        }
+      }
+    },
+    "v1IPStatus": {
+      "type": "object",
+      "properties": {
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1IPLinkStatus"
+          }
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1IPV4Status"
+          }
+        },
+        "dns": {
+          "type": "string"
+        }
+      }
+    },
+    "v1IPV4Status": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "netmask": {
+          "type": "string"
+        },
+        "gateway": {
+          "type": "string"
+        },
+        "interface": {
+          "type": "string"
+        }
+      }
+    },
     "v1JoinResponse": {
       "type": "object",
       "properties": {
@@ -479,6 +601,14 @@
       "properties": {
         "node": {
           "$ref": "#/definitions/v1Node"
+        }
+      }
+    },
+    "v1UpdateStatusResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
         }
       }
     }

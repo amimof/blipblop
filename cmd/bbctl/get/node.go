@@ -57,7 +57,7 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n",
 						n.GetMeta().GetName(),
 						n.GetMeta().GetRevision(),
-						n.GetStatus().GetState(),
+						n.GetStatus().GetPhase().GetValue(),
 						cmdutil.FormatDuration(time.Since(n.GetMeta().GetCreated().AsTime())),
 					)
 				}

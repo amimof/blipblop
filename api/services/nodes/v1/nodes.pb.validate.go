@@ -223,7 +223,121 @@ func (m *Status) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for State
+	if all {
+		switch v := interface{}(m.GetPhase()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Phase",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Phase",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPhase()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Phase",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetIp()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Ip",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Ip",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetIp()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Ip",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetHostname()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Hostname",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Hostname",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetHostname()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Hostname",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetRuntime()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StatusValidationError{
+					field:  "Runtime",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRuntime()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return StatusValidationError{
+				field:  "Runtime",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return StatusMultiError(errors)
@@ -301,6 +415,736 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = StatusValidationError{}
+
+// Validate checks the field values on IPStatus with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *IPStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on IPStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in IPStatusMultiError, or nil
+// if none found.
+func (m *IPStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *IPStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetLinks() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, IPStatusValidationError{
+						field:  fmt.Sprintf("Links[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, IPStatusValidationError{
+						field:  fmt.Sprintf("Links[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return IPStatusValidationError{
+					field:  fmt.Sprintf("Links[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetAddresses() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, IPStatusValidationError{
+						field:  fmt.Sprintf("Addresses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, IPStatusValidationError{
+						field:  fmt.Sprintf("Addresses[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return IPStatusValidationError{
+					field:  fmt.Sprintf("Addresses[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if all {
+		switch v := interface{}(m.GetDns()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPStatusValidationError{
+					field:  "Dns",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPStatusValidationError{
+					field:  "Dns",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDns()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPStatusValidationError{
+				field:  "Dns",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return IPStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// IPStatusMultiError is an error wrapping multiple validation errors returned
+// by IPStatus.ValidateAll() if the designated constraints aren't met.
+type IPStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m IPStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m IPStatusMultiError) AllErrors() []error { return m }
+
+// IPStatusValidationError is the validation error returned by
+// IPStatus.Validate if the designated constraints aren't met.
+type IPStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e IPStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e IPStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e IPStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e IPStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e IPStatusValidationError) ErrorName() string { return "IPStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e IPStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sIPStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = IPStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = IPStatusValidationError{}
+
+// Validate checks the field values on IPLinkStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *IPLinkStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on IPLinkStatus with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in IPLinkStatusMultiError, or
+// nil if none found.
+func (m *IPLinkStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *IPLinkStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetLink()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPLinkStatusValidationError{
+					field:  "Link",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPLinkStatusValidationError{
+					field:  "Link",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLink()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPLinkStatusValidationError{
+				field:  "Link",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetState()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPLinkStatusValidationError{
+					field:  "State",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPLinkStatusValidationError{
+					field:  "State",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetState()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPLinkStatusValidationError{
+				field:  "State",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetMac()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPLinkStatusValidationError{
+					field:  "Mac",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPLinkStatusValidationError{
+					field:  "Mac",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMac()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPLinkStatusValidationError{
+				field:  "Mac",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return IPLinkStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// IPLinkStatusMultiError is an error wrapping multiple validation errors
+// returned by IPLinkStatus.ValidateAll() if the designated constraints aren't met.
+type IPLinkStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m IPLinkStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m IPLinkStatusMultiError) AllErrors() []error { return m }
+
+// IPLinkStatusValidationError is the validation error returned by
+// IPLinkStatus.Validate if the designated constraints aren't met.
+type IPLinkStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e IPLinkStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e IPLinkStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e IPLinkStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e IPLinkStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e IPLinkStatusValidationError) ErrorName() string { return "IPLinkStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e IPLinkStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sIPLinkStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = IPLinkStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = IPLinkStatusValidationError{}
+
+// Validate checks the field values on IPV4Status with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *IPV4Status) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on IPV4Status with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in IPV4StatusMultiError, or
+// nil if none found.
+func (m *IPV4Status) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *IPV4Status) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetAddress()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Address",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Address",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAddress()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPV4StatusValidationError{
+				field:  "Address",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetNetmask()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Netmask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Netmask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNetmask()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPV4StatusValidationError{
+				field:  "Netmask",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetGateway()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Gateway",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Gateway",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetGateway()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPV4StatusValidationError{
+				field:  "Gateway",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetInterface()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Interface",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, IPV4StatusValidationError{
+					field:  "Interface",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetInterface()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return IPV4StatusValidationError{
+				field:  "Interface",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return IPV4StatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// IPV4StatusMultiError is an error wrapping multiple validation errors
+// returned by IPV4Status.ValidateAll() if the designated constraints aren't met.
+type IPV4StatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m IPV4StatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m IPV4StatusMultiError) AllErrors() []error { return m }
+
+// IPV4StatusValidationError is the validation error returned by
+// IPV4Status.Validate if the designated constraints aren't met.
+type IPV4StatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e IPV4StatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e IPV4StatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e IPV4StatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e IPV4StatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e IPV4StatusValidationError) ErrorName() string { return "IPV4StatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e IPV4StatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sIPV4Status.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = IPV4StatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = IPV4StatusValidationError{}
+
+// Validate checks the field values on DNSStatus with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *DNSStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DNSStatus with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DNSStatusMultiError, or nil
+// if none found.
+func (m *DNSStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DNSStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetNameservers() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DNSStatusValidationError{
+						field:  fmt.Sprintf("Nameservers[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DNSStatusValidationError{
+						field:  fmt.Sprintf("Nameservers[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DNSStatusValidationError{
+					field:  fmt.Sprintf("Nameservers[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return DNSStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// DNSStatusMultiError is an error wrapping multiple validation errors returned
+// by DNSStatus.ValidateAll() if the designated constraints aren't met.
+type DNSStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DNSStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DNSStatusMultiError) AllErrors() []error { return m }
+
+// DNSStatusValidationError is the validation error returned by
+// DNSStatus.Validate if the designated constraints aren't met.
+type DNSStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DNSStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DNSStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DNSStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DNSStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DNSStatusValidationError) ErrorName() string { return "DNSStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DNSStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDNSStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DNSStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DNSStatusValidationError{}
 
 // Validate checks the field values on GetNodeRequest with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
@@ -2033,3 +2877,291 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ForgetResponseValidationError{}
+
+// Validate checks the field values on UpdateStatusRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateStatusRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateStatusRequest with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateStatusRequestMultiError, or nil if none found.
+func (m *UpdateStatusRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateStatusRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if m.GetUpdateMask() == nil {
+		err := UpdateStatusRequestValidationError{
+			field:  "UpdateMask",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdateMask()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "UpdateMask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "UpdateMask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdateMask()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateStatusRequestValidationError{
+				field:  "UpdateMask",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if m.GetStatus() == nil {
+		err := UpdateStatusRequestValidationError{
+			field:  "Status",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetStatus()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UpdateStatusRequestValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UpdateStatusRequestValidationError{
+				field:  "Status",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return UpdateStatusRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateStatusRequestMultiError is an error wrapping multiple validation
+// errors returned by UpdateStatusRequest.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateStatusRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateStatusRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateStatusRequestMultiError) AllErrors() []error { return m }
+
+// UpdateStatusRequestValidationError is the validation error returned by
+// UpdateStatusRequest.Validate if the designated constraints aren't met.
+type UpdateStatusRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateStatusRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateStatusRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateStatusRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateStatusRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateStatusRequestValidationError) ErrorName() string {
+	return "UpdateStatusRequestValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateStatusRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateStatusRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateStatusRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateStatusRequestValidationError{}
+
+// Validate checks the field values on UpdateStatusResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *UpdateStatusResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UpdateStatusResponse with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UpdateStatusResponseMultiError, or nil if none found.
+func (m *UpdateStatusResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UpdateStatusResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Id
+
+	if len(errors) > 0 {
+		return UpdateStatusResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// UpdateStatusResponseMultiError is an error wrapping multiple validation
+// errors returned by UpdateStatusResponse.ValidateAll() if the designated
+// constraints aren't met.
+type UpdateStatusResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UpdateStatusResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UpdateStatusResponseMultiError) AllErrors() []error { return m }
+
+// UpdateStatusResponseValidationError is the validation error returned by
+// UpdateStatusResponse.Validate if the designated constraints aren't met.
+type UpdateStatusResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e UpdateStatusResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e UpdateStatusResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e UpdateStatusResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e UpdateStatusResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e UpdateStatusResponseValidationError) ErrorName() string {
+	return "UpdateStatusResponseValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e UpdateStatusResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sUpdateStatusResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = UpdateStatusResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = UpdateStatusResponseValidationError{}

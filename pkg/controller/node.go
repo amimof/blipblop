@@ -78,7 +78,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	}()
 
 	// Update status once connected
-	err := c.clientset.NodeV1().Status(ctx, c.nodeName, &nodes.Status{State: connectivity.Ready.String()})
+	err := c.clientset.NodeV1().Status().Update(ctx, c.nodeName, &nodes.Status{Phase: wrapperspb.String(connectivity.Ready.String())}, "phase")
 	if err != nil {
 		c.logger.Error("error setting node state", "error", err)
 	}

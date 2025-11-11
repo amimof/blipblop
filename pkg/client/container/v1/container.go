@@ -32,8 +32,7 @@ func WithClient(client containers.ContainerServiceClient) CreateOption {
 }
 
 type ClientV1 interface {
-	// Status(context.Context, string, *containers.Status) error
-	Status() StatusV1
+	Status() StatusClientV1
 	Kill(context.Context, string) (*containers.KillContainerResponse, error)
 	Stop(context.Context, string) (*containers.KillContainerResponse, error)
 	Start(context.Context, string) (*containers.StartContainerResponse, error)
@@ -45,9 +44,7 @@ type ClientV1 interface {
 	List(context.Context, ...labels.Label) ([]*containers.Container, error)
 }
 
-type StatusV1 interface {
-	// Set(string, any) StatusV1
-	// Do(context.Context) error
+type StatusClientV1 interface {
 	Update(context.Context, string, *containers.Status, ...string) error
 }
 
@@ -58,31 +55,12 @@ type clientV1 struct {
 }
 
 type statusV1 struct {
-	// operations map[string]any
 	client containers.ContainerServiceClient
 }
 
-//	func (c *clientV1) Status(ctx context.Context, id string, status *containers.Status) error {
-//		tracer := otel.Tracer("client-v1")
-//		ctx, span := tracer.Start(ctx, "client.container.Status")
-//		defer span.End()
-//
-//		ctr, err := c.Get(ctx, id)
-//		if err != nil {
-//			return err
-//		}
-//		ctr.Status = status
-//		err = c.Update(ctx, id, ctr)
-//		if err != nil {
-//			return err
-//		}
-//		return err
-//	}
-func (s *clientV1) Status() StatusV1 {
+func (s *clientV1) Status() StatusClientV1 {
 	return &statusV1{
-		// operations: make(map[string]any),
 		client: s.Client,
-		// id:         id,
 	}
 }
 
@@ -105,33 +83,6 @@ func (s *statusV1) Update(ctx context.Context, id string, status *containers.Sta
 
 	return nil
 }
-
-// func (s *statusV1) Set(path string, value any) StatusV1 {
-// 	s.operations[path] = value
-// 	return s
-// }
-//
-// func (s *statusV1) Do(ctx context.Context) error {
-// 	// Build message to be sent to server
-// 	paths := make([]string, len(s.operations)-1)
-// 	for k := range s.operations {
-// 		paths = append(paths, k)
-// 	}
-//
-// 	mask := &fieldmaskpb.FieldMask{
-// 		Paths: paths,
-// 	}
-//
-// 	req := *containers.UpdateStatusRequest{
-// 		Id:         s.id,
-// 		UpdateMask: mask,
-// 		Status: ,
-// 	}
-//
-// 	s.client.UpdateStatus(ctx)
-//
-// 	return nil
-// }
 
 func (c *clientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
 	tracer := otel.Tracer("client-v1")

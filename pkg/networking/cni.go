@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	gocni "github.com/containerd/go-cni"
@@ -254,11 +253,11 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
       "ipMasq": true,
       "hairpinMode": true,
       "ipam": {
-				"dataDir": "%s",
+        "dataDir": "%s",
         "ranges": [
           [
             {
-							"subnet": "%s",
+              "subnet": "%s",
               "gateway": "%s"
             }
           ]
@@ -326,12 +325,10 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
 		return nil, fmt.Errorf("error initializing cni: %w", err)
 	}
 
-	// TODO: Prefer using WithConfListBytes instead so we're guaranteed to laod exactly
-	// the config we generated (no directory scanning surprised)
 	// Append cni opts to list of defaults
 	loadOpts := []gocni.Opt{
 		gocni.WithLoNetwork,
-		gocni.WithConfListFile(filepath.Join(m.CNIConfDir, m.DefaultCNIConfFilename)),
+		gocni.WithConfListBytes([]byte(m.DefaultCNIConf)),
 	}
 
 	// Load the cni configuration

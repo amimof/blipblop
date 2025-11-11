@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -56,6 +58,51 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 
 func merge(base, patch *nodes.Node) *nodes.Node {
 	return protoutils.StrategicMerge(base, patch)
+}
+
+func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) error {
+	if mask == nil || len(mask.Paths) == 0 {
+		return status.Error(codes.InvalidArgument, "update_mask is required")
+	}
+
+	for _, p := range mask.Paths {
+		switch p {
+		case "phase":
+			if src.Phase == nil {
+				continue
+			}
+			dst.Phase = src.Phase
+		case "hostname":
+			if src.Hostname == nil {
+				continue
+			}
+			dst.Hostname = src.Hostname
+		case "runtime":
+			if src.Runtime == nil {
+				continue
+			}
+			dst.Runtime = src.Runtime
+		case "ip.dns":
+			if src.Ip.Dns == nil {
+				continue
+			}
+			dst.Ip.Dns = src.Ip.Dns
+		case "ip.links":
+			if src.Ip.Links == nil {
+				continue
+			}
+			dst.Ip.Links = src.Ip.Links
+		case "ip.addresses":
+			if src.Ip.Addresses == nil {
+				continue
+			}
+			dst.Ip.Addresses = src.Ip.Addresses
+		default:
+			return fmt.Errorf("unknown mask path %q", p)
+		}
+	}
+
+	return nil
 }
 
 func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
@@ -122,6 +169,32 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 	}
 	return &nodes.ListNodeResponse{
 		Nodes: nodeList,
+	}, nil
+}
+
+func (l *local) UpdateStatus(ctx context.Context, req *nodes.UpdateStatusRequest, opts ...grpc.CallOption) (*nodes.UpdateStatusResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.UpdateStatus")
+	defer span.End()
+
+	// Get the existing container before updating so we can compare specs
+	existingContainer, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply mask safely
+	base := proto.Clone(existingContainer.Status).(*nodes.Status)
+	if err := applyMaskedUpdate(base, req.Status, req.UpdateMask); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
+	}
+
+	existingContainer.Status = base
+	if err := l.Repo().Update(ctx, existingContainer); err != nil {
+		return nil, err
+	}
+
+	return &nodes.UpdateStatusResponse{
+		Id: existingContainer.GetMeta().GetName(),
 	}, nil
 }
 

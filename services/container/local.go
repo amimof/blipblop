@@ -427,9 +427,7 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 		return nil, err
 	}
 
-	// Increase revision before updating
 	updateContainer := req.GetContainer()
-	updateContainer.Meta.Revision++
 
 	// Get the existing container before updating so we can compare specs
 	existingContainer, err := l.Repo().Get(ctx, req.GetId())
@@ -453,7 +451,10 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 	updVal := protoreflect.ValueOfMessage(updateContainer.GetConfig().ProtoReflect())
 	newVal := protoreflect.ValueOfMessage(existingContainer.GetConfig().ProtoReflect())
 	if !updVal.Equal(newVal) {
-		l.logger.Debug("container was updated, emitting event to listeners", "event", "ContainerUpdate", "name", ctr.GetMeta().GetName())
+
+		updateContainer.Meta.Revision++
+
+		l.logger.Debug("container was updated, emitting event to listeners", "event", "ContainerUpdate", "name", ctr.GetMeta().GetName(), "revision", updateContainer.GetMeta().GetRevision())
 		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "ContainerUpdate")

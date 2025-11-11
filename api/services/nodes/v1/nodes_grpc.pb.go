@@ -31,6 +31,7 @@ type NodeServiceClient interface {
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
 	Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error)
+	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 }
 
 type nodeServiceClient struct {
@@ -135,6 +136,15 @@ func (x *nodeServiceConnectClient) Recv() (*v1.Event, error) {
 	return m, nil
 }
 
+func (c *nodeServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error) {
+	out := new(UpdateStatusResponse)
+	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/UpdateStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServiceServer is the server API for NodeService service.
 // All implementations must embed UnimplementedNodeServiceServer
 // for forward compatibility
@@ -147,6 +157,7 @@ type NodeServiceServer interface {
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
 	Connect(NodeService_ConnectServer) error
+	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	mustEmbedUnimplementedNodeServiceServer()
 }
 
@@ -177,6 +188,9 @@ func (UnimplementedNodeServiceServer) Forget(context.Context, *ForgetRequest) (*
 }
 func (UnimplementedNodeServiceServer) Connect(NodeService_ConnectServer) error {
 	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedNodeServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
 }
 func (UnimplementedNodeServiceServer) mustEmbedUnimplementedNodeServiceServer() {}
 
@@ -343,6 +357,24 @@ func (x *nodeServiceConnectServer) Recv() (*v1.Event, error) {
 	return m, nil
 }
 
+func _NodeService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).UpdateStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blipblop.services.nodes.v1.NodeService/UpdateStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).UpdateStatus(ctx, req.(*UpdateStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeService_ServiceDesc is the grpc.ServiceDesc for NodeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -377,6 +409,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Forget",
 			Handler:    _NodeService_Forget_Handler,
+		},
+		{
+			MethodName: "UpdateStatus",
+			Handler:    _NodeService_UpdateStatus_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
