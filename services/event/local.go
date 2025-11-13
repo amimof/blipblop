@@ -21,7 +21,7 @@ var (
 	tracer                             = otel.GetTracerProvider().Tracer("blipblop-server")
 )
 
-func (n *local) Create(ctx context.Context, req *eventsv1.CreateEventRequest, _ ...grpc.CallOption) (*eventsv1.CreateEventResponse, error) {
+func (n *local) Create(ctx context.Context, req *eventsv1.CreateRequest, _ ...grpc.CallOption) (*eventsv1.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "event.Create")
 	defer span.End()
 
@@ -29,10 +29,10 @@ func (n *local) Create(ctx context.Context, req *eventsv1.CreateEventRequest, _ 
 	if err != nil {
 		return nil, err
 	}
-	return &eventsv1.CreateEventResponse{Event: req.GetEvent()}, nil
+	return &eventsv1.CreateResponse{Event: req.GetEvent()}, nil
 }
 
-func (n *local) Get(ctx context.Context, req *eventsv1.GetEventRequest, _ ...grpc.CallOption) (*eventsv1.GetEventResponse, error) {
+func (n *local) Get(ctx context.Context, req *eventsv1.GetRequest, _ ...grpc.CallOption) (*eventsv1.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "event.Get")
 	defer span.End()
 
@@ -40,10 +40,10 @@ func (n *local) Get(ctx context.Context, req *eventsv1.GetEventRequest, _ ...grp
 	if err != nil {
 		return nil, err
 	}
-	return &eventsv1.GetEventResponse{Event: e}, nil
+	return &eventsv1.GetResponse{Event: e}, nil
 }
 
-func (n *local) Delete(ctx context.Context, req *eventsv1.DeleteEventRequest, _ ...grpc.CallOption) (*eventsv1.DeleteEventResponse, error) {
+func (n *local) Delete(ctx context.Context, req *eventsv1.DeleteRequest, _ ...grpc.CallOption) (*eventsv1.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "event.Delete")
 	defer span.End()
 
@@ -51,10 +51,10 @@ func (n *local) Delete(ctx context.Context, req *eventsv1.DeleteEventRequest, _ 
 	if err != nil {
 		return nil, err
 	}
-	return &eventsv1.DeleteEventResponse{Id: req.GetId()}, nil
+	return &eventsv1.DeleteResponse{Id: req.GetId()}, nil
 }
 
-func (n *local) List(ctx context.Context, req *eventsv1.ListEventRequest, _ ...grpc.CallOption) (*eventsv1.ListEventResponse, error) {
+func (n *local) List(ctx context.Context, req *eventsv1.ListRequest, _ ...grpc.CallOption) (*eventsv1.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "event.List")
 	defer span.End()
 
@@ -63,7 +63,7 @@ func (n *local) List(ctx context.Context, req *eventsv1.ListEventRequest, _ ...g
 		return nil, err
 	}
 
-	return &eventsv1.ListEventResponse{Events: l}, nil
+	return &eventsv1.ListResponse{Events: l}, nil
 }
 
 // Publish implements events.EventServiceClient.

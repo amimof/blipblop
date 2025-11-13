@@ -32,7 +32,7 @@ var _ = utilities.NewDoubleArray
 var _ = metadata.Join
 
 func request_ContainerSetService_Get_0(ctx context.Context, marshaler runtime.Marshaler, client ContainerSetServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq GetContainerSetRequest
+	var protoReq GetRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -58,7 +58,7 @@ func request_ContainerSetService_Get_0(ctx context.Context, marshaler runtime.Ma
 }
 
 func local_request_ContainerSetService_Get_0(ctx context.Context, marshaler runtime.Marshaler, server ContainerSetServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq GetContainerSetRequest
+	var protoReq GetRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -88,7 +88,7 @@ var (
 )
 
 func request_ContainerSetService_List_0(ctx context.Context, marshaler runtime.Marshaler, client ContainerSetServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ListContainerSetRequest
+	var protoReq ListRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
@@ -104,7 +104,7 @@ func request_ContainerSetService_List_0(ctx context.Context, marshaler runtime.M
 }
 
 func local_request_ContainerSetService_List_0(ctx context.Context, marshaler runtime.Marshaler, server ContainerSetServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ListContainerSetRequest
+	var protoReq ListRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
@@ -120,7 +120,7 @@ func local_request_ContainerSetService_List_0(ctx context.Context, marshaler run
 }
 
 func request_ContainerSetService_Create_0(ctx context.Context, marshaler runtime.Marshaler, client ContainerSetServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq CreateContainerSetRequest
+	var protoReq CreateRequest
 	var metadata runtime.ServerMetadata
 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.ContainerSet); err != nil && err != io.EOF {
@@ -133,7 +133,7 @@ func request_ContainerSetService_Create_0(ctx context.Context, marshaler runtime
 }
 
 func local_request_ContainerSetService_Create_0(ctx context.Context, marshaler runtime.Marshaler, server ContainerSetServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq CreateContainerSetRequest
+	var protoReq CreateRequest
 	var metadata runtime.ServerMetadata
 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.ContainerSet); err != nil && err != io.EOF {
@@ -150,7 +150,7 @@ var (
 )
 
 func request_ContainerSetService_Update_0(ctx context.Context, marshaler runtime.Marshaler, client ContainerSetServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq UpdateContainerSetRequest
+	var protoReq UpdateRequest
 	var metadata runtime.ServerMetadata
 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.ContainerSet); err != nil && err != io.EOF {
@@ -187,7 +187,7 @@ func request_ContainerSetService_Update_0(ctx context.Context, marshaler runtime
 }
 
 func local_request_ContainerSetService_Update_0(ctx context.Context, marshaler runtime.Marshaler, server ContainerSetServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq UpdateContainerSetRequest
+	var protoReq UpdateRequest
 	var metadata runtime.ServerMetadata
 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq.ContainerSet); err != nil && err != io.EOF {
@@ -228,7 +228,7 @@ var (
 )
 
 func request_ContainerSetService_Update_1(ctx context.Context, marshaler runtime.Marshaler, client ContainerSetServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq UpdateContainerSetRequest
+	var protoReq UpdateRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -276,7 +276,7 @@ func request_ContainerSetService_Update_1(ctx context.Context, marshaler runtime
 }
 
 func local_request_ContainerSetService_Update_1(ctx context.Context, marshaler runtime.Marshaler, server ContainerSetServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq UpdateContainerSetRequest
+	var protoReq UpdateRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -324,7 +324,7 @@ func local_request_ContainerSetService_Update_1(ctx context.Context, marshaler r
 }
 
 func request_ContainerSetService_Delete_0(ctx context.Context, marshaler runtime.Marshaler, client ContainerSetServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq DeleteContainerSetRequest
+	var protoReq DeleteRequest
 	var metadata runtime.ServerMetadata
 
 	var (
@@ -350,7 +350,7 @@ func request_ContainerSetService_Delete_0(ctx context.Context, marshaler runtime
 }
 
 func local_request_ContainerSetService_Delete_0(ctx context.Context, marshaler runtime.Marshaler, server ContainerSetServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq DeleteContainerSetRequest
+	var protoReq DeleteRequest
 	var metadata runtime.ServerMetadata
 
 	var (

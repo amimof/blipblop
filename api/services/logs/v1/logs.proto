@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package blipblop.services.logs.v1;
+package services.logs.v1;
 
 option go_package = "github.com/amimof/blipblop/api/services/logs/v1;logs";
 
@@ -46,4 +46,3 @@ message LogItem {
 //   string logLine = 1;
 //   string timestamp = 2;
 // }
-

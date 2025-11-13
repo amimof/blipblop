@@ -30,7 +30,7 @@ func (c *ClientV1) EventService() eventsv1.EventServiceClient {
 }
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*eventsv1.Event, error) {
-	resp, err := c.eventService.Get(ctx, &eventsv1.GetEventRequest{Id: id})
+	resp, err := c.eventService.Get(ctx, &eventsv1.GetRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*eventsv1.Event, error) 
 
 func (c *ClientV1) List(ctx context.Context, filter ...labels.Label) ([]*eventsv1.Event, error) {
 	l := util.MergeLabels(filter...)
-	resp, err := c.eventService.List(ctx, &eventsv1.ListEventRequest{Selector: l})
+	resp, err := c.eventService.List(ctx, &eventsv1.ListRequest{Selector: l})
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (c *ClientV1) List(ctx context.Context, filter ...labels.Label) ([]*eventsv
 }
 
 func (c *ClientV1) Create(ctx context.Context, e *eventsv1.Event) (*eventsv1.Event, error) {
-	resp, err := c.eventService.Create(ctx, &eventsv1.CreateEventRequest{Event: e})
+	resp, err := c.eventService.Create(ctx, &eventsv1.CreateRequest{Event: e})
 	if err != nil {
 		return nil, err
 	}

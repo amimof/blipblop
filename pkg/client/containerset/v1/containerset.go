@@ -42,7 +42,7 @@ func (g *Response[T]) Object() (T, error) {
 
 func (c *ClientV1) Create(ctx context.Context, ctr *containersetsv1.ContainerSet) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.containerService.Create(ctx, &containersetsv1.CreateContainerSetRequest{ContainerSet: ctr})
+	_, err := c.containerService.Create(ctx, &containersetsv1.CreateRequest{ContainerSet: ctr})
 	if err != nil {
 		return err
 	}
@@ -51,7 +51,7 @@ func (c *ClientV1) Create(ctx context.Context, ctr *containersetsv1.ContainerSet
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*containersetsv1.ContainerSet, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	res, err := c.containerService.Get(ctx, &containersetsv1.GetContainerSetRequest{Id: id})
+	res, err := c.containerService.Get(ctx, &containersetsv1.GetRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*containersetsv1.Contain
 
 func (c *ClientV1) List(ctx context.Context) ([]*containersetsv1.ContainerSet, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	res, err := c.containerService.List(ctx, &containersetsv1.ListContainerSetRequest{Selector: labels.New()})
+	res, err := c.containerService.List(ctx, &containersetsv1.ListRequest{Selector: labels.New()})
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (c *ClientV1) List(ctx context.Context) ([]*containersetsv1.ContainerSet, e
 
 func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.containerService.Delete(ctx, &containersetsv1.DeleteContainerSetRequest{Id: id})
+	_, err := c.containerService.Delete(ctx, &containersetsv1.DeleteRequest{Id: id})
 	if err != nil {
 		return err
 	}

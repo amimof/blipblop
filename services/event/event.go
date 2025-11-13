@@ -36,19 +36,19 @@ type EventService struct {
 	exchange *events.Exchange
 }
 
-func (n *EventService) Create(ctx context.Context, req *eventsv1.CreateEventRequest) (*eventsv1.CreateEventResponse, error) {
+func (n *EventService) Create(ctx context.Context, req *eventsv1.CreateRequest) (*eventsv1.CreateResponse, error) {
 	return n.local.Create(ctx, req)
 }
 
-func (n *EventService) Get(ctx context.Context, req *eventsv1.GetEventRequest) (*eventsv1.GetEventResponse, error) {
+func (n *EventService) Get(ctx context.Context, req *eventsv1.GetRequest) (*eventsv1.GetResponse, error) {
 	return n.local.Get(ctx, req)
 }
 
-func (n *EventService) Delete(ctx context.Context, req *eventsv1.DeleteEventRequest) (*eventsv1.DeleteEventResponse, error) {
+func (n *EventService) Delete(ctx context.Context, req *eventsv1.DeleteRequest) (*eventsv1.DeleteResponse, error) {
 	return n.local.Delete(ctx, req)
 }
 
-func (n *EventService) List(ctx context.Context, req *eventsv1.ListEventRequest) (*eventsv1.ListEventResponse, error) {
+func (n *EventService) List(ctx context.Context, req *eventsv1.ListRequest) (*eventsv1.ListResponse, error) {
 	return n.local.List(ctx, req)
 }
 
@@ -106,7 +106,7 @@ func (s *EventService) Publish(ctx context.Context, req *eventsv1.PublishRequest
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.local.Create(ctx, &eventsv1.CreateEventRequest{Event: req.GetEvent()})
+	res, err := s.local.Create(ctx, &eventsv1.CreateRequest{Event: req.GetEvent()})
 	if err != nil {
 		return nil, err
 	}

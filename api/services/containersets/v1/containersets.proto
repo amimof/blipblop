@@ -13,19 +13,19 @@ import "validate/validate.proto";
 option go_package = "github.com/amimof/blipblop/api/services/containersets/v1;containersets";
 
 service ContainerSetService {
-  rpc Get(GetContainerSetRequest) returns (GetContainerSetResponse) {
+  rpc Get(GetRequest) returns (GetResponse) {
     option (google.api.http) = {get: "/api/v1/containersets/{id}"};
   }
-  rpc List(ListContainerSetRequest) returns (ListContainerSetResponse) {
+  rpc List(ListRequest) returns (ListResponse) {
     option (google.api.http) = {get: "/api/v1/containersets"};
   }
-  rpc Create(CreateContainerSetRequest) returns (CreateContainerSetResponse) {
+  rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
       post: "/api/v1/containers"
       body: "containerSet"
     };
   }
-  rpc Update(UpdateContainerSetRequest) returns (UpdateContainerSetResponse) {
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
       put: "/api/v1/containers/{containerSet.meta.name}"
       body: "containerSet"
@@ -35,7 +35,7 @@ service ContainerSetService {
       }
     };
   }
-  rpc Delete(DeleteContainerSetRequest) returns (DeleteContainerSetResponse) {
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {
     option (google.api.http) = {delete: "/api/v1/containersets/{id}"};
   }
 }
@@ -45,44 +45,44 @@ message ContainerSet {
   services.containers.v1.Config template = 2 [(validate.rules).message.required = true];
 }
 
-message GetContainerSetRequest {
+message GetRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message GetContainerSetResponse {
+message GetResponse {
   ContainerSet containerSet = 1;
 }
 
-message CreateContainerSetRequest {
+message CreateRequest {
   ContainerSet containerSet = 1 [(validate.rules).message.required = true];
 }
 
-message CreateContainerSetResponse {
+message CreateResponse {
   ContainerSet containerSet = 1;
 }
 
-message UpdateContainerSetRequest {
+message UpdateRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
   ContainerSet containerSet = 2;
   google.protobuf.FieldMask update_mask = 3;
 }
 
-message UpdateContainerSetResponse {
+message UpdateResponse {
   ContainerSet containerSet = 1;
 }
 
-message DeleteContainerSetRequest {
+message DeleteRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message DeleteContainerSetResponse {
+message DeleteResponse {
   string id = 1;
 }
 
-message ListContainerSetRequest {
+message ListRequest {
   map<string, string> selector = 1;
 }
 
-message ListContainerSetResponse {
+message ListResponse {
   repeated ContainerSet containerSets = 1;
 }

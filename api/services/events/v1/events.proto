@@ -10,10 +10,10 @@ import "validate/validate.proto";
 option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
 
 service EventService {
-  rpc Get(GetEventRequest) returns (GetEventResponse) {}
-  rpc List(ListEventRequest) returns (ListEventResponse) {}
-  rpc Delete(DeleteEventRequest) returns (DeleteEventResponse) {}
-  rpc Create(CreateEventRequest) returns (CreateEventResponse) {}
+  rpc Get(GetRequest) returns (GetResponse) {}
+  rpc List(ListRequest) returns (ListResponse) {}
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+  rpc Create(CreateRequest) returns (CreateResponse) {}
   rpc Subscribe(SubscribeRequest) returns (stream Event) {}
   rpc Publish(PublishRequest) returns (PublishResponse) {}
 }
@@ -74,35 +74,35 @@ enum Operation {
   Watch = 6;
 }
 
-message GetEventRequest {
+message GetRequest {
   string id = 1;
 }
 
-message GetEventResponse {
+message GetResponse {
   Event event = 1;
 }
 
-message ListEventRequest {
+message ListRequest {
   map<string, string> selector = 1;
 }
 
-message ListEventResponse {
+message ListResponse {
   repeated Event events = 1;
 }
 
-message DeleteEventRequest {
+message DeleteRequest {
   string id = 1;
 }
 
-message DeleteEventResponse {
+message DeleteResponse {
   string id = 1;
 }
 
-message CreateEventRequest {
+message CreateRequest {
   Event event = 1;
 }
 
-message CreateEventResponse {
+message CreateResponse {
   Event event = 1 [(validate.rules).message.required = true];
 }
 
