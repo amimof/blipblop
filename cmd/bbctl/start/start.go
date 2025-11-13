@@ -1,3 +1,4 @@
+// Package start provides ability to start resources
 package start
 
 import (

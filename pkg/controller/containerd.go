@@ -131,13 +131,17 @@ func (c *ContainerdController) streamEvents(ctx context.Context) error {
 		case err := <-errCh:
 			return err
 		case <-ctx.Done():
-			c.client.Close()
-			c.clientset.Close()
+			if err := c.client.Close(); err != nil {
+				c.logger.Error("error closing runtime client connection", "error", err)
+			}
+			if err := c.clientset.Close(); err != nil {
+				c.logger.Error("error closing clientset connection", "error", err)
+			}
 		}
 	}
 }
 
-func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
+func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj any) {
 	switch t := obj.(type) {
 	case *events.TaskExit:
 		if handlers.OnTaskExit != nil {

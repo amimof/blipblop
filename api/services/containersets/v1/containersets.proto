@@ -4,9 +4,7 @@ package services.containersets.v1;
 
 import "google/api/annotations.proto";
 import "google/protobuf/field_mask.proto";
-import "google/protobuf/timestamp.proto";
 import "services/containers/v1/containers.proto";
-import "services/events/v1/events.proto";
 import "types/v1/meta.proto";
 import "validate/validate.proto";
 

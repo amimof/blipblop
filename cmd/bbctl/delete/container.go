@@ -37,7 +37,11 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Errorf("error closing client: %v", err)
+				}
+			}()
 
 			for _, cname := range args {
 				fmt.Printf("Requested to delete container %s\n", cname)

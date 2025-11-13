@@ -176,11 +176,17 @@ func Test_ContainerService_Status(t *testing.T) {
 	defer server.Stop()
 
 	ctx := context.Background()
+
+	//nolint:staticcheck
 	conn, err := grpc.Dial("bufnet", grpc.WithContextDialer(bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to dial bufnet: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("error closing connection: %v", err)
+		}
+	}()
 
 	client := containersv1.NewContainerServiceClient(conn)
 	if err := initDB(ctx, client); err != nil {
@@ -236,11 +242,17 @@ func Test_ContainerService_Equal(t *testing.T) {
 	defer server.Stop()
 
 	ctx := context.Background()
+
+	//nolint:staticcheck
 	conn, err := grpc.Dial("bufnet", grpc.WithContextDialer(bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to dial bufnet: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("error closing connection: %v", err)
+		}
+	}()
 
 	client := containersv1.NewContainerServiceClient(conn)
 	if err := initDB(ctx, client); err != nil {
@@ -332,11 +344,17 @@ func Test_ContainerService_Patch(t *testing.T) {
 	defer server.Stop()
 
 	ctx := context.Background()
+
+	//nolint:staticcheck
 	conn, err := grpc.Dial("bufnet", grpc.WithContextDialer(bufDialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to dial bufnet: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Fatalf("error closing connection: %v", err)
+		}
+	}()
 
 	client := containersv1.NewContainerServiceClient(conn)
 	if err := initDB(ctx, client); err != nil {

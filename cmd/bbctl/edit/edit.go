@@ -1,3 +1,4 @@
+// Package edit provides ability to edit resources from the server
 package edit
 
 import (

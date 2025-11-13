@@ -1,3 +1,4 @@
+// Package get provides ability to get resources from the server
 package get
 
 import (

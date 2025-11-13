@@ -1,3 +1,4 @@
+// Package run provides ability to run resources
 package run
 
 import (
@@ -52,7 +53,11 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Errorf("error closing client: %v", err)
+				}
+			}()
 
 			// Setup ports
 			var cports []*containers.PortMapping

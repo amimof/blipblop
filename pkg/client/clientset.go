@@ -29,7 +29,7 @@ var DefaultTLSConfig = &tls.Config{
 
 type NewClientOption func(c *ClientSet) error
 
-func WithClientId(id string) NewClientOption {
+func WithClientID(id string) NewClientOption {
 	return func(c *ClientSet) error {
 		c.clientId = id
 		return nil
@@ -162,11 +162,11 @@ func (c *ClientSet) Connect() {
 func (c *ClientSet) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// err := c.NodeV1().Forget(context.Background(), c.name)
-	// if err != nil {
-	// 	return err
-	// }
-	c.conn.Close()
+	defer func() {
+		if err := c.conn.Close(); err != nil {
+			c.logger.Error("error closing connection", "error", err)
+		}
+	}()
 	return nil
 }
 

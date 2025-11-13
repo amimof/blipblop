@@ -1,3 +1,4 @@
+// Package stop provides ability to stop resources
 package stop
 
 import (

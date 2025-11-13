@@ -147,11 +147,6 @@ func WithDefaultCNIConf(s string) CNIManagerOpts {
 	}
 }
 
-// netID generates the network IF based on task name and task PID
-func (c *CNIManager) netID(id string, pid uint32) string {
-	return fmt.Sprintf("%s-%d", id, pid)
-}
-
 // netNamespace generates the namespace path based on task PID.
 func (c *CNIManager) netNamespace(pid uint32) string {
 	return fmt.Sprintf(c.NetNSPathFmt, pid)
@@ -214,7 +209,10 @@ func (c *CNIManager) GetIPAddress(id string) (net.IP, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		//nolint:errcheck
 		defer f.Close()
+
 		reader := bufio.NewReader(f)
 		content, err := reader.ReadString('\n')
 		if err != nil {

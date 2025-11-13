@@ -417,7 +417,11 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	if err != nil {
 		return err
 	}
-	defer con.Close()
+	defer func() {
+		if err := con.Close(); err != nil {
+			c.logger.Error("error closing connection", "error", err)
+		}
+	}()
 
 	dummyReader, _, err := os.Pipe()
 	if err != nil {

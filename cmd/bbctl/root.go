@@ -1,3 +1,4 @@
+// Package cmd provides command line capabilities to build cli tool
 package cmd
 
 import (

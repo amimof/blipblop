@@ -1,3 +1,4 @@
+// Package server provides types that creates and runs server instances
 package server
 
 import (

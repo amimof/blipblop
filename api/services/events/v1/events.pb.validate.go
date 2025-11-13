@@ -383,7 +383,7 @@ func (m *ScheduleRequest) validate(all bool) error {
 		}
 	}
 
-	// no validation rules for EventType
+	// no validation rules for EventTydjje
 
 	if len(errors) > 0 {
 		return ScheduleRequestMultiError(errors)

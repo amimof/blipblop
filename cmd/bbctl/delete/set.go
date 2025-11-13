@@ -1,3 +1,4 @@
+// Package delete provides ability to delete resources from the server
 package delete
 
 import (
@@ -32,7 +33,11 @@ func NewCmdDeleteContainerSet(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Errorf("error closing client: %v", err)
+				}
+			}()
 
 			for _, cname := range args {
 

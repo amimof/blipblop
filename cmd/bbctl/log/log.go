@@ -1,3 +1,4 @@
+// Package log provides ability to log resources from the server
 package log
 
 import (
@@ -30,9 +31,9 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clientId := uuid.New().String()
+			clientID := uuid.New().String()
 			ctx, cancel := context.WithCancel(context.Background())
-			ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", clientId)
+			ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", clientID)
 			defer cancel()
 
 			// Setup client
@@ -40,15 +41,19 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Errorf("error closing client: %v", err)
+				}
+			}()
 
 			// Setup signal handlers
 			exit := make(chan os.Signal, 1)
 			signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 			// We need to know which node the container is scheduled on
-			containerId := args[0]
-			ctr, err := c.ContainerV1().Get(ctx, containerId)
+			containerID := args[0]
+			ctr, err := c.ContainerV1().Get(ctx, containerID)
 			if err != nil {
 				return err
 			}
@@ -80,7 +85,7 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 					case e := <-errChan:
 						fmt.Printf("error %v\n", e)
 					default:
-						err = c.LogV1().StreamLogs(ctx, &logs.SubscribeRequest{NodeId: ctr.GetStatus().GetNode().String(), ContainerId: ctr.GetMeta().GetName(), ClientId: clientId}, logChan, errChan)
+						err = c.LogV1().StreamLogs(ctx, &logs.SubscribeRequest{NodeId: ctr.GetStatus().GetNode().String(), ContainerId: ctr.GetMeta().GetName(), ClientId: clientID}, logChan, errChan)
 						if err != nil {
 							fmt.Println("Error streaming", err)
 							return

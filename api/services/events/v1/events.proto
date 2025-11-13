@@ -3,7 +3,6 @@ syntax = "proto3";
 package services.events.v1;
 
 import "google/protobuf/any.proto";
-import "google/protobuf/timestamp.proto";
 import "types/v1/meta.proto";
 import "validate/validate.proto";
 
@@ -19,7 +18,7 @@ service EventService {
 }
 
 message SubscribeRequest {
-  string clientId = 1;
+  string client_id = 1;
 
   // TODO: This is just a placeholder.
   // Implement something to allow clients to filter which events to listen for using selector
@@ -28,8 +27,8 @@ message SubscribeRequest {
 
 message Event {
   types.v1.Meta meta = 1;
-  string objectId = 4;
-  string clientId = 5;
+  string object_id = 4;
+  string client_id = 5;
   EventType type = 6;
   Operation operation = 7;
   google.protobuf.Any object = 8;
@@ -38,7 +37,7 @@ message Event {
 message ScheduleRequest {
   google.protobuf.Any container = 1;
   google.protobuf.Any node = 2;
-  EventType eventType = 3;
+  EventType event_tydjje = 3;
 }
 
 enum EventType {
