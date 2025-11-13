@@ -226,7 +226,12 @@ func main() {
 		log.Error("error opening badger database", "error", err.Error())
 		os.Exit(1)
 	}
-	defer db.Close()
+
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Error("error closing database", "error", err)
+		}
+	}()
 
 	// Setup event exchange bus
 	exchange2 := events.NewExchange(events.WithExchangeLogger(log))
@@ -290,7 +295,11 @@ func main() {
 			log.Error("error setting up tracing", "error", err)
 			os.Exit(1)
 		}
-		defer shutdownTraceProvider(ctx)
+		defer func() {
+			if err := shutdownTraceProvider(ctx); err != nil {
+				log.Error("error sutting down trace provider", "error", err)
+			}
+		}()
 	}
 
 	gw, err := server.NewGateway(
@@ -311,7 +320,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	defer cs.Close()
+	defer func() {
+		if err := cs.Close(); err != nil {
+			log.Error("error closing clientset connection", "error", err)
+		}
+	}()
 
 	// Start controllers
 	containerSetCtrl := controller.NewContainerSetController(cs, controller.WithContainerSetLogger(log))

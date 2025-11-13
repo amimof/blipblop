@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api/services/events/v1/events.proto",
+    "title": "services/events/v1/events.proto",
     "version": "version not set"
   },
   "tags": [

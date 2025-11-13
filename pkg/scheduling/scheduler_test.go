@@ -23,7 +23,7 @@ type want struct {
 	call   *gomock.Call
 }
 
-var testNodes = &nodesv1.ListNodeResponse{
+var testNodes = &nodesv1.ListResponse{
 	Nodes: []*nodesv1.Node{
 		{
 			Meta: &types.Meta{
@@ -202,7 +202,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 		},
 		"ListContainers": {
 			call: containerMockClient.EXPECT().List(gomock.Any(), gomock.Any()).AnyTimes(),
-			expect: &containersv1.ListContainerResponse{
+			expect: &containersv1.ListResponse{
 				Containers: testContainers,
 			},
 		},

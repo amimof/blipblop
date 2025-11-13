@@ -33,9 +33,9 @@ func WithClient(client containers.ContainerServiceClient) CreateOption {
 
 type ClientV1 interface {
 	Status() StatusClientV1
-	Kill(context.Context, string) (*containers.KillContainerResponse, error)
-	Stop(context.Context, string) (*containers.KillContainerResponse, error)
-	Start(context.Context, string) (*containers.StartContainerResponse, error)
+	Kill(context.Context, string) (*containers.KillResponse, error)
+	Stop(context.Context, string) (*containers.KillResponse, error)
+	Start(context.Context, string) (*containers.StartResponse, error)
 	Create(context.Context, *containers.Container, ...CreateOption) error
 	Update(context.Context, string, *containers.Container) error
 	Patch(context.Context, string, *containers.Container) error
@@ -58,13 +58,13 @@ type statusV1 struct {
 	client containers.ContainerServiceClient
 }
 
-func (s *clientV1) Status() StatusClientV1 {
+func (c *clientV1) Status() StatusClientV1 {
 	return &statusV1{
-		client: s.Client,
+		client: c.Client,
 	}
 }
 
-func (s *statusV1) Update(ctx context.Context, id string, status *containers.Status, path ...string) error {
+func (c *statusV1) Update(ctx context.Context, id string, status *containers.Status, path ...string) error {
 	// Construct field mask
 	mask := &fieldmaskpb.FieldMask{
 		Paths: path,
@@ -76,7 +76,7 @@ func (s *statusV1) Update(ctx context.Context, id string, status *containers.Sta
 		Status:     status,
 	}
 
-	_, err := s.client.UpdateStatus(ctx, req)
+	_, err := c.client.UpdateStatus(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -84,39 +84,39 @@ func (s *statusV1) Update(ctx context.Context, id string, status *containers.Sta
 	return nil
 }
 
-func (c *clientV1) Kill(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
+func (c *clientV1) Kill(ctx context.Context, id string) (*containers.KillResponse, error) {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Kill")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.Client.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: true})
+	resp, err := c.Client.Kill(ctx, &containers.KillRequest{Id: id, ForceKill: true})
 	if err != nil {
 		return nil, err
 	}
 	return resp, err
 }
 
-func (c *clientV1) Stop(ctx context.Context, id string) (*containers.KillContainerResponse, error) {
+func (c *clientV1) Stop(ctx context.Context, id string) (*containers.KillResponse, error) {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Start")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.Client.Kill(ctx, &containers.KillContainerRequest{Id: id, ForceKill: false})
+	resp, err := c.Client.Kill(ctx, &containers.KillRequest{Id: id, ForceKill: false})
 	if err != nil {
 		return nil, err
 	}
 	return resp, err
 }
 
-func (c *clientV1) Start(ctx context.Context, id string) (*containers.StartContainerResponse, error) {
+func (c *clientV1) Start(ctx context.Context, id string) (*containers.StartResponse, error) {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Start")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	resp, err := c.Client.Start(ctx, &containers.StartContainerRequest{Id: id})
+	resp, err := c.Client.Start(ctx, &containers.StartRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 		opt(c)
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.Client.Create(ctx, &containers.CreateContainerRequest{Container: ctr})
+	_, err := c.Client.Create(ctx, &containers.CreateRequest{Container: ctr})
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *containers.Contai
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.Client.Update(ctx, &containers.UpdateContainerRequest{Id: id, Container: ctr})
+	_, err := c.Client.Update(ctx, &containers.UpdateRequest{Id: id, Container: ctr})
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *containers.Contain
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
-	_, err := c.Client.Patch(ctx, &containers.UpdateContainerRequest{Id: id, Container: ctr})
+	_, err := c.Client.Patch(ctx, &containers.PatchRequest{Id: id, Container: ctr})
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*containers.Container, e
 	ctx, span := tracer.Start(ctx, "client.container.Get")
 	defer span.End()
 
-	res, err := c.Client.Get(ctx, &containers.GetContainerRequest{Id: id})
+	res, err := c.Client.Get(ctx, &containers.GetRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*containers.C
 	defer span.End()
 
 	mergedLabels := util.MergeLabels(l...)
-	res, err := c.Client.List(ctx, &containers.ListContainerRequest{Selector: mergedLabels})
+	res, err := c.Client.List(ctx, &containers.ListRequest{Selector: mergedLabels})
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx, span := tracer.Start(ctx, "client.container.Delete")
 
 	defer span.End()
-	_, err := c.Client.Delete(ctx, &containers.DeleteContainerRequest{Id: id})
+	_, err := c.Client.Delete(ctx, &containers.DeleteRequest{Id: id})
 	if err != nil {
 		return err
 	}

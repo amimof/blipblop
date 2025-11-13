@@ -1,3 +1,4 @@
+// Package node represents the implementation of the node service
 package node
 
 import (
@@ -50,23 +51,23 @@ func (n *NodeService) Register(server *grpc.Server) error {
 	return nil
 }
 
-func (n *NodeService) Get(ctx context.Context, req *nodesv1.GetNodeRequest) (*nodesv1.GetNodeResponse, error) {
+func (n *NodeService) Get(ctx context.Context, req *nodesv1.GetRequest) (*nodesv1.GetResponse, error) {
 	return n.local.Get(ctx, req)
 }
 
-func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateNodeRequest) (*nodesv1.CreateNodeResponse, error) {
+func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateRequest) (*nodesv1.CreateResponse, error) {
 	return n.local.Create(ctx, req)
 }
 
-func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteNodeRequest) (*nodesv1.DeleteNodeResponse, error) {
+func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteRequest) (*nodesv1.DeleteResponse, error) {
 	return n.local.Delete(ctx, req)
 }
 
-func (n *NodeService) List(ctx context.Context, req *nodesv1.ListNodeRequest) (*nodesv1.ListNodeResponse, error) {
+func (n *NodeService) List(ctx context.Context, req *nodesv1.ListRequest) (*nodesv1.ListResponse, error) {
 	return n.local.List(ctx, req)
 }
 
-func (n *NodeService) Update(ctx context.Context, req *nodesv1.UpdateNodeRequest) (*nodesv1.UpdateNodeResponse, error) {
+func (n *NodeService) Update(ctx context.Context, req *nodesv1.UpdateRequest) (*nodesv1.UpdateResponse, error) {
 	return n.local.Update(ctx, req)
 }
 
@@ -98,7 +99,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	}
 
 	// Check if node is joined to cluster prior to connecting
-	res, err := n.Get(ctx, &nodesv1.GetNodeRequest{Id: nodeName})
+	res, err := n.Get(ctx, &nodesv1.GetRequest{Id: nodeName})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return errors.Join(fmt.Errorf("node %s not found", nodeName), err)

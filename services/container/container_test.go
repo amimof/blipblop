@@ -90,7 +90,7 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 	for i := 1; i < 10; i++ {
 		ctr := &baseContainer
 		ctr.Meta.Name = fmt.Sprintf("test-container-%d", i)
-		_, err := c.Create(ctx, &containersv1.CreateContainerRequest{Container: ctr})
+		_, err := c.Create(ctx, &containersv1.CreateRequest{Container: ctr})
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 	}
 
 	// Create bare bone container so test nilness
-	_, err := c.Create(ctx, &containersv1.CreateContainerRequest{Container: bareBoneContainer})
+	_, err := c.Create(ctx, &containersv1.CreateRequest{Container: bareBoneContainer})
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func Test_ContainerService_Status(t *testing.T) {
 
 			expectedVal := protoreflect.ValueOfMessage(tt.expect.ProtoReflect())
 
-			updated, err := client.Get(ctx, &containersv1.GetContainerRequest{Id: tt.containerID})
+			updated, err := client.Get(ctx, &containersv1.GetRequest{Id: tt.containerID})
 			if err != nil {
 				t.Fatal("error getting container", err)
 			}
@@ -311,7 +311,7 @@ func Test_ContainerService_Equal(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &containersv1.UpdateContainerRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
+			req := &containersv1.PatchRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
 			res, err := client.Patch(ctx, req)
 			if err != nil {
 				t.Fatal("error updating container", err)
@@ -807,7 +807,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 	// Run tests
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &containersv1.UpdateContainerRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
+			req := &containersv1.PatchRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
 			res, err := client.Patch(ctx, req)
 			if err != nil {
 				t.Fatal("error updating container", err)

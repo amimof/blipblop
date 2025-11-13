@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api/services/containersets/v1/containersets.proto",
+    "title": "services/containersets/v1/containersets.proto",
     "version": "version not set"
   },
   "tags": [
@@ -482,7 +482,7 @@
         "protocol": {
           "type": "string"
         },
-        "hostIP": {
+        "hostIp": {
           "type": "string"
         }
       }

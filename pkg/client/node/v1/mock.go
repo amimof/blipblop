@@ -63,14 +63,14 @@ func (mr *MockNodeServiceClientMockRecorder) Connect(ctx any, opts ...any) *gomo
 }
 
 // Create mocks base method.
-func (m *MockNodeServiceClient) Create(ctx context.Context, in *nodes.CreateNodeRequest, opts ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
+func (m *MockNodeServiceClient) Create(ctx context.Context, in *nodes.CreateRequest, opts ...grpc.CallOption) (*nodes.CreateResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Create", varargs...)
-	ret0, _ := ret[0].(*nodes.CreateNodeResponse)
+	ret0, _ := ret[0].(*nodes.CreateResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -83,14 +83,14 @@ func (mr *MockNodeServiceClientMockRecorder) Create(ctx, in any, opts ...any) *g
 }
 
 // Delete mocks base method.
-func (m *MockNodeServiceClient) Delete(ctx context.Context, in *nodes.DeleteNodeRequest, opts ...grpc.CallOption) (*nodes.DeleteNodeResponse, error) {
+func (m *MockNodeServiceClient) Delete(ctx context.Context, in *nodes.DeleteRequest, opts ...grpc.CallOption) (*nodes.DeleteResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
-	ret0, _ := ret[0].(*nodes.DeleteNodeResponse)
+	ret0, _ := ret[0].(*nodes.DeleteResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -123,14 +123,14 @@ func (mr *MockNodeServiceClientMockRecorder) Forget(ctx, in any, opts ...any) *g
 }
 
 // Get mocks base method.
-func (m *MockNodeServiceClient) Get(ctx context.Context, in *nodes.GetNodeRequest, opts ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
+func (m *MockNodeServiceClient) Get(ctx context.Context, in *nodes.GetRequest, opts ...grpc.CallOption) (*nodes.GetResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Get", varargs...)
-	ret0, _ := ret[0].(*nodes.GetNodeResponse)
+	ret0, _ := ret[0].(*nodes.GetResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -163,14 +163,14 @@ func (mr *MockNodeServiceClientMockRecorder) Join(ctx, in any, opts ...any) *gom
 }
 
 // List mocks base method.
-func (m *MockNodeServiceClient) List(ctx context.Context, in *nodes.ListNodeRequest, opts ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
+func (m *MockNodeServiceClient) List(ctx context.Context, in *nodes.ListRequest, opts ...grpc.CallOption) (*nodes.ListResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "List", varargs...)
-	ret0, _ := ret[0].(*nodes.ListNodeResponse)
+	ret0, _ := ret[0].(*nodes.ListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -183,14 +183,14 @@ func (mr *MockNodeServiceClientMockRecorder) List(ctx, in any, opts ...any) *gom
 }
 
 // Update mocks base method.
-func (m *MockNodeServiceClient) Update(ctx context.Context, in *nodes.UpdateNodeRequest, opts ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
+func (m *MockNodeServiceClient) Update(ctx context.Context, in *nodes.UpdateRequest, opts ...grpc.CallOption) (*nodes.UpdateResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Update", varargs...)
-	ret0, _ := ret[0].(*nodes.UpdateNodeResponse)
+	ret0, _ := ret[0].(*nodes.UpdateResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

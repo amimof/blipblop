@@ -114,7 +114,7 @@ func merge(base, patch *containers.Container) *containers.Container {
 	return merged
 }
 
-func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ ...grpc.CallOption) (*containers.GetContainerResponse, error) {
+func (l *local) Get(ctx context.Context, req *containers.GetRequest, _ ...grpc.CallOption) (*containers.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Get", trace.WithSpanKind(trace.SpanKindServer))
 	span.SetAttributes(
 		attribute.String("service", "Container"),
@@ -138,12 +138,12 @@ func (l *local) Get(ctx context.Context, req *containers.GetContainerRequest, _ 
 
 	span.SetAttributes(attribute.String("container.name", container.GetMeta().GetName()))
 
-	return &containers.GetContainerResponse{
+	return &containers.GetResponse{
 		Container: container,
 	}, nil
 }
 
-func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, _ ...grpc.CallOption) (*containers.ListContainerResponse, error) {
+func (l *local) List(ctx context.Context, req *containers.ListRequest, _ ...grpc.CallOption) (*containers.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.List")
 	defer span.End()
 
@@ -158,12 +158,12 @@ func (l *local) List(ctx context.Context, req *containers.ListContainerRequest, 
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
 	}
-	return &containers.ListContainerResponse{
+	return &containers.ListResponse{
 		Containers: ctrs,
 	}, nil
 }
 
-func (l *local) Create(ctx context.Context, req *containers.CreateContainerRequest, _ ...grpc.CallOption) (*containers.CreateContainerResponse, error) {
+func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...grpc.CallOption) (*containers.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Create")
 	defer span.End()
 
@@ -184,7 +184,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 	containerID := container.GetMeta().GetName()
 
 	// Chec if container already exists
-	if existing, _ := l.Get(ctx, &containers.GetContainerRequest{Id: containerID}); existing != nil {
+	if existing, _ := l.Get(ctx, &containers.GetRequest{Id: containerID}); existing != nil {
 		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
 	}
 
@@ -206,14 +206,14 @@ func (l *local) Create(ctx context.Context, req *containers.CreateContainerReque
 		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "ContainerCreate")
 	}
 
-	return &containers.CreateContainerResponse{
+	return &containers.CreateResponse{
 		Container: container,
 	}, nil
 }
 
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
-func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerRequest, _ ...grpc.CallOption) (*containers.DeleteContainerResponse, error) {
+func (l *local) Delete(ctx context.Context, req *containers.DeleteRequest, _ ...grpc.CallOption) (*containers.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Delete")
 	defer span.End()
 
@@ -230,12 +230,12 @@ func (l *local) Delete(ctx context.Context, req *containers.DeleteContainerReque
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "ContainerDelete")
 	}
-	return &containers.DeleteContainerResponse{
+	return &containers.DeleteResponse{
 		Id: req.GetId(),
 	}, nil
 }
 
-func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, _ ...grpc.CallOption) (*containers.KillContainerResponse, error) {
+func (l *local) Kill(ctx context.Context, req *containers.KillRequest, _ ...grpc.CallOption) (*containers.KillResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Kill")
 	defer span.End()
 
@@ -253,12 +253,12 @@ func (l *local) Kill(ctx context.Context, req *containers.KillContainerRequest, 
 	if err != nil {
 		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
 	}
-	return &containers.KillContainerResponse{
+	return &containers.KillResponse{
 		Id: req.GetId(),
 	}, nil
 }
 
-func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest, _ ...grpc.CallOption) (*containers.StartContainerResponse, error) {
+func (l *local) Start(ctx context.Context, req *containers.StartRequest, _ ...grpc.CallOption) (*containers.StartResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Start")
 	defer span.End()
 
@@ -272,12 +272,12 @@ func (l *local) Start(ctx context.Context, req *containers.StartContainerRequest
 		return nil, err
 	}
 
-	return &containers.StartContainerResponse{
+	return &containers.StartResponse{
 		Id: req.GetId(),
 	}, nil
 }
 
-func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+func (l *local) Patch(ctx context.Context, req *containers.PatchRequest, _ ...grpc.CallOption) (*containers.PatchResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Patch")
 	defer span.End()
 
@@ -340,7 +340,7 @@ func (l *local) Patch(ctx context.Context, req *containers.UpdateContainerReques
 		}
 	}
 
-	return &containers.UpdateContainerResponse{
+	return &containers.PatchResponse{
 		Container: existing,
 	}, nil
 }
@@ -414,7 +414,7 @@ func (l *local) UpdateStatus(ctx context.Context, req *containers.UpdateStatusRe
 	}, nil
 }
 
-func (l *local) Update(ctx context.Context, req *containers.UpdateContainerRequest, _ ...grpc.CallOption) (*containers.UpdateContainerResponse, error) {
+func (l *local) Update(ctx context.Context, req *containers.UpdateRequest, _ ...grpc.CallOption) (*containers.UpdateResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Update")
 	defer span.End()
 
@@ -461,7 +461,7 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateContainerReque
 		}
 	}
 
-	return &containers.UpdateContainerResponse{
+	return &containers.UpdateResponse{
 		Container: ctr,
 	}, nil
 }

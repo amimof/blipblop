@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api/services/containers/v1/containers.proto",
+    "title": "services/containers/v1/containers.proto",
     "version": "version not set"
   },
   "tags": [
@@ -23,7 +23,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1ListContainerResponse"
+              "$ref": "#/definitions/v1ListResponse"
             }
           },
           "default": {
@@ -52,7 +52,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1CreateContainerResponse"
+              "$ref": "#/definitions/v1CreateResponse"
             }
           },
           "default": {
@@ -84,7 +84,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1UpdateContainerResponse"
+              "$ref": "#/definitions/v1UpdateResponse"
             }
           },
           "default": {
@@ -163,7 +163,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1UpdateContainerResponse"
+              "$ref": "#/definitions/v1PatchResponse"
             }
           },
           "default": {
@@ -238,7 +238,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1GetContainerResponse"
+              "$ref": "#/definitions/v1GetResponse"
             }
           },
           "default": {
@@ -266,7 +266,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1DeleteContainerResponse"
+              "$ref": "#/definitions/v1DeleteResponse"
             }
           },
           "default": {
@@ -296,7 +296,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1KillContainerResponse"
+              "$ref": "#/definitions/v1KillResponse"
             }
           },
           "default": {
@@ -332,7 +332,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1StartContainerResponse"
+              "$ref": "#/definitions/v1StartResponse"
             }
           },
           "default": {
@@ -567,7 +567,7 @@
         }
       }
     },
-    "v1CreateContainerResponse": {
+    "v1CreateResponse": {
       "type": "object",
       "properties": {
         "container": {
@@ -575,7 +575,7 @@
         }
       }
     },
-    "v1DeleteContainerResponse": {
+    "v1DeleteResponse": {
       "type": "object",
       "properties": {
         "id": {
@@ -594,7 +594,7 @@
         }
       }
     },
-    "v1GetContainerResponse": {
+    "v1GetResponse": {
       "type": "object",
       "properties": {
         "container": {
@@ -602,7 +602,7 @@
         }
       }
     },
-    "v1KillContainerResponse": {
+    "v1KillResponse": {
       "type": "object",
       "properties": {
         "id": {
@@ -610,7 +610,7 @@
         }
       }
     },
-    "v1ListContainerResponse": {
+    "v1ListResponse": {
       "type": "object",
       "properties": {
         "containers": {
@@ -671,6 +671,14 @@
         }
       }
     },
+    "v1PatchResponse": {
+      "type": "object",
+      "properties": {
+        "container": {
+          "$ref": "#/definitions/v1Container"
+        }
+      }
+    },
     "v1PortMapping": {
       "type": "object",
       "properties": {
@@ -688,7 +696,7 @@
         "protocol": {
           "type": "string"
         },
-        "hostIP": {
+        "hostIp": {
           "type": "string"
         }
       }
@@ -710,7 +718,7 @@
         }
       }
     },
-    "v1StartContainerResponse": {
+    "v1StartResponse": {
       "type": "object",
       "properties": {
         "id": {
@@ -738,7 +746,7 @@
         }
       }
     },
-    "v1UpdateContainerResponse": {
+    "v1UpdateResponse": {
       "type": "object",
       "properties": {
         "container": {

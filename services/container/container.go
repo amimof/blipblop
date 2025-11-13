@@ -37,35 +37,35 @@ func (c *ContainerService) Register(server *grpc.Server) error {
 	return nil
 }
 
-func (c *ContainerService) Get(ctx context.Context, req *containers.GetContainerRequest) (*containers.GetContainerResponse, error) {
+func (c *ContainerService) Get(ctx context.Context, req *containers.GetRequest) (*containers.GetResponse, error) {
 	return c.local.Get(ctx, req)
 }
 
-func (c *ContainerService) List(ctx context.Context, req *containers.ListContainerRequest) (*containers.ListContainerResponse, error) {
+func (c *ContainerService) List(ctx context.Context, req *containers.ListRequest) (*containers.ListResponse, error) {
 	return c.local.List(ctx, req)
 }
 
-func (c *ContainerService) Create(ctx context.Context, req *containers.CreateContainerRequest) (*containers.CreateContainerResponse, error) {
+func (c *ContainerService) Create(ctx context.Context, req *containers.CreateRequest) (*containers.CreateResponse, error) {
 	return c.local.Create(ctx, req)
 }
 
-func (c *ContainerService) Delete(ctx context.Context, req *containers.DeleteContainerRequest) (*containers.DeleteContainerResponse, error) {
+func (c *ContainerService) Delete(ctx context.Context, req *containers.DeleteRequest) (*containers.DeleteResponse, error) {
 	return c.local.Delete(ctx, req)
 }
 
-func (c *ContainerService) Kill(ctx context.Context, req *containers.KillContainerRequest) (*containers.KillContainerResponse, error) {
+func (c *ContainerService) Kill(ctx context.Context, req *containers.KillRequest) (*containers.KillResponse, error) {
 	return c.local.Kill(ctx, req)
 }
 
-func (c *ContainerService) Start(ctx context.Context, req *containers.StartContainerRequest) (*containers.StartContainerResponse, error) {
+func (c *ContainerService) Start(ctx context.Context, req *containers.StartRequest) (*containers.StartResponse, error) {
 	return c.local.Start(ctx, req)
 }
 
-func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateContainerRequest) (*containers.UpdateContainerResponse, error) {
+func (c *ContainerService) Update(ctx context.Context, req *containers.UpdateRequest) (*containers.UpdateResponse, error) {
 	return c.local.Update(ctx, req)
 }
 
-func (c *ContainerService) Patch(ctx context.Context, req *containers.UpdateContainerRequest) (*containers.UpdateContainerResponse, error) {
+func (c *ContainerService) Patch(ctx context.Context, req *containers.PatchRequest) (*containers.PatchResponse, error) {
 	return c.local.Patch(ctx, req)
 }
 

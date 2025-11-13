@@ -92,8 +92,20 @@ func withContainerLabels(l labels.Label, container *containers.Container) contai
 	return containerd.WithContainerLabels(l)
 }
 
+// Namespace returns the namespace used for runnning workload. If supported by the runtime
 func (c *ContainerdRuntime) Namespace() string {
 	return c.ns
+}
+
+// Version returns the version of the runtime
+func (c *ContainerdRuntime) Version(ctx context.Context) (string, error) {
+	// c.client.
+	ver, err := c.client.Version(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("containerd/%s", ver.Version), nil
 }
 
 // Cleanup performs any tasks necessary to clean up the environment from danglig configuration.

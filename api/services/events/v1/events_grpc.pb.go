@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: api/services/events/v1/events.proto
+// source: services/events/v1/events.proto
 
 package events
 
@@ -40,7 +40,7 @@ func NewEventServiceClient(cc grpc.ClientConnInterface) EventServiceClient {
 
 func (c *eventServiceClient) Get(ctx context.Context, in *GetEventRequest, opts ...grpc.CallOption) (*GetEventResponse, error) {
 	out := new(GetEventResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.events.v1.EventService/Get", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.events.v1.EventService/Get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (c *eventServiceClient) Get(ctx context.Context, in *GetEventRequest, opts 
 
 func (c *eventServiceClient) List(ctx context.Context, in *ListEventRequest, opts ...grpc.CallOption) (*ListEventResponse, error) {
 	out := new(ListEventResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.events.v1.EventService/List", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.events.v1.EventService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (c *eventServiceClient) List(ctx context.Context, in *ListEventRequest, opt
 
 func (c *eventServiceClient) Delete(ctx context.Context, in *DeleteEventRequest, opts ...grpc.CallOption) (*DeleteEventResponse, error) {
 	out := new(DeleteEventResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.events.v1.EventService/Delete", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.events.v1.EventService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (c *eventServiceClient) Delete(ctx context.Context, in *DeleteEventRequest,
 
 func (c *eventServiceClient) Create(ctx context.Context, in *CreateEventRequest, opts ...grpc.CallOption) (*CreateEventResponse, error) {
 	out := new(CreateEventResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.events.v1.EventService/Create", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.events.v1.EventService/Create", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (c *eventServiceClient) Create(ctx context.Context, in *CreateEventRequest,
 }
 
 func (c *eventServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (EventService_SubscribeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[0], "/blipblop.services.events.v1.EventService/Subscribe", opts...)
+	stream, err := c.cc.NewStream(ctx, &EventService_ServiceDesc.Streams[0], "/services.events.v1.EventService/Subscribe", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (x *eventServiceSubscribeClient) Recv() (*Event, error) {
 
 func (c *eventServiceClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*PublishResponse, error) {
 	out := new(PublishResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.events.v1.EventService/Publish", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.events.v1.EventService/Publish", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func _EventService_Get_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.events.v1.EventService/Get",
+		FullMethod: "/services.events.v1.EventService/Get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventServiceServer).Get(ctx, req.(*GetEventRequest))
@@ -191,7 +191,7 @@ func _EventService_List_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.events.v1.EventService/List",
+		FullMethod: "/services.events.v1.EventService/List",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventServiceServer).List(ctx, req.(*ListEventRequest))
@@ -209,7 +209,7 @@ func _EventService_Delete_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.events.v1.EventService/Delete",
+		FullMethod: "/services.events.v1.EventService/Delete",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventServiceServer).Delete(ctx, req.(*DeleteEventRequest))
@@ -227,7 +227,7 @@ func _EventService_Create_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.events.v1.EventService/Create",
+		FullMethod: "/services.events.v1.EventService/Create",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventServiceServer).Create(ctx, req.(*CreateEventRequest))
@@ -266,7 +266,7 @@ func _EventService_Publish_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.events.v1.EventService/Publish",
+		FullMethod: "/services.events.v1.EventService/Publish",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EventServiceServer).Publish(ctx, req.(*PublishRequest))
@@ -278,7 +278,7 @@ func _EventService_Publish_Handler(srv interface{}, ctx context.Context, dec fun
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var EventService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "blipblop.services.events.v1.EventService",
+	ServiceName: "services.events.v1.EventService",
 	HandlerType: (*EventServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -309,5 +309,5 @@ var EventService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/services/events/v1/events.proto",
+	Metadata: "services/events/v1/events.proto",
 }

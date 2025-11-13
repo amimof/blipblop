@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package blipblop.services.events.v1;
+package services.events.v1;
 
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
-import "api/types/v1/meta.proto";
+import "types/v1/meta.proto";
 import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
@@ -19,15 +19,15 @@ service EventService {
 }
 
 message SubscribeRequest {
-  string clientId = 1; 
+  string clientId = 1;
 
-  // TODO: This is just a placeholder. 
+  // TODO: This is just a placeholder.
   // Implement something to allow clients to filter which events to listen for using selector
   map<string, string> selector = 2;
 }
 
 message Event {
-  blipblop.types.v1.Meta meta = 1;
+  types.v1.Meta meta = 1;
   string objectId = 4;
   string clientId = 5;
   EventType type = 6;
@@ -42,8 +42,8 @@ message ScheduleRequest {
 }
 
 enum EventType {
-	ContainerCreate = 0;
-	ContainerDelete = 1;
+  ContainerCreate = 0;
+  ContainerDelete = 1;
   ContainerUpdate = 2;
   ContainerPatch = 3;
   ContainerStart = 4;

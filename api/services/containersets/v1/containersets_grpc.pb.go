@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: api/services/containersets/v1/containersets.proto
+// source: services/containersets/v1/containersets.proto
 
 package containersets
 
@@ -39,7 +39,7 @@ func NewContainerSetServiceClient(cc grpc.ClientConnInterface) ContainerSetServi
 
 func (c *containerSetServiceClient) Get(ctx context.Context, in *GetContainerSetRequest, opts ...grpc.CallOption) (*GetContainerSetResponse, error) {
 	out := new(GetContainerSetResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containersets.v1.ContainerSetService/Get", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.containersets.v1.ContainerSetService/Get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (c *containerSetServiceClient) Get(ctx context.Context, in *GetContainerSet
 
 func (c *containerSetServiceClient) List(ctx context.Context, in *ListContainerSetRequest, opts ...grpc.CallOption) (*ListContainerSetResponse, error) {
 	out := new(ListContainerSetResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containersets.v1.ContainerSetService/List", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.containersets.v1.ContainerSetService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (c *containerSetServiceClient) List(ctx context.Context, in *ListContainerS
 
 func (c *containerSetServiceClient) Create(ctx context.Context, in *CreateContainerSetRequest, opts ...grpc.CallOption) (*CreateContainerSetResponse, error) {
 	out := new(CreateContainerSetResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containersets.v1.ContainerSetService/Create", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.containersets.v1.ContainerSetService/Create", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (c *containerSetServiceClient) Create(ctx context.Context, in *CreateContai
 
 func (c *containerSetServiceClient) Update(ctx context.Context, in *UpdateContainerSetRequest, opts ...grpc.CallOption) (*UpdateContainerSetResponse, error) {
 	out := new(UpdateContainerSetResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containersets.v1.ContainerSetService/Update", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.containersets.v1.ContainerSetService/Update", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (c *containerSetServiceClient) Update(ctx context.Context, in *UpdateContai
 
 func (c *containerSetServiceClient) Delete(ctx context.Context, in *DeleteContainerSetRequest, opts ...grpc.CallOption) (*DeleteContainerSetResponse, error) {
 	out := new(DeleteContainerSetResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containersets.v1.ContainerSetService/Delete", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.containersets.v1.ContainerSetService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func _ContainerSetService_Get_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containersets.v1.ContainerSetService/Get",
+		FullMethod: "/services.containersets.v1.ContainerSetService/Get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerSetServiceServer).Get(ctx, req.(*GetContainerSetRequest))
@@ -154,7 +154,7 @@ func _ContainerSetService_List_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containersets.v1.ContainerSetService/List",
+		FullMethod: "/services.containersets.v1.ContainerSetService/List",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerSetServiceServer).List(ctx, req.(*ListContainerSetRequest))
@@ -172,7 +172,7 @@ func _ContainerSetService_Create_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containersets.v1.ContainerSetService/Create",
+		FullMethod: "/services.containersets.v1.ContainerSetService/Create",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerSetServiceServer).Create(ctx, req.(*CreateContainerSetRequest))
@@ -190,7 +190,7 @@ func _ContainerSetService_Update_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containersets.v1.ContainerSetService/Update",
+		FullMethod: "/services.containersets.v1.ContainerSetService/Update",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerSetServiceServer).Update(ctx, req.(*UpdateContainerSetRequest))
@@ -208,7 +208,7 @@ func _ContainerSetService_Delete_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containersets.v1.ContainerSetService/Delete",
+		FullMethod: "/services.containersets.v1.ContainerSetService/Delete",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerSetServiceServer).Delete(ctx, req.(*DeleteContainerSetRequest))
@@ -220,7 +220,7 @@ func _ContainerSetService_Delete_Handler(srv interface{}, ctx context.Context, d
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ContainerSetService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "blipblop.services.containersets.v1.ContainerSetService",
+	ServiceName: "services.containersets.v1.ContainerSetService",
 	HandlerType: (*ContainerSetServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -245,5 +245,5 @@ var ContainerSetService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/services/containersets/v1/containersets.proto",
+	Metadata: "services/containersets/v1/containersets.proto",
 }

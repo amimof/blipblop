@@ -1,5 +1,5 @@
 #!/bin/env bash
-count=2
+node_count=4
 
 __up() {
 
@@ -8,8 +8,9 @@ __up() {
     -d \
     --name blipblop-server \
     --hostname blipblop-server \
-    -v /etc/blipblop/tls:/etc/blipblop/tls \
+    -v $PWD/certs:/etc/blipblop/tls \
     -p 5743:5743 \
+    -p 8443:8443 \
     ghcr.io/amimof/blipblop:latest \
     blipblop-server \
     --tls-key /etc/blipblop/tls/server.key \
@@ -19,14 +20,14 @@ __up() {
     --tcp-tls-host 0.0.0.0
 
   # Start nodes
-  for i in $(seq $count); do
+  for i in $(seq $node_count); do
     nerdctl run \
       -d \
       --name blipblop-node-$i \
       --hostname blipblop-node-$i \
       --privileged \
       -v /run/containerd/containerd.sock:/run/containerd/containerd.sock \
-      -v /etc/blipblop/tls:/etc/blipblop/tls \
+      -v $PWD/certs:/etc/blipblop/tls \
       -v /tmp:/tmp \
       -v /run/containerd:/run/containerd \
       -v /var/lib/containerd:/var/lib/containerd \
@@ -46,7 +47,7 @@ __down() {
   nerdctl rm blipblop-server
 
   # Kill & remove nodes
-  for i in $(seq $count); do
+  for i in $(seq $node_count); do
     nerdctl kill blipblop-node-$i
     nerdctl rm blipblop-node-$i
   done

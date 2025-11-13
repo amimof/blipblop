@@ -21,6 +21,7 @@ V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m➜\033[0m")
 MAKEFLAGS += -j2
+RUNTIME ?= "nerdctl"
 
 export GO111MODULE=on
 export CGO_ENABLED=0
@@ -69,10 +70,10 @@ bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BINARY
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
 		-o $(BUILDPATH)/$${BINARY_NAME:=bbctl} main.go
 
-.PHONY: docker_build
-docker_build: ; $(info $(M) building docker image) @ ## Build docker image
-	docker build -t ghcr.io/amimof/blipblop:${VERSION} .
-	docker tag ghcr.io/amimof/blipblop:${VERSION} ghcr.io/amimof/blipblop:latest
+.PHONY: oci
+oci: ; $(info $(M) building container image) @ ## Build container image from Dockerfile
+	$(RUNTIME) build -t ghcr.io/amimof/blipblop:${VERSION} .
+	$(RUNTIME) tag ghcr.io/amimof/blipblop:${VERSION} ghcr.io/amimof/blipblop:latest
 
 .PHONY: protos
 protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos

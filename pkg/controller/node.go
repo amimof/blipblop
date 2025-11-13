@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"os"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -77,8 +78,30 @@ func (c *NodeController) Run(ctx context.Context) {
 		}
 	}()
 
+	// Get hostname from environment
+	hostname, err := os.Hostname()
+	if err != nil {
+		c.logger.Error("error retrieving hostname from environment", "error", err)
+	}
+
+	// Get version from runtime
+	runtimeVer, err := c.runtime.Version(ctx)
+	if err != nil {
+		c.logger.Error("error retrieving version from runtime", "error", err)
+	}
+
 	// Update status once connected
-	err := c.clientset.NodeV1().Status().Update(ctx, c.nodeName, &nodes.Status{Phase: wrapperspb.String(connectivity.Ready.String())}, "phase")
+	err = c.clientset.NodeV1().Status().Update(
+		ctx,
+		c.nodeName, &nodes.Status{
+			Phase:    wrapperspb.String(connectivity.Ready.String()),
+			Hostname: wrapperspb.String(hostname),
+			Runtime:  wrapperspb.String(runtimeVer),
+		},
+		"phase",
+		"hostname",
+		"runtime",
+	)
 	if err != nil {
 		c.logger.Error("error setting node state", "error", err)
 	}
