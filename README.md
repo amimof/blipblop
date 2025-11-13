@@ -15,7 +15,7 @@ Blipblop is an event-driven system which means that any interactions made with t
 ## System Requirements
 
 - Linux
-- [Containerd](https://containerd.io/downloads/) >= 1.4.13
+- [Containerd](https://containerd.io/downloads/) >= 1.7
 - Iptables
 - [CNI plugins](https://github.com/containernetworking/plugins)
 
@@ -29,8 +29,9 @@ Run the server.
 
 ```bash
 blipblop-server \
-    --tls-key ./certs/server-key.pem \
-    --tls-certificate ./certs/server.pem \
+    --tls-key ./certs/server.key \
+    --tls-certificate ./certs/server.crt \
+    --tls-ca ./certs/ca.crt \
     --tls-host 0.0.0.0 \
     --tcp-tls-host 0.0.0.0
 ```
@@ -46,8 +47,10 @@ blipblop-node \
 Use `bbctl` to interact with the cluster
 
 ```bash
-bbctl -s server-hostname.foo.com:5700 get nodes
+bbctl get nodes
 ```
+
+> Make sure `bbctl.yaml` is either in you current directory or `/etc/blipblop/bbctl.yaml`
 
 ## Contributing
 

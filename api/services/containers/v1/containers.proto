@@ -103,8 +103,8 @@ message EnvVar {
 
 message PortMapping {
   string name = 1 [(validate.rules).string.min_len = 1];
-  uint32 host_port = 2;
-  uint32 container_port = 3;
+  uint32 hostPort = 2;
+  uint32 containerPort = 3;
   string protocol = 4;
   string host_ip = 5;
 }
