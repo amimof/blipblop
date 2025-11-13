@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api/types/v1/meta.proto",
+    "title": "types/v1/meta.proto",
     "version": "version not set"
   },
   "consumes": [

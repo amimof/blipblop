@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: api/services/nodes/v1/nodes.proto
+// source: services/nodes/v1/nodes.proto
 
 package nodes
 
@@ -23,14 +23,15 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeServiceClient interface {
-	List(ctx context.Context, in *ListNodeRequest, opts ...grpc.CallOption) (*ListNodeResponse, error)
-	Get(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error)
-	Create(ctx context.Context, in *CreateNodeRequest, opts ...grpc.CallOption) (*CreateNodeResponse, error)
-	Update(ctx context.Context, in *UpdateNodeRequest, opts ...grpc.CallOption) (*UpdateNodeResponse, error)
-	Delete(ctx context.Context, in *DeleteNodeRequest, opts ...grpc.CallOption) (*DeleteNodeResponse, error)
+	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
+	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
+	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
 	Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error)
+	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 }
 
 type nodeServiceClient struct {
@@ -41,45 +42,45 @@ func NewNodeServiceClient(cc grpc.ClientConnInterface) NodeServiceClient {
 	return &nodeServiceClient{cc}
 }
 
-func (c *nodeServiceClient) List(ctx context.Context, in *ListNodeRequest, opts ...grpc.CallOption) (*ListNodeResponse, error) {
-	out := new(ListNodeResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/List", in, out, opts...)
+func (c *nodeServiceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeServiceClient) Get(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error) {
-	out := new(GetNodeResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Get", in, out, opts...)
+func (c *nodeServiceClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error) {
+	out := new(GetResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeServiceClient) Create(ctx context.Context, in *CreateNodeRequest, opts ...grpc.CallOption) (*CreateNodeResponse, error) {
-	out := new(CreateNodeResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Create", in, out, opts...)
+func (c *nodeServiceClient) Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error) {
+	out := new(CreateResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Create", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeServiceClient) Update(ctx context.Context, in *UpdateNodeRequest, opts ...grpc.CallOption) (*UpdateNodeResponse, error) {
-	out := new(UpdateNodeResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Update", in, out, opts...)
+func (c *nodeServiceClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error) {
+	out := new(UpdateResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Update", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *nodeServiceClient) Delete(ctx context.Context, in *DeleteNodeRequest, opts ...grpc.CallOption) (*DeleteNodeResponse, error) {
-	out := new(DeleteNodeResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Delete", in, out, opts...)
+func (c *nodeServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
+	out := new(DeleteResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (c *nodeServiceClient) Delete(ctx context.Context, in *DeleteNodeRequest, o
 
 func (c *nodeServiceClient) Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error) {
 	out := new(JoinResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Join", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Join", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (c *nodeServiceClient) Join(ctx context.Context, in *JoinRequest, opts ...g
 
 func (c *nodeServiceClient) Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error) {
 	out := new(ForgetResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.nodes.v1.NodeService/Forget", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Forget", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +106,7 @@ func (c *nodeServiceClient) Forget(ctx context.Context, in *ForgetRequest, opts 
 }
 
 func (c *nodeServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeService_ServiceDesc.Streams[0], "/blipblop.services.nodes.v1.NodeService/Connect", opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeService_ServiceDesc.Streams[0], "/services.nodes.v1.NodeService/Connect", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -135,18 +136,28 @@ func (x *nodeServiceConnectClient) Recv() (*v1.Event, error) {
 	return m, nil
 }
 
+func (c *nodeServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error) {
+	out := new(UpdateStatusResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/UpdateStatus", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServiceServer is the server API for NodeService service.
 // All implementations must embed UnimplementedNodeServiceServer
 // for forward compatibility
 type NodeServiceServer interface {
-	List(context.Context, *ListNodeRequest) (*ListNodeResponse, error)
-	Get(context.Context, *GetNodeRequest) (*GetNodeResponse, error)
-	Create(context.Context, *CreateNodeRequest) (*CreateNodeResponse, error)
-	Update(context.Context, *UpdateNodeRequest) (*UpdateNodeResponse, error)
-	Delete(context.Context, *DeleteNodeRequest) (*DeleteNodeResponse, error)
+	List(context.Context, *ListRequest) (*ListResponse, error)
+	Get(context.Context, *GetRequest) (*GetResponse, error)
+	Create(context.Context, *CreateRequest) (*CreateResponse, error)
+	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
+	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
 	Connect(NodeService_ConnectServer) error
+	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	mustEmbedUnimplementedNodeServiceServer()
 }
 
@@ -154,19 +165,19 @@ type NodeServiceServer interface {
 type UnimplementedNodeServiceServer struct {
 }
 
-func (UnimplementedNodeServiceServer) List(context.Context, *ListNodeRequest) (*ListNodeResponse, error) {
+func (UnimplementedNodeServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
-func (UnimplementedNodeServiceServer) Get(context.Context, *GetNodeRequest) (*GetNodeResponse, error) {
+func (UnimplementedNodeServiceServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedNodeServiceServer) Create(context.Context, *CreateNodeRequest) (*CreateNodeResponse, error) {
+func (UnimplementedNodeServiceServer) Create(context.Context, *CreateRequest) (*CreateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
 }
-func (UnimplementedNodeServiceServer) Update(context.Context, *UpdateNodeRequest) (*UpdateNodeResponse, error) {
+func (UnimplementedNodeServiceServer) Update(context.Context, *UpdateRequest) (*UpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
 }
-func (UnimplementedNodeServiceServer) Delete(context.Context, *DeleteNodeRequest) (*DeleteNodeResponse, error) {
+func (UnimplementedNodeServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
 func (UnimplementedNodeServiceServer) Join(context.Context, *JoinRequest) (*JoinResponse, error) {
@@ -177,6 +188,9 @@ func (UnimplementedNodeServiceServer) Forget(context.Context, *ForgetRequest) (*
 }
 func (UnimplementedNodeServiceServer) Connect(NodeService_ConnectServer) error {
 	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
+}
+func (UnimplementedNodeServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
 }
 func (UnimplementedNodeServiceServer) mustEmbedUnimplementedNodeServiceServer() {}
 
@@ -192,7 +206,7 @@ func RegisterNodeServiceServer(s grpc.ServiceRegistrar, srv NodeServiceServer) {
 }
 
 func _NodeService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListNodeRequest)
+	in := new(ListRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -201,16 +215,16 @@ func _NodeService_List_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/List",
+		FullMethod: "/services.nodes.v1.NodeService/List",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServiceServer).List(ctx, req.(*ListNodeRequest))
+		return srv.(NodeServiceServer).List(ctx, req.(*ListRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetNodeRequest)
+	in := new(GetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -219,16 +233,16 @@ func _NodeService_Get_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/Get",
+		FullMethod: "/services.nodes.v1.NodeService/Get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServiceServer).Get(ctx, req.(*GetNodeRequest))
+		return srv.(NodeServiceServer).Get(ctx, req.(*GetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateNodeRequest)
+	in := new(CreateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -237,16 +251,16 @@ func _NodeService_Create_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/Create",
+		FullMethod: "/services.nodes.v1.NodeService/Create",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServiceServer).Create(ctx, req.(*CreateNodeRequest))
+		return srv.(NodeServiceServer).Create(ctx, req.(*CreateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeService_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateNodeRequest)
+	in := new(UpdateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -255,16 +269,16 @@ func _NodeService_Update_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/Update",
+		FullMethod: "/services.nodes.v1.NodeService/Update",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServiceServer).Update(ctx, req.(*UpdateNodeRequest))
+		return srv.(NodeServiceServer).Update(ctx, req.(*UpdateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteNodeRequest)
+	in := new(DeleteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -273,10 +287,10 @@ func _NodeService_Delete_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/Delete",
+		FullMethod: "/services.nodes.v1.NodeService/Delete",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServiceServer).Delete(ctx, req.(*DeleteNodeRequest))
+		return srv.(NodeServiceServer).Delete(ctx, req.(*DeleteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -291,7 +305,7 @@ func _NodeService_Join_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/Join",
+		FullMethod: "/services.nodes.v1.NodeService/Join",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Join(ctx, req.(*JoinRequest))
@@ -309,7 +323,7 @@ func _NodeService_Forget_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.nodes.v1.NodeService/Forget",
+		FullMethod: "/services.nodes.v1.NodeService/Forget",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Forget(ctx, req.(*ForgetRequest))
@@ -343,11 +357,29 @@ func (x *nodeServiceConnectServer) Recv() (*v1.Event, error) {
 	return m, nil
 }
 
+func _NodeService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).UpdateStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.nodes.v1.NodeService/UpdateStatus",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).UpdateStatus(ctx, req.(*UpdateStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeService_ServiceDesc is the grpc.ServiceDesc for NodeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var NodeService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "blipblop.services.nodes.v1.NodeService",
+	ServiceName: "services.nodes.v1.NodeService",
 	HandlerType: (*NodeServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -378,6 +410,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Forget",
 			Handler:    _NodeService_Forget_Handler,
 		},
+		{
+			MethodName: "UpdateStatus",
+			Handler:    _NodeService_UpdateStatus_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -387,5 +423,5 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "api/services/nodes/v1/nodes.proto",
+	Metadata: "services/nodes/v1/nodes.proto",
 }

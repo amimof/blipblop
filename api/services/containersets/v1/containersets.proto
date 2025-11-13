@@ -1,101 +1,86 @@
 syntax = "proto3";
 
-package blipblop.services.containersets.v1;
+package services.containersets.v1;
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/field_mask.proto";
+import "services/containers/v1/containers.proto";
+import "types/v1/meta.proto";
 import "validate/validate.proto";
-import "api/services/events/v1/events.proto";
-import "api/services/containers/v1/containers.proto";
-import "api/types/v1/meta.proto";
-
 
 option go_package = "github.com/amimof/blipblop/api/services/containersets/v1;containersets";
 
 service ContainerSetService {
-  rpc Get(GetContainerSetRequest) returns (GetContainerSetResponse) {
-    option (google.api.http) = {
-      get: "/api/v1/containersets/{id}"
-    };
-	}
-	rpc List(ListContainerSetRequest) returns (ListContainerSetResponse) {
-		option (google.api.http) = {
-			get: "/api/v1/containersets"
-		};
-	}
-	rpc Create(CreateContainerSetRequest) returns (CreateContainerSetResponse) {
+  rpc Get(GetRequest) returns (GetResponse) {
+    option (google.api.http) = {get: "/api/v1/containersets/{id}"};
+  }
+  rpc List(ListRequest) returns (ListResponse) {
+    option (google.api.http) = {get: "/api/v1/containersets"};
+  }
+  rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
       post: "/api/v1/containers"
       body: "containerSet"
     };
-	}
-	rpc Update(UpdateContainerSetRequest) returns (UpdateContainerSetResponse) {
+  }
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
       put: "/api/v1/containers/{containerSet.meta.name}"
       body: "containerSet"
-      additional_bindings {
+      additional_bindings: {
         patch: "/api/v1/containers/{containerSet.meta.name}"
         body: "containerSet"
       }
     };
-	}
-	rpc Delete(DeleteContainerSetRequest) returns (DeleteContainerSetResponse) {
-    option (google.api.http) = {
-      delete: "/api/v1/containersets/{id}"
-    };
-	}
+  }
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {
+    option (google.api.http) = {delete: "/api/v1/containersets/{id}"};
+  }
 }
-
 
 message ContainerSet {
-  blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  blipblop.services.containers.v1.Config template = 2 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
+  services.containers.v1.Config template = 2 [(validate.rules).message.required = true];
 }
 
-// message Template {
-//   blipblop.services.containers.v1.Config config = 2 [(validate.rules).message.required = true];
-// }
-
-message GetContainerSetRequest {
+message GetRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message GetContainerSetResponse {
-	ContainerSet containerSet = 1;
+message GetResponse {
+  ContainerSet containerSet = 1;
 }
 
-message CreateContainerSetRequest {
-	ContainerSet containerSet = 1 [(validate.rules).message.required = true];
+message CreateRequest {
+  ContainerSet containerSet = 1 [(validate.rules).message.required = true];
 }
 
-message CreateContainerSetResponse {
-	ContainerSet containerSet = 1;
+message CreateResponse {
+  ContainerSet containerSet = 1;
 }
 
-message UpdateContainerSetRequest {
+message UpdateRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
   ContainerSet containerSet = 2;
   google.protobuf.FieldMask update_mask = 3;
 }
 
-message UpdateContainerSetResponse {
+message UpdateResponse {
   ContainerSet containerSet = 1;
 }
 
-message DeleteContainerSetRequest {
-	string id = 1 [(validate.rules).string.min_len = 1];
+message DeleteRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message DeleteContainerSetResponse {
-	string id = 1;
+message DeleteResponse {
+  string id = 1;
 }
 
-message ListContainerSetRequest {
-	map<string, string> selector = 1;
+message ListRequest {
+  map<string, string> selector = 1;
 }
 
-message ListContainerSetResponse {
-	repeated ContainerSet containerSets = 1;
+message ListResponse {
+  repeated ContainerSet containerSets = 1;
 }
-

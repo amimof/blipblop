@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api/services/events/v1/events.proto",
+    "title": "services/events/v1/events.proto",
     "version": "version not set"
   },
   "tags": [
@@ -59,7 +59,7 @@
         }
       }
     },
-    "v1CreateEventResponse": {
+    "v1CreateResponse": {
       "type": "object",
       "properties": {
         "event": {
@@ -67,7 +67,7 @@
         }
       }
     },
-    "v1DeleteEventResponse": {
+    "v1DeleteResponse": {
       "type": "object",
       "properties": {
         "id": {
@@ -125,7 +125,7 @@
       ],
       "default": "ContainerCreate"
     },
-    "v1GetEventResponse": {
+    "v1GetResponse": {
       "type": "object",
       "properties": {
         "event": {
@@ -133,7 +133,7 @@
         }
       }
     },
-    "v1ListEventResponse": {
+    "v1ListResponse": {
       "type": "object",
       "properties": {
         "events": {

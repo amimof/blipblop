@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	gocni "github.com/containerd/go-cni"
@@ -148,11 +147,6 @@ func WithDefaultCNIConf(s string) CNIManagerOpts {
 	}
 }
 
-// netID generates the network IF based on task name and task PID
-func (c *CNIManager) netID(id string, pid uint32) string {
-	return fmt.Sprintf("%s-%d", id, pid)
-}
-
 // netNamespace generates the namespace path based on task PID.
 func (c *CNIManager) netNamespace(pid uint32) string {
 	return fmt.Sprintf(c.NetNSPathFmt, pid)
@@ -215,7 +209,10 @@ func (c *CNIManager) GetIPAddress(id string) (net.IP, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		//nolint:errcheck
 		defer f.Close()
+
 		reader := bufio.NewReader(f)
 		content, err := reader.ReadString('\n')
 		if err != nil {
@@ -254,11 +251,11 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
       "ipMasq": true,
       "hairpinMode": true,
       "ipam": {
-				"dataDir": "%s",
+        "dataDir": "%s",
         "ranges": [
           [
             {
-							"subnet": "%s",
+              "subnet": "%s",
               "gateway": "%s"
             }
           ]
@@ -326,12 +323,10 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
 		return nil, fmt.Errorf("error initializing cni: %w", err)
 	}
 
-	// TODO: Prefer using WithConfListBytes instead so we're guaranteed to laod exactly
-	// the config we generated (no directory scanning surprised)
 	// Append cni opts to list of defaults
 	loadOpts := []gocni.Opt{
 		gocni.WithLoNetwork,
-		gocni.WithConfListFile(filepath.Join(m.CNIConfDir, m.DefaultCNIConfFilename)),
+		gocni.WithConfListBytes([]byte(m.DefaultCNIConf)),
 	}
 
 	// Load the cni configuration

@@ -28,8 +28,8 @@ func WithLogControllerNodeName(nodeName string) NewLogControllerOption {
 	}
 }
 
-func (c *LogController) getOrCreateCollectorForContainer(containerId string) (collector.LogCollector, error) {
-	ctr, err := c.runtime.Get(context.Background(), containerId)
+func (c *LogController) getOrCreateCollectorForContainer(containerID string) (collector.LogCollector, error) {
+	ctr, err := c.runtime.Get(context.Background(), containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -38,14 +38,14 @@ func (c *LogController) getOrCreateCollectorForContainer(containerId string) (co
 		return nil, fmt.Errorf("task is missing path to stdout")
 	}
 
-	_, ok := c.collectors[containerId]
+	_, ok := c.collectors[containerID]
 	if !ok {
-		c.collectors[containerId], err = collector.NewFileCollector(ctr.GetStatus().GetRuntime().GetStdoutPath(), c.nodeName, containerId)
+		c.collectors[containerID], err = collector.NewFileCollector(ctr.GetStatus().GetRuntime().GetStdoutPath(), c.nodeName, containerID)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return c.collectors[containerId], nil
+	return c.collectors[containerID], nil
 }
 
 func (c *LogController) Run(ctx context.Context) {

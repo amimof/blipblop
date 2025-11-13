@@ -1,3 +1,4 @@
+// Package scheduling provides interface to implement workload schedulers
 package scheduling
 
 import (
@@ -54,7 +55,7 @@ func filterByNodeSelector(original []*nodes.Node, l labels.Label) []*nodes.Node 
 func excludeByState(original []*nodes.Node, state string) []*nodes.Node {
 	var result []*nodes.Node
 	for _, node := range original {
-		if state != node.GetStatus().GetState() {
+		if state != node.GetStatus().GetPhase().GetValue() {
 			newItem := proto.Clone(node).(*nodes.Node)
 			result = append(result, newItem)
 		}

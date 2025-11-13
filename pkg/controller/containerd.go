@@ -131,13 +131,17 @@ func (c *ContainerdController) streamEvents(ctx context.Context) error {
 		case err := <-errCh:
 			return err
 		case <-ctx.Done():
-			c.client.Close()
-			c.clientset.Close()
+			if err := c.client.Close(); err != nil {
+				c.logger.Error("error closing runtime client connection", "error", err)
+			}
+			if err := c.clientset.Close(); err != nil {
+				c.logger.Error("error closing clientset connection", "error", err)
+			}
 		}
 	}
 }
 
-func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj interface{}) {
+func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj any) {
 	switch t := obj.(type) {
 	case *events.TaskExit:
 		if handlers.OnTaskExit != nil {
@@ -252,7 +256,7 @@ func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
 	id := e.GetID()
 	containerID := e.GetContainerID()
 
-	// This if-clause is an intermediate fix to prevent receving events for non-init tasks.
+	// TODO: This if-clause is an intermediate fix to prevent receving events for non-init tasks.
 	// For example if a user creates an exec task with tty we would otherwise get that event here.
 	// This isn't bulletproof since in theory the user can give the exec-id the same value as the container id.
 	// rendering this if useless and pontentially dangerous.

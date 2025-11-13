@@ -152,7 +152,11 @@ func main() {
 			log.Error("error setting up tracing", "error", err)
 			os.Exit(0)
 		}
-		defer shutdownTraceProvider(ctx)
+		defer func() {
+			if err := shutdownTraceProvider(ctx); err != nil {
+				log.Error("error shutting down trace provider", "error", err)
+			}
+		}()
 	}
 
 	// Setup a clientset for this node
@@ -161,7 +165,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
-	defer cs.Close()
+	defer func() {
+		if err := cs.Close(); err != nil {
+			log.Error("error closing clientset connection", "error", err)
+		}
+	}()
 
 	// Create containerd client
 	cclient, err := reconnectWithBackoff(containerdSocket, log)
@@ -169,7 +177,11 @@ func main() {
 		log.Error("could not establish connection to containerd: %v", "error", err)
 		return
 	}
-	defer cclient.Close()
+	defer func() {
+		if err := cclient.Close(); err != nil {
+			log.Error("error closing containerd connection", "error", err)
+		}
+	}()
 
 	// Join node
 	n, err := node.LoadNodeFromEnv(nodeFile)

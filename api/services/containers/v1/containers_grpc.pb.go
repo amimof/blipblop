@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: api/services/containers/v1/containers.proto
+// source: services/containers/v1/containers.proto
 
 package containers
 
@@ -22,14 +22,14 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ContainerServiceClient interface {
-	Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error)
-	List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error)
-	Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error)
-	Update(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error)
-	Patch(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error)
-	Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error)
-	Start(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*StartContainerResponse, error)
-	Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error)
+	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
+	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
+	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
+	Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
+	Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*KillResponse, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 }
 
@@ -41,72 +41,72 @@ func NewContainerServiceClient(cc grpc.ClientConnInterface) ContainerServiceClie
 	return &containerServiceClient{cc}
 }
 
-func (c *containerServiceClient) Get(ctx context.Context, in *GetContainerRequest, opts ...grpc.CallOption) (*GetContainerResponse, error) {
-	out := new(GetContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Get", in, out, opts...)
+func (c *containerServiceClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error) {
+	out := new(GetResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) List(ctx context.Context, in *ListContainerRequest, opts ...grpc.CallOption) (*ListContainerResponse, error) {
-	out := new(ListContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/List", in, out, opts...)
+func (c *containerServiceClient) List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error) {
+	out := new(ListResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/List", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) Create(ctx context.Context, in *CreateContainerRequest, opts ...grpc.CallOption) (*CreateContainerResponse, error) {
-	out := new(CreateContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Create", in, out, opts...)
+func (c *containerServiceClient) Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error) {
+	out := new(CreateResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Create", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) Update(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error) {
-	out := new(UpdateContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Update", in, out, opts...)
+func (c *containerServiceClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error) {
+	out := new(UpdateResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Update", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) Patch(ctx context.Context, in *UpdateContainerRequest, opts ...grpc.CallOption) (*UpdateContainerResponse, error) {
-	out := new(UpdateContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Patch", in, out, opts...)
+func (c *containerServiceClient) Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error) {
+	out := new(PatchResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Patch", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteContainerRequest, opts ...grpc.CallOption) (*DeleteContainerResponse, error) {
-	out := new(DeleteContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Delete", in, out, opts...)
+func (c *containerServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
+	out := new(DeleteResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) Start(ctx context.Context, in *StartContainerRequest, opts ...grpc.CallOption) (*StartContainerResponse, error) {
-	out := new(StartContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Start", in, out, opts...)
+func (c *containerServiceClient) Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error) {
+	out := new(StartResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Start", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *containerServiceClient) Kill(ctx context.Context, in *KillContainerRequest, opts ...grpc.CallOption) (*KillContainerResponse, error) {
-	out := new(KillContainerResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/Kill", in, out, opts...)
+func (c *containerServiceClient) Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*KillResponse, error) {
+	out := new(KillResponse)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/Kill", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (c *containerServiceClient) Kill(ctx context.Context, in *KillContainerRequ
 
 func (c *containerServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error) {
 	out := new(UpdateStatusResponse)
-	err := c.cc.Invoke(ctx, "/blipblop.services.containers.v1.ContainerService/UpdateStatus", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/services.containers.v1.ContainerService/UpdateStatus", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,14 +126,14 @@ func (c *containerServiceClient) UpdateStatus(ctx context.Context, in *UpdateSta
 // All implementations must embed UnimplementedContainerServiceServer
 // for forward compatibility
 type ContainerServiceServer interface {
-	Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error)
-	List(context.Context, *ListContainerRequest) (*ListContainerResponse, error)
-	Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error)
-	Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error)
-	Patch(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error)
-	Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error)
-	Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error)
-	Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error)
+	Get(context.Context, *GetRequest) (*GetResponse, error)
+	List(context.Context, *ListRequest) (*ListResponse, error)
+	Create(context.Context, *CreateRequest) (*CreateResponse, error)
+	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
+	Patch(context.Context, *PatchRequest) (*PatchResponse, error)
+	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	Start(context.Context, *StartRequest) (*StartResponse, error)
+	Kill(context.Context, *KillRequest) (*KillResponse, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	mustEmbedUnimplementedContainerServiceServer()
 }
@@ -142,28 +142,28 @@ type ContainerServiceServer interface {
 type UnimplementedContainerServiceServer struct {
 }
 
-func (UnimplementedContainerServiceServer) Get(context.Context, *GetContainerRequest) (*GetContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedContainerServiceServer) List(context.Context, *ListContainerRequest) (*ListContainerResponse, error) {
+func (UnimplementedContainerServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
-func (UnimplementedContainerServiceServer) Create(context.Context, *CreateContainerRequest) (*CreateContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Create(context.Context, *CreateRequest) (*CreateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
 }
-func (UnimplementedContainerServiceServer) Update(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Update(context.Context, *UpdateRequest) (*UpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
 }
-func (UnimplementedContainerServiceServer) Patch(context.Context, *UpdateContainerRequest) (*UpdateContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Patch(context.Context, *PatchRequest) (*PatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Patch not implemented")
 }
-func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteContainerRequest) (*DeleteContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
-func (UnimplementedContainerServiceServer) Start(context.Context, *StartContainerRequest) (*StartContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Start(context.Context, *StartRequest) (*StartResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Start not implemented")
 }
-func (UnimplementedContainerServiceServer) Kill(context.Context, *KillContainerRequest) (*KillContainerResponse, error) {
+func (UnimplementedContainerServiceServer) Kill(context.Context, *KillRequest) (*KillResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Kill not implemented")
 }
 func (UnimplementedContainerServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
@@ -183,7 +183,7 @@ func RegisterContainerServiceServer(s grpc.ServiceRegistrar, srv ContainerServic
 }
 
 func _ContainerService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetContainerRequest)
+	in := new(GetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -192,16 +192,16 @@ func _ContainerService_Get_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Get",
+		FullMethod: "/services.containers.v1.ContainerService/Get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Get(ctx, req.(*GetContainerRequest))
+		return srv.(ContainerServiceServer).Get(ctx, req.(*GetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListContainerRequest)
+	in := new(ListRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -210,16 +210,16 @@ func _ContainerService_List_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/List",
+		FullMethod: "/services.containers.v1.ContainerService/List",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).List(ctx, req.(*ListContainerRequest))
+		return srv.(ContainerServiceServer).List(ctx, req.(*ListRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateContainerRequest)
+	in := new(CreateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -228,16 +228,16 @@ func _ContainerService_Create_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Create",
+		FullMethod: "/services.containers.v1.ContainerService/Create",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Create(ctx, req.(*CreateContainerRequest))
+		return srv.(ContainerServiceServer).Create(ctx, req.(*CreateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateContainerRequest)
+	in := new(UpdateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -246,16 +246,16 @@ func _ContainerService_Update_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Update",
+		FullMethod: "/services.containers.v1.ContainerService/Update",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Update(ctx, req.(*UpdateContainerRequest))
+		return srv.(ContainerServiceServer).Update(ctx, req.(*UpdateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_Patch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateContainerRequest)
+	in := new(PatchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -264,16 +264,16 @@ func _ContainerService_Patch_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Patch",
+		FullMethod: "/services.containers.v1.ContainerService/Patch",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Patch(ctx, req.(*UpdateContainerRequest))
+		return srv.(ContainerServiceServer).Patch(ctx, req.(*PatchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteContainerRequest)
+	in := new(DeleteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -282,16 +282,16 @@ func _ContainerService_Delete_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Delete",
+		FullMethod: "/services.containers.v1.ContainerService/Delete",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Delete(ctx, req.(*DeleteContainerRequest))
+		return srv.(ContainerServiceServer).Delete(ctx, req.(*DeleteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_Start_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StartContainerRequest)
+	in := new(StartRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -300,16 +300,16 @@ func _ContainerService_Start_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Start",
+		FullMethod: "/services.containers.v1.ContainerService/Start",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Start(ctx, req.(*StartContainerRequest))
+		return srv.(ContainerServiceServer).Start(ctx, req.(*StartRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _ContainerService_Kill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(KillContainerRequest)
+	in := new(KillRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -318,10 +318,10 @@ func _ContainerService_Kill_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/Kill",
+		FullMethod: "/services.containers.v1.ContainerService/Kill",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ContainerServiceServer).Kill(ctx, req.(*KillContainerRequest))
+		return srv.(ContainerServiceServer).Kill(ctx, req.(*KillRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -336,7 +336,7 @@ func _ContainerService_UpdateStatus_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blipblop.services.containers.v1.ContainerService/UpdateStatus",
+		FullMethod: "/services.containers.v1.ContainerService/UpdateStatus",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContainerServiceServer).UpdateStatus(ctx, req.(*UpdateStatusRequest))
@@ -348,7 +348,7 @@ func _ContainerService_UpdateStatus_Handler(srv interface{}, ctx context.Context
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ContainerService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "blipblop.services.containers.v1.ContainerService",
+	ServiceName: "services.containers.v1.ContainerService",
 	HandlerType: (*ContainerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -389,5 +389,5 @@ var ContainerService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/services/containers/v1/containers.proto",
+	Metadata: "services/containers/v1/containers.proto",
 }

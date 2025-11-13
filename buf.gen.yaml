@@ -1,20 +1,20 @@
 version: v1
 plugins:
   - plugin: go
-    out: ./
+    out: ./api
     opt:
       - paths=source_relative
   - plugin: go-grpc
-    out: ./
+    out: ./api
     opt:
       - paths=source_relative
   - plugin: grpc-gateway
-    out: ./
+    out: ./api
     opt:
       - paths=source_relative
   - plugin: openapiv2
-    out: ./
+    out: ./api
   - plugin: buf.build/bufbuild/validate-go
-    out: ./
+    out: ./api
     opt:
       - paths=source_relative

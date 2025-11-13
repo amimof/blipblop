@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -41,7 +43,7 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
-func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.CallOption) (*nodes.GetNodeResponse, error) {
+func (l *local) Get(ctx context.Context, req *nodes.GetRequest, _ ...grpc.CallOption) (*nodes.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Get")
 	defer span.End()
 
@@ -49,7 +51,7 @@ func (l *local) Get(ctx context.Context, req *nodes.GetNodeRequest, _ ...grpc.Ca
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
 	}
-	return &nodes.GetNodeResponse{
+	return &nodes.GetResponse{
 		Node: node,
 	}, nil
 }
@@ -58,7 +60,55 @@ func merge(base, patch *nodes.Node) *nodes.Node {
 	return protoutils.StrategicMerge(base, patch)
 }
 
-func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...grpc.CallOption) (*nodes.CreateNodeResponse, error) {
+func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) error {
+	if mask == nil || len(mask.Paths) == 0 {
+		return status.Error(codes.InvalidArgument, "update_mask is required")
+	}
+	if dst == nil || src == nil {
+		return status.Error(codes.InvalidArgument, "src or dst cannot be empty")
+	}
+
+	for _, p := range mask.Paths {
+		switch p {
+		case "phase":
+			if src.Phase == nil {
+				continue
+			}
+			dst.Phase = src.Phase
+		case "hostname":
+			if src.Hostname == nil {
+				continue
+			}
+			dst.Hostname = src.Hostname
+		case "runtime":
+			if src.Runtime == nil {
+				continue
+			}
+			dst.Runtime = src.Runtime
+		case "ip.dns":
+			if src.Ip.Dns == nil {
+				continue
+			}
+			dst.Ip.Dns = src.Ip.Dns
+		case "ip.links":
+			if src.Ip.Links == nil {
+				continue
+			}
+			dst.Ip.Links = src.Ip.Links
+		case "ip.addresses":
+			if src.Ip.Addresses == nil {
+				continue
+			}
+			dst.Ip.Addresses = src.Ip.Addresses
+		default:
+			return fmt.Errorf("unknown mask path %q", p)
+		}
+	}
+
+	return nil
+}
+
+func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.CallOption) (*nodes.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Create")
 	defer span.End()
 
@@ -75,6 +125,11 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 		return nil, err
 	}
 
+	// Initialize status field if empty
+	if node.GetStatus() == nil {
+		node.Status = &nodes.Status{}
+	}
+
 	err = l.Repo().Create(ctx, node)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeID)
@@ -85,12 +140,12 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeID, "event", "NodeCreate")
 	}
-	return &nodes.CreateNodeResponse{
+	return &nodes.CreateResponse{
 		Node: node,
 	}, nil
 }
 
-func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...grpc.CallOption) (*nodes.DeleteNodeResponse, error) {
+func (l *local) Delete(ctx context.Context, req *nodes.DeleteRequest, _ ...grpc.CallOption) (*nodes.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Delete")
 	defer span.End()
 
@@ -107,12 +162,12 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteNodeRequest, _ ...g
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
-	return &nodes.DeleteNodeResponse{
+	return &nodes.DeleteResponse{
 		Id: req.Id,
 	}, nil
 }
 
-func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.CallOption) (*nodes.ListNodeResponse, error) {
+func (l *local) List(ctx context.Context, req *nodes.ListRequest, _ ...grpc.CallOption) (*nodes.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.List")
 	defer span.End()
 
@@ -120,12 +175,38 @@ func (l *local) List(ctx context.Context, req *nodes.ListNodeRequest, _ ...grpc.
 	if err != nil {
 		return nil, err
 	}
-	return &nodes.ListNodeResponse{
+	return &nodes.ListResponse{
 		Nodes: nodeList,
 	}, nil
 }
 
-func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...grpc.CallOption) (*nodes.UpdateNodeResponse, error) {
+func (l *local) UpdateStatus(ctx context.Context, req *nodes.UpdateStatusRequest, opts ...grpc.CallOption) (*nodes.UpdateStatusResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.UpdateStatus")
+	defer span.End()
+
+	// Get the existing container before updating so we can compare specs
+	existingContainer, err := l.Repo().Get(ctx, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply mask safely
+	base := proto.Clone(existingContainer.Status).(*nodes.Status)
+	if err := applyMaskedUpdate(base, req.Status, req.UpdateMask); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
+	}
+
+	existingContainer.Status = base
+	if err := l.Repo().Update(ctx, existingContainer); err != nil {
+		return nil, err
+	}
+
+	return &nodes.UpdateStatusResponse{
+		Id: existingContainer.GetMeta().GetName(),
+	}, nil
+}
+
+func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.CallOption) (*nodes.UpdateResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Update")
 	defer span.End()
 
@@ -185,7 +266,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateNodeRequest, _ ...g
 		}
 	}
 
-	return &nodes.UpdateNodeResponse{
+	return &nodes.UpdateResponse{
 		Node: existingObj,
 	}, nil
 }
@@ -203,7 +284,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	node, err := l.Repo().Get(ctx, nodeID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			if _, err := l.Create(ctx, &nodes.CreateNodeRequest{Node: req.Node}); err != nil {
+			if _, err := l.Create(ctx, &nodes.CreateRequest{Node: req.Node}); err != nil {
 				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeID)
 			}
 		} else {
@@ -211,7 +292,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	res, err := l.Update(ctx, &nodes.UpdateNodeRequest{Id: nodeID, Node: req.GetNode()})
+	res, err := l.Update(ctx, &nodes.UpdateRequest{Id: nodeID, Node: req.GetNode()})
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +315,7 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 		return nil, err
 	}
 
-	_, err = l.Delete(ctx, &nodes.DeleteNodeRequest{Id: req.GetId()})
+	_, err = l.Delete(ctx, &nodes.DeleteRequest{Id: req.GetId()})
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}

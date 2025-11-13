@@ -37,23 +37,23 @@ func (c *ContainerSetService) Register(server *grpc.Server) error {
 	return nil
 }
 
-func (c *ContainerSetService) Get(ctx context.Context, req *containersetsv1.GetContainerSetRequest) (*containersetsv1.GetContainerSetResponse, error) {
+func (c *ContainerSetService) Get(ctx context.Context, req *containersetsv1.GetRequest) (*containersetsv1.GetResponse, error) {
 	return c.local.Get(ctx, req)
 }
 
-func (c *ContainerSetService) List(ctx context.Context, req *containersetsv1.ListContainerSetRequest) (*containersetsv1.ListContainerSetResponse, error) {
+func (c *ContainerSetService) List(ctx context.Context, req *containersetsv1.ListRequest) (*containersetsv1.ListResponse, error) {
 	return c.local.List(ctx, req)
 }
 
-func (c *ContainerSetService) Create(ctx context.Context, req *containersetsv1.CreateContainerSetRequest) (*containersetsv1.CreateContainerSetResponse, error) {
+func (c *ContainerSetService) Create(ctx context.Context, req *containersetsv1.CreateRequest) (*containersetsv1.CreateResponse, error) {
 	return c.local.Create(ctx, req)
 }
 
-func (c *ContainerSetService) Delete(ctx context.Context, req *containersetsv1.DeleteContainerSetRequest) (*containersetsv1.DeleteContainerSetResponse, error) {
+func (c *ContainerSetService) Delete(ctx context.Context, req *containersetsv1.DeleteRequest) (*containersetsv1.DeleteResponse, error) {
 	return c.local.Delete(ctx, req)
 }
 
-func (c *ContainerSetService) Update(ctx context.Context, req *containersetsv1.UpdateContainerSetRequest) (*containersetsv1.UpdateContainerSetResponse, error) {
+func (c *ContainerSetService) Update(ctx context.Context, req *containersetsv1.UpdateRequest) (*containersetsv1.UpdateResponse, error) {
 	return c.local.Update(ctx, req)
 }
 

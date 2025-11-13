@@ -1,102 +1,125 @@
 syntax = "proto3";
 
-package blipblop.services.nodes.v1;
+package services.nodes.v1;
 
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/field_mask.proto";
 import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/wrappers.proto";
+import "services/events/v1/events.proto";
+import "types/v1/meta.proto";
 import "validate/validate.proto";
-import "api/types/v1/meta.proto";
-import "api/services/events/v1/events.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 
 service NodeService {
-  rpc List(ListNodeRequest) returns (ListNodeResponse) {
-    option (google.api.http) = {
-      get: "/api/v1/nodes"
-    };
+  rpc List(ListRequest) returns (ListResponse) {
+    option (google.api.http) = {get: "/api/v1/nodes"};
   }
-  rpc Get(GetNodeRequest) returns (GetNodeResponse) {
-    option (google.api.http) = {
-      get: "/api/v1/nodes/{id}"
-    };
+  rpc Get(GetRequest) returns (GetResponse) {
+    option (google.api.http) = {get: "/api/v1/nodes/{id}"};
   }
-  rpc Create(CreateNodeRequest) returns (CreateNodeResponse) {
+  rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
       post: "/api/v1/nodes"
       body: "node"
     };
   }
-  rpc Update(UpdateNodeRequest) returns (UpdateNodeResponse) {
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
       put: "/api/v1/nodes/{node.meta.name}"
       body: "node"
-      additional_bindings {
+      additional_bindings: {
         patch: "/api/v1/nodes/{node.meta.name}"
         body: "node"
       }
     };
   }
-  rpc Delete(DeleteNodeRequest) returns (DeleteNodeResponse) {
-    option (google.api.http) = {
-      delete: "/api/v1/nodes/{id}"
-    };
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {
+    option (google.api.http) = {delete: "/api/v1/nodes/{id}"};
   }
   rpc Join(JoinRequest) returns (JoinResponse) {}
   rpc Forget(ForgetRequest) returns (ForgetResponse) {}
-
-  rpc Connect(stream blipblop.services.events.v1.Event) returns (stream blipblop.services.events.v1.Event){}
+  rpc Connect(stream services.events.v1.Event) returns (stream services.events.v1.Event) {}
+  rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
+    option (google.api.http) = {put: "/api/v1/nodes/{id}/status"};
+  }
 }
 
 message Node {
-  blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
   Status status = 2;
 }
 
 message Status {
-  string state = 5;
+  google.protobuf.StringValue phase = 1;
+  IPStatus ip = 2;
+  google.protobuf.StringValue hostname = 3;
+  google.protobuf.StringValue runtime = 4;
 }
 
-message GetNodeRequest {
+message IPStatus {
+  repeated IPLinkStatus links = 1;
+  repeated IPV4Status addresses = 2;
+  google.protobuf.StringValue dns = 3;
+}
+
+message IPLinkStatus {
+  google.protobuf.StringValue link = 1;
+  google.protobuf.StringValue state = 2;
+  google.protobuf.StringValue mac = 3;
+}
+
+message IPV4Status {
+  google.protobuf.StringValue address = 1;
+  google.protobuf.StringValue netmask = 2;
+  google.protobuf.StringValue gateway = 3;
+  google.protobuf.StringValue interface = 4;
+}
+
+message DNSStatus {
+  repeated google.protobuf.StringValue nameservers = 1;
+}
+
+message GetRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message GetNodeResponse {
+message GetResponse {
   Node node = 1;
 }
 
-message CreateNodeRequest {
+message CreateRequest {
   Node node = 1 [(validate.rules).message.required = true];
 }
 
-message CreateNodeResponse {
+message CreateResponse {
   Node node = 1;
 }
 
-message DeleteNodeRequest {
+message DeleteRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message DeleteNodeResponse {
+message DeleteResponse {
   string id = 1;
 }
 
-message UpdateNodeRequest {
+message UpdateRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
   Node node = 2 [(validate.rules).message.required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
-message UpdateNodeResponse {
+message UpdateResponse {
   Node node = 1;
 }
 
-message ListNodeRequest {
+message ListRequest {
   map<string, string> selector = 1;
 }
 
-message ListNodeResponse {
+message ListResponse {
   repeated Node nodes = 1;
 }
 
@@ -113,5 +136,13 @@ message ForgetRequest {
 }
 
 message ForgetResponse {
+  string id = 1;
+}
+message UpdateStatusRequest {
+  string id = 1;
+  google.protobuf.FieldMask update_mask = 2 [(validate.rules).message.required = true];
+  Status status = 3 [(validate.rules).message.required = true];
+}
+message UpdateStatusResponse {
   string id = 1;
 }

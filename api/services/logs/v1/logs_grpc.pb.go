@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: api/services/logs/v1/logs.proto
+// source: services/logs/v1/logs.proto
 
 package logs
 
@@ -35,7 +35,7 @@ func NewLogServiceClient(cc grpc.ClientConnInterface) LogServiceClient {
 }
 
 func (c *logServiceClient) LogStream(ctx context.Context, opts ...grpc.CallOption) (LogService_LogStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/blipblop.services.logs.v1.LogService/LogStream", opts...)
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/services.logs.v1.LogService/LogStream", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (x *logServiceLogStreamClient) Recv() (*LogStreamResponse, error) {
 }
 
 func (c *logServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (LogService_SubscribeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[1], "/blipblop.services.logs.v1.LogService/Subscribe", opts...)
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[1], "/services.logs.v1.LogService/Subscribe", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (x *logServiceSubscribeServer) Send(m *SubscribeResponse) error {
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var LogService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "blipblop.services.logs.v1.LogService",
+	ServiceName: "services.logs.v1.LogService",
 	HandlerType: (*LogServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -196,5 +196,5 @@ var LogService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/services/logs/v1/logs.proto",
+	Metadata: "services/logs/v1/logs.proto",
 }

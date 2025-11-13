@@ -59,6 +59,8 @@ func createNodeFile(n *nodes.Node, filePath string) error {
 	if err != nil {
 		return err
 	}
+
+	//nolint:errcheck
 	defer f.Close()
 
 	err = os.WriteFile(filePath, b, 0)
@@ -73,6 +75,8 @@ func loadFromFile(path string) (*nodes.Node, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//nolint:errcheck
 	defer f.Close()
 
 	b, err := io.ReadAll(f)

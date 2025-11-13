@@ -44,7 +44,7 @@ func ParseCNIPortMapping(pm *containers.PortMapping) gocni.PortMapping {
 		HostPort:      int32(pm.GetHostPort()),
 		ContainerPort: int32(pm.GetContainerPort()),
 		Protocol:      pm.GetProtocol(),
-		HostIP:        pm.GetHostIP(),
+		HostIP:        pm.GetHostIp(),
 	}
 }
 

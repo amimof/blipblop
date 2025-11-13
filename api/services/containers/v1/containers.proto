@@ -1,49 +1,49 @@
 syntax = "proto3";
 
-package blipblop.services.containers.v1;
+package services.containers.v1;
 
-import "api/services/events/v1/events.proto";
-import "api/types/v1/meta.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "services/events/v1/events.proto";
+import "types/v1/meta.proto";
 import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
 service ContainerService {
-  rpc Get(GetContainerRequest) returns (GetContainerResponse) {
+  rpc Get(GetRequest) returns (GetResponse) {
     option (google.api.http) = {get: "/api/v1/containers/{id}"};
   }
-  rpc List(ListContainerRequest) returns (ListContainerResponse) {
+  rpc List(ListRequest) returns (ListResponse) {
     option (google.api.http) = {get: "/api/v1/containers"};
   }
-  rpc Create(CreateContainerRequest) returns (CreateContainerResponse) {
+  rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
       post: "/api/v1/containers"
       body: "container"
     };
   }
-  rpc Update(UpdateContainerRequest) returns (UpdateContainerResponse) {
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
       put: "/api/v1/containers/{container.meta.name}"
       body: "container"
     };
   }
-  rpc Patch(UpdateContainerRequest) returns (UpdateContainerResponse) {
+  rpc Patch(PatchRequest) returns (PatchResponse) {
     option (google.api.http) = {
       patch: "/api/v1/containers/{container.meta.name}"
       body: "container"
     };
   }
-  rpc Delete(DeleteContainerRequest) returns (DeleteContainerResponse) {
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {
     option (google.api.http) = {delete: "/api/v1/containers/{id}"};
   }
-  rpc Start(StartContainerRequest) returns (StartContainerResponse) {
+  rpc Start(StartRequest) returns (StartResponse) {
     option (google.api.http) = {put: "/api/v1/containers/{id}/start"};
   }
-  rpc Kill(KillContainerRequest) returns (KillContainerResponse) {
+  rpc Kill(KillRequest) returns (KillResponse) {
     option (google.api.http) = {put: "/api/v1/containers/{id}/kill"};
   }
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
@@ -52,9 +52,9 @@ service ContainerService {
 }
 
 message Container {
-  blipblop.types.v1.Meta meta = 1 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
   Config config = 2 [(validate.rules).message.required = true];
-  Status status = 3;
+  Status status = 4;
 }
 
 message Status {
@@ -67,8 +67,8 @@ message Status {
 
 message TaskStatus {
   google.protobuf.UInt32Value pid = 1;
-  google.protobuf.UInt32Value exitCode = 2;
-  google.protobuf.Timestamp exitTime = 3;
+  google.protobuf.UInt32Value exit_code = 2;
+  google.protobuf.Timestamp exit_time = 3;
   google.protobuf.StringValue error = 4;
 }
 
@@ -84,8 +84,8 @@ message Config {
   repeated string args = 2;
   repeated EnvVar envvars = 3;
   repeated Mount mounts = 4;
-  repeated PortMapping portMappings = 5;
-  map<string, string> nodeSelector = 6;
+  repeated PortMapping port_mappings = 5;
+  map<string, string> node_selector = 6;
 }
 
 message Mount {
@@ -103,93 +103,103 @@ message EnvVar {
 
 message PortMapping {
   string name = 1 [(validate.rules).string.min_len = 1];
-  uint32 hostPort = 2;
-  uint32 containerPort = 3;
+  uint32 host_port = 2;
+  uint32 container_port = 3;
   string protocol = 4;
-  string hostIP = 5;
+  string host_ip = 5;
 }
 
 enum Phase {
-  Unknown = 0;
-  Starting = 1;
-  Stopping = 2;
-  Running = 3;
-  Error = 4;
-  Pulling = 5;
-  Deleting = 6;
-  Scheduling = 7;
+  UNKNOWN = 0;
+  STARTING = 1;
+  STOPPING = 2;
+  RUNNING = 3;
+  ERROR = 4;
+  PULLING = 5;
+  DELETING = 6;
+  SCHEDULING = 7;
 }
 
 message Event {
   google.protobuf.Timestamp created = 1;
-  blipblop.services.events.v1.EventType type = 2;
+  services.events.v1.EventType type = 2;
   string description = 3;
 }
 
-message GetContainerRequest {
+message GetRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message GetContainerResponse {
+message GetResponse {
   Container container = 1;
 }
 
-message CreateContainerRequest {
+message CreateRequest {
   Container container = 1 [(validate.rules).message.required = true];
 }
 
-message CreateContainerResponse {
+message CreateResponse {
   Container container = 1;
 }
 
-message UpdateContainerRequest {
+message UpdateRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
   Container container = 2 [(validate.rules).message.required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
-message UpdateContainerResponse {
+message UpdateResponse {
   Container container = 1;
 }
 
-message DeleteContainerRequest {
+message PatchRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Container container = 2 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message PatchResponse {
+  Container container = 1;
+}
+
+message DeleteRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message DeleteContainerResponse {
+message DeleteResponse {
   string id = 1;
 }
 
-message ListContainerRequest {
+message ListRequest {
   map<string, string> selector = 1;
 }
 
-message ListContainerResponse {
+message ListResponse {
   repeated Container containers = 1;
 }
 
-message StartContainerRequest {
+message StartRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message StartContainerResponse {
+message StartResponse {
   string id = 1;
 }
 
-message StopContainerRequest {
+message StopRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }
 
-message StopContainerResponse {
+message StopResponse {
   string id = 1;
 }
 
-message KillContainerRequest {
+message KillRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
   bool forceKill = 2;
 }
 
-message KillContainerResponse {
+message KillResponse {
   string id = 1;
 }
 

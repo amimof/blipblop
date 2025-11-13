@@ -42,7 +42,11 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Errorf("error closing client connection: %v", err)
+				}
+			}()
 
 			// Setup writer
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)

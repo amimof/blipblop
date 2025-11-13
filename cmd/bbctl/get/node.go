@@ -42,7 +42,11 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
-			defer c.Close()
+			defer func() {
+				if err := c.Close(); err != nil {
+					logrus.Errorf("error closing client: %v", err)
+				}
+			}()
 
 			// Setup writer
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
@@ -57,7 +61,7 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n",
 						n.GetMeta().GetName(),
 						n.GetMeta().GetRevision(),
-						n.GetStatus().GetState(),
+						n.GetStatus().GetPhase().GetValue(),
 						cmdutil.FormatDuration(time.Since(n.GetMeta().GetCreated().AsTime())),
 					)
 				}

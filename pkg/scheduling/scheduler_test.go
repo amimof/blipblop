@@ -23,7 +23,7 @@ type want struct {
 	call   *gomock.Call
 }
 
-var testNodes = &nodesv1.ListNodeResponse{
+var testNodes = &nodesv1.ListResponse{
 	Nodes: []*nodesv1.Node{
 		{
 			Meta: &types.Meta{
@@ -43,7 +43,7 @@ var testNodes = &nodesv1.ListNodeResponse{
 				Name: "node-c",
 			},
 			Status: &nodesv1.Status{
-				State: node.StatusReady,
+				Phase: wrapperspb.String(node.StatusReady),
 			},
 		},
 		{
@@ -51,7 +51,7 @@ var testNodes = &nodesv1.ListNodeResponse{
 				Name: "node-d",
 			},
 			Status: &nodesv1.Status{
-				State: node.StatusMissing,
+				Phase: wrapperspb.String(node.StatusMissing),
 			},
 		},
 	},
@@ -202,7 +202,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 		},
 		"ListContainers": {
 			call: containerMockClient.EXPECT().List(gomock.Any(), gomock.Any()).AnyTimes(),
-			expect: &containersv1.ListContainerResponse{
+			expect: &containersv1.ListResponse{
 				Containers: testContainers,
 			},
 		},
@@ -252,7 +252,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						Name: "node-c",
 					},
 					Status: &nodesv1.Status{
-						State: node.StatusReady,
+						Phase: wrapperspb.String(node.StatusReady),
 					},
 				},
 			},

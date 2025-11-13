@@ -41,7 +41,7 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
-func (l *local) Get(ctx context.Context, req *containersetsv1.GetContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.GetContainerSetResponse, error) {
+func (l *local) Get(ctx context.Context, req *containersetsv1.GetRequest, _ ...grpc.CallOption) (*containersetsv1.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "containerset.Get")
 	defer span.End()
 
@@ -49,12 +49,12 @@ func (l *local) Get(ctx context.Context, req *containersetsv1.GetContainerSetReq
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
 	}
-	return &containersetsv1.GetContainerSetResponse{
+	return &containersetsv1.GetResponse{
 		ContainerSet: container,
 	}, nil
 }
 
-func (l *local) List(ctx context.Context, req *containersetsv1.ListContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.ListContainerSetResponse, error) {
+func (l *local) List(ctx context.Context, req *containersetsv1.ListRequest, _ ...grpc.CallOption) (*containersetsv1.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "containerset.List")
 	defer span.End()
 
@@ -62,12 +62,12 @@ func (l *local) List(ctx context.Context, req *containersetsv1.ListContainerSetR
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
 	}
-	return &containersetsv1.ListContainerSetResponse{
+	return &containersetsv1.ListResponse{
 		ContainerSets: ctrs,
 	}, nil
 }
 
-func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.CreateContainerSetResponse, error) {
+func (l *local) Create(ctx context.Context, req *containersetsv1.CreateRequest, _ ...grpc.CallOption) (*containersetsv1.CreateResponse, error) {
 	containerSet := req.GetContainerSet()
 	containerSetId := containerSet.GetMeta().GetName()
 
@@ -91,12 +91,12 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateContainer
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerCreate")
 	}
-	return &containersetsv1.CreateContainerSetResponse{
+	return &containersetsv1.CreateResponse{
 		ContainerSet: containerSet,
 	}, nil
 }
 
-func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.DeleteContainerSetResponse, error) {
+func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteRequest, _ ...grpc.CallOption) (*containersetsv1.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "containerset.Delete")
 	defer span.End()
 
@@ -113,12 +113,12 @@ func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteContainer
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
 	}
-	return &containersetsv1.DeleteContainerSetResponse{
+	return &containersetsv1.DeleteResponse{
 		Id: req.GetId(),
 	}, nil
 }
 
-func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainerSetRequest, _ ...grpc.CallOption) (*containersetsv1.UpdateContainerSetResponse, error) {
+func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateRequest, _ ...grpc.CallOption) (*containersetsv1.UpdateResponse, error) {
 	ctx, span := tracer.Start(ctx, "containerset.Update")
 	defer span.End()
 
@@ -156,7 +156,7 @@ func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateContainer
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}
-	return &containersetsv1.UpdateContainerSetResponse{
+	return &containersetsv1.UpdateResponse{
 		ContainerSet: existing,
 	}, nil
 }

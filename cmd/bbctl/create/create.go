@@ -1,3 +1,4 @@
+// Package create provides ability to create resources from the server
 package create
 
 import (
