@@ -367,6 +367,11 @@ func applyMaskedUpdate(dst, src *containers.Status, mask *fieldmaskpb.FieldMask)
 				continue
 			}
 			dst.Phase = src.Phase
+		case "status":
+			if src.Status == nil {
+				continue
+			}
+			dst.Status = src.Status
 		case "task.pid":
 			if src.GetTask().Pid == nil {
 				continue

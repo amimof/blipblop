@@ -392,6 +392,12 @@
             "type": "string"
           },
           {
+            "name": "status.status",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "status.node",
             "in": "query",
             "required": false,
@@ -466,6 +472,9 @@
       "type": "object",
       "properties": {
         "phase": {
+          "type": "string"
+        },
+        "status": {
           "type": "string"
         },
         "node": {
