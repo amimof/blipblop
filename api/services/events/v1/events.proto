@@ -37,7 +37,6 @@ message Event {
 message ScheduleRequest {
   google.protobuf.Any container = 1;
   google.protobuf.Any node = 2;
-  EventType event_tydjje = 3;
 }
 
 enum EventType {

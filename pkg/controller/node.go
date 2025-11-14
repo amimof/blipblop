@@ -8,11 +8,14 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/errors"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -57,12 +60,13 @@ func (c *NodeController) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
 
 	// Setup container handlers
-	c.clientset.EventV1().On(events.ContainerCreate, c.handleErrors(c.onContainerCreate))
+	// c.clientset.EventV1().On(events.ContainerCreate, c.onContainerCreate)
 	c.clientset.EventV1().On(events.ContainerDelete, c.handleErrors(c.onContainerDelete))
 	c.clientset.EventV1().On(events.ContainerUpdate, c.handleErrors(c.onContainerUpdate))
 	c.clientset.EventV1().On(events.ContainerStop, c.handleErrors(c.onContainerStop))
 	c.clientset.EventV1().On(events.ContainerKill, c.handleErrors(c.onContainerKill))
 	c.clientset.EventV1().On(events.ContainerStart, c.handleErrors(c.onContainerStart))
+	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
 
 	go func() {
 		for e := range evt {
@@ -114,37 +118,53 @@ func (c *NodeController) Run(ctx context.Context) {
 
 func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
-		// Get the container
-		var ctr containersv1.Container
-		err := ev.Object.UnmarshalTo(&ctr)
+		err := h(ctx, ev)
 		if err != nil {
+			c.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
 			return err
 		}
-
-		status := ctr.GetStatus()
-
-		// Run the handler and set status of the container if any errors are encountered
-		err = h(ctx, ev)
-		if err != nil {
-			c.logger.Error("failed running handler", "error", err)
-			// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), containersv1.Phase_Error.String())
-			// _ = c.clientset.ContainerV1().SetTaskReason(ctx, ctr.GetMeta().GetName(), err.Error())
-			// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{
-			// 	Task: &containersv1.TaskStatus{
-			// 		Error: wrapperspb.String(err.Error()),
-			// 	},
-			// })
-			return err
-		}
-
-		// Reset previous errors
-		if status.GetTask().GetError().GetValue() != "" {
-			status.Task.Error = wrapperspb.String("")
-			// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), status)
-		}
-
 		return nil
 	}
+}
+
+func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
+	// Unwrap schedule type from the event
+	s := &eventsv1.ScheduleRequest{}
+	err := obj.GetObject().UnmarshalTo(s)
+	if err != nil {
+		return err
+	}
+
+	// Unwrap the node from the event object
+	n := &nodes.Node{}
+	err = s.GetNode().UnmarshalTo(n)
+	if err != nil {
+		return err
+	}
+
+	// We only care if the event is for us
+	if n.GetMeta().GetName() != c.nodeName {
+		return nil
+	}
+
+	var ctr containersv1.Container
+	err = s.GetContainer().UnmarshalTo(&ctr)
+	if err != nil {
+		return err
+	}
+
+	newObj := proto.Clone(obj).(*eventsv1.Event)
+	newObj.Object, err = anypb.New(&ctr)
+	if err != nil {
+		return err
+	}
+
+	err = c.onContainerStart(ctx, newObj)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
@@ -178,29 +198,6 @@ func (c *NodeController) onNodeForget(ctx context.Context, obj *eventsv1.Event) 
 
 // When this is run we can assume that the container has been scheduled
 func (c *NodeController) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
-	// Get the container
-	var ctr containersv1.Container
-	err := e.Object.UnmarshalTo(&ctr)
-	if err != nil {
-		return err
-	}
-
-	containerID := ctr.GetMeta().GetName()
-
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
-
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("scheduled")}, "phase")
-
-	err = c.runtime.Pull(ctx, &ctr)
-	if err != nil {
-		return err
-	}
-
-	err = c.runtime.Run(ctx, &ctr)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -211,53 +208,39 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 		return err
 	}
 
+	containerID := ctr.GetMeta().GetName()
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
-	err = c.runtime.Kill(ctx, &ctr)
+	err = c.onContainerStop(ctx, e)
 	if err != nil {
-		c.logger.Error("error killing container", "error", err)
 		return err
 	}
 
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
+	err = c.onContainerStop(ctx, e)
+	if err != nil {
+		return err
+	}
+
 	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
-		c.logger.Error("error deleting container", "error", err)
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(errors.ERRDELETE),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
 	return nil
 }
 
 func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Event) error {
-	var ctr containersv1.Container
-	err := e.GetObject().UnmarshalTo(&ctr)
+	err := c.onContainerStop(ctx, e)
 	if err != nil {
 		return err
 	}
-
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
-
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
-	err = c.runtime.Kill(ctx, &ctr)
-	if err != nil {
-		return err
-	}
-
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
-	err = c.runtime.Delete(ctx, &ctr)
-	if err != nil {
-		return err
-	}
-
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
-	err = c.runtime.Pull(ctx, &ctr)
-	if err != nil {
-		return err
-	}
-
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
-	err = c.runtime.Run(ctx, &ctr)
+	err = c.onContainerStart(ctx, e)
 	if err != nil {
 		return err
 	}
@@ -271,10 +254,23 @@ func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event)
 		return err
 	}
 
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+	containerID := ctr.GetMeta().GetName()
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
 
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Deleting.String()})
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
 	err = c.runtime.Kill(ctx, &ctr)
+	if err != nil {
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(errors.ERRKILL),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
+		return err
+	}
+
+	err = c.onContainerDelete(ctx, e)
 	if err != nil {
 		return err
 	}
@@ -289,25 +285,33 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 		return err
 	}
 
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
-
-	// Delete container if it exists
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
-	// if err = c.runtime.Delete(ctx, &ctr); err != nil {
-	// 	return err
-	// }
+	containerID := ctr.GetMeta().GetName()
+	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", containerID)
 
 	// Pull image
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Pulling.String()})
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("pulling")}, "phase")
 	err = c.runtime.Pull(ctx, &ctr)
 	if err != nil {
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(errors.ERRIMAGEPULL),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
 
 	// Run container
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Starting.String()})
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(errors.ERREXEC),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
 
@@ -321,17 +325,25 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 		return err
 	}
 
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+	containerID := ctr.GetMeta().GetName()
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
 
-	// _ = c.clientset.ContainerV1().Status(ctx, ctr.GetMeta().GetName(), &containersv1.Status{Phase: containersv1.Phase_Stopping.String()})
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
 	err = c.runtime.Stop(ctx, &ctr)
 	if err != nil {
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(errors.ERRSTOP),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
 
-	err = c.runtime.Delete(ctx, &ctr)
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("deleting")}, "phase")
+	err = c.onContainerDelete(ctx, e)
 	if err != nil {
-		c.logger.Error("error deleting container", "error", err)
 		return err
 	}
 

@@ -59,10 +59,11 @@ message Container {
 
 message Status {
   google.protobuf.StringValue phase = 1;
-  google.protobuf.StringValue node = 2;
-  google.protobuf.StringValue ip = 3;
-  TaskStatus task = 4;
-  RuntimeStatus runtime = 5;
+  google.protobuf.StringValue status = 2;
+  google.protobuf.StringValue node = 3;
+  google.protobuf.StringValue ip = 4;
+  TaskStatus task = 5;
+  RuntimeStatus runtime = 6;
 }
 
 message TaskStatus {
