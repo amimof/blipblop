@@ -13,6 +13,7 @@ import (
 	"github.com/amimof/blipblop/pkg/labels"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/util"
+	"google.golang.org/grpc/metadata"
 )
 
 type ContainerSetController struct {
@@ -30,6 +31,7 @@ func WithContainerSetLogger(l logger.Logger) NewContainerSetControllerOption {
 
 func (c *ContainerSetController) Run(ctx context.Context) {
 	// Subscribe to events
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "continersetcontroller")
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Handlers

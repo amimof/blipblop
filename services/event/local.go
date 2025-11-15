@@ -18,7 +18,7 @@ type local struct {
 
 var (
 	_      eventsv1.EventServiceClient = &local{}
-	tracer                             = otel.GetTracerProvider().Tracer("blipblop-server")
+	tracer                             = otel.Tracer("service.event")
 )
 
 func (n *local) Create(ctx context.Context, req *eventsv1.CreateRequest, _ ...grpc.CallOption) (*eventsv1.CreateResponse, error) {

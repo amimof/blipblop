@@ -13,7 +13,11 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -25,6 +29,7 @@ type NodeController struct {
 	clientset                *client.ClientSet
 	nodeName                 string
 	heartbeatIntervalSeconds int
+	tracer                   trace.Tracer
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -50,6 +55,7 @@ func WithNodeName(s string) NewNodeControllerOption {
 // Run implements controller
 func (c *NodeController) Run(ctx context.Context) {
 	// Subscribe to events
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "node")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Node Handlers
@@ -58,6 +64,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
 	c.clientset.EventV1().On(events.NodeJoin, c.onNodeJoin)
 	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
+	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
 
 	// Setup container handlers
 	// c.clientset.EventV1().On(events.ContainerCreate, c.onContainerCreate)
@@ -70,7 +77,7 @@ func (c *NodeController) Run(ctx context.Context) {
 
 	go func() {
 		for e := range evt {
-			c.logger.Info("Got event", "event", e.GetType().String())
+			c.logger.Info("Got event", "event", e.GetType().String(), "clientID", c.nodeName, "objectID", e.GetObjectId())
 		}
 	}()
 
@@ -128,6 +135,9 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 }
 
 func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnSchedule")
+	defer span.End()
+
 	// Unwrap schedule type from the event
 	s := &eventsv1.ScheduleRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
@@ -167,6 +177,25 @@ func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) er
 	return nil
 }
 
+func (c *NodeController) onNodeConnect(ctx context.Context, e *eventsv1.Event) error {
+	_, span := c.tracer.Start(ctx, "controller.node.OnNodeConnect")
+	defer span.End()
+
+	var n nodes.Node
+	err := e.GetObject().UnmarshalTo(&n)
+	if err != nil {
+		return err
+	}
+
+	span.SetAttributes(
+		attribute.String("client.id", e.GetClientId()),
+		attribute.String("object.id", e.GetObjectId()),
+		attribute.String("node.id", n.GetMeta().GetName()),
+	)
+
+	return nil
+}
+
 func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
 	return nil
 }
@@ -196,12 +225,10 @@ func (c *NodeController) onNodeForget(ctx context.Context, obj *eventsv1.Event) 
 	return nil
 }
 
-// When this is run we can assume that the container has been scheduled
-func (c *NodeController) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
-	return nil
-}
-
 func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerDelete")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -210,16 +237,6 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 
 	containerID := ctr.GetMeta().GetName()
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
-
-	err = c.onContainerStop(ctx, e)
-	if err != nil {
-		return err
-	}
-
-	err = c.onContainerStop(ctx, e)
-	if err != nil {
-		return err
-	}
 
 	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
@@ -236,6 +253,9 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 }
 
 func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerUpdate")
+	defer span.End()
+
 	err := c.onContainerStop(ctx, e)
 	if err != nil {
 		return err
@@ -248,6 +268,9 @@ func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Even
 }
 
 func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerKill")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -279,6 +302,9 @@ func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event)
 }
 
 func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerStart")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -287,6 +313,8 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 
 	containerID := ctr.GetMeta().GetName()
 	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", containerID)
+
+	_ = c.onContainerDelete(ctx, e)
 
 	// Pull image
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("pulling")}, "phase")
@@ -319,6 +347,9 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 }
 
 func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerStop")
+	defer span.End()
+
 	var ctr containersv1.Container
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
@@ -341,7 +372,6 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("deleting")}, "phase")
 	err = c.onContainerDelete(ctx, e)
 	if err != nil {
 		return err
@@ -365,6 +395,7 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		logger:                   logger.ConsoleLogger{},
 		heartbeatIntervalSeconds: 5,
 		nodeName:                 uuid.New().String(),
+		tracer:                   otel.Tracer("controller"),
 	}
 	for _, opt := range opts {
 		opt(m)

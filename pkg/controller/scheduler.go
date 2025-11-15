@@ -9,6 +9,7 @@ import (
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/scheduling"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -60,6 +61,7 @@ func (c *SchedulerController) onContainerCreate(ctx context.Context, e *eventsv1
 
 func (c *SchedulerController) Run(ctx context.Context) {
 	// Subscribe to events
+	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "scheduler")
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ContainerCreate)
 
 	// Setup Handlers
