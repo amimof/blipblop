@@ -1,3 +1,4 @@
+// Package v1 provides a client for working with events
 package v1
 
 import (
@@ -5,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
@@ -23,6 +25,8 @@ type ClientV1 struct {
 	id           string
 	eventService eventsv1.EventServiceClient
 	exchange     events.Exchange
+	streamOnce   sync.Once
+	streamErrs   chan error
 }
 
 func (c *ClientV1) EventService() eventsv1.EventServiceClient {
@@ -72,51 +76,79 @@ func (c *ClientV1) On(ev eventsv1.EventType, f events.HandlerFunc) {
 }
 
 func (c *ClientV1) Once(ev eventsv1.EventType, f events.HandlerFunc) {
-	c.exchange.On(ev, f)
+	c.exchange.Once(ev, f)
+}
+
+func (c *ClientV1) ensureStream(ctx context.Context) chan error {
+	c.streamOnce.Do(func() {
+		c.streamErrs = make(chan error, 100)
+
+		go func() {
+			defer close(c.streamErrs)
+
+			for {
+				// Check if the context is already canceled before starting a connection
+				select {
+				case <-ctx.Done():
+					c.streamErrs <- ctx.Err()
+					return
+				default:
+				}
+
+				// Start a new stream connection
+				stream, err := c.startStream(ctx)
+				if err != nil {
+					time.Sleep(2 * time.Second)
+					continue
+				}
+
+				// Stream handling
+				streamErr := c.handleStream(ctx, stream, c.streamErrs)
+
+				// Log and retry on transiet errors
+				if streamErr != nil {
+
+					// Stream closed due to context cancellation
+					if errors.Is(streamErr, context.Canceled) {
+						c.streamErrs <- streamErr
+						return
+					}
+
+					// Backoff reconnect
+					time.Sleep(2 * time.Second)
+				}
+
+			}
+		}()
+	})
+
+	return c.streamErrs
 }
 
 func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) (chan *eventsv1.Event, chan error) {
-	errChan := make(chan error, 100)
 	bus := c.exchange.Subscribe(ctx, topics...)
 
+	// Start stream look once
+	globalErrs := c.ensureStream(ctx)
+
+	// Per-subscriber error view
+	errChan := make(chan error, 10)
 	go func() {
 		defer close(errChan)
-		defer close(bus)
 
 		for {
-			// Check if the context is already canceled before starting a connection
 			select {
 			case <-ctx.Done():
-				errChan <- ctx.Err()
 				return
-			default:
-			}
-
-			// Start a new stream connection
-			stream, err := c.startStream(ctx)
-			if err != nil {
-				time.Sleep(2 * time.Second)
-				continue
-			}
-
-			// Stream handling
-			streamErr := c.handleStream(ctx, stream, errChan)
-
-			// Log and retry on transiet errors
-			if streamErr != nil {
-
-				// Stream closed due to context cancellation
-				if errors.Is(streamErr, context.Canceled) {
-					errChan <- err
+			case err, ok := <-globalErrs:
+				if !ok {
 					return
 				}
-
-				// Backoff reconnect
-				time.Sleep(2 * time.Second)
+				errChan <- err
 			}
-
 		}
 	}()
+
 	return bus, errChan
 }
 
@@ -165,13 +197,13 @@ func isRetryableError(code codes.Code) bool {
 	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
 }
 
-func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
-	if clientId == "" {
-		clientId = uuid.New().String()
+func NewClientV1(conn *grpc.ClientConn, clientID string) *ClientV1 {
+	if clientID == "" {
+		clientID = uuid.New().String()
 	}
 	return &ClientV1{
 		eventService: eventsv1.NewEventServiceClient(conn),
-		id:           clientId,
+		id:           clientID,
 		exchange:     *events.NewExchange(events.WithExchangeLogger(logger.ConsoleLogger{})),
 	}
 }

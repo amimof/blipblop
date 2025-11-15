@@ -6,12 +6,15 @@ import (
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/pkg/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var (
-	_ Publisher  = &Exchange{}
-	_ Forwarder  = &Exchange{}
-	_ Subscriber = &Exchange{}
+	_      Publisher  = &Exchange{}
+	_      Forwarder  = &Exchange{}
+	_      Subscriber = &Exchange{}
+	tracer            = otel.Tracer("exchange")
 )
 
 type (
@@ -86,6 +89,14 @@ func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) chan 
 func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *eventsv1.Event) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	ctx, span := tracer.Start(ctx, "exchange.Publish")
+	span.SetAttributes(
+		attribute.String("event.client.id", ev.GetClientId()),
+		attribute.String("event.object.id", ev.GetObjectId()),
+		attribute.String("event.type", t.String()),
+	)
+	defer span.End()
 
 	// Publish to subscribers on the topic
 	if evChans, ok := e.topics[t]; ok {

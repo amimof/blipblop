@@ -10,6 +10,7 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
 
 	"google.golang.org/grpc"
@@ -28,7 +29,7 @@ var lis *bufconn.Listener
 func initTestServer() (*grpc.Server, *bufconn.Listener) {
 	lis = bufconn.Listen(bufSize)
 	s := grpc.NewServer()
-	svc := NewService(repository.NewContainerInMemRepo(), WithExchange(events.NewExchange()))
+	svc := NewService(repository.NewContainerInMemRepo(), WithExchange(events.NewExchange()), WithLogger(&logger.DevNullLogger{}))
 	containersv1.RegisterContainerServiceServer(s, svc)
 	go func() {
 		if err := s.Serve(lis); err != nil {

@@ -59,10 +59,9 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 
 				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
 				for _, c := range containers {
-					var status string
-					if c.GetStatus().GetTask().GetExitCode().GetValue() != 0 {
-						exitDuration := cmdutil.FormatDuration(time.Since(c.GetStatus().GetTask().GetExitTime().AsTime()))
-						status = fmt.Sprintf("Exited (%d) %s ago", c.GetStatus().GetTask().GetExitCode().GetValue(), exitDuration)
+					status := "OK"
+					if c.GetStatus().GetStatus() != nil && c.GetStatus().GetStatus().GetValue() != "" {
+						status = c.GetStatus().GetStatus().GetValue()
 					}
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),

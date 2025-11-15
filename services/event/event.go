@@ -8,6 +8,7 @@ import (
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
@@ -61,19 +62,30 @@ func (n *EventService) Register(server *grpc.Server) error {
 func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
 	// Identify the client
 	ctx := stream.Context()
+
+	ctx, span := tracer.Start(ctx, "service.event.Subscribe")
+	defer span.End()
+
 	clientID := req.ClientId
 	peer, _ := peer.FromContext(ctx)
 
 	eventChan := s.exchange.Subscribe(ctx, events.ALL...)
 
-	s.logger.Debug("client connected", "clientId", clientID, "address", peer.Addr.String())
+	md, _ := metadata.FromIncomingContext(ctx)
+
+	span.SetAttributes(
+		attribute.String("client.id", clientID),
+		attribute.String("peer.addr", peer.Addr.String()),
+	)
+
+	s.logger.Debug("client connected", "clientId", clientID, "address", peer.Addr.String(), "controller", md.Get("blipblop_controller_name"))
 
 	go func() {
 		for {
 			select {
 			case n := <-eventChan:
 
-				s.logger.Info("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
+				s.logger.Info("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId, "controller", md.Get("blipblop_controller_name"))
 				err := stream.Send(n)
 				if err != nil {
 					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)

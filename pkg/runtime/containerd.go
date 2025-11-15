@@ -14,7 +14,6 @@ import (
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/util"
-	"github.com/containerd/console"
 	"github.com/containerd/containerd/errdefs"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/cio"
@@ -387,7 +386,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	opts := []oci.SpecOpts{
 		oci.WithDefaultSpec(),
 		oci.WithDefaultUnixDevices,
-		oci.WithTTY,
+		// oci.WithTTY,
 		oci.WithImageConfig(image),
 		oci.WithHostname(ctr.GetMeta().GetName()),
 		oci.WithImageConfig(image),
@@ -413,21 +412,22 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		return err
 	}
 
-	con, _, err := console.NewPty()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := con.Close(); err != nil {
-			c.logger.Error("error closing connection", "error", err)
-		}
-	}()
+	// con, _, err := console.NewPty()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer func() {
+	// 	if err := con.Close(); err != nil {
+	// 		c.logger.Error("error closing connection", "error", err)
+	// 	}
+	// }()
 
-	dummyReader, _, err := os.Pipe()
-	if err != nil {
-		return err
-	}
-	ioCreator := cio.NewCreator(cio.WithTerminal, cio.WithStreams(dummyReader, con, con))
+	// dummyReader, _, err := os.Pipe()
+	// if err != nil {
+	// 	return err
+	// }
+	// ioCreator := cio.NewCreator(cio.WithTerminal, cio.WithStreams(dummyReader, con, con))
+	ioCreator := cio.NewCreator(cio.WithStreams(nil, nil, nil))
 
 	// Create the task
 	task, err := cont.NewTask(ctx, ioCreator)

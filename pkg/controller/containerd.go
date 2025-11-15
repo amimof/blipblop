@@ -270,12 +270,15 @@ func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
 			c.logger.Error("error running garbage collector in runtime for container", "id", id, "error", err)
 		}
 
+		// NOTE: The following update will not work if the task has exited as a result of a container delete event.
+		// In that case the container is already removed from the server, rendering the update method below useless
+		// and will always result in a not found error.
 		st := &containersv1.Status{
 			Phase: wrapperspb.String("stopped"),
 		}
 		err = c.clientset.ContainerV1().Status().Update(ctx, containerID, st, "phase")
 		if err != nil {
-			c.logger.Error("error setting container state", "id", containerID, "event", "TaskCreate", "error", err)
+			c.logger.Error("error setting container state", "id", containerID, "event", "TaskExit", "error", err)
 		}
 	}
 }
