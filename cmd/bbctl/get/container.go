@@ -60,7 +60,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
 				for _, c := range containers {
 					status := "OK"
-					if c.GetStatus().GetStatus() != nil {
+					if c.GetStatus().GetStatus() != nil && c.GetStatus().GetStatus().GetValue() != "" {
 						status = c.GetStatus().GetStatus().GetValue()
 					}
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",

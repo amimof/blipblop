@@ -8,6 +8,7 @@ import (
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/consts"
 	"github.com/amimof/blipblop/pkg/errors"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
@@ -244,7 +245,7 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 			ctx,
 			containerID,
 			&containersv1.Status{
-				Phase:  wrapperspb.String(errors.ERRDELETE),
+				Phase:  wrapperspb.String(consts.ERRDELETE),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
@@ -257,7 +258,7 @@ func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Even
 	defer span.End()
 
 	err := c.onContainerStop(ctx, e)
-	if err != nil {
+	if errors.IgnoreNotFound(err) != nil {
 		return err
 	}
 	err = c.onContainerStart(ctx, e)
@@ -282,21 +283,23 @@ func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event)
 
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
 	err = c.runtime.Kill(ctx, &ctr)
-	if err != nil {
+	if errors.IgnoreNotFound(err) != nil {
 		_ = c.clientset.ContainerV1().Status().Update(
 			ctx,
 			containerID,
 			&containersv1.Status{
-				Phase:  wrapperspb.String(errors.ERRKILL),
+				Phase:  wrapperspb.String(consts.ERRKILL),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
 
 	err = c.onContainerDelete(ctx, e)
-	if err != nil {
+	if errors.IgnoreNotFound(err) != nil {
 		return err
 	}
+
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
@@ -324,7 +327,7 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 			ctx,
 			containerID,
 			&containersv1.Status{
-				Phase:  wrapperspb.String(errors.ERRIMAGEPULL),
+				Phase:  wrapperspb.String(consts.ERRIMAGEPULL),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
@@ -337,11 +340,13 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 			ctx,
 			containerID,
 			&containersv1.Status{
-				Phase:  wrapperspb.String(errors.ERREXEC),
+				Phase:  wrapperspb.String(consts.ERREXEC),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
+
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
@@ -361,21 +366,23 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
 	err = c.runtime.Stop(ctx, &ctr)
-	if err != nil {
+	if errors.IgnoreNotFound(err) != nil {
 		_ = c.clientset.ContainerV1().Status().Update(
 			ctx,
 			containerID,
 			&containersv1.Status{
-				Phase:  wrapperspb.String(errors.ERRSTOP),
+				Phase:  wrapperspb.String(consts.ERRSTOP),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
 
 	err = c.onContainerDelete(ctx, e)
-	if err != nil {
+	if errors.IgnoreNotFound(err) != nil {
 		return err
 	}
+
+	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
