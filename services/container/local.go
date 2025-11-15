@@ -17,7 +17,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -167,8 +166,6 @@ func (l *local) List(ctx context.Context, req *containers.ListRequest, _ ...grpc
 func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...grpc.CallOption) (*containers.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Create")
 	defer span.End()
-
-	md, _ := metadata.FromIncomingContext(ctx)
 
 	container := req.GetContainer()
 	container.GetMeta().Created = timestamppb.Now()

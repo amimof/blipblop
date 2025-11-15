@@ -1,7 +1,9 @@
+// Package events provides interfaces and types for working with events
 package events
 
 import (
 	"context"
+	"maps"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	"github.com/amimof/blipblop/api/types/v1"
@@ -81,9 +83,7 @@ func NewEvent(evType eventsv1.EventType, obj Object, labels ...map[string]string
 	// Merge the maps
 	l := map[string]string{}
 	for _, label := range labels {
-		for k, v := range label {
-			l[k] = v
-		}
+		maps.Copy(l, label)
 	}
 	o, _ := anypb.New(obj)
 	return &eventsv1.Event{

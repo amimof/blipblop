@@ -1,3 +1,4 @@
+// Package container provides the server implemenetation for the container service
 package container
 
 import (

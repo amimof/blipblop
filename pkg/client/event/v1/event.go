@@ -1,3 +1,4 @@
+// Package v1 provides a client for working with events
 package v1
 
 import (

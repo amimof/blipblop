@@ -11,7 +11,6 @@ require (
 require github.com/opencontainers/runtime-spec v1.2.1
 
 require (
-	github.com/containerd/console v1.0.5
 	github.com/containerd/containerd v1.7.27
 	github.com/containerd/containerd/api v1.10.0
 	github.com/containerd/containerd/v2 v2.2.0
