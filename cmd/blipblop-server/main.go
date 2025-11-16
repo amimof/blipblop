@@ -25,6 +25,7 @@ import (
 	"github.com/amimof/blipblop/services/container"
 	"github.com/amimof/blipblop/services/containerset"
 	"github.com/amimof/blipblop/services/event"
+	logsvc "github.com/amimof/blipblop/services/log"
 	"github.com/amimof/blipblop/services/node"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -261,7 +262,7 @@ func main() {
 		container.WithExchange(exchange2),
 	)
 
-	// logService := logsvc.NewService(logsvc.WithLogger(log))
+	logService := logsvc.NewService(logsvc.WithLogger(log), logsvc.WithExchange(exchange2))
 
 	// Setup server
 	s, err := server.New(serverOpts...)
@@ -272,7 +273,7 @@ func main() {
 
 	// Register services to gRPC server
 	// err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService)
-	err = s.RegisterService(eventService, nodeService, containerSetService, containerService)
+	err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)

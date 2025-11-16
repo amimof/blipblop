@@ -3,9 +3,11 @@ package controller
 import (
 	"context"
 	"os"
+	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/consts"
@@ -21,6 +23,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -31,6 +34,7 @@ type NodeController struct {
 	nodeName                 string
 	heartbeatIntervalSeconds int
 	tracer                   trace.Tracer
+	logChan                  chan *logsv1.LogEntry
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -75,6 +79,10 @@ func (c *NodeController) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.ContainerKill, c.handleErrors(c.onContainerKill))
 	c.clientset.EventV1().On(events.ContainerStart, c.handleErrors(c.onContainerStart))
 	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
+
+	// Setup log handlers
+	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
+	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
 
 	go func() {
 		for e := range evt {
@@ -133,6 +141,62 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 		}
 		return nil
 	}
+}
+
+func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
+	// Unwrap schedule type from the event
+	s := &logsv1.TailLogRequest{}
+	err := obj.GetObject().UnmarshalTo(s)
+	if err != nil {
+		return err
+	}
+	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+
+	logStream, err := c.clientset.LogV1().Stream(ctx)
+	if err != nil {
+		c.logger.Error("error setting up pushlogs", "error", err)
+		return err
+	}
+
+	// Dummy log file reader for testing purposes
+	go func() {
+		var seq uint64
+		line := "Hello World!"
+		for {
+			if err := logStream.Send(&logsv1.LogEntry{
+				ContainerId: s.GetContainerId(),
+				NodeId:      s.GetNodeId(),
+				Timestamp:   timestamppb.Now(),
+				Line:        "Hello World",
+				Seq:         seq,
+			}); err != nil {
+				c.logger.Error(
+					"error pushing log entry",
+					"error", err,
+					"containerID", s.GetContainerId(),
+					"nodeID", s.GetNodeId(),
+					"seq", seq,
+					"line", line,
+				)
+			}
+			seq++
+			time.Sleep(time.Second + 1)
+		}
+	}()
+
+	return nil
+}
+
+func (c *NodeController) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
+	s := &logsv1.TailLogRequest{}
+	err := obj.GetObject().UnmarshalTo(s)
+	if err != nil {
+		return err
+	}
+	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+
+	close(c.logChan)
+	return nil
 }
 
 func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
@@ -403,6 +467,7 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		heartbeatIntervalSeconds: 5,
 		nodeName:                 uuid.New().String(),
 		tracer:                   otel.Tracer("controller"),
+		logChan:                  make(chan *logsv1.LogEntry),
 	}
 	for _, opt := range opts {
 		opt(m)

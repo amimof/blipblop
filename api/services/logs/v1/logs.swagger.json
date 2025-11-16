@@ -45,39 +45,25 @@
         }
       }
     },
-    "v1LogItem": {
+    "v1LogEntry": {
       "type": "object",
       "properties": {
-        "logLine": {
-          "type": "string"
-        },
-        "timestamp": {
-          "type": "string"
-        }
-      }
-    },
-    "v1LogStreamResponse": {
-      "type": "object",
-      "properties": {
-        "containerId": {
-          "type": "string"
-        },
         "nodeId": {
           "type": "string"
         },
-        "start": {
-          "type": "boolean"
+        "containerId": {
+          "type": "string"
         },
-        "log": {
-          "$ref": "#/definitions/v1LogItem"
-        }
-      }
-    },
-    "v1SubscribeResponse": {
-      "type": "object",
-      "properties": {
-        "log": {
-          "$ref": "#/definitions/v1LogItem"
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "line": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "string",
+          "format": "uint64"
         }
       }
     }

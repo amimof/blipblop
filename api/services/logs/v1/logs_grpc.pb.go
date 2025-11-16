@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -22,8 +23,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LogServiceClient interface {
-	LogStream(ctx context.Context, opts ...grpc.CallOption) (LogService_LogStreamClient, error)
-	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (LogService_SubscribeClient, error)
+	TailLogs(ctx context.Context, in *TailLogRequest, opts ...grpc.CallOption) (LogService_TailLogsClient, error)
+	PushLogs(ctx context.Context, opts ...grpc.CallOption) (LogService_PushLogsClient, error)
 }
 
 type logServiceClient struct {
@@ -34,43 +35,12 @@ func NewLogServiceClient(cc grpc.ClientConnInterface) LogServiceClient {
 	return &logServiceClient{cc}
 }
 
-func (c *logServiceClient) LogStream(ctx context.Context, opts ...grpc.CallOption) (LogService_LogStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/services.logs.v1.LogService/LogStream", opts...)
+func (c *logServiceClient) TailLogs(ctx context.Context, in *TailLogRequest, opts ...grpc.CallOption) (LogService_TailLogsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/services.logs.v1.LogService/TailLogs", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &logServiceLogStreamClient{stream}
-	return x, nil
-}
-
-type LogService_LogStreamClient interface {
-	Send(*LogStreamRequest) error
-	Recv() (*LogStreamResponse, error)
-	grpc.ClientStream
-}
-
-type logServiceLogStreamClient struct {
-	grpc.ClientStream
-}
-
-func (x *logServiceLogStreamClient) Send(m *LogStreamRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *logServiceLogStreamClient) Recv() (*LogStreamResponse, error) {
-	m := new(LogStreamResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *logServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (LogService_SubscribeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[1], "/services.logs.v1.LogService/Subscribe", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &logServiceSubscribeClient{stream}
+	x := &logServiceTailLogsClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -80,17 +50,51 @@ func (c *logServiceClient) Subscribe(ctx context.Context, in *SubscribeRequest, 
 	return x, nil
 }
 
-type LogService_SubscribeClient interface {
-	Recv() (*SubscribeResponse, error)
+type LogService_TailLogsClient interface {
+	Recv() (*LogEntry, error)
 	grpc.ClientStream
 }
 
-type logServiceSubscribeClient struct {
+type logServiceTailLogsClient struct {
 	grpc.ClientStream
 }
 
-func (x *logServiceSubscribeClient) Recv() (*SubscribeResponse, error) {
-	m := new(SubscribeResponse)
+func (x *logServiceTailLogsClient) Recv() (*LogEntry, error) {
+	m := new(LogEntry)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *logServiceClient) PushLogs(ctx context.Context, opts ...grpc.CallOption) (LogService_PushLogsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[1], "/services.logs.v1.LogService/PushLogs", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &logServicePushLogsClient{stream}
+	return x, nil
+}
+
+type LogService_PushLogsClient interface {
+	Send(*LogEntry) error
+	CloseAndRecv() (*emptypb.Empty, error)
+	grpc.ClientStream
+}
+
+type logServicePushLogsClient struct {
+	grpc.ClientStream
+}
+
+func (x *logServicePushLogsClient) Send(m *LogEntry) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *logServicePushLogsClient) CloseAndRecv() (*emptypb.Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(emptypb.Empty)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -101,8 +105,8 @@ func (x *logServiceSubscribeClient) Recv() (*SubscribeResponse, error) {
 // All implementations must embed UnimplementedLogServiceServer
 // for forward compatibility
 type LogServiceServer interface {
-	LogStream(LogService_LogStreamServer) error
-	Subscribe(*SubscribeRequest, LogService_SubscribeServer) error
+	TailLogs(*TailLogRequest, LogService_TailLogsServer) error
+	PushLogs(LogService_PushLogsServer) error
 	mustEmbedUnimplementedLogServiceServer()
 }
 
@@ -110,11 +114,11 @@ type LogServiceServer interface {
 type UnimplementedLogServiceServer struct {
 }
 
-func (UnimplementedLogServiceServer) LogStream(LogService_LogStreamServer) error {
-	return status.Errorf(codes.Unimplemented, "method LogStream not implemented")
+func (UnimplementedLogServiceServer) TailLogs(*TailLogRequest, LogService_TailLogsServer) error {
+	return status.Errorf(codes.Unimplemented, "method TailLogs not implemented")
 }
-func (UnimplementedLogServiceServer) Subscribe(*SubscribeRequest, LogService_SubscribeServer) error {
-	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
+func (UnimplementedLogServiceServer) PushLogs(LogService_PushLogsServer) error {
+	return status.Errorf(codes.Unimplemented, "method PushLogs not implemented")
 }
 func (UnimplementedLogServiceServer) mustEmbedUnimplementedLogServiceServer() {}
 
@@ -129,51 +133,51 @@ func RegisterLogServiceServer(s grpc.ServiceRegistrar, srv LogServiceServer) {
 	s.RegisterService(&LogService_ServiceDesc, srv)
 }
 
-func _LogService_LogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(LogServiceServer).LogStream(&logServiceLogStreamServer{stream})
+func _LogService_TailLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(TailLogRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(LogServiceServer).TailLogs(m, &logServiceTailLogsServer{stream})
 }
 
-type LogService_LogStreamServer interface {
-	Send(*LogStreamResponse) error
-	Recv() (*LogStreamRequest, error)
+type LogService_TailLogsServer interface {
+	Send(*LogEntry) error
 	grpc.ServerStream
 }
 
-type logServiceLogStreamServer struct {
+type logServiceTailLogsServer struct {
 	grpc.ServerStream
 }
 
-func (x *logServiceLogStreamServer) Send(m *LogStreamResponse) error {
+func (x *logServiceTailLogsServer) Send(m *LogEntry) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *logServiceLogStreamServer) Recv() (*LogStreamRequest, error) {
-	m := new(LogStreamRequest)
+func _LogService_PushLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(LogServiceServer).PushLogs(&logServicePushLogsServer{stream})
+}
+
+type LogService_PushLogsServer interface {
+	SendAndClose(*emptypb.Empty) error
+	Recv() (*LogEntry, error)
+	grpc.ServerStream
+}
+
+type logServicePushLogsServer struct {
+	grpc.ServerStream
+}
+
+func (x *logServicePushLogsServer) SendAndClose(m *emptypb.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *logServicePushLogsServer) Recv() (*LogEntry, error) {
+	m := new(LogEntry)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
-}
-
-func _LogService_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(SubscribeRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(LogServiceServer).Subscribe(m, &logServiceSubscribeServer{stream})
-}
-
-type LogService_SubscribeServer interface {
-	Send(*SubscribeResponse) error
-	grpc.ServerStream
-}
-
-type logServiceSubscribeServer struct {
-	grpc.ServerStream
-}
-
-func (x *logServiceSubscribeServer) Send(m *SubscribeResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 // LogService_ServiceDesc is the grpc.ServiceDesc for LogService service.
@@ -185,15 +189,14 @@ var LogService_ServiceDesc = grpc.ServiceDesc{
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "LogStream",
-			Handler:       _LogService_LogStream_Handler,
+			StreamName:    "TailLogs",
+			Handler:       _LogService_TailLogs_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
 		},
 		{
-			StreamName:    "Subscribe",
-			Handler:       _LogService_Subscribe_Handler,
-			ServerStreams: true,
+			StreamName:    "PushLogs",
+			Handler:       _LogService_PushLogs_Handler,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "services/logs/v1/logs.proto",

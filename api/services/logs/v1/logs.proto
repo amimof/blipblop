@@ -2,47 +2,27 @@ syntax = "proto3";
 
 package services.logs.v1;
 
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/amimof/blipblop/api/services/logs/v1;logs";
 
 service LogService {
-  rpc LogStream(stream LogStreamRequest) returns (stream LogStreamResponse);
-  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+  rpc TailLogs(TailLogRequest) returns (stream LogEntry) {}
+  rpc PushLogs(stream LogEntry) returns (google.protobuf.Empty) {}
 }
 
-message LogStreamRequest {
-  string container_id = 1;
-  string node_id = 2;
-  LogItem log = 3;
-}
-
-message LogStreamResponse {
-  string container_id = 1;
-  string node_id = 2;
-  bool start = 3;
-  LogItem log = 4;
-}
-
-message SubscribeRequest {
-  string client_id = 1;
+message TailLogRequest {
+  string node_id = 1;
   string container_id = 2;
-  string node_id = 3;
+  bool watch = 3;
+  int64 since_seconds = 4;
 }
 
-message SubscribeResponse {
-  LogItem log = 1;
+message LogEntry {
+  string node_id = 1;
+  string container_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string line = 4;
+  uint64 seq = 5;
 }
-
-message LogItem {
-  string log_line = 3;
-  string timestamp = 4;
-}
-
-// message LogRequest {
-//   string containerId = 1;
-//   string nodeId = 2;
-// }
-//
-// message LogResponse {
-//   string logLine = 1;
-//   string timestamp = 2;
-// }
