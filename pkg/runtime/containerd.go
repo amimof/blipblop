@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,10 +31,12 @@ const labelPrefix = "blipblop"
 var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
 
 type ContainerdRuntime struct {
-	client *containerd.Client
-	cni    networking.Manager
-	logger logger.Logger
-	ns     string
+	client       *containerd.Client
+	cni          networking.Manager
+	logger       logger.Logger
+	ns           string
+	mu           sync.Mutex
+	containerIOs map[string]*ContainerIO
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -248,6 +251,19 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 		}
 	}
 
+	// Clean up IO streams
+	c.mu.Lock()
+	if io, exists := c.containerIOs[ctr.GetMeta().GetName()]; exists {
+		if io.Stdout != nil {
+			_ = io.Stdout.Close()
+		}
+		if io.Stderr != nil {
+			_ = io.Stderr.Close()
+		}
+		delete(c.containerIOs, ctr.GetMeta().GetName())
+	}
+	c.mu.Unlock()
+
 	// Delete the container
 	err = container.Delete(ctx, containerd.WithSnapshotCleanup)
 	if err != nil {
@@ -305,11 +321,6 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 			return fmt.Errorf("got error waiting for tsk to finish %w", err)
 		}
 	}
-
-	// Perform cleanup
-	// if err := c.Cleanup(ctx, task.ID()); err != nil {
-	// 	return err
-	// }
 
 	// Delete the task
 	if _, err := task.Delete(ctx); err != nil {
@@ -375,6 +386,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
+	containerID := ctr.GetMeta().GetName()
 
 	// Get the image. Assumes that image has been pulled beforehand
 	image, err := c.client.GetImage(ctx, ctr.GetConfig().GetImage())
@@ -386,9 +398,8 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	opts := []oci.SpecOpts{
 		oci.WithDefaultSpec(),
 		oci.WithDefaultUnixDevices,
-		// oci.WithTTY,
 		oci.WithImageConfig(image),
-		oci.WithHostname(ctr.GetMeta().GetName()),
+		oci.WithHostname(containerID),
 		oci.WithImageConfig(image),
 		withEnvVars(ctr.GetConfig().GetEnvvars()),
 		withMounts(ctr.GetConfig().GetMounts()),
@@ -402,9 +413,9 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	// Create container
 	cont, err := c.client.NewContainer(
 		ctx,
-		ctr.GetMeta().GetName(),
+		containerID,
 		containerd.WithImage(image),
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", ctr.GetMeta().GetName()), image),
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerID), image),
 		containerd.WithNewSpec(opts...),
 		withContainerLabels(labels.New(), ctr),
 	)
@@ -412,28 +423,35 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		return err
 	}
 
-	// con, _, err := console.NewPty()
-	// if err != nil {
-	// 	return err
-	// }
-	// defer func() {
-	// 	if err := con.Close(); err != nil {
-	// 		c.logger.Error("error closing connection", "error", err)
-	// 	}
-	// }()
+	// Create pipes for stdout/stderr
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		return err
+	}
 
-	// dummyReader, _, err := os.Pipe()
-	// if err != nil {
-	// 	return err
-	// }
-	// ioCreator := cio.NewCreator(cio.WithTerminal, cio.WithStreams(dummyReader, con, con))
-	ioCreator := cio.NewCreator(cio.WithStreams(nil, nil, nil))
+	ioCreator := cio.NewCreator(cio.WithStreams(nil, stdoutWriter, stderrWriter))
 
 	// Create the task
 	task, err := cont.NewTask(ctx, ioCreator)
 	if err != nil {
+		_ = stdoutWriter.Close()
+		_ = stdoutReader.Close()
+		_ = stderrWriter.Close()
+		_ = stderrReader.Close()
 		return err
 	}
+
+	// Store io in memory
+	c.mu.Lock()
+	c.containerIOs[containerID] = &ContainerIO{
+		Stdout: stdoutReader,
+		Stderr: stderrReader,
+	}
+	c.mu.Unlock()
 
 	// ctr.GetConfig().GetPortMappings()
 	pm := networking.ParseCNIPortMappings(ctr.GetConfig().PortMappings...)
@@ -446,15 +464,38 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	}
 
 	// Start the  task
-	return task.Start(ctx)
+	err = task.Start(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 	return nil, nil
 }
 
+func (c *ContainerdRuntime) IO(ctx context.Context, containerID string) (*ContainerIO, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	io, exists := c.containerIOs[containerID]
+	if !exists {
+		return nil, fmt.Errorf("container %s not found or has no IO streams", containerID)
+	}
+
+	return io, nil
+}
+
 func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manager, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
-	runtime := &ContainerdRuntime{client: client, cni: cni, logger: logger.ConsoleLogger{}, ns: DefaultNamespace}
+	runtime := &ContainerdRuntime{
+		client:       client,
+		cni:          cni,
+		logger:       logger.ConsoleLogger{},
+		ns:           DefaultNamespace,
+		containerIOs: map[string]*ContainerIO{},
+	}
 
 	for _, opt := range opts {
 		opt(runtime)

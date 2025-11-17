@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"bufio"
 	"context"
+	"io"
 	"os"
+	"sync"
 	"time"
 
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
@@ -35,6 +38,8 @@ type NodeController struct {
 	heartbeatIntervalSeconds int
 	tracer                   trace.Tracer
 	logChan                  chan *logsv1.LogEntry
+	activeLogStreams         map[string]context.CancelFunc
+	logStreamsMu             sync.Mutex
 }
 
 type NewNodeControllerOption func(c *NodeController)
@@ -72,7 +77,6 @@ func (c *NodeController) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
 
 	// Setup container handlers
-	// c.clientset.EventV1().On(events.ContainerCreate, c.onContainerCreate)
 	c.clientset.EventV1().On(events.ContainerDelete, c.handleErrors(c.onContainerDelete))
 	c.clientset.EventV1().On(events.ContainerUpdate, c.handleErrors(c.onContainerUpdate))
 	c.clientset.EventV1().On(events.ContainerStop, c.handleErrors(c.onContainerStop))
@@ -144,7 +148,6 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 }
 
 func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
-	// Unwrap schedule type from the event
 	s := &logsv1.TailLogRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
 	if err != nil {
@@ -152,35 +155,84 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 	}
 	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
 
+	if s.GetNodeId() != c.nodeName {
+		return nil
+	}
+
+	streamKey := s.GetNodeId() + "/" + s.GetContainerId()
+
+	c.logStreamsMu.Lock()
+	if _, exists := c.activeLogStreams[streamKey]; exists {
+		c.logStreamsMu.Unlock()
+		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+		return nil
+	}
+	c.logStreamsMu.Unlock()
+
+	containerIO, err := c.runtime.IO(ctx, s.GetContainerId())
+	if err != nil {
+		c.logger.Error("error getting container logs", "error", err)
+		return err
+	}
+
 	logStream, err := c.clientset.LogV1().Stream(ctx)
 	if err != nil {
 		c.logger.Error("error setting up pushlogs", "error", err)
 		return err
 	}
 
-	// Dummy log file reader for testing purposes
+	streamCtx, cancel := context.WithCancel(ctx)
+
+	c.logStreamsMu.Lock()
+	c.activeLogStreams[streamKey] = cancel
+	c.logStreamsMu.Unlock()
+
 	go func() {
+		c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+		defer func() {
+			c.logStreamsMu.Lock()
+			delete(c.activeLogStreams, streamKey)
+			c.logStreamsMu.Unlock()
+		}()
+
 		var seq uint64
-		line := "Hello World!"
+		scanner := bufio.NewScanner(containerIO.Stdout)
+
 		for {
-			if err := logStream.Send(&logsv1.LogEntry{
-				ContainerId: s.GetContainerId(),
-				NodeId:      s.GetNodeId(),
-				Timestamp:   timestamppb.Now(),
-				Line:        "Hello World",
-				Seq:         seq,
-			}); err != nil {
-				c.logger.Error(
-					"error pushing log entry",
-					"error", err,
-					"containerID", s.GetContainerId(),
-					"nodeID", s.GetNodeId(),
-					"seq", seq,
-					"line", line,
-				)
+			select {
+			case <-streamCtx.Done():
+				c.logger.Debug("log stream cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+				return
+			case <-time.After(5 * time.Second):
+				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+			default:
+				if scanner.Scan() {
+					line := scanner.Text()
+					if err := logStream.Send(&logsv1.LogEntry{
+						ContainerId: s.GetContainerId(),
+						NodeId:      s.GetNodeId(),
+						Timestamp:   timestamppb.Now(),
+						Line:        line,
+						Seq:         seq,
+					}); err != nil {
+						c.logger.Error(
+							"error pushing log entry",
+							"error", err,
+							"containerID", s.GetContainerId(),
+							"nodeID", s.GetNodeId(),
+							"seq", seq,
+						)
+						return
+					}
+					seq++
+				} else {
+					if err := scanner.Err(); err != nil && err != io.EOF {
+						c.logger.Error("error reading from stdout", "error", err)
+					}
+					c.logger.Debug("scanner finished", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					return
+				}
 			}
-			seq++
-			time.Sleep(time.Second + 1)
 		}
 	}()
 
@@ -195,7 +247,21 @@ func (c *NodeController) onLogStop(ctx context.Context, obj *eventsv1.Event) err
 	}
 	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
 
-	close(c.logChan)
+	if s.GetNodeId() != c.nodeName {
+		return nil
+	}
+
+	streamKey := s.GetNodeId() + "/" + s.GetContainerId()
+
+	c.logStreamsMu.Lock()
+	cancel, exists := c.activeLogStreams[streamKey]
+	c.logStreamsMu.Unlock()
+
+	if exists {
+		cancel()
+		c.logger.Debug("cancelled log stream", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+	}
+
 	return nil
 }
 
@@ -468,6 +534,7 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		nodeName:                 uuid.New().String(),
 		tracer:                   otel.Tracer("controller"),
 		logChan:                  make(chan *logsv1.LogEntry),
+		activeLogStreams:         make(map[string]context.CancelFunc),
 	}
 	for _, opt := range opts {
 		opt(m)

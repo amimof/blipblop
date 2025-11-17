@@ -16,6 +16,26 @@ type LogExchange struct {
 	topics map[LogKey][]chan *logsv1.LogEntry
 }
 
+// Unsubscribe removes subscription from the exchange identified by key
+func (lx *LogExchange) Unsubscribe(key LogKey, ch <-chan *logsv1.LogEntry) {
+	lx.mu.Lock()
+	defer lx.mu.Unlock()
+
+	subs := lx.topics[key]
+	for i, sub := range subs {
+		if sub == ch {
+			lx.topics[key] = append(subs[:i], subs[i+1:]...)
+			close(sub)
+			break
+		}
+	}
+
+	if len(lx.topics[key]) == 0 {
+		delete(lx.topics, key)
+	}
+}
+
+// Subscribe adds a subscription on the exchange using key as the ID
 func (lx *LogExchange) Subscribe(key LogKey) <-chan *logsv1.LogEntry {
 	if lx.topics == nil {
 		lx.topics = make(map[LogKey][]chan *logsv1.LogEntry)
@@ -27,6 +47,7 @@ func (lx *LogExchange) Subscribe(key LogKey) <-chan *logsv1.LogEntry {
 	return ch
 }
 
+// Publish sends the entry to all subscribers on the exchange
 func (lx *LogExchange) Publish(entry *logsv1.LogEntry) {
 	key := LogKey{NodeID: entry.NodeId, ContainerID: entry.ContainerId}
 	lx.mu.Lock()

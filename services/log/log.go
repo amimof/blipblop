@@ -3,7 +3,6 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
@@ -70,13 +69,12 @@ func (s *LogService) TailLogs(req *logsv1.TailLogRequest, srv logsv1.LogService_
 	}
 
 	logCh := s.logExchange.Subscribe(key)
+	defer s.logExchange.Unsubscribe(key, logCh)
 
-	// Notifies subscribers on the exchange to starting pushing entries
 	if err := s.sendStartLogsCommand(ctx, req); err != nil {
 		return err
 	}
 
-	// Notifes them to stop sending entries
 	defer func() {
 		if err := s.sendStopLogsCommand(context.Background(), req); err != nil {
 			s.logger.Error("error sending stop logs command", "error", err)
@@ -88,11 +86,9 @@ func (s *LogService) TailLogs(req *logsv1.TailLogRequest, srv logsv1.LogService_
 		case <-ctx.Done():
 			return ctx.Err()
 		case entry, ok := <-logCh:
-			fmt.Println("TailLogs okk?:", ok)
 			if !ok {
 				return nil
 			}
-			fmt.Println("TailLogs:", entry)
 			if err := srv.Send(entry); err != nil {
 				return err
 			}
@@ -118,8 +114,6 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 			return err
 		}
 
-		fmt.Println("Pushed logs", entry)
-
 		// Fan out to all subscribers
 		s.logExchange.Publish(entry)
 
@@ -132,6 +126,7 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 	}
 }
 
+// NewService initializes and returns a LogService instance
 func NewService(opts ...NewServiceOption) *LogService {
 	s := &LogService{
 		logger:      logger.ConsoleLogger{},
