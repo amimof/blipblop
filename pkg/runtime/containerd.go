@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -423,35 +424,16 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		return err
 	}
 
-	// Create pipes for stdout/stderr
-	stdoutReader, stdoutWriter, err := os.Pipe()
-	if err != nil {
-		return err
-	}
-	stderrReader, stderrWriter, err := os.Pipe()
-	if err != nil {
-		return err
-	}
+	// Pipe stdout and stderr to log file on disk
+	logRoot := fmt.Sprintf("/var/lib/blipblop/containers/%s/log", containerID)
+	stdOut := filepath.Join(logRoot, "stdout.log")
+	ioCreator := cio.LogFile(stdOut)
 
-	ioCreator := cio.NewCreator(cio.WithStreams(nil, stdoutWriter, stderrWriter))
-
-	// Create the task
+	// Create task
 	task, err := cont.NewTask(ctx, ioCreator)
 	if err != nil {
-		_ = stdoutWriter.Close()
-		_ = stdoutReader.Close()
-		_ = stderrWriter.Close()
-		_ = stderrReader.Close()
 		return err
 	}
-
-	// Store io in memory
-	c.mu.Lock()
-	c.containerIOs[containerID] = &ContainerIO{
-		Stdout: stdoutReader,
-		Stderr: stderrReader,
-	}
-	c.mu.Unlock()
 
 	// ctr.GetConfig().GetPortMappings()
 	pm := networking.ParseCNIPortMappings(ctr.GetConfig().PortMappings...)
@@ -477,15 +459,15 @@ func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 }
 
 func (c *ContainerdRuntime) IO(ctx context.Context, containerID string) (*ContainerIO, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	logRoot := fmt.Sprintf("/var/lib/blipblop/containers/%s/log", containerID)
+	stdOut := filepath.Join(logRoot, "stdout.log")
 
-	io, exists := c.containerIOs[containerID]
-	if !exists {
-		return nil, fmt.Errorf("container %s not found or has no IO streams", containerID)
+	f, err := os.OpenFile(stdOut, os.O_RDONLY, 0)
+	if err != nil {
+		return nil, err
 	}
 
-	return io, nil
+	return &ContainerIO{Stdout: f}, nil
 }
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manager, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {

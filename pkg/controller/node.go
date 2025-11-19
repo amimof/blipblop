@@ -3,7 +3,6 @@ package controller
 import (
 	"bufio"
 	"context"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -224,14 +223,19 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 						)
 						return
 					}
-					seq++
-				} else {
-					if err := scanner.Err(); err != nil && err != io.EOF {
-						c.logger.Error("error reading from stdout", "error", err)
-					}
-					c.logger.Debug("scanner finished", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					seq += 1
+					continue
+				}
+
+				// Scanning error, bail out
+				if err := scanner.Err(); err != nil {
+					c.logger.Error("error reading from stdout", "error", err)
 					return
 				}
+
+				// EOF reached, wait and ovewrite the scanner
+				time.Sleep(500 * time.Millisecond)
+				scanner = bufio.NewScanner(containerIO.Stdout)
 			}
 		}
 	}()
