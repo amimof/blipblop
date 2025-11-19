@@ -75,21 +75,30 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 			}
 
 			go func() {
+				streamCtx := stream.Context()
 				for {
-					entry, err := stream.Recv()
-					if err != nil {
-						if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+					select {
+					case <-streamCtx.Done():
+						return
+					default:
+						entry, err := stream.Recv()
+						if err != nil {
+							if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+								logrus.Errorf("stream canceled by server: %v", err)
+								os.Exit(1)
+								return
+							}
+							logrus.Errorf("error on stream: %v", err)
+							os.Exit(1)
 							return
 						}
-						logrus.Errorf("error on stream: %v", err)
-						return
+						fmt.Printf("%s %s/%s: %s\n",
+							entry.GetTimestamp().AsTime().Format(time.RFC3339),
+							entry.GetNodeId(),
+							entry.GetContainerId(),
+							entry.GetLine(),
+						)
 					}
-					fmt.Printf("%s %s/%s: %s\n",
-						entry.GetTimestamp().AsTime().Format(time.RFC3339),
-						entry.GetNodeId(),
-						entry.GetContainerId(),
-						entry.GetLine(),
-					)
 				}
 			}()
 

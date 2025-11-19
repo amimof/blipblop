@@ -188,15 +188,77 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 
 	go func() {
 		c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+
 		defer func() {
 			c.logStreamsMu.Lock()
 			delete(c.activeLogStreams, streamKey)
 			c.logStreamsMu.Unlock()
+			cancel()
+			_ = logStream.Close()
+			if containerIO.Stdout != nil {
+				_ = containerIO.Stdout.Close()
+			}
 		}()
 
-		var seq uint64
+		// Setup scanner. We use a channel to send each line through
+		lines := make(chan string)
 		scanner := bufio.NewScanner(containerIO.Stdout)
 
+		// Goroutine that scans the log file and sends each line on the channel
+		go func() {
+			defer close(lines)
+
+			for {
+
+				// Exit early on cancel even when at EOF
+				select {
+				case <-streamCtx.Done():
+					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					return
+				default:
+				}
+
+				// Scan log file and send each line through the channel
+				if scanner.Scan() {
+					line := scanner.Text()
+					select {
+					case <-streamCtx.Done():
+						c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+						return
+					case lines <- line: // Send line through
+					}
+					continue
+				}
+
+				// Scanner returned false. Check for errors and exit out if any
+				if err := scanner.Err(); err != nil {
+					c.logger.Error(
+						"error reading from stdout",
+						"error", err,
+						"nodeID", s.GetNodeId(),
+						"containerID", s.GetContainerId(),
+					)
+					return
+				}
+
+				// No errors, maybe EOF?
+				select {
+				case <-streamCtx.Done():
+					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					return
+				case <-time.After(300 * time.Millisecond): // Wait a bit before iterating again
+				}
+
+				// EOF reached, ovewrite the scanner to start reading again
+				scanner = bufio.NewScanner(containerIO.Stdout)
+			}
+		}()
+
+		// Count the number of lines read
+		var seq uint64
+
+		// Send log entry for each line that comes in from the line channel. After x amount of time anf if no lines are
+		// received, exit out. This is a blocking operation.
 		for {
 			select {
 			case <-streamCtx.Done():
@@ -204,38 +266,34 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 				return
 			case <-time.After(5 * time.Second):
 				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
-			default:
-				if scanner.Scan() {
-					line := scanner.Text()
-					if err := logStream.Send(&logsv1.LogEntry{
-						ContainerId: s.GetContainerId(),
-						NodeId:      s.GetNodeId(),
-						Timestamp:   timestamppb.Now(),
-						Line:        line,
-						Seq:         seq,
-					}); err != nil {
-						c.logger.Error(
-							"error pushing log entry",
-							"error", err,
-							"containerID", s.GetContainerId(),
-							"nodeID", s.GetNodeId(),
-							"seq", seq,
-						)
-						return
-					}
-					seq += 1
-					continue
-				}
+				return
+			case line, ok := <-lines:
 
-				// Scanning error, bail out
-				if err := scanner.Err(); err != nil {
-					c.logger.Error("error reading from stdout", "error", err)
+				if !ok {
+					c.logger.Debug("log stream completed", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
 					return
 				}
 
-				// EOF reached, wait and ovewrite the scanner
-				time.Sleep(500 * time.Millisecond)
-				scanner = bufio.NewScanner(containerIO.Stdout)
+				// Send the line as log entry to the server
+				if err := logStream.Send(&logsv1.LogEntry{
+					ContainerId: s.GetContainerId(),
+					NodeId:      s.GetNodeId(),
+					Timestamp:   timestamppb.Now(),
+					Line:        line,
+					Seq:         seq,
+				}); err != nil {
+					c.logger.Error(
+						"error pushing log entry",
+						"error", err,
+						"containerID", s.GetContainerId(),
+						"nodeID", s.GetNodeId(),
+						"seq", seq,
+					)
+					return
+				}
+
+				// Increase counter
+				seq += 1
 			}
 		}
 	}()

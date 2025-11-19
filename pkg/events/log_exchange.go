@@ -25,13 +25,30 @@ func (lx *LogExchange) Unsubscribe(key LogKey, ch <-chan *logsv1.LogEntry) {
 	for i, sub := range subs {
 		if sub == ch {
 			lx.topics[key] = append(subs[:i], subs[i+1:]...)
-			close(sub)
 			break
 		}
 	}
 
 	if len(lx.topics[key]) == 0 {
 		delete(lx.topics, key)
+	}
+}
+
+// CloseKey closes all subscriber channels for the given key and removes the topic.
+func (lx *LogExchange) CloseKey(key LogKey) {
+	lx.mu.Lock()
+	subs := lx.topics[key]
+	if len(subs) > 0 {
+		delete(lx.topics, key)
+	}
+	lx.mu.Unlock()
+
+	if len(subs) == 0 {
+		return
+	}
+
+	for _, ch := range subs {
+		close(ch)
 	}
 }
 

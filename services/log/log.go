@@ -3,6 +3,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
@@ -63,6 +64,7 @@ func (s *LogService) sendStopLogsCommand(ctx context.Context, req *logsv1.TailLo
 func (s *LogService) TailLogs(req *logsv1.TailLogRequest, srv logsv1.LogService_TailLogsServer) error {
 	ctx := srv.Context()
 
+	// Subscribe and get the log channel
 	key := events.LogKey{
 		NodeID:      req.NodeId,
 		ContainerID: req.ContainerId,
@@ -99,19 +101,42 @@ func (s *LogService) TailLogs(req *logsv1.TailLogRequest, srv logsv1.LogService_
 // PushLogs can be used by clients to push log entries to the server which fans them out to subscribers on the exchange.
 func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 	ctx := stream.Context()
+
+	seenKeys := make(map[events.LogKey]struct{})
+
+	defer func() {
+		for key := range seenKeys {
+			s.logExchange.CloseKey(key)
+		}
+	}()
+
 	for {
 		entry, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
+				fmt.Println("do it ")
 				return stream.SendAndClose(&emptypb.Empty{})
 			}
 			// Here we might log the error; returning ends the stream.
 			// For transient node issues, the node will reconnect.
 			st, ok := status.FromError(err)
+			fmt.Println(st)
 			if ok && st.Code() == codes.Canceled {
+				fmt.Println("disconnect????")
 				return nil
 			}
+
+			fmt.Print("disconnect", err)
 			return err
+		}
+
+		key := events.LogKey{
+			NodeID:      entry.NodeId,
+			ContainerID: entry.ContainerId,
+		}
+
+		if key.NodeID != "" && key.ContainerID != "" {
+			seenKeys[key] = struct{}{}
 		}
 
 		// Fan out to all subscribers
@@ -120,6 +145,8 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 		// We could also add tracing/metrics here.
 		select {
 		case <-ctx.Done():
+
+			fmt.Println("Done")
 			return ctx.Err()
 		default:
 		}
