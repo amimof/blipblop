@@ -54,6 +54,9 @@
         "containerId": {
           "type": "string"
         },
+        "sessionId": {
+          "type": "string"
+        },
         "timestamp": {
           "type": "string",
           "format": "date-time"

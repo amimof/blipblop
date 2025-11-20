@@ -9,6 +9,7 @@ import (
 type LogKey struct {
 	NodeID      string
 	ContainerID string
+	SessionID   string
 }
 
 type LogExchange struct {
@@ -66,7 +67,7 @@ func (lx *LogExchange) Subscribe(key LogKey) <-chan *logsv1.LogEntry {
 
 // Publish sends the entry to all subscribers on the exchange
 func (lx *LogExchange) Publish(entry *logsv1.LogEntry) {
-	key := LogKey{NodeID: entry.NodeId, ContainerID: entry.ContainerId}
+	key := LogKey{NodeID: entry.NodeId, ContainerID: entry.ContainerId, SessionID: entry.SessionId}
 	lx.mu.Lock()
 	subs := lx.topics[key]
 	lx.mu.Unlock()

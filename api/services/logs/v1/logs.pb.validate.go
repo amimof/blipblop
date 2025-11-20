@@ -61,6 +61,8 @@ func (m *TailLogRequest) validate(all bool) error {
 
 	// no validation rules for ContainerId
 
+	// no validation rules for SessionId
+
 	// no validation rules for Watch
 
 	// no validation rules for SinceSeconds
@@ -168,6 +170,8 @@ func (m *LogEntry) validate(all bool) error {
 	// no validation rules for NodeId
 
 	// no validation rules for ContainerId
+
+	// no validation rules for SessionId
 
 	if all {
 		switch v := interface{}(m.GetTimestamp()).(type) {

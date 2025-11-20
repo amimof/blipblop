@@ -15,14 +15,16 @@ service LogService {
 message TailLogRequest {
   string node_id = 1;
   string container_id = 2;
-  bool watch = 3;
-  int64 since_seconds = 4;
+  string session_id = 3;
+  bool watch = 4;
+  int64 since_seconds = 5;
 }
 
 message LogEntry {
   string node_id = 1;
   string container_id = 2;
-  google.protobuf.Timestamp timestamp = 3;
-  string line = 4;
-  uint64 seq = 5;
+  string session_id = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string line = 5;
+  uint64 seq = 6;
 }

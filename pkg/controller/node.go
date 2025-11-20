@@ -37,7 +37,7 @@ type NodeController struct {
 	heartbeatIntervalSeconds int
 	tracer                   trace.Tracer
 	logChan                  chan *logsv1.LogEntry
-	activeLogStreams         map[string]context.CancelFunc
+	activeLogStreams         map[events.LogKey]context.CancelFunc
 	logStreamsMu             sync.Mutex
 }
 
@@ -152,18 +152,22 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 	if err != nil {
 		return err
 	}
-	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId(), "sessionID", s.GetSessionId())
 
 	if s.GetNodeId() != c.nodeName {
 		return nil
 	}
 
-	streamKey := s.GetNodeId() + "/" + s.GetContainerId()
+	streamKey := events.LogKey{
+		NodeID:      s.GetNodeId(),
+		ContainerID: s.GetContainerId(),
+		SessionID:   s.GetSessionId(),
+	}
 
 	c.logStreamsMu.Lock()
 	if _, exists := c.activeLogStreams[streamKey]; exists {
 		c.logStreamsMu.Unlock()
-		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId(), "sessionID", s.GetSessionId())
 		return nil
 	}
 	c.logStreamsMu.Unlock()
@@ -264,7 +268,7 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 			case <-streamCtx.Done():
 				c.logger.Debug("log stream cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
 				return
-			case <-time.After(5 * time.Second):
+			case <-time.After(5 * time.Minute):
 				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
 				return
 			case line, ok := <-lines:
@@ -278,6 +282,7 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 				if err := logStream.Send(&logsv1.LogEntry{
 					ContainerId: s.GetContainerId(),
 					NodeId:      s.GetNodeId(),
+					SessionId:   s.GetSessionId(),
 					Timestamp:   timestamppb.Now(),
 					Line:        line,
 					Seq:         seq,
@@ -287,6 +292,7 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 						"error", err,
 						"containerID", s.GetContainerId(),
 						"nodeID", s.GetNodeId(),
+						"sessionID", s.GetSessionId(),
 						"seq", seq,
 					)
 					return
@@ -313,7 +319,11 @@ func (c *NodeController) onLogStop(ctx context.Context, obj *eventsv1.Event) err
 		return nil
 	}
 
-	streamKey := s.GetNodeId() + "/" + s.GetContainerId()
+	streamKey := events.LogKey{
+		NodeID:      s.GetNodeId(),
+		ContainerID: s.GetContainerId(),
+		SessionID:   s.GetSessionId(),
+	}
 
 	c.logStreamsMu.Lock()
 	cancel, exists := c.activeLogStreams[streamKey]
@@ -596,7 +606,7 @@ func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeC
 		nodeName:                 uuid.New().String(),
 		tracer:                   otel.Tracer("controller"),
 		logChan:                  make(chan *logsv1.LogEntry),
-		activeLogStreams:         make(map[string]context.CancelFunc),
+		activeLogStreams:         make(map[events.LogKey]context.CancelFunc),
 	}
 	for _, opt := range opts {
 		opt(m)

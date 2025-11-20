@@ -9,6 +9,7 @@ import (
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -64,21 +65,29 @@ func (s *LogService) sendStopLogsCommand(ctx context.Context, req *logsv1.TailLo
 func (s *LogService) TailLogs(req *logsv1.TailLogRequest, srv logsv1.LogService_TailLogsServer) error {
 	ctx := srv.Context()
 
+	// Append session id if missing in original request
+	if len(req.GetSessionId()) == 0 {
+		req.SessionId = uuid.New().String()
+	}
+
 	// Subscribe and get the log channel
 	key := events.LogKey{
-		NodeID:      req.NodeId,
-		ContainerID: req.ContainerId,
+		NodeID:      req.GetNodeId(),
+		ContainerID: req.GetContainerId(),
+		SessionID:   req.GetSessionId(),
 	}
 
 	logCh := s.logExchange.Subscribe(key)
 	defer s.logExchange.Unsubscribe(key, logCh)
 
-	if err := s.sendStartLogsCommand(ctx, req); err != nil {
+	commandCtx := context.Background()
+
+	if err := s.sendStartLogsCommand(commandCtx, req); err != nil {
 		return err
 	}
 
 	defer func() {
-		if err := s.sendStopLogsCommand(context.Background(), req); err != nil {
+		if err := s.sendStopLogsCommand(commandCtx, req); err != nil {
 			s.logger.Error("error sending stop logs command", "error", err)
 		}
 	}()
@@ -131,8 +140,9 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 		}
 
 		key := events.LogKey{
-			NodeID:      entry.NodeId,
-			ContainerID: entry.ContainerId,
+			NodeID:      entry.GetNodeId(),
+			ContainerID: entry.GetContainerId(),
+			SessionID:   entry.GetSessionId(),
 		}
 
 		if key.NodeID != "" && key.ContainerID != "" {
