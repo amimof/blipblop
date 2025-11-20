@@ -33,6 +33,8 @@ const (
 	ContainerSetDelete = eventsv1.EventType_ContainerSetDelete
 	ContainerSetUpdate = eventsv1.EventType_ContainerSetUpdate
 	Schedule           = eventsv1.EventType_Schedule
+	TailLogsStart      = eventsv1.EventType_TailLogsStart
+	TailLogsStop       = eventsv1.EventType_TailLogsStop
 )
 
 var ALL = []eventsv1.EventType{
@@ -56,6 +58,8 @@ var ALL = []eventsv1.EventType{
 	ContainerSetDelete,
 	ContainerSetUpdate,
 	Schedule,
+	TailLogsStart,
+	TailLogsStop,
 }
 
 type Subscriber interface {

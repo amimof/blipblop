@@ -1,3 +1,4 @@
+// Package event implements the event service
 package event
 
 import (

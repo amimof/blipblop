@@ -4,9 +4,11 @@ package services.nodes.v1;
 
 import "google/api/annotations.proto";
 import "google/api/client.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
+import "services/logs/v1/logs.proto";
 import "types/v1/meta.proto";
 import "validate/validate.proto";
 

@@ -3,10 +3,13 @@ package log
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/amimof/blipblop/api/services/logs/v1"
 	"github.com/amimof/blipblop/pkg/client"
@@ -14,7 +17,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 func NewCmdLog(cfg *client.Config) *cobra.Command {
@@ -58,45 +63,47 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 				return err
 			}
 
-			// Setup channels for the stream
-			logChan := make(chan *logs.SubscribeResponse, 10)
-			errChan := make(chan error, 1)
+			req := logs.TailLogRequest{
+				NodeId:      ctr.GetStatus().GetNode().GetValue(),
+				ContainerId: ctr.GetMeta().GetName(),
+				Watch:       true,
+			}
 
-			// Handle incoming logs and errors
+			stream, err := c.LogV1().TailLogs(ctx, &req)
+			if err != nil {
+				logrus.Fatalf("error setting up log stream: %v", err)
+			}
+
 			go func() {
+				streamCtx := stream.Context()
 				for {
 					select {
-					case <-ctx.Done():
+					case <-streamCtx.Done():
 						return
-					case e := <-errChan:
-						fmt.Printf("error: %v", e)
-					case l := <-logChan:
-						fmt.Printf("%s: %s\n", l.GetLog().GetTimestamp(), l.GetLog().GetLogLine())
-					}
-				}
-			}()
-
-			// Start streaming
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case e := <-errChan:
-						fmt.Printf("error %v\n", e)
 					default:
-						err = c.LogV1().StreamLogs(ctx, &logs.SubscribeRequest{NodeId: ctr.GetStatus().GetNode().String(), ContainerId: ctr.GetMeta().GetName(), ClientId: clientID}, logChan, errChan)
+						entry, err := stream.Recv()
 						if err != nil {
-							fmt.Println("Error streaming", err)
+							if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+								logrus.Errorf("stream canceled by server: %v", err)
+								os.Exit(1)
+								return
+							}
+							logrus.Errorf("error on stream: %v", err)
+							os.Exit(1)
 							return
 						}
+						fmt.Printf("%s %s/%s: %s\n",
+							entry.GetTimestamp().AsTime().Format(time.RFC3339),
+							entry.GetNodeId(),
+							entry.GetContainerId(),
+							entry.GetLine(),
+						)
 					}
 				}
 			}()
 
 			<-exit
-			cancel()
-			close(logChan)
+
 			return nil
 		},
 	}

@@ -1,4 +1,4 @@
-// Package node represents the implementation of the node service
+// Package node
 package node
 
 import (
@@ -39,11 +39,12 @@ func WithExchange(e *events.Exchange) NewServiceOption {
 
 type NodeService struct {
 	nodesv1.UnimplementedNodeServiceServer
-	local    nodesv1.NodeServiceClient
-	logger   logger.Logger
-	exchange *events.Exchange
-	streams  map[string]nodesv1.NodeService_ConnectServer
-	mu       sync.Mutex
+	local       nodesv1.NodeServiceClient
+	logger      logger.Logger
+	exchange    *events.Exchange
+	streams     map[string]nodesv1.NodeService_ConnectServer
+	mu          sync.Mutex
+	logExchange *events.LogExchange
 }
 
 func (n *NodeService) Register(server *grpc.Server) error {
@@ -243,8 +244,9 @@ func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error 
 
 func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {
 	s := &NodeService{
-		logger:  logger.ConsoleLogger{},
-		streams: make(map[string]nodesv1.NodeService_ConnectServer),
+		logger:      logger.ConsoleLogger{},
+		streams:     make(map[string]nodesv1.NodeService_ConnectServer),
+		logExchange: &events.LogExchange{},
 	}
 
 	for _, opt := range opts {

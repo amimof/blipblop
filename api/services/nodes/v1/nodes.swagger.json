@@ -486,7 +486,9 @@
         "ContainerSetCreate",
         "ContainerSetDelete",
         "ContainerSetUpdate",
-        "Schedule"
+        "Schedule",
+        "TailLogsStart",
+        "TailLogsStop"
       ],
       "default": "ContainerCreate"
     },

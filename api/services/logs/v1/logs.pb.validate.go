@@ -35,210 +35,52 @@ var (
 	_ = sort.Sort
 )
 
-// Validate checks the field values on LogStreamRequest with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// first error encountered is returned, or nil if there are no violations.
-func (m *LogStreamRequest) Validate() error {
+// Validate checks the field values on TailLogRequest with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *TailLogRequest) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on LogStreamRequest with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the result is a list of violation errors wrapped in
-// LogStreamRequestMultiError, or nil if none found.
-func (m *LogStreamRequest) ValidateAll() error {
+// ValidateAll checks the field values on TailLogRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in TailLogRequestMultiError,
+// or nil if none found.
+func (m *TailLogRequest) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *LogStreamRequest) validate(all bool) error {
+func (m *TailLogRequest) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
 	var errors []error
-
-	// no validation rules for ContainerId
 
 	// no validation rules for NodeId
 
-	if all {
-		switch v := interface{}(m.GetLog()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, LogStreamRequestValidationError{
-					field:  "Log",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, LogStreamRequestValidationError{
-					field:  "Log",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetLog()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return LogStreamRequestValidationError{
-				field:  "Log",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
-	if len(errors) > 0 {
-		return LogStreamRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-// LogStreamRequestMultiError is an error wrapping multiple validation errors
-// returned by LogStreamRequest.ValidateAll() if the designated constraints
-// aren't met.
-type LogStreamRequestMultiError []error
-
-// Error returns a concatenation of all the error messages it wraps.
-func (m LogStreamRequestMultiError) Error() string {
-	msgs := make([]string, 0, len(m))
-	for _, err := range m {
-		msgs = append(msgs, err.Error())
-	}
-	return strings.Join(msgs, "; ")
-}
-
-// AllErrors returns a list of validation violation errors.
-func (m LogStreamRequestMultiError) AllErrors() []error { return m }
-
-// LogStreamRequestValidationError is the validation error returned by
-// LogStreamRequest.Validate if the designated constraints aren't met.
-type LogStreamRequestValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e LogStreamRequestValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e LogStreamRequestValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e LogStreamRequestValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e LogStreamRequestValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e LogStreamRequestValidationError) ErrorName() string { return "LogStreamRequestValidationError" }
-
-// Error satisfies the builtin error interface
-func (e LogStreamRequestValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sLogStreamRequest.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = LogStreamRequestValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = LogStreamRequestValidationError{}
-
-// Validate checks the field values on LogStreamResponse with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// first error encountered is returned, or nil if there are no violations.
-func (m *LogStreamResponse) Validate() error {
-	return m.validate(false)
-}
-
-// ValidateAll checks the field values on LogStreamResponse with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the result is a list of violation errors wrapped in
-// LogStreamResponseMultiError, or nil if none found.
-func (m *LogStreamResponse) ValidateAll() error {
-	return m.validate(true)
-}
-
-func (m *LogStreamResponse) validate(all bool) error {
-	if m == nil {
-		return nil
-	}
-
-	var errors []error
-
 	// no validation rules for ContainerId
 
-	// no validation rules for NodeId
+	// no validation rules for SessionId
 
-	// no validation rules for Start
+	// no validation rules for Watch
 
-	if all {
-		switch v := interface{}(m.GetLog()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, LogStreamResponseValidationError{
-					field:  "Log",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, LogStreamResponseValidationError{
-					field:  "Log",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetLog()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return LogStreamResponseValidationError{
-				field:  "Log",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
+	// no validation rules for SinceSeconds
 
 	if len(errors) > 0 {
-		return LogStreamResponseMultiError(errors)
+		return TailLogRequestMultiError(errors)
 	}
 
 	return nil
 }
 
-// LogStreamResponseMultiError is an error wrapping multiple validation errors
-// returned by LogStreamResponse.ValidateAll() if the designated constraints
+// TailLogRequestMultiError is an error wrapping multiple validation errors
+// returned by TailLogRequest.ValidateAll() if the designated constraints
 // aren't met.
-type LogStreamResponseMultiError []error
+type TailLogRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m LogStreamResponseMultiError) Error() string {
+func (m TailLogRequestMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -247,11 +89,11 @@ func (m LogStreamResponseMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m LogStreamResponseMultiError) AllErrors() []error { return m }
+func (m TailLogRequestMultiError) AllErrors() []error { return m }
 
-// LogStreamResponseValidationError is the validation error returned by
-// LogStreamResponse.Validate if the designated constraints aren't met.
-type LogStreamResponseValidationError struct {
+// TailLogRequestValidationError is the validation error returned by
+// TailLogRequest.Validate if the designated constraints aren't met.
+type TailLogRequestValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -259,24 +101,22 @@ type LogStreamResponseValidationError struct {
 }
 
 // Field function returns field value.
-func (e LogStreamResponseValidationError) Field() string { return e.field }
+func (e TailLogRequestValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e LogStreamResponseValidationError) Reason() string { return e.reason }
+func (e TailLogRequestValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e LogStreamResponseValidationError) Cause() error { return e.cause }
+func (e TailLogRequestValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e LogStreamResponseValidationError) Key() bool { return e.key }
+func (e TailLogRequestValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e LogStreamResponseValidationError) ErrorName() string {
-	return "LogStreamResponseValidationError"
-}
+func (e TailLogRequestValidationError) ErrorName() string { return "TailLogRequestValidationError" }
 
 // Error satisfies the builtin error interface
-func (e LogStreamResponseValidationError) Error() string {
+func (e TailLogRequestValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -288,14 +128,14 @@ func (e LogStreamResponseValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sLogStreamResponse.%s: %s%s",
+		"invalid %sTailLogRequest.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = LogStreamResponseValidationError{}
+var _ error = TailLogRequestValidationError{}
 
 var _ interface {
 	Field() string
@@ -303,283 +143,82 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = LogStreamResponseValidationError{}
+} = TailLogRequestValidationError{}
 
-// Validate checks the field values on SubscribeRequest with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// first error encountered is returned, or nil if there are no violations.
-func (m *SubscribeRequest) Validate() error {
-	return m.validate(false)
-}
-
-// ValidateAll checks the field values on SubscribeRequest with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the result is a list of violation errors wrapped in
-// SubscribeRequestMultiError, or nil if none found.
-func (m *SubscribeRequest) ValidateAll() error {
-	return m.validate(true)
-}
-
-func (m *SubscribeRequest) validate(all bool) error {
-	if m == nil {
-		return nil
-	}
-
-	var errors []error
-
-	// no validation rules for ClientId
-
-	// no validation rules for ContainerId
-
-	// no validation rules for NodeId
-
-	if len(errors) > 0 {
-		return SubscribeRequestMultiError(errors)
-	}
-
-	return nil
-}
-
-// SubscribeRequestMultiError is an error wrapping multiple validation errors
-// returned by SubscribeRequest.ValidateAll() if the designated constraints
-// aren't met.
-type SubscribeRequestMultiError []error
-
-// Error returns a concatenation of all the error messages it wraps.
-func (m SubscribeRequestMultiError) Error() string {
-	msgs := make([]string, 0, len(m))
-	for _, err := range m {
-		msgs = append(msgs, err.Error())
-	}
-	return strings.Join(msgs, "; ")
-}
-
-// AllErrors returns a list of validation violation errors.
-func (m SubscribeRequestMultiError) AllErrors() []error { return m }
-
-// SubscribeRequestValidationError is the validation error returned by
-// SubscribeRequest.Validate if the designated constraints aren't met.
-type SubscribeRequestValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e SubscribeRequestValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e SubscribeRequestValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e SubscribeRequestValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e SubscribeRequestValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e SubscribeRequestValidationError) ErrorName() string { return "SubscribeRequestValidationError" }
-
-// Error satisfies the builtin error interface
-func (e SubscribeRequestValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sSubscribeRequest.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = SubscribeRequestValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = SubscribeRequestValidationError{}
-
-// Validate checks the field values on SubscribeResponse with the rules defined
-// in the proto definition for this message. If any rules are violated, the
-// first error encountered is returned, or nil if there are no violations.
-func (m *SubscribeResponse) Validate() error {
-	return m.validate(false)
-}
-
-// ValidateAll checks the field values on SubscribeResponse with the rules
-// defined in the proto definition for this message. If any rules are
-// violated, the result is a list of violation errors wrapped in
-// SubscribeResponseMultiError, or nil if none found.
-func (m *SubscribeResponse) ValidateAll() error {
-	return m.validate(true)
-}
-
-func (m *SubscribeResponse) validate(all bool) error {
-	if m == nil {
-		return nil
-	}
-
-	var errors []error
-
-	if all {
-		switch v := interface{}(m.GetLog()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, SubscribeResponseValidationError{
-					field:  "Log",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, SubscribeResponseValidationError{
-					field:  "Log",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetLog()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return SubscribeResponseValidationError{
-				field:  "Log",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
-
-	if len(errors) > 0 {
-		return SubscribeResponseMultiError(errors)
-	}
-
-	return nil
-}
-
-// SubscribeResponseMultiError is an error wrapping multiple validation errors
-// returned by SubscribeResponse.ValidateAll() if the designated constraints
-// aren't met.
-type SubscribeResponseMultiError []error
-
-// Error returns a concatenation of all the error messages it wraps.
-func (m SubscribeResponseMultiError) Error() string {
-	msgs := make([]string, 0, len(m))
-	for _, err := range m {
-		msgs = append(msgs, err.Error())
-	}
-	return strings.Join(msgs, "; ")
-}
-
-// AllErrors returns a list of validation violation errors.
-func (m SubscribeResponseMultiError) AllErrors() []error { return m }
-
-// SubscribeResponseValidationError is the validation error returned by
-// SubscribeResponse.Validate if the designated constraints aren't met.
-type SubscribeResponseValidationError struct {
-	field  string
-	reason string
-	cause  error
-	key    bool
-}
-
-// Field function returns field value.
-func (e SubscribeResponseValidationError) Field() string { return e.field }
-
-// Reason function returns reason value.
-func (e SubscribeResponseValidationError) Reason() string { return e.reason }
-
-// Cause function returns cause value.
-func (e SubscribeResponseValidationError) Cause() error { return e.cause }
-
-// Key function returns key value.
-func (e SubscribeResponseValidationError) Key() bool { return e.key }
-
-// ErrorName returns error name.
-func (e SubscribeResponseValidationError) ErrorName() string {
-	return "SubscribeResponseValidationError"
-}
-
-// Error satisfies the builtin error interface
-func (e SubscribeResponseValidationError) Error() string {
-	cause := ""
-	if e.cause != nil {
-		cause = fmt.Sprintf(" | caused by: %v", e.cause)
-	}
-
-	key := ""
-	if e.key {
-		key = "key for "
-	}
-
-	return fmt.Sprintf(
-		"invalid %sSubscribeResponse.%s: %s%s",
-		key,
-		e.field,
-		e.reason,
-		cause)
-}
-
-var _ error = SubscribeResponseValidationError{}
-
-var _ interface {
-	Field() string
-	Reason() string
-	Key() bool
-	Cause() error
-	ErrorName() string
-} = SubscribeResponseValidationError{}
-
-// Validate checks the field values on LogItem with the rules defined in the
+// Validate checks the field values on LogEntry with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
-func (m *LogItem) Validate() error {
+func (m *LogEntry) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on LogItem with the rules defined in the
-// proto definition for this message. If any rules are violated, the result is
-// a list of violation errors wrapped in LogItemMultiError, or nil if none found.
-func (m *LogItem) ValidateAll() error {
+// ValidateAll checks the field values on LogEntry with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in LogEntryMultiError, or nil
+// if none found.
+func (m *LogEntry) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *LogItem) validate(all bool) error {
+func (m *LogEntry) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
 	var errors []error
 
-	// no validation rules for LogLine
+	// no validation rules for NodeId
 
-	// no validation rules for Timestamp
+	// no validation rules for ContainerId
+
+	// no validation rules for SessionId
+
+	if all {
+		switch v := interface{}(m.GetTimestamp()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LogEntryValidationError{
+					field:  "Timestamp",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LogEntryValidationError{
+					field:  "Timestamp",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTimestamp()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LogEntryValidationError{
+				field:  "Timestamp",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for Line
+
+	// no validation rules for Seq
 
 	if len(errors) > 0 {
-		return LogItemMultiError(errors)
+		return LogEntryMultiError(errors)
 	}
 
 	return nil
 }
 
-// LogItemMultiError is an error wrapping multiple validation errors returned
-// by LogItem.ValidateAll() if the designated constraints aren't met.
-type LogItemMultiError []error
+// LogEntryMultiError is an error wrapping multiple validation errors returned
+// by LogEntry.ValidateAll() if the designated constraints aren't met.
+type LogEntryMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m LogItemMultiError) Error() string {
+func (m LogEntryMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -588,11 +227,11 @@ func (m LogItemMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m LogItemMultiError) AllErrors() []error { return m }
+func (m LogEntryMultiError) AllErrors() []error { return m }
 
-// LogItemValidationError is the validation error returned by LogItem.Validate
-// if the designated constraints aren't met.
-type LogItemValidationError struct {
+// LogEntryValidationError is the validation error returned by
+// LogEntry.Validate if the designated constraints aren't met.
+type LogEntryValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -600,22 +239,22 @@ type LogItemValidationError struct {
 }
 
 // Field function returns field value.
-func (e LogItemValidationError) Field() string { return e.field }
+func (e LogEntryValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e LogItemValidationError) Reason() string { return e.reason }
+func (e LogEntryValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e LogItemValidationError) Cause() error { return e.cause }
+func (e LogEntryValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e LogItemValidationError) Key() bool { return e.key }
+func (e LogEntryValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e LogItemValidationError) ErrorName() string { return "LogItemValidationError" }
+func (e LogEntryValidationError) ErrorName() string { return "LogEntryValidationError" }
 
 // Error satisfies the builtin error interface
-func (e LogItemValidationError) Error() string {
+func (e LogEntryValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -627,14 +266,14 @@ func (e LogItemValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sLogItem.%s: %s%s",
+		"invalid %sLogEntry.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = LogItemValidationError{}
+var _ error = LogEntryValidationError{}
 
 var _ interface {
 	Field() string
@@ -642,4 +281,4 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = LogItemValidationError{}
+} = LogEntryValidationError{}

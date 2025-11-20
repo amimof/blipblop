@@ -61,6 +61,8 @@ enum EventType {
   ContainerSetDelete = 18;
   ContainerSetUpdate = 19;
   Schedule = 20;
+  TailLogsStart = 21;
+  TailLogsStop = 22;
 }
 
 enum Operation {
