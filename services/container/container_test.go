@@ -115,63 +115,6 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 	return nil
 }
 
-// type createOpts func(*containersv1.Container)
-//
-// func withImage(i string) createOpts {
-// 	return func(c *containersv1.Container) {
-// 		c.Config.Image = i
-// 	}
-// }
-//
-// func withEnvVar(ev ...*containersv1.EnvVar) createOpts {
-// 	return func(c *containersv1.Container) {
-// 		c.Config.Envvars = ev
-// 	}
-// }
-//
-// func withPortMapping(pm ...*containersv1.PortMapping) createOpts {
-// 	return func(c *containersv1.Container) {
-// 		c.Config.PortMappings = pm
-// 	}
-// }
-//
-// func withArgs(args []string) createOpts {
-// 	return func(c *containersv1.Container) {
-// 		c.Config.Args = args
-// 	}
-// }
-//
-// func withMounts(mounts ...*containersv1.Mount) createOpts {
-// 	return func(c *containersv1.Container) {
-// 		c.Config.Mounts = mounts
-// 	}
-// }
-//
-// func withNodeSelector(key, val string) createOpts {
-// 	return func(c *containersv1.Container) {
-// 		c.Config.NodeSelector = make(map[string]string)
-// 		c.Config.NodeSelector[key] = val
-// 	}
-// }
-//
-// // createPatch creates a base update request. Add additional fields using createOpts
-// func createPatch(name, image string, opts ...createOpts) *containersv1.UpdateContainerRequest {
-// 	ctr := &containersv1.Container{
-// 		Meta: &types.Meta{
-// 			Name: name,
-// 		},
-// 		Config: &containersv1.Config{
-// 			Image: image,
-// 		},
-// 	}
-//
-// 	for _, opt := range opts {
-// 		opt(ctr)
-// 	}
-//
-// 	return &containersv1.UpdateContainerRequest{Container: ctr, Id: name}
-// }
-
 func Test_ContainerService_Status(t *testing.T) {
 	server, _ := initTestServer()
 	defer server.Stop()

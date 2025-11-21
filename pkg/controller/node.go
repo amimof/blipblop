@@ -94,8 +94,9 @@ func (c *NodeController) Run(ctx context.Context) {
 	}()
 
 	// Connect with retry logic
+	connErr := make(chan error, 1)
 	go func() {
-		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, errCh)
+		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, connErr)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
 		}
@@ -130,8 +131,27 @@ func (c *NodeController) Run(ctx context.Context) {
 	}
 
 	// Handle errors
-	for e := range errCh {
-		c.logger.Error("received error on channel", "error", e)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e, ok := <-errCh:
+			if !ok {
+				errCh = nil
+				continue
+			}
+			if e != nil {
+				c.logger.Error("received error on channel", "error", e)
+			}
+		case e, ok := <-connErr:
+			if !ok {
+				connErr = nil
+				continue
+			}
+			if e != nil {
+				c.logger.Error("received error on channel", "error", e)
+			}
+		}
 	}
 }
 

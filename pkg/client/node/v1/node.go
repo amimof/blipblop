@@ -186,7 +186,7 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 
 			// Stream closed due to context cancellation
 			if errors.Is(streamErr, context.Canceled) {
-				return err
+				return streamErr
 			}
 
 			// Backoff reconnect
@@ -215,6 +215,10 @@ func (c *clientV1) handleStream(ctx context.Context, stream nodes.NodeService_Co
 		default:
 			response, err := stream.Recv()
 			if err != nil {
+
+				if errors.Is(err, context.Canceled) {
+					return context.Canceled
+				}
 
 				// Handle EOF and retryable gRPC errors
 				if errors.Is(err, io.EOF) {
