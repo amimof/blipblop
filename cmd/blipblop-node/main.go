@@ -281,7 +281,7 @@ func serveMetrics(h http.Handler, l *slog.Logger) {
 	addr := net.JoinHostPort(metricsHost, strconv.Itoa(metricsPort))
 	l.Info("metrics listening", "address", addr)
 	if err := http.ListenAndServe(addr, h); err != nil {
-		fmt.Printf("error serving metrics", "error", err)
+		l.Error("error serving metrics", "error", err)
 		return
 	}
 }
