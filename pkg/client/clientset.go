@@ -1,3 +1,4 @@
+// Package client provides a client interface to interact with server APIs
 package client
 
 import (
