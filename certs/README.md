@@ -15,5 +15,5 @@ openssl req -new -sha256 \
     -key server.key \
     -out server.csr \
     -config server.conf
-openssl x509 -req -sha256 -days 365 -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt
+openssl x509 -req -sha256 -days 365 -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -extfile server.conf -extensions v3_req
 ```

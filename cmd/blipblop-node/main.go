@@ -6,17 +6,21 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
+	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
-	"github.com/amimof/blipblop/pkg/trace"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
 	// "github.com/amimof/blipblop/pkg/runtime"
@@ -147,7 +151,7 @@ func main() {
 	defer cancel()
 
 	if len(otelEndpoint) > 0 {
-		shutdownTraceProvider, err := trace.InitTracing(ctx, "blipblop-node", VERSION, otelEndpoint)
+		shutdownTraceProvider, err := instrumentation.InitTracing(ctx, "blipblop-node", VERSION, otelEndpoint)
 		if err != nil {
 			log.Error("error setting up tracing", "error", err)
 			os.Exit(0)
@@ -159,9 +163,27 @@ func main() {
 		}()
 	}
 
+	// Setup metrics
+	metricsOpts, err := instrumentation.InitClientMetrics()
+	if err != nil {
+		log.Error("Failed to start prometheus exporter", "error", err)
+	}
+
+	go serveMetrics(promhttp.Handler(), log)
+
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	cs, err := client.New(serverAddr, client.WithGrpcDialOption(grpc.WithStatsHandler(otelgrpc.NewClientHandler())), client.WithTLSConfig(tlsConfig), client.WithLogger(log))
+	cs, err := client.New(
+		serverAddr,
+		client.WithGrpcDialOption(
+			metricsOpts,
+			grpc.WithStatsHandler(
+				otelgrpc.NewClientHandler(),
+			),
+		),
+		client.WithTLSConfig(tlsConfig),
+		client.WithLogger(log),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
@@ -219,14 +241,6 @@ func main() {
 	go nodeCtrl.Run(ctx)
 	log.Info("started node controller")
 
-	// logCtrl, err := controller.NewLogController(cs, runtime, controller.WithLogControllerNodeName(n.GetMeta().GetName()))
-	// if err != nil {
-	// 	log.Error("error setting up Log Controller", "error", err)
-	// 	return
-	// }
-	// go logCtrl.Run(ctx)
-	// log.Info("started log controller")
-
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
@@ -260,5 +274,14 @@ func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, e
 		l.Error("reconnection to containerd failed", "error", err, "retry_in", backoff)
 		time.Sleep(backoff)
 
+	}
+}
+
+func serveMetrics(h http.Handler, l *slog.Logger) {
+	addr := net.JoinHostPort(metricsHost, strconv.Itoa(metricsPort))
+	l.Info("metrics listening", "address", addr)
+	if err := http.ListenAndServe(addr, h); err != nil {
+		fmt.Printf("error serving metrics", "error", err)
+		return
 	}
 }

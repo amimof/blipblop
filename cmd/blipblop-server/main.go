@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,10 +19,10 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/repository"
 	"github.com/amimof/blipblop/pkg/scheduling"
 	"github.com/amimof/blipblop/pkg/server"
-	"github.com/amimof/blipblop/pkg/trace"
 	"github.com/amimof/blipblop/services/container"
 	"github.com/amimof/blipblop/services/containerset"
 	"github.com/amimof/blipblop/services/event"
@@ -29,6 +30,7 @@ import (
 	"github.com/amimof/blipblop/services/node"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -235,34 +237,51 @@ func main() {
 	}()
 
 	// Setup event exchange bus
-	exchange2 := events.NewExchange(events.WithExchangeLogger(log))
+	exchange := events.NewExchange(events.WithExchangeLogger(log))
 
 	// Setup services
 	eventService := event.NewService(
 		repository.NewEventBadgerRepository(db, repository.WithEventBadgerRepositoryMaxItems(5)),
 		event.WithLogger(log),
-		event.WithExchange(exchange2),
+		event.WithExchange(exchange),
 	)
 
 	nodeService := node.NewService(
 		repository.NewNodeBadgerRepository(db),
 		node.WithLogger(log),
-		node.WithExchange(exchange2),
+		node.WithExchange(exchange),
 	)
 
 	containerSetService := containerset.NewService(
 		repository.NewContainerSetBadgerRepository(db),
 		containerset.WithLogger(log),
-		containerset.WithExchange(exchange2),
+		containerset.WithExchange(exchange),
 	)
 
 	containerService := container.NewService(
 		repository.NewContainerBadgerRepository(db),
 		container.WithLogger(log),
-		container.WithExchange(exchange2),
+		container.WithExchange(exchange),
 	)
 
-	logService := logsvc.NewService(logsvc.WithLogger(log), logsvc.WithExchange(exchange2))
+	logService := logsvc.NewService(
+		logsvc.WithLogger(log),
+		logsvc.WithExchange(exchange),
+	)
+
+	// Context
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Setup Metrics
+	metricsOpts, err := instrumentation.InitServerMetrics(ctx)
+	if err != nil {
+		log.Error("Failed to start prometheus exporter", "error", err)
+	}
+	serverOpts = append(serverOpts, server.WithGrpcOption(metricsOpts))
+
+	go serveMetrics(promhttp.Handler())
 
 	// Setup server
 	s, err := server.New(serverOpts...)
@@ -284,14 +303,9 @@ func main() {
 	// Used by clientset and the gateway to connect internally
 	socketAddr := fmt.Sprintf("unix://%s", socketPath)
 
-	// Setup gateway
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	// Setup tracing
 	if len(otelEndpoint) > 0 {
-		shutdownTraceProvider, err := trace.InitTracing(ctx, "blipblop-server", VERSION, otelEndpoint)
+		shutdownTraceProvider, err := instrumentation.InitTracing(ctx, "blipblop-server", VERSION, otelEndpoint)
 		if err != nil {
 			log.Error("error setting up tracing", "error", err)
 			os.Exit(1)
@@ -303,6 +317,7 @@ func main() {
 		}()
 	}
 
+	// Setup gateway
 	gw, err := server.NewGateway(
 		ctx,
 		socketAddr,
@@ -358,6 +373,15 @@ func main() {
 	s.Shutdown()
 	log.Info("shutting down server")
 	close(exit)
+}
+
+func serveMetrics(h http.Handler) {
+	addr := net.JoinHostPort(metricsHost, strconv.Itoa(metricsPort))
+	log.Info("metrics listening", "address", addr)
+	if err := http.ListenAndServe(addr, h); err != nil {
+		log.Error("error serving metrics", "error", err)
+		return
+	}
 }
 
 func serveGateway(gw *server.Gateway) {
