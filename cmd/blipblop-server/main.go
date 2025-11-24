@@ -28,6 +28,7 @@ import (
 	"github.com/amimof/blipblop/services/event"
 	logsvc "github.com/amimof/blipblop/services/log"
 	"github.com/amimof/blipblop/services/node"
+	"github.com/amimof/blipblop/services/volume"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -269,6 +270,12 @@ func main() {
 		logsvc.WithExchange(exchange),
 	)
 
+	volumeService := volume.NewService(
+		repository.NewVolumeInMemRepo(),
+		volume.WithLogger(log),
+		volume.WithExchange(exchange),
+	)
+
 	// Context
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -291,8 +298,7 @@ func main() {
 	}
 
 	// Register services to gRPC server
-	// err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService)
-	err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService)
+	err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService, volumeService)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)

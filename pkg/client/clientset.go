@@ -13,6 +13,7 @@ import (
 	eventv1 "github.com/amimof/blipblop/pkg/client/event/v1"
 	logv1 "github.com/amimof/blipblop/pkg/client/log/v1"
 	nodev1 "github.com/amimof/blipblop/pkg/client/node/v1"
+	volumev1 "github.com/amimof/blipblop/pkg/client/volume/v1"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/spf13/pflag"
@@ -125,6 +126,7 @@ type ClientSet struct {
 	containerSetV1Client *containersetv1.ClientV1
 	eventV1Client        *eventv1.ClientV1
 	logV1Client          *logv1.ClientV1
+	volumeV1Client       volumev1.ClientV1
 	mu                   sync.Mutex
 	grpcOpts             []grpc.DialOption
 	tlsConfig            *tls.Config
@@ -150,6 +152,10 @@ func (c *ClientSet) EventV1() *eventv1.ClientV1 {
 
 func (c *ClientSet) LogV1() *logv1.ClientV1 {
 	return c.logV1Client
+}
+
+func (c *ClientSet) VolumeV1() volumev1.ClientV1 {
+	return c.volumeV1Client
 }
 
 func (c *ClientSet) State() connectivity.State {
@@ -234,6 +240,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
 	c.logV1Client = logv1.NewClientV1(conn)
+	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.clientId)
 
 	return c, nil
 }

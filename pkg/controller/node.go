@@ -68,7 +68,7 @@ func (c *NodeController) Run(ctx context.Context) {
 
 	// Setup Node Handlers
 	c.clientset.EventV1().On(events.NodeCreate, c.onNodeCreate)
-	c.clientset.EventV1().On(events.NodeUpdate, c.onNodeUpdate)
+	c.clientset.EventV1().On(events.NodeUpdate, c.handleErrors(c.onNodeUpdate))
 	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
 	c.clientset.EventV1().On(events.NodeJoin, c.onNodeJoin)
 	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
@@ -422,7 +422,7 @@ func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) er
 	return nil
 }
 
-func (c *NodeController) onNodeUpdate(ctx context.Context, _ *eventsv1.Event) error {
+func (c *NodeController) onNodeUpdate(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 

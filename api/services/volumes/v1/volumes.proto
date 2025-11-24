@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package services.volumes.v1;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/wrappers.proto";
+import "services/events/v1/events.proto";
+import "services/logs/v1/logs.proto";
+import "types/v1/meta.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/amimof/blipblop/api/services/volumes/v1;volumes";
+
+service VolumeService {
+  rpc List(ListRequest) returns (ListResponse) {
+    option (google.api.http) = {get: "/api/v1/volumes"};
+  }
+  rpc Get(GetRequest) returns (GetResponse) {
+    option (google.api.http) = {get: "/api/v1/volumes/{id}"};
+  }
+  rpc Create(CreateRequest) returns (CreateResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/volumes"
+      body: "volume"
+    };
+  }
+  rpc Update(UpdateRequest) returns (UpdateResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/volumes/{volume.meta.name}"
+      body: "volume"
+    };
+  }
+  rpc Patch(PatchRequest) returns (PatchResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/volumes/{volume.meta.name}"
+      body: "volume"
+    };
+  }
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {
+    option (google.api.http) = {delete: "/api/v1/volumes/{id}"};
+  }
+  rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
+    option (google.api.http) = {put: "/api/v1/volumes/{id}/status"};
+  }
+}
+
+message Volume {
+  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
+  Status status = 2;
+}
+
+message Status {
+  google.protobuf.StringValue phase = 1;
+}
+
+message GetRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetResponse {
+  Volume volume = 1;
+}
+
+message CreateRequest {
+  Volume volume = 1 [(validate.rules).message.required = true];
+}
+
+message CreateResponse {
+  Volume volume = 1;
+}
+
+message DeleteRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteResponse {
+  string id = 1;
+}
+
+message UpdateRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Volume volume = 2 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message UpdateResponse {
+  Volume volume = 1;
+}
+
+message ListRequest {
+  map<string, string> selector = 1;
+}
+
+message ListResponse {
+  repeated Volume volumes = 1;
+}
+
+message UpdateStatusRequest {
+  string id = 1;
+  google.protobuf.FieldMask update_mask = 2 [(validate.rules).message.required = true];
+  Status status = 3 [(validate.rules).message.required = true];
+}
+
+message UpdateStatusResponse {
+  string id = 1;
+}
+
+message PatchRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Volume volume = 2 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message PatchResponse {
+  Volume volume = 1;
+}

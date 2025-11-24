@@ -8,6 +8,7 @@ import (
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
+	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 )
 
@@ -42,4 +43,11 @@ type EventRepository interface {
 	Get(context.Context, string) (*eventsv1.Event, error)
 	Delete(context.Context, string) error
 	List(context.Context) ([]*eventsv1.Event, error)
+}
+
+type VolumeRepository interface {
+	Create(context.Context, *volumesv1.Volume) error
+	Get(context.Context, string) (*volumesv1.Volume, error)
+	Delete(context.Context, string) error
+	List(context.Context, ...labels.Label) ([]*volumesv1.Volume, error)
 }

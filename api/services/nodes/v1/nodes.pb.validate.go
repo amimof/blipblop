@@ -202,6 +202,242 @@ var _ interface {
 	ErrorName() string
 } = NodeValidationError{}
 
+// Validate checks the field values on Config with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *Config) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Config with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in ConfigMultiError, or nil if none found.
+func (m *Config) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Config) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetVolumes() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ConfigValidationError{
+						field:  fmt.Sprintf("Volumes[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ConfigValidationError{
+						field:  fmt.Sprintf("Volumes[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ConfigValidationError{
+					field:  fmt.Sprintf("Volumes[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return ConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// ConfigMultiError is an error wrapping multiple validation errors returned by
+// Config.ValidateAll() if the designated constraints aren't met.
+type ConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ConfigMultiError) AllErrors() []error { return m }
+
+// ConfigValidationError is the validation error returned by Config.Validate if
+// the designated constraints aren't met.
+type ConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ConfigValidationError) ErrorName() string { return "ConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e ConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ConfigValidationError{}
+
+// Validate checks the field values on Volume with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *Volume) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Volume with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in VolumeMultiError, or nil if none found.
+func (m *Volume) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Volume) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Name
+
+	// no validation rules for Location
+
+	// no validation rules for Type
+
+	if len(errors) > 0 {
+		return VolumeMultiError(errors)
+	}
+
+	return nil
+}
+
+// VolumeMultiError is an error wrapping multiple validation errors returned by
+// Volume.ValidateAll() if the designated constraints aren't met.
+type VolumeMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m VolumeMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m VolumeMultiError) AllErrors() []error { return m }
+
+// VolumeValidationError is the validation error returned by Volume.Validate if
+// the designated constraints aren't met.
+type VolumeValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e VolumeValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e VolumeValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e VolumeValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e VolumeValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e VolumeValidationError) ErrorName() string { return "VolumeValidationError" }
+
+// Error satisfies the builtin error interface
+func (e VolumeValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sVolume.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = VolumeValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = VolumeValidationError{}
+
 // Validate checks the field values on Status with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

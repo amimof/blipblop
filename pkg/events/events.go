@@ -35,6 +35,11 @@ const (
 	Schedule           = eventsv1.EventType_Schedule
 	TailLogsStart      = eventsv1.EventType_TailLogsStart
 	TailLogsStop       = eventsv1.EventType_TailLogsStop
+	VolumeCreate       = eventsv1.EventType_VolumeCreate
+	VolumeDelete       = eventsv1.EventType_VolumeDelete
+	VolumeUpdate       = eventsv1.EventType_VolumeUpdate
+	VolumeGet          = eventsv1.EventType_VolumeGet
+	VolumeList         = eventsv1.EventType_VolumeList
 )
 
 var ALL = []eventsv1.EventType{
@@ -58,8 +63,15 @@ var ALL = []eventsv1.EventType{
 	ContainerSetDelete,
 	ContainerSetUpdate,
 	Schedule,
+
 	TailLogsStart,
 	TailLogsStop,
+
+	VolumeCreate,
+	VolumeDelete,
+	VolumeUpdate,
+	VolumeGet,
+	VolumeList,
 }
 
 type Subscriber interface {
