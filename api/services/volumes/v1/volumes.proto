@@ -49,7 +49,18 @@ service VolumeService {
 
 message Volume {
   types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  Status status = 2;
+  Config config = 2 [(validate.rules).message.required = true];
+  Status status = 3;
+}
+
+message Config {
+  repeated HostLocal host_local = 1;
+  map<string, string> node_selector = 2;
+}
+
+message HostLocal {
+  string name = 1;
+  string destination = 2;
 }
 
 message Status {

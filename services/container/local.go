@@ -183,7 +183,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...
 
 	containerID := container.GetMeta().GetName()
 
-	// Chec if container already exists
+	// Check if container already exists
 	if existing, _ := l.Get(ctx, &containers.GetRequest{Id: containerID}); existing != nil {
 		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
 	}

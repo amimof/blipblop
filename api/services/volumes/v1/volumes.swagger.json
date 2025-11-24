@@ -231,6 +231,9 @@
                     }
                   }
                 },
+                "config": {
+                  "$ref": "#/definitions/v1Config"
+                },
                 "status": {
                   "$ref": "#/definitions/volumesv1Status"
                 }
@@ -306,6 +309,9 @@
                       "format": "uint64"
                     }
                   }
+                },
+                "config": {
+                  "$ref": "#/definitions/v1Config"
                 },
                 "status": {
                   "$ref": "#/definitions/volumesv1Status"
@@ -393,6 +399,35 @@
         }
       }
     },
+    "v1Config": {
+      "type": "object",
+      "properties": {
+        "hostLocal": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1HostLocal"
+          }
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1HostLocal": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        }
+      }
+    },
     "v1Meta": {
       "type": "object",
       "properties": {
@@ -448,6 +483,9 @@
       "properties": {
         "meta": {
           "$ref": "#/definitions/v1Meta"
+        },
+        "config": {
+          "$ref": "#/definitions/v1Config"
         },
         "status": {
           "$ref": "#/definitions/volumesv1Status"

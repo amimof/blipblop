@@ -50,4 +50,5 @@ type VolumeRepository interface {
 	Get(context.Context, string) (*volumesv1.Volume, error)
 	Delete(context.Context, string) error
 	List(context.Context, ...labels.Label) ([]*volumesv1.Volume, error)
+	Update(context.Context, *volumesv1.Volume) error
 }
