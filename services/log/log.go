@@ -123,7 +123,6 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 		entry, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("do it ")
 				return stream.SendAndClose(&emptypb.Empty{})
 			}
 			// Here we might log the error; returning ends the stream.

@@ -12,4 +12,7 @@ const (
 	PHASERUNNING   = "running"
 	PHASESTOPPED   = "stopped"
 	PHASESCHEDULED = "scheduled"
+	PHASEREADY     = "ready"
+	PHASEMISSING   = "missing"
+	PHASEUNKNOWN   = "unknown"
 )

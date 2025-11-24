@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -118,7 +117,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	err = c.clientset.NodeV1().Status().Update(
 		ctx,
 		c.nodeName, &nodes.Status{
-			Phase:    wrapperspb.String(connectivity.Ready.String()),
+			Phase:    wrapperspb.String(consts.PHASEREADY),
 			Hostname: wrapperspb.String(hostname),
 			Runtime:  wrapperspb.String(runtimeVer),
 		},

@@ -13,12 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	StatusReady   = "READY"
-	StatusMissing = "MISSING"
-	StatusUnknown = "UNKNOWN"
-)
-
 func LoadNodeFromEnv(path string) (*nodes.Node, error) {
 	// Attempt to load from the file
 	n, err := loadFromFile(path)

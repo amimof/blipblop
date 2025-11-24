@@ -18,13 +18,13 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 1,
+  "id": 20,
   "links": [],
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Number of Goroutines and Threads total",
       "fieldConfig": {
@@ -71,7 +71,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -114,7 +114,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_threads{job=\"$job\"}",
@@ -131,7 +131,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "How often GC runs (5m average)",
       "fieldConfig": {
@@ -178,7 +178,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -214,7 +214,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(go_gc_duration_seconds_count{job=\"$job\"}[5m])",
@@ -231,7 +231,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "(Cores used)",
       "fieldConfig": {
@@ -278,7 +278,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -325,7 +325,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "How often GC runs (5m average)",
       "fieldConfig": {
@@ -372,7 +372,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -409,7 +409,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(go_gc_duration_seconds_sum{job=\"$job\"}[5m]) / rate(process_cpu_seconds_total{job=\"$job\"}[5m])",
@@ -426,7 +426,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -472,7 +472,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -516,7 +516,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_gc_duration_seconds{job=\"$job\", quantile=\"0.5\"}",
@@ -528,7 +528,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_gc_duration_seconds{job=\"$job\", quantile=\"0.25\"}",
@@ -540,7 +540,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(go_gc_duration_seconds_sum{job=\"$job\"}[5m]) / rate(go_gc_duration_seconds_count{job=\"$job\"}[5m])",
@@ -557,7 +557,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -603,7 +603,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -646,7 +646,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "process_max_fds{job=\"$job\"}",
@@ -662,7 +662,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -708,7 +708,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -756,7 +756,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Resident Memory (MiB)",
       "fieldConfig": {
@@ -803,7 +803,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -850,8 +850,9 @@
     },
     {
       "datasource": {
+        "default": false,
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -897,7 +898,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -931,8 +932,12 @@
       "pluginVersion": "12.1.4",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bb486d3b-c169-4c0a-bf6d-b42bd7a31001"
+          },
           "editorMode": "code",
-          "expr": "up{job=\"blipblop\"}",
+          "expr": "up{job=\"$job\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -944,7 +949,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "",
       "fieldConfig": {
@@ -991,7 +996,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1039,7 +1044,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Heap Pressure Proxy",
       "fieldConfig": {
@@ -1085,8 +1090,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": 0
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1122,7 +1126,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_memstats_heap_objects{job=\"$job\"}",
@@ -1137,7 +1141,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1182,8 +1186,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": 0
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1219,7 +1222,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(promhttp_metric_handler_requests_total{job=\"$job\",code!=\"200\"}[5m])",
@@ -1232,18 +1235,25 @@
       "type": "timeseries"
     }
   ],
-  "preload": false,
-  "schemaVersion": 41,
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "blipblop",
-          "value": "blipblop"
+          "selected": false,
+          "text": "blipblop-server",
+          "value": "blipblop-server"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "bb486d3b-c169-4c0a-bf6d-b42bd7a31001"
         },
         "definition": "label_values(blipblop_build_info,job)",
+        "hide": 0,
+        "includeAll": false,
         "label": "Job",
+        "multi": false,
         "name": "job",
         "options": [],
         "query": {
@@ -1253,7 +1263,28 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "VictoriaMetrics",
+          "value": "bb486d3b-c169-4c0a-bf6d-b42bd7a31001"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "DATASOURCE",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
       }
     ]
   },
@@ -1263,7 +1294,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Blipblop",
+  "title": "Blipblop Server",
   "uid": "209ad6ef-72bf-4a33-9025-4d86ef7f27d7",
-  "version": 18
+  "version": 3,
+  "weekStart": ""
 }

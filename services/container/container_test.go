@@ -445,6 +445,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 							Name:        "temp",
 							Source:      "/var/lib/nginx/config",
 							Destination: "/etc/nginx/config.d",
+							Type:        "bind",
+							Options:     []string{"rbind", "rw"},
 						},
 					},
 				},
@@ -482,6 +484,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 							Name:        "temp",
 							Source:      "/var/lib/nginx/config",
 							Destination: "/etc/nginx/config.d",
+							Type:        "bind",
+							Options:     []string{"rbind", "rw"},
 						},
 					},
 					NodeSelector: map[string]string{
