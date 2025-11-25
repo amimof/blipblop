@@ -48,14 +48,24 @@ func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 	}
 }
 
+// withMounts creates an oci compatible list of volume mounts to be used by the runtime.
+// Default mount type is read-write bind mount if not otherwise specified.
 func withMounts(m []*containers.Mount) oci.SpecOpts {
 	var mounts []specs.Mount
 	for _, mount := range m {
+		mountType := mount.Type
+		mountOptions := mount.Options
+		if mountType == "" {
+			mountType = "bind"
+		}
+		if len(mountOptions) == 0 {
+			mountOptions = []string{"rbind", "rw"}
+		}
 		mounts = append(mounts, specs.Mount{
 			Destination: mount.Destination,
-			Type:        mount.Type,
+			Type:        mountType,
 			Source:      mount.Source,
-			Options:     mount.Options,
+			Options:     mountOptions,
 		})
 	}
 	return oci.WithMounts(mounts)
