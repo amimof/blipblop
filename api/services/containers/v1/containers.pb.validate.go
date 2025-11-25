@@ -1091,6 +1091,8 @@ func (m *Mount) validate(all bool) error {
 
 	// no validation rules for Type
 
+	// no validation rules for Volume
+
 	// no validation rules for Source
 
 	if len(errors) > 0 {

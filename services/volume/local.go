@@ -11,13 +11,13 @@ import (
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
 	"github.com/amimof/blipblop/pkg/repository"
-	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -57,6 +57,11 @@ func applyMaskedUpdate(dst, src *volumes.Status, mask *fieldmaskpb.FieldMask) er
 				continue
 			}
 			dst.Phase = src.Phase
+		case "location":
+			if src.Location == nil {
+				continue
+			}
+			dst.Location = src.Location
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}
@@ -203,8 +208,10 @@ func (l *local) UpdateStatus(ctx context.Context, req *volumes.UpdateStatusReque
 		return nil, err
 	}
 
+	fmt.Println("existing volume", existingVolume.GetStatus())
+
 	// Apply mask safely
-	base := proto.Clone(existingVolume.Status).(*volumes.Status)
+	base := proto.Clone(existingVolume.GetStatus()).(*volumes.Status)
 	if err := applyMaskedUpdate(base, req.Status, req.UpdateMask); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
 	}

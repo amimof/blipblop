@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package services.volumes.v1;
 
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/protobuf/empty.proto";
@@ -54,17 +55,24 @@ message Volume {
 }
 
 message Config {
-  repeated HostLocal host_local = 1;
-  map<string, string> node_selector = 2;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "host_local",
+      "rclone"
+    ]
+  };
+  HostLocal host_local = 1;
+  HostLocal rclone = 2;
+  map<string, string> node_selector = 3;
 }
 
 message HostLocal {
   string name = 1;
-  string destination = 2;
 }
 
 message Status {
   google.protobuf.StringValue phase = 1;
+  google.protobuf.StringValue location = 2;
 }
 
 message GetRequest {
@@ -85,6 +93,7 @@ message CreateResponse {
 
 message DeleteRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
+  bool purge = 2;
 }
 
 message DeleteResponse {

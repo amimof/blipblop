@@ -462,6 +462,9 @@
         "type": {
           "type": "string"
         },
+        "volume": {
+          "type": "string"
+        },
         "source": {
           "type": "string"
         },

@@ -554,6 +554,13 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 		return err
 	}
 
+	// Resolve volume reference in container spec
+	mounts, err := c.resolvVolumeForMounts(ctx, ctr.GetConfig().GetMounts())
+	if err != nil {
+		return err
+	}
+	ctr.GetConfig().Mounts = mounts
+
 	// Run container
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
@@ -570,6 +577,19 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
+}
+
+func (c *NodeController) resolvVolumeForMounts(ctx context.Context, mounts []*containersv1.Mount) ([]*containersv1.Mount, error) {
+	result := []*containersv1.Mount{}
+	for _, mount := range mounts {
+		v, err := c.clientset.VolumeV1().Get(ctx, mount.GetVolume())
+		if err != nil {
+			return nil, err
+		}
+		mount.Source = v.GetStatus().GetLocation().GetValue()
+		result = append(result, mount)
+	}
+	return result, nil
 }
 
 func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event) error {

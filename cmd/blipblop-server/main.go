@@ -271,7 +271,7 @@ func main() {
 	)
 
 	volumeService := volume.NewService(
-		repository.NewVolumeInMemRepo(),
+		repository.NewVolumeBadgerRepository(db),
 		volume.WithLogger(log),
 		volume.WithExchange(exchange),
 	)

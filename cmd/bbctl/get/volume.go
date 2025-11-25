@@ -57,12 +57,13 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 					logrus.Fatal(err)
 				}
 
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "NODE", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "TYPE", "AGE")
 				for _, c := range volumes {
-					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\n",
+					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
 						c.GetStatus().GetPhase().GetValue(),
+						"host-local",
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
 					)
 				}
