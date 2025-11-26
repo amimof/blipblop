@@ -75,6 +75,10 @@ message Status {
   google.protobuf.StringValue location = 2;
 }
 
+message VolumeDriverHostLocal {
+  string root_dir = 2;
+}
+
 message GetRequest {
   string id = 1 [(validate.rules).string.min_len = 1];
 }

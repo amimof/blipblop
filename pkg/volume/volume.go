@@ -30,14 +30,15 @@ type Driver interface {
 	Snapshot(context.Context, Volume, ...MountOpts) error
 }
 
-// type Volume struct {
-// 	ID       ID
-// 	Size     int64
-// 	Location string
-// }
-
 type Volume interface {
 	ID() ID
 	Size() int64
 	Location() string
 }
+
+type VolumeType int32
+
+const (
+	VolumeTypeUnspecified VolumeType = 0
+	VolumeTypeHostLocal   VolumeType = 1
+)

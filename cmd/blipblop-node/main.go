@@ -20,7 +20,6 @@ import (
 	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
-	"github.com/amimof/blipblop/pkg/volume"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
@@ -55,7 +54,6 @@ var (
 	nodeFile           string
 	runtimeNamespace   string
 	otelEndpoint       string
-	volumeRootPath     string
 )
 
 func init() {
@@ -69,7 +67,6 @@ func init() {
 	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for containers")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
-	pflag.StringVar(&volumeRootPath, "volume-root-path", "/var/lib/blipblop/volumes", "Full path to directory to use for container volumes")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -215,12 +212,6 @@ func main() {
 		return
 	}
 
-	err = cs.NodeV1().Join(ctx, n)
-	if err != nil {
-		log.Error("error joining node to server", "error", err)
-		return
-	}
-
 	// Create networking
 	cni, err := networking.NewCNIManager()
 	if err != nil {
@@ -262,14 +253,23 @@ func main() {
 	log.Info("started node controller")
 
 	// Volume controller
-	volumeManager := volume.NewHostLocalManager(volumeRootPath)
+	volumeDrivers := node.NodeVolumeManagers(n)
+	// volumeManager := volume.NewHostLocalManager(volumeRootPath)
 	volumeCtrl := controller.NewVolumeController(
 		cs,
 		controller.WithVolumeControllerLogger(log),
-		controller.WithVolumeManager(volumeManager),
+		controller.WithVolumeDrivers(volumeDrivers),
+		// controller.WithHostLocalVolumeDriver(volumeManager),
 	)
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
+
+	// Join node to cluster
+	err = cs.NodeV1().Join(ctx, n)
+	if err != nil {
+		log.Error("error joining node to server", "error", err)
+		return
+	}
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)

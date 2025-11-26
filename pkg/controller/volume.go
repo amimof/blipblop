@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
@@ -16,22 +17,41 @@ import (
 
 type NewVolumeControllerOption func(c *VolumeController)
 
+func WithVolumeDrivers(drivers map[volume.VolumeType]volume.Driver) NewVolumeControllerOption {
+	return func(c *VolumeController) {
+		c.volDrivers = drivers
+	}
+}
+
+func WithHostLocalVolumeDriver(m volume.Driver) NewVolumeControllerOption {
+	return func(c *VolumeController) {
+		c.volDrivers[volume.VolumeTypeHostLocal] = m
+	}
+}
+
 func WithVolumeControllerLogger(l logger.Logger) NewVolumeControllerOption {
 	return func(c *VolumeController) {
 		c.logger = l
 	}
 }
 
-func WithVolumeManager(m volume.Driver) NewVolumeControllerOption {
-	return func(c *VolumeController) {
-		c.volManager = m
-	}
-}
+var ErrVolumeDriverNotFound = errors.New("volume driver not found")
 
 type VolumeController struct {
-	logger     logger.Logger
-	clientset  *client.ClientSet
-	volManager volume.Driver
+	logger    logger.Logger
+	clientset *client.ClientSet
+	// volManager volume.Driver
+	volDrivers map[volume.VolumeType]volume.Driver
+}
+
+// getVolumeDriver picks a volume driver on the controller based on what is defined in the Volume spec.
+// If the volume controller does not have the driver the Volume asks for then the return value will be nil and error will be ErrNoVolumeDriver.
+func (vc *VolumeController) getVolumeDriver(vol *volumesv1.Volume) (volume.Driver, error) {
+	cfg := vol.GetConfig()
+	if cfg.GetHostLocal() != nil {
+		return vc.volDrivers[volume.VolumeTypeHostLocal], nil
+	}
+	return nil, ErrVolumeDriverNotFound
 }
 
 func (vc *VolumeController) Run(ctx context.Context) {
@@ -79,9 +99,15 @@ func (vc *VolumeController) onVolumeCreate(ctx context.Context, ev *eventsv1.Eve
 		return err
 	}
 
+	// Get the driver the spec asks for from the controller
+	volDriver, err := vc.getVolumeDriver(volSpec)
+	if err != nil {
+		return err
+	}
+
 	hostLocalVolume := volSpec.GetConfig().GetHostLocal()
 	id := hostLocalVolume.GetName()
-	vol, err := vc.volManager.Create(ctx, id)
+	vol, err := volDriver.Create(ctx, id)
 	if err != nil {
 		_ = vc.clientset.VolumeV1().Status().Update(
 			ctx,
@@ -119,9 +145,15 @@ func (vc *VolumeController) onVolumeDelete(ctx context.Context, ev *eventsv1.Eve
 		return err
 	}
 
+	// Get the driver the spec asks for from the controller
+	volDriver, err := vc.getVolumeDriver(volSpec)
+	if err != nil {
+		return err
+	}
+
 	hostLocalVolume := volSpec.GetConfig().GetHostLocal()
 	id := hostLocalVolume.GetName()
-	if err := vc.volManager.Delete(ctx, id); err != nil {
+	if err := volDriver.Delete(ctx, id); err != nil {
 		_ = vc.clientset.VolumeV1().Status().Update(
 			ctx,
 			id,
@@ -145,7 +177,7 @@ func NewVolumeController(c *client.ClientSet, opts ...NewVolumeControllerOption)
 	m := &VolumeController{
 		clientset:  c,
 		logger:     logger.ConsoleLogger{},
-		volManager: volume.NewHostLocalManager("/var/lib/blipblop/volumes"),
+		volDrivers: make(map[volume.VolumeType]volume.Driver),
 	}
 	for _, opt := range opts {
 		opt(m)
