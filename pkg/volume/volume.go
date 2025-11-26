@@ -39,6 +39,6 @@ type Volume interface {
 type VolumeType int32
 
 const (
-	VolumeTypeUnspecified VolumeType = 0
-	VolumeTypeHostLocal   VolumeType = 1
+	DriverTypeUnspecified VolumeType = 0
+	DriverTypeHostLocal   VolumeType = 1
 )

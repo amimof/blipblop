@@ -276,12 +276,12 @@
         ]
       },
       "patch": {
-        "operationId": "NodeService_Update2",
+        "operationId": "NodeService_Patch",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicesnodesv1UpdateResponse"
+              "$ref": "#/definitions/servicesnodesv1PatchResponse"
             }
           },
           "default": {
@@ -437,6 +437,14 @@
         }
       }
     },
+    "servicesnodesv1PatchResponse": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "$ref": "#/definitions/v1Node"
+        }
+      }
+    },
     "servicesnodesv1Status": {
       "type": "object",
       "properties": {
@@ -510,6 +518,7 @@
         "NodeDelete",
         "NodeList",
         "NodeUpdate",
+        "NodePatch",
         "NodeJoin",
         "NodeForget",
         "NodeConnect",

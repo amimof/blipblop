@@ -25,7 +25,7 @@ func WithVolumeDrivers(drivers map[volume.VolumeType]volume.Driver) NewVolumeCon
 
 func WithHostLocalVolumeDriver(m volume.Driver) NewVolumeControllerOption {
 	return func(c *VolumeController) {
-		c.volDrivers[volume.VolumeTypeHostLocal] = m
+		c.volDrivers[volume.DriverTypeHostLocal] = m
 	}
 }
 
@@ -44,12 +44,28 @@ type VolumeController struct {
 	volDrivers map[volume.VolumeType]volume.Driver
 }
 
+func (vc *VolumeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		err := h(ctx, ev)
+		if err != nil {
+			vc.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
+			return err
+		}
+		return nil
+	}
+}
+
 // getVolumeDriver picks a volume driver on the controller based on what is defined in the Volume spec.
 // If the volume controller does not have the driver the Volume asks for then the return value will be nil and error will be ErrNoVolumeDriver.
 func (vc *VolumeController) getVolumeDriver(vol *volumesv1.Volume) (volume.Driver, error) {
 	cfg := vol.GetConfig()
 	if cfg.GetHostLocal() != nil {
-		return vc.volDrivers[volume.VolumeTypeHostLocal], nil
+
+		volDriver, ok := vc.volDrivers[volume.DriverTypeHostLocal]
+		if !ok {
+			return nil, ErrVolumeDriverNotFound
+		}
+		return volDriver, nil
 	}
 	return nil, ErrVolumeDriverNotFound
 }
@@ -66,7 +82,7 @@ func (vc *VolumeController) Run(ctx context.Context) {
 	)
 
 	// Setup Node Handlers
-	vc.clientset.EventV1().On(events.VolumeCreate, vc.onVolumeCreate)
+	vc.clientset.EventV1().On(events.VolumeCreate, vc.handleErrors(vc.onVolumeCreate))
 	vc.clientset.EventV1().On(events.VolumeDelete, vc.onVolumeDelete)
 
 	go func() {

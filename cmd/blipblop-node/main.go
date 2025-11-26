@@ -264,6 +264,8 @@ func main() {
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
 
+	fmt.Printf("%+v\n", n)
+
 	// Join node to cluster
 	err = cs.NodeV1().Join(ctx, n)
 	if err != nil {

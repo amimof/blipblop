@@ -2471,6 +2471,314 @@ var _ interface {
 	ErrorName() string
 } = UpdateResponseValidationError{}
 
+// Validate checks the field values on PatchRequest with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *PatchRequest) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PatchRequest with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in PatchRequestMultiError, or
+// nil if none found.
+func (m *PatchRequest) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PatchRequest) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetId()) < 1 {
+		err := PatchRequestValidationError{
+			field:  "Id",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if m.GetNode() == nil {
+		err := PatchRequestValidationError{
+			field:  "Node",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetNode()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PatchRequestValidationError{
+					field:  "Node",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PatchRequestValidationError{
+					field:  "Node",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNode()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PatchRequestValidationError{
+				field:  "Node",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetUpdateMask()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PatchRequestValidationError{
+					field:  "UpdateMask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PatchRequestValidationError{
+					field:  "UpdateMask",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUpdateMask()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PatchRequestValidationError{
+				field:  "UpdateMask",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PatchRequestMultiError(errors)
+	}
+
+	return nil
+}
+
+// PatchRequestMultiError is an error wrapping multiple validation errors
+// returned by PatchRequest.ValidateAll() if the designated constraints aren't met.
+type PatchRequestMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PatchRequestMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PatchRequestMultiError) AllErrors() []error { return m }
+
+// PatchRequestValidationError is the validation error returned by
+// PatchRequest.Validate if the designated constraints aren't met.
+type PatchRequestValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PatchRequestValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PatchRequestValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PatchRequestValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PatchRequestValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PatchRequestValidationError) ErrorName() string { return "PatchRequestValidationError" }
+
+// Error satisfies the builtin error interface
+func (e PatchRequestValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPatchRequest.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PatchRequestValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PatchRequestValidationError{}
+
+// Validate checks the field values on PatchResponse with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *PatchResponse) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PatchResponse with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in PatchResponseMultiError, or
+// nil if none found.
+func (m *PatchResponse) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PatchResponse) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetNode()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, PatchResponseValidationError{
+					field:  "Node",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, PatchResponseValidationError{
+					field:  "Node",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNode()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return PatchResponseValidationError{
+				field:  "Node",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return PatchResponseMultiError(errors)
+	}
+
+	return nil
+}
+
+// PatchResponseMultiError is an error wrapping multiple validation errors
+// returned by PatchResponse.ValidateAll() if the designated constraints
+// aren't met.
+type PatchResponseMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PatchResponseMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PatchResponseMultiError) AllErrors() []error { return m }
+
+// PatchResponseValidationError is the validation error returned by
+// PatchResponse.Validate if the designated constraints aren't met.
+type PatchResponseValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PatchResponseValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PatchResponseValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PatchResponseValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PatchResponseValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PatchResponseValidationError) ErrorName() string { return "PatchResponseValidationError" }
+
+// Error satisfies the builtin error interface
+func (e PatchResponseValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPatchResponse.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PatchResponseValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PatchResponseValidationError{}
+
 // Validate checks the field values on ListRequest with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

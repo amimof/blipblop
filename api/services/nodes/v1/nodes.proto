@@ -33,10 +33,12 @@ service NodeService {
     option (google.api.http) = {
       put: "/api/v1/nodes/{node.meta.name}"
       body: "node"
-      additional_bindings: {
-        patch: "/api/v1/nodes/{node.meta.name}"
-        body: "node"
-      }
+    };
+  }
+  rpc Patch(PatchRequest) returns (PatchResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/nodes/{node.meta.name}"
+      body: "node"
     };
   }
   rpc Delete(DeleteRequest) returns (DeleteResponse) {
@@ -125,6 +127,16 @@ message UpdateRequest {
 }
 
 message UpdateResponse {
+  Node node = 1;
+}
+
+message PatchRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Node node = 2 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message PatchResponse {
   Node node = 1;
 }
 

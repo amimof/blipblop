@@ -72,6 +72,10 @@ func (n *NodeService) Update(ctx context.Context, req *nodesv1.UpdateRequest) (*
 	return n.local.Update(ctx, req)
 }
 
+func (n *NodeService) Patch(ctx context.Context, req *nodesv1.PatchRequest) (*nodesv1.PatchResponse, error) {
+	return n.local.Patch(ctx, req)
+}
+
 func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*nodesv1.JoinResponse, error) {
 	return n.local.Join(ctx, req)
 }

@@ -115,6 +115,7 @@
         "NodeDelete",
         "NodeList",
         "NodeUpdate",
+        "NodePatch",
         "NodeJoin",
         "NodeForget",
         "NodeConnect",
