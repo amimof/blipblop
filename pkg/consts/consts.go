@@ -8,8 +8,13 @@ const (
 	ERRDELETE       = "ErrDeleting"
 	ERRSTOP         = "ErrStopping"
 	ERRKILL         = "ErrKilling"
+	ERRPROVISIONING = "ErrProvisioning"
 
-	PHASERUNNING   = "running"
-	PHASESTOPPED   = "stopped"
-	PHASESCHEDULED = "scheduled"
+	PHASERUNNING     = "running"
+	PHASESTOPPED     = "stopped"
+	PHASESCHEDULED   = "scheduled"
+	PHASEREADY       = "ready"
+	PHASEMISSING     = "missing"
+	PHASEUNKNOWN     = "unknown"
+	PHASEPROVISIONED = "provisioned"
 )

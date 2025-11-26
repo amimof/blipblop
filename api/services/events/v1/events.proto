@@ -63,6 +63,13 @@ enum EventType {
   Schedule = 20;
   TailLogsStart = 21;
   TailLogsStop = 22;
+
+  VolumeCreate = 23;
+  VolumeDelete = 24;
+  VolumeUpdate = 25;
+  VolumePatch = 26;
+  VolumeGet = 27;
+  VolumeList = 28;
 }
 
 enum Operation {

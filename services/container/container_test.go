@@ -445,6 +445,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 							Name:        "temp",
 							Source:      "/var/lib/nginx/config",
 							Destination: "/etc/nginx/config.d",
+							Type:        "bind",
+							Options:     []string{"rbind", "rw"},
 						},
 					},
 				},
@@ -482,6 +484,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 							Name:        "temp",
 							Source:      "/var/lib/nginx/config",
 							Destination: "/etc/nginx/config.d",
+							Type:        "bind",
+							Options:     []string{"rbind", "rw"},
 						},
 					},
 					NodeSelector: map[string]string{
@@ -751,6 +755,85 @@ func Test_ContainerService_Patch(t *testing.T) {
 							Name:        "temp",
 							Source:      "/tmp",
 							Destination: "/mnt/tmp",
+							Type:        "bind",
+						},
+					},
+					NodeSelector: map[string]string{
+						"blipblop.io/arch": "amd64",
+						"blipblop.io/os":   "linux",
+					},
+				},
+				Status: &containersv1.Status{
+					Phase: wrapperspb.String("RUNNING"),
+				},
+			},
+		},
+		{
+			name: "should not add volumes with identic names",
+			patch: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-8",
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+					Mounts: []*containersv1.Mount{
+						{
+							Name:        "data",
+							Source:      "/data",
+							Destination: "/mnt/data",
+							Type:        "bind",
+						},
+						{
+							Name:        "data",
+							Source:      "/backup",
+							Destination: "/mnt/backup",
+							Type:        "bind",
+						},
+					},
+				},
+				Status: &containersv1.Status{
+					Phase: wrapperspb.String("RUNNING"),
+				},
+			},
+			expect: &containersv1.Container{
+				Meta: &types.Meta{
+					Name: "test-container-8",
+					Labels: map[string]string{
+						"team":        "backend",
+						"environment": "production",
+						"role":        "root",
+					},
+				},
+				Config: &containersv1.Config{
+					Image: "docker.io/library/nginx:latest",
+					PortMappings: []*containersv1.PortMapping{
+						{
+							Name:          "http",
+							HostPort:      8080,
+							ContainerPort: 80,
+							Protocol:      "TCP",
+						},
+					},
+					Envvars: []*containersv1.EnvVar{
+						{
+							Name:  "HTTP_PROXY",
+							Value: "proxy.foo.com",
+						},
+					},
+					Args: []string{
+						"--config /mnt/cfg/config.yaml",
+					},
+					Mounts: []*containersv1.Mount{
+						{
+							Name:        "temp",
+							Source:      "/tmp",
+							Destination: "/mnt/tmp",
+							Type:        "bind",
+						},
+						{
+							Name:        "data",
+							Source:      "/backup",
+							Destination: "/mnt/backup",
 							Type:        "bind",
 						},
 					},

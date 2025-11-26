@@ -9,6 +9,7 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/containersets/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/services/volumes/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -93,7 +94,10 @@ func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux, opts ..
 	if err != nil {
 		return nil, err
 	}
-
+	err = volumes.RegisterVolumeServiceHandler(ctx, mux, conn)
+	if err != nil {
+		return nil, err
+	}
 	g.conn = conn
 
 	return g, nil

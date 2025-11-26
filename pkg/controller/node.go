@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -69,7 +68,7 @@ func (c *NodeController) Run(ctx context.Context) {
 
 	// Setup Node Handlers
 	c.clientset.EventV1().On(events.NodeCreate, c.onNodeCreate)
-	c.clientset.EventV1().On(events.NodeUpdate, c.onNodeUpdate)
+	c.clientset.EventV1().On(events.NodeUpdate, c.handleErrors(c.onNodeUpdate))
 	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
 	c.clientset.EventV1().On(events.NodeJoin, c.onNodeJoin)
 	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
@@ -118,7 +117,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	err = c.clientset.NodeV1().Status().Update(
 		ctx,
 		c.nodeName, &nodes.Status{
-			Phase:    wrapperspb.String(connectivity.Ready.String()),
+			Phase:    wrapperspb.String(consts.PHASEREADY),
 			Hostname: wrapperspb.String(hostname),
 			Runtime:  wrapperspb.String(runtimeVer),
 		},
@@ -423,7 +422,7 @@ func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) er
 	return nil
 }
 
-func (c *NodeController) onNodeUpdate(ctx context.Context, _ *eventsv1.Event) error {
+func (c *NodeController) onNodeUpdate(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 
@@ -555,6 +554,13 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 		return err
 	}
 
+	// Resolve volume reference in container spec
+	mounts, err := c.resolvVolumeForMounts(ctx, ctr.GetConfig().GetMounts())
+	if err != nil {
+		return err
+	}
+	ctr.GetConfig().Mounts = mounts
+
 	// Run container
 	err = c.runtime.Run(ctx, &ctr)
 	if err != nil {
@@ -571,6 +577,19 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
+}
+
+func (c *NodeController) resolvVolumeForMounts(ctx context.Context, mounts []*containersv1.Mount) ([]*containersv1.Mount, error) {
+	result := []*containersv1.Mount{}
+	for _, mount := range mounts {
+		v, err := c.clientset.VolumeV1().Get(ctx, mount.GetVolume())
+		if err != nil {
+			return nil, err
+		}
+		mount.Source = v.GetStatus().GetLocation().GetValue()
+		result = append(result, mount)
+	}
+	return result, nil
 }
 
 func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event) error {

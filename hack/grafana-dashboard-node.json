@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 1,
+  "id": 22,
   "links": [],
   "panels": [
     {
@@ -37,7 +37,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Total bytes per second across all calls ",
       "fieldConfig": {
@@ -84,7 +84,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -120,7 +120,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(\n  rate(grpc_server_call_rcvd_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
+          "expr": "sum(\n  rate(grpc_client_attempt_rcvd_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
           "legendFormat": "Rcvd",
           "range": true,
           "refId": "A"
@@ -128,10 +128,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
-          "expr": "-sum(\n  rate(grpc_server_call_sent_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
+          "expr": "-sum(\n  rate(grpc_client_attempt_sent_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
           "hide": false,
           "legendFormat": "Sent",
           "range": true,
@@ -144,7 +144,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Total bytes per second across all calls ",
       "fieldConfig": {
@@ -191,7 +191,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -227,10 +227,22 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (grpc_method) (\n  rate(grpc_server_call_rcvd_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
-          "legendFormat": "__auto",
+          "expr": "sum by (grpc_method) (\n  rate(grpc_client_attempt_rcvd_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
+          "legendFormat": "Rcvd",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DATASOURCE}"
+          },
+          "editorMode": "code",
+          "expr": "-sum by (grpc_method) (\n  rate(grpc_client_attempt_sent_total_compressed_message_size_bytes_sum{job=\"$job\"}[5m])\n)",
+          "hide": false,
+          "legendFormat": "Sent",
+          "range": true,
+          "refId": "B"
         }
       ],
       "title": "Data Rate (Per Method)",
@@ -239,7 +251,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -285,7 +297,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -321,8 +333,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(grpc_server_call_started_total{job=\"$job\"}[5m]))",
-          "legendFormat": "__auto",
+          "expr": "sum(rate(grpc_client_attempt_started_total{job=\"$job\"}[5m]))",
+          "legendFormat": "Client Attempts",
           "range": true,
           "refId": "A"
         }
@@ -333,7 +345,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Call Per second across all methods",
       "fieldConfig": {
@@ -380,7 +392,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -416,7 +428,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(\n  rate(grpc_server_call_rcvd_total_compressed_message_size_bytes_count{job=\"$job\"}[5m])\n)",
+          "expr": "sum(\n  rate(grpc_client_attempt_rcvd_total_compressed_message_size_bytes_count{job=\"$job\"}[5m])\n)",
           "legendFormat": "Rcvd",
           "range": true,
           "refId": "A"
@@ -424,10 +436,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
-          "expr": "-sum(\n  rate(grpc_server_call_rcvd_total_compressed_message_size_bytes_count{job=\"$job\"}[5m])\n)",
+          "expr": "-sum(\n  rate(grpc_client_attempt_sent_total_compressed_message_size_bytes_count{job=\"$job\"}[5m])\n)",
           "hide": false,
           "legendFormat": "Sent",
           "range": true,
@@ -440,7 +452,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Non-OK responses/seconds",
       "fieldConfig": {
@@ -487,7 +499,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -523,7 +535,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(grpc_server_call_started_total{job=\"$job\",grpc_code!=\"OK\"}[5m]))",
+          "expr": "sum(rate(grpc_client_attempt_started_total{job=\"$job\",grpc_code!=\"OK\"}[5m]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -535,7 +547,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Requests per second grouped by service/method",
       "fieldConfig": {
@@ -582,7 +594,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -618,7 +630,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (grpc_service, grpc_method) (rate(grpc_server_call_started_total{job=\"$job\"}[5m]))",
+          "expr": "sum by (grpc_service, grpc_method) (rate(grpc_client_attempt_started_total{job=\"$job\"}[5m]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -630,7 +642,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "All Methods",
       "fieldConfig": {
@@ -677,7 +689,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -713,7 +725,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(grpc_server_call_started_total{job=\"$job\",grpc_code!=\"OK\"}[5m]))  / sum(rate(grpc_server_call_started_total{job=\"$job\"}[5m])) * 100",
+          "expr": "sum(rate(grpc_client_attempt_started_total{job=\"$job\",grpc_code!=\"OK\"}[5m]))  / sum(rate(grpc_client_attempt_started_total{job=\"$job\"}[5m])) * 100",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -725,7 +737,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -771,7 +783,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -808,10 +820,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(grpc_server_call_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(grpc_client_attempt_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
           "hide": false,
           "legendFormat": "p99",
           "range": true,
@@ -819,7 +831,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(grpc_server_call_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(grpc_client_attempt_duration_seconds_bucket{job=\"$job\"}[5m])) by (le))",
           "legendFormat": "p95",
           "range": true,
           "refId": "A"
@@ -827,10 +839,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(grpc_server_call_duration_seconds_sum{job=\"$job\"}[5m]))\n/\nsum(rate(grpc_server_call_duration_seconds_count{job=\"$job\"}[5m]))",
+          "expr": "sum(rate(grpc_client_attempt_duration_seconds_sum{job=\"$job\"}[5m]))\n/\nsum(rate(grpc_client_attempt_duration_seconds_count{job=\"$job\"}[5m]))",
           "hide": false,
           "legendFormat": "Average",
           "range": true,
@@ -843,7 +855,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "",
       "fieldConfig": {
@@ -890,7 +902,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -926,7 +938,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (grpc_service,grpc_method) (rate(grpc_server_call_started_total{job=\"$job\",grpc_code!=\"OK\"}[5m]))  / sum by (grpc_service,grpc_method)\n(rate(grpc_server_call_started_total{job=\"$job\"}[5m])) * 100",
+          "expr": "sum by (grpc_service,grpc_method) (rate(grpc_client_attempt_started_total{job=\"$job\",grpc_code!=\"OK\"}[5m]))  / sum by (grpc_service,grpc_method)\n(rate(grpc_client_attempt_started_total{job=\"$job\"}[5m])) * 100",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -938,7 +950,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -984,7 +996,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1020,7 +1032,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "topk(\n  5,\n  histogram_quantile(\n    0.95,\n    sum by (le, grpc_service, grpc_method) (\n      rate(grpc_server_call_duration_seconds_bucket{job=\"$job\"}[5m])\n    )\n  )\n)",
+          "expr": "topk(\n  5,\n  histogram_quantile(\n    0.95,\n    sum by (le, grpc_service, grpc_method) (\n      rate(grpc_client_attempt_duration_seconds_bucket{job=\"$job\"}[5m])\n    )\n  )\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1045,7 +1057,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Number of Goroutines and Threads total",
       "fieldConfig": {
@@ -1092,7 +1104,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1135,7 +1147,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_threads{job=\"$job\"}",
@@ -1152,7 +1164,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "How often GC runs (5m average)",
       "fieldConfig": {
@@ -1199,7 +1211,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1235,7 +1247,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(go_gc_duration_seconds_count{job=\"$job\"}[5m])",
@@ -1252,7 +1264,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "(Cores used)",
       "fieldConfig": {
@@ -1299,7 +1311,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1346,7 +1358,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "How often GC runs (5m average)",
       "fieldConfig": {
@@ -1393,7 +1405,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1430,7 +1442,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(go_gc_duration_seconds_sum{job=\"$job\"}[5m]) / rate(process_cpu_seconds_total{job=\"$job\"}[5m])",
@@ -1447,7 +1459,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1493,7 +1505,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1537,7 +1549,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_gc_duration_seconds{job=\"$job\", quantile=\"0.5\"}",
@@ -1549,7 +1561,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_gc_duration_seconds{job=\"$job\", quantile=\"0.25\"}",
@@ -1561,7 +1573,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(go_gc_duration_seconds_sum{job=\"$job\"}[5m]) / rate(go_gc_duration_seconds_count{job=\"$job\"}[5m])",
@@ -1578,7 +1590,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1624,7 +1636,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1667,7 +1679,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "process_max_fds{job=\"$job\"}",
@@ -1683,7 +1695,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1729,7 +1741,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1777,7 +1789,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Resident Memory (MiB)",
       "fieldConfig": {
@@ -1824,7 +1836,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1872,7 +1884,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1918,7 +1930,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -1965,7 +1977,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "",
       "fieldConfig": {
@@ -2012,7 +2024,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -2060,7 +2072,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "description": "Heap Pressure Proxy",
       "fieldConfig": {
@@ -2107,7 +2119,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -2143,7 +2155,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "go_memstats_heap_objects{job=\"$job\"}",
@@ -2158,7 +2170,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "bf4rtut4uig3kc"
+        "uid": "${DATASOURCE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -2204,7 +2216,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               },
               {
                 "color": "red",
@@ -2240,7 +2252,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf4rtut4uig3kc"
+            "uid": "${DATASOURCE}"
           },
           "editorMode": "code",
           "expr": "rate(promhttp_metric_handler_requests_total{job=\"$job\",code!=\"200\"}[5m])",
@@ -2253,27 +2265,56 @@
       "type": "timeseries"
     }
   ],
-  "preload": false,
-  "schemaVersion": 41,
+  "refresh": "5s",
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "blipblop",
-          "value": "blipblop"
+          "selected": true,
+          "text": "VictoriaMetrics",
+          "value": "bb486d3b-c169-4c0a-bf6d-b42bd7a31001"
         },
-        "definition": "label_values(blipblop_build_info,job)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "DATASOURCE",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "blipblop-node",
+          "value": "blipblop-node"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DATASOURCE}"
+        },
+        "definition": "label_values(grpc_client_attempt_started_total,job)",
+        "hide": 0,
+        "includeAll": false,
         "label": "Job",
+        "multi": false,
         "name": "job",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(blipblop_build_info,job)",
+          "query": "label_values(grpc_client_attempt_started_total,job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       }
     ]
@@ -2284,7 +2325,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Blipblop Server",
-  "uid": "209ad6ef-72bf-4a33-9025-4d86ef7f27d7",
-  "version": 25
+  "title": "Blipblop Node",
+  "uid": "16bf86e9-0883-4e7c-b9c9-a6e29624df0c",
+  "version": 1,
+  "weekStart": ""
 }

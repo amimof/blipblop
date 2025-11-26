@@ -93,8 +93,9 @@ message Mount {
   string name = 1 [(validate.rules).string.min_len = 1];
   string destination = 2;
   string type = 3;
-  string source = 4;
-  repeated string options = 5;
+  string volume = 4;
+  string source = 5;
+  repeated string options = 6;
 }
 
 message EnvVar {

@@ -53,6 +53,21 @@ message Node {
   Status status = 2;
 }
 
+message Config {
+  repeated Volume volumes = 1;
+}
+
+message Volume {
+  string name = 1;
+  string location = 2;
+  VolumeType type = 3;
+}
+
+enum VolumeType {
+  UNSPECIFIED = 0;
+  HOSTLOCAL = 1;
+}
+
 message Status {
   google.protobuf.StringValue phase = 1;
   IPStatus ip = 2;

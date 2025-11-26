@@ -8,8 +8,8 @@ import (
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/consts"
 	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/util"
 	"google.golang.org/protobuf/proto"
 )
@@ -94,7 +94,7 @@ func (s *horizontal) Schedule(ctx context.Context, c *containers.Container) (*no
 	}
 
 	// Don't attempt to schedule on a Unready node
-	filteredNodes := excludeByState(allNodes, node.StatusMissing)
+	filteredNodes := excludeByState(allNodes, consts.PHASEMISSING)
 
 	// Make sure we have at least 1 node in the cluster
 	if len(allNodes) < 1 {

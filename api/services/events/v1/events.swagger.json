@@ -123,7 +123,13 @@
         "ContainerSetUpdate",
         "Schedule",
         "TailLogsStart",
-        "TailLogsStop"
+        "TailLogsStop",
+        "VolumeCreate",
+        "VolumeDelete",
+        "VolumeUpdate",
+        "VolumePatch",
+        "VolumeGet",
+        "VolumeList"
       ],
       "default": "ContainerCreate"
     },

@@ -11,9 +11,9 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/pkg/consts"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
-	nodeutil "github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/repository"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -127,7 +127,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 			&nodesv1.UpdateStatusRequest{
 				Id: node.GetMeta().GetName(),
 				Status: &nodesv1.Status{
-					Phase: wrapperspb.String(nodeutil.StatusMissing),
+					Phase: wrapperspb.String(consts.PHASEMISSING),
 				},
 				UpdateMask: fm,
 			},

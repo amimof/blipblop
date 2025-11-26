@@ -20,6 +20,7 @@ import (
 	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
+	"github.com/amimof/blipblop/pkg/volume"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
@@ -54,6 +55,7 @@ var (
 	nodeFile           string
 	runtimeNamespace   string
 	otelEndpoint       string
+	volumeRootPath     string
 )
 
 func init() {
@@ -67,6 +69,7 @@ func init() {
 	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for containers")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
+	pflag.StringVar(&volumeRootPath, "volume-root-path", "/var/lib/blipblop/volumes", "Full path to directory to use for container volumes")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -226,20 +229,47 @@ func main() {
 	}
 
 	// Setup and run controllers
-	runtime := rt.NewContainerdRuntimeClient(cclient, cni, rt.WithLogger(log), rt.WithNamespace(runtimeNamespace))
+	runtime := rt.NewContainerdRuntimeClient(
+		cclient,
+		cni,
+		rt.WithLogger(log),
+		rt.WithNamespace(runtimeNamespace),
+	)
 	exit := make(chan os.Signal, 1)
 
-	containerdCtrl := controller.NewContainerdController(cclient, cs, runtime, controller.WithContainerdControllerLogger(log))
+	// Containerd runtime controller
+	containerdCtrl := controller.NewContainerdController(
+		cclient,
+		cs,
+		runtime,
+		controller.WithContainerdControllerLogger(log),
+	)
 	go containerdCtrl.Run(ctx)
 	log.Info("started containerd controller")
 
-	nodeCtrl, err := controller.NewNodeController(cs, runtime, controller.WithNodeControllerLogger(log), controller.WithNodeName(n.GetMeta().GetName()))
+	// Node controller
+	nodeCtrl, err := controller.NewNodeController(
+		cs,
+		runtime,
+		controller.WithNodeControllerLogger(log),
+		controller.WithNodeName(n.GetMeta().GetName()),
+	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)
 		return
 	}
 	go nodeCtrl.Run(ctx)
 	log.Info("started node controller")
+
+	// Volume controller
+	volumeManager := volume.NewHostLocalManager(volumeRootPath)
+	volumeCtrl := controller.NewVolumeController(
+		cs,
+		controller.WithVolumeControllerLogger(log),
+		controller.WithVolumeManager(volumeManager),
+	)
+	go volumeCtrl.Run(ctx)
+	log.Info("started volume controller")
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
