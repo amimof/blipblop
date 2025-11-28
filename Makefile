@@ -137,12 +137,12 @@ checkfmt: ; $(info $(M) running checkfmt) @ ## Checks if code is formatted with 
 .PHONY: license-report
 license-report: | $(GOLICENSES) ## Analyzes go dependencies and prints the result as CSV
 	@echo "$(M) running license report"
-	$Q $(GOLICENSES) report github.com/amimof/blipblop
+	$Q $(GOLICENSES) report ./...
 
 .PHONY: license-check
 license-check: | $(GOLICENSES) ## Checks whether licenses for a package are not allowed
 	@echo "$(M) running license check"
-	$Q $(GOLICENSES) check github.com/amimof/blipblop
+	$Q $(GOLICENSES) check ./... --allowed_licenses="Unlicense,MPL-2.0,BSD-2-Clause,BSD-3-Clause,MIT,Apache-2.0"
 
 .PHONY: license
 license: ## Runs license-check, license-report and license-save
