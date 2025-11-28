@@ -59,10 +59,10 @@ message Node {
 }
 
 message Config {
-  VolumeDrivers volume_drivers = 1;
+  VolumeConfig volume_config = 1;
 }
 
-message VolumeDrivers {
+message VolumeConfig {
   services.volumes.v1.VolumeDriverHostLocal host_local = 1;
 }
 

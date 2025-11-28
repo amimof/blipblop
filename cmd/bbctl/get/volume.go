@@ -7,6 +7,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/amimof/blipblop/api/services/volumes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
@@ -57,12 +58,15 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 					logrus.Fatal(err)
 				}
 
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "TYPE", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "TYPE", "AGE")
 				for _, c := range volumes {
+
+					numReady := fmt.Sprintf("%s/%d", getVolumeReadyStr(c.GetStatus().GetControllers()), len(c.GetStatus().GetControllers()))
+
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
-						c.GetStatus().GetPhase().GetValue(),
+						numReady,
 						"host-local",
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
 					)
@@ -92,4 +96,14 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 	}
 
 	return runCmd
+}
+
+func getVolumeReadyStr(m map[string]*volumes.ControllerStatus) string {
+	ready := 0
+	for _, v := range m {
+		if v.GetReady().GetValue() {
+			ready++
+		}
+	}
+	return fmt.Sprintf("%d", ready)
 }

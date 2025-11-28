@@ -16,8 +16,8 @@ import (
 
 // NodeVolumeManagers returns a list of drivers, each configured according to the provided Node spec.
 // If no drivers are configured on the node then the list will be empty
-func NodeVolumeManagers(n *nodes.Node) map[volume.VolumeType]volume.Driver {
-	result := make(map[volume.VolumeType]volume.Driver)
+func NodeVolumeManagers(n *nodes.Node) map[volume.DriverType]volume.Driver {
+	result := make(map[volume.DriverType]volume.Driver)
 	drivers := n.GetConfig().GetVolumeDrivers()
 	if drivers == nil {
 		return result

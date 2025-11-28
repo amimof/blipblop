@@ -376,8 +376,6 @@ func applyMaskedUpdate(dst, src *containers.Status, mask *fieldmaskpb.FieldMask)
 			if src.GetTask().Pid == nil {
 				continue
 			}
-			fmt.Println(dst.GetTask())
-			fmt.Println(src.GetTask())
 			dst.GetTask().Pid = src.GetTask().Pid
 		case "task.error":
 			if src.GetTask().Error == nil {

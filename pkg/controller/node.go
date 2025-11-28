@@ -3,6 +3,7 @@ package controller
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -10,14 +11,15 @@ import (
 	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
-	"github.com/amimof/blipblop/api/services/nodes/v1"
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/consts"
 	"github.com/amimof/blipblop/pkg/errors"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
-	"github.com/google/uuid"
+	"github.com/amimof/blipblop/pkg/volume"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,18 +31,25 @@ import (
 )
 
 type NodeController struct {
-	runtime                  runtime.Runtime
-	logger                   logger.Logger
-	clientset                *client.ClientSet
-	nodeName                 string
+	runtime   runtime.Runtime
+	logger    logger.Logger
+	clientset *client.ClientSet
+	// nodeName                 string
 	heartbeatIntervalSeconds int
 	tracer                   trace.Tracer
 	logChan                  chan *logsv1.LogEntry
 	activeLogStreams         map[events.LogKey]context.CancelFunc
 	logStreamsMu             sync.Mutex
+	node                     *nodesv1.Node
 }
 
 type NewNodeControllerOption func(c *NodeController)
+
+func WithNodeConfig(n *nodesv1.Node) NewNodeControllerOption {
+	return func(c *NodeController) {
+		c.node = n
+	}
+}
 
 func WithNodeControllerLogger(l logger.Logger) NewNodeControllerOption {
 	return func(c *NodeController) {
@@ -56,7 +65,7 @@ func WithHeartbeatInterval(s int) NewNodeControllerOption {
 
 func WithNodeName(s string) NewNodeControllerOption {
 	return func(c *NodeController) {
-		c.nodeName = s
+		c.node.GetMeta().Name = s
 	}
 }
 
@@ -86,16 +95,18 @@ func (c *NodeController) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
 	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
 
+	nodeName := c.node.GetMeta().GetName()
+
 	go func() {
 		for e := range evt {
-			c.logger.Info("Got event", "event", e.GetType().String(), "clientID", c.nodeName, "objectID", e.GetObjectId())
+			c.logger.Info("Got event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
 		}
 	}()
 
 	// Connect with retry logic
 	connErr := make(chan error, 1)
 	go func() {
-		err := c.clientset.NodeV1().Connect(ctx, c.nodeName, evt, connErr)
+		err := c.clientset.NodeV1().Connect(ctx, nodeName, evt, connErr)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
 		}
@@ -116,7 +127,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	// Update status once connected
 	err = c.clientset.NodeV1().Status().Update(
 		ctx,
-		c.nodeName, &nodes.Status{
+		nodeName, &nodesv1.Status{
 			Phase:    wrapperspb.String(consts.PHASEREADY),
 			Hostname: wrapperspb.String(hostname),
 			Runtime:  wrapperspb.String(runtimeVer),
@@ -173,7 +184,7 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 	}
 	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId(), "sessionID", s.GetSessionId())
 
-	if s.GetNodeId() != c.nodeName {
+	if s.GetNodeId() != c.node.GetMeta().GetName() {
 		return nil
 	}
 
@@ -334,7 +345,7 @@ func (c *NodeController) onLogStop(ctx context.Context, obj *eventsv1.Event) err
 	}
 	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
 
-	if s.GetNodeId() != c.nodeName {
+	if s.GetNodeId() != c.node.GetMeta().GetName() {
 		return nil
 	}
 
@@ -368,14 +379,14 @@ func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) er
 	}
 
 	// Unwrap the node from the event object
-	n := &nodes.Node{}
+	n := &nodesv1.Node{}
 	err = s.GetNode().UnmarshalTo(n)
 	if err != nil {
 		return err
 	}
 
 	// We only care if the event is for us
-	if n.GetMeta().GetName() != c.nodeName {
+	if n.GetMeta().GetName() != c.node.GetMeta().GetName() {
 		return nil
 	}
 
@@ -403,7 +414,7 @@ func (c *NodeController) onNodeConnect(ctx context.Context, e *eventsv1.Event) e
 	_, span := c.tracer.Start(ctx, "controller.node.OnNodeConnect")
 	defer span.End()
 
-	var n nodes.Node
+	var n nodesv1.Node
 	err := e.GetObject().UnmarshalTo(&n)
 	if err != nil {
 		return err
@@ -557,6 +568,13 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	// Resolve volume reference in container spec
 	mounts, err := c.resolvVolumeForMounts(ctx, ctr.GetConfig().GetMounts())
 	if err != nil {
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(consts.ERREXEC),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
 	ctr.GetConfig().Mounts = mounts
@@ -582,11 +600,33 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 func (c *NodeController) resolvVolumeForMounts(ctx context.Context, mounts []*containersv1.Mount) ([]*containersv1.Mount, error) {
 	result := []*containersv1.Mount{}
 	for _, mount := range mounts {
+
+		// Get the volume configuration
 		v, err := c.clientset.VolumeV1().Get(ctx, mount.GetVolume())
 		if err != nil {
 			return nil, err
 		}
-		mount.Source = v.GetStatus().GetLocation().GetValue()
+
+		// Get the appropriate driver type for the volume
+		driverType := volume.GetDriverType(v)
+		if driverType == volume.DriverTypeUnspecified {
+			return nil, fmt.Errorf("unsupported driver type: %s", driverType.String())
+		}
+
+		// Get driver from the node and pick the correct driver if possible
+		drivers := node.NodeVolumeManagers(c.node)
+		driver, ok := drivers[driverType]
+		if !ok {
+			return nil, fmt.Errorf("driver %s is not configured for this node", driverType.String())
+		}
+
+		// Get the volume with the driver
+		vol, err := driver.Get(ctx, mount.GetVolume())
+		if err != nil {
+			return nil, err
+		}
+
+		mount.Source = vol.Location()
 		result = append(result, mount)
 	}
 	return result, nil
@@ -636,16 +676,16 @@ func (c *NodeController) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func NewNodeController(c *client.ClientSet, rt runtime.Runtime, opts ...NewNodeControllerOption) (*NodeController, error) {
+func NewNodeController(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewNodeControllerOption) (*NodeController, error) {
 	m := &NodeController{
 		clientset:                c,
 		runtime:                  rt,
 		logger:                   logger.ConsoleLogger{},
 		heartbeatIntervalSeconds: 5,
-		nodeName:                 uuid.New().String(),
 		tracer:                   otel.Tracer("controller"),
 		logChan:                  make(chan *logsv1.LogEntry),
 		activeLogStreams:         make(map[events.LogKey]context.CancelFunc),
+		node:                     n,
 	}
 	for _, opt := range opts {
 		opt(m)

@@ -422,8 +422,6 @@ func (m *HostLocal) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Name
-
 	if len(errors) > 0 {
 		return HostLocalMultiError(errors)
 	}
@@ -522,61 +520,49 @@ func (m *Status) validate(all bool) error {
 
 	var errors []error
 
-	if all {
-		switch v := interface{}(m.GetPhase()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, StatusValidationError{
-					field:  "Phase",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, StatusValidationError{
-					field:  "Phase",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
+	{
+		sorted_keys := make([]string, len(m.GetControllers()))
+		i := 0
+		for key := range m.GetControllers() {
+			sorted_keys[i] = key
+			i++
 		}
-	} else if v, ok := interface{}(m.GetPhase()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return StatusValidationError{
-				field:  "Phase",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
-		}
-	}
+		sort.Slice(sorted_keys, func(i, j int) bool { return sorted_keys[i] < sorted_keys[j] })
+		for _, key := range sorted_keys {
+			val := m.GetControllers()[key]
+			_ = val
 
-	if all {
-		switch v := interface{}(m.GetLocation()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, StatusValidationError{
-					field:  "Location",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
+			// no validation rules for Controllers[key]
+
+			if all {
+				switch v := interface{}(val).(type) {
+				case interface{ ValidateAll() error }:
+					if err := v.ValidateAll(); err != nil {
+						errors = append(errors, StatusValidationError{
+							field:  fmt.Sprintf("Controllers[%v]", key),
+							reason: "embedded message failed validation",
+							cause:  err,
+						})
+					}
+				case interface{ Validate() error }:
+					if err := v.Validate(); err != nil {
+						errors = append(errors, StatusValidationError{
+							field:  fmt.Sprintf("Controllers[%v]", key),
+							reason: "embedded message failed validation",
+							cause:  err,
+						})
+					}
+				}
+			} else if v, ok := interface{}(val).(interface{ Validate() error }); ok {
+				if err := v.Validate(); err != nil {
+					return StatusValidationError{
+						field:  fmt.Sprintf("Controllers[%v]", key),
+						reason: "embedded message failed validation",
+						cause:  err,
+					}
+				}
 			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, StatusValidationError{
-					field:  "Location",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetLocation()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return StatusValidationError{
-				field:  "Location",
-				reason: "embedded message failed validation",
-				cause:  err,
-			}
+
 		}
 	}
 
@@ -656,6 +642,193 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = StatusValidationError{}
+
+// Validate checks the field values on ControllerStatus with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *ControllerStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ControllerStatus with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ControllerStatusMultiError, or nil if none found.
+func (m *ControllerStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ControllerStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetPhase()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ControllerStatusValidationError{
+					field:  "Phase",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ControllerStatusValidationError{
+					field:  "Phase",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPhase()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ControllerStatusValidationError{
+				field:  "Phase",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetLocation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ControllerStatusValidationError{
+					field:  "Location",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ControllerStatusValidationError{
+					field:  "Location",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLocation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ControllerStatusValidationError{
+				field:  "Location",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetReady()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ControllerStatusValidationError{
+					field:  "Ready",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ControllerStatusValidationError{
+					field:  "Ready",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetReady()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ControllerStatusValidationError{
+				field:  "Ready",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return ControllerStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// ControllerStatusMultiError is an error wrapping multiple validation errors
+// returned by ControllerStatus.ValidateAll() if the designated constraints
+// aren't met.
+type ControllerStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ControllerStatusMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ControllerStatusMultiError) AllErrors() []error { return m }
+
+// ControllerStatusValidationError is the validation error returned by
+// ControllerStatus.Validate if the designated constraints aren't met.
+type ControllerStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ControllerStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ControllerStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ControllerStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ControllerStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ControllerStatusValidationError) ErrorName() string { return "ControllerStatusValidationError" }
+
+// Error satisfies the builtin error interface
+func (e ControllerStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sControllerStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ControllerStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ControllerStatusValidationError{}
 
 // Validate checks the field values on VolumeDriverHostLocal with the rules
 // defined in the proto definition for this message. If any rules are

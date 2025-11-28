@@ -172,16 +172,10 @@
             "type": "string"
           },
           {
-            "name": "status.phase",
+            "name": "status.controllers",
+            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
             "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status.location",
-            "in": "query",
-            "required": false,
-            "type": "string"
+            "required": false
           }
         ],
         "tags": [
@@ -428,13 +422,22 @@
         }
       }
     },
-    "v1HostLocal": {
+    "v1ControllerStatus": {
       "type": "object",
       "properties": {
-        "name": {
+        "phase": {
           "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
         }
       }
+    },
+    "v1HostLocal": {
+      "type": "object"
     },
     "v1Meta": {
       "type": "object",
@@ -503,11 +506,11 @@
     "volumesv1Status": {
       "type": "object",
       "properties": {
-        "phase": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
+        "controllers": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/v1ControllerStatus"
+          }
         }
       }
     }

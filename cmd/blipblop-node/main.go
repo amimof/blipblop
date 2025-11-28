@@ -173,7 +173,7 @@ func main() {
 
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	cs, err := client.New(
+	clientSet, err := client.New(
 		serverAddr,
 		client.WithGrpcDialOption(
 			metricsOpts,
@@ -188,7 +188,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	defer func() {
-		if err := cs.Close(); err != nil {
+		if err := clientSet.Close(); err != nil {
 			log.Error("error closing clientset connection", "error", err)
 		}
 	}()
@@ -206,7 +206,7 @@ func main() {
 	}()
 
 	// Join node
-	n, err := node.LoadNodeFromEnv(nodeFile)
+	nodeCfg, err := node.LoadNodeFromEnv(nodeFile)
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err)
 		return
@@ -230,8 +230,8 @@ func main() {
 
 	// Containerd runtime controller
 	containerdCtrl := controller.NewContainerdController(
+		clientSet,
 		cclient,
-		cs,
 		runtime,
 		controller.WithContainerdControllerLogger(log),
 	)
@@ -240,10 +240,10 @@ func main() {
 
 	// Node controller
 	nodeCtrl, err := controller.NewNodeController(
-		cs,
+		clientSet,
+		nodeCfg,
 		runtime,
 		controller.WithNodeControllerLogger(log),
-		controller.WithNodeName(n.GetMeta().GetName()),
 	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)
@@ -253,21 +253,18 @@ func main() {
 	log.Info("started node controller")
 
 	// Volume controller
-	volumeDrivers := node.NodeVolumeManagers(n)
-	// volumeManager := volume.NewHostLocalManager(volumeRootPath)
+	volumeDrivers := node.NodeVolumeManagers(nodeCfg)
 	volumeCtrl := controller.NewVolumeController(
-		cs,
+		clientSet,
+		nodeCfg,
 		controller.WithVolumeControllerLogger(log),
 		controller.WithVolumeDrivers(volumeDrivers),
-		// controller.WithHostLocalVolumeDriver(volumeManager),
 	)
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
 
-	fmt.Printf("%+v\n", n)
-
 	// Join node to cluster
-	err = cs.NodeV1().Join(ctx, n)
+	err = clientSet.NodeV1().Join(ctx, nodeCfg)
 	if err != nil {
 		log.Error("error joining node to server", "error", err)
 		return

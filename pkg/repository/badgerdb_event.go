@@ -92,7 +92,6 @@ func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error
 
 	// Remove first in item
 	if len(res) >= int(r.maxItems) {
-		fmt.Println("REACHED MAX ITEMS")
 		delId := res[0]
 		_ = r.Delete(ctx, delId.GetMeta().GetName())
 	}
