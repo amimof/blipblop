@@ -2,8 +2,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/consts"
@@ -16,38 +18,91 @@ import (
 
 type NewVolumeControllerOption func(c *VolumeController)
 
+func WithVolumeControllerNodeConfig(n *nodesv1.Node) NewVolumeControllerOption {
+	return func(c *VolumeController) {
+		c.node = n
+	}
+}
+
+func WithVolumeDrivers(drivers map[volume.DriverType]volume.Driver) NewVolumeControllerOption {
+	return func(c *VolumeController) {
+		c.volDrivers = drivers
+	}
+}
+
+func WithHostLocalVolumeDriver(m volume.Driver) NewVolumeControllerOption {
+	return func(c *VolumeController) {
+		c.volDrivers[volume.DriverTypeHostLocal] = m
+	}
+}
+
 func WithVolumeControllerLogger(l logger.Logger) NewVolumeControllerOption {
 	return func(c *VolumeController) {
 		c.logger = l
 	}
 }
 
-func WithVolumeManager(m volume.Driver) NewVolumeControllerOption {
-	return func(c *VolumeController) {
-		c.volManager = m
+var ErrVolumeDriverNotFound = errors.New("volume driver not found")
+
+type VolumeController struct {
+	node       *nodesv1.Node
+	logger     logger.Logger
+	clientset  *client.ClientSet
+	volDrivers map[volume.DriverType]volume.Driver
+}
+
+func (vc *VolumeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		err := h(ctx, ev)
+		if err != nil {
+			vc.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
+			return err
+		}
+		return nil
 	}
 }
 
-type VolumeController struct {
-	logger     logger.Logger
-	clientset  *client.ClientSet
-	volManager volume.Driver
+// getVolumeDriver picks a volume driver on the controller based on what is defined in the Volume spec.
+// If the volume controller does not have the driver the Volume asks for then the return value will be nil and error will be ErrNoVolumeDriver.
+func (vc *VolumeController) getVolumeDriver(vol *volumesv1.Volume) (volume.Driver, error) {
+	cfg := vol.GetConfig()
+	if cfg.GetHostLocal() != nil {
+
+		volDriver, ok := vc.volDrivers[volume.DriverTypeHostLocal]
+		if !ok {
+			return nil, ErrVolumeDriverNotFound
+		}
+		return volDriver, nil
+	}
+	return nil, ErrVolumeDriverNotFound
 }
 
 func (vc *VolumeController) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "volume")
 
+	err := vc.Reconcile(ctx)
+	if err != nil {
+		vc.logger.Error("error reconciling volume controller", "error", err)
+		return
+	}
+
 	evt, errCh := vc.clientset.EventV1().Subscribe(
 		ctx,
 		events.VolumeCreate,
 		events.VolumeDelete,
 		events.VolumeUpdate,
+		events.NodeJoin,
+		events.NodeConnect,
+		events.NodeForget,
 	)
 
 	// Setup Node Handlers
-	vc.clientset.EventV1().On(events.VolumeCreate, vc.onVolumeCreate)
-	vc.clientset.EventV1().On(events.VolumeDelete, vc.onVolumeDelete)
+	vc.clientset.EventV1().On(events.VolumeCreate, vc.handleErrors(vc.onVolumeCreate))
+	vc.clientset.EventV1().On(events.VolumeDelete, vc.handleErrors(vc.onVolumeDelete))
+	// vc.clientset.EventV1().On(events.NodeJoin, vc.handleErrors(vc.onNodeJoin))
+	// vc.clientset.EventV1().On(events.NodeConnect, vc.handleErrors(vc.onNodeConnect))
+	// vc.clientset.EventV1().On(events.NodeForget, vc.handleErrors(vc.onNodeForget))
 
 	go func() {
 		for e := range evt {
@@ -72,6 +127,25 @@ func (vc *VolumeController) Run(ctx context.Context) {
 	}
 }
 
+// func (vc *VolumeController) onNodeJoin(ctx context.Context, ev *eventsv1.Event) error {
+// 	node := &nodesv1.Node{}
+// 	err := ev.GetObject().UnmarshalTo(node)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	vols, err := vc.clientset.VolumeV1().List(ctx)
+// 	for _, vol := range vols {
+// 		driver, err := vc.getVolumeDriver(vol)
+// 		if err != nil {
+// 			return err // Maybe not the best idea to error out here?
+// 		}
+//
+//
+//
+// 	}
+// }
+
 func (vc *VolumeController) onVolumeCreate(ctx context.Context, ev *eventsv1.Event) error {
 	volSpec := &volumesv1.Volume{}
 	err := ev.GetObject().UnmarshalTo(volSpec)
@@ -79,37 +153,49 @@ func (vc *VolumeController) onVolumeCreate(ctx context.Context, ev *eventsv1.Eve
 		return err
 	}
 
-	hostLocalVolume := volSpec.GetConfig().GetHostLocal()
-	id := hostLocalVolume.GetName()
-	vol, err := vc.volManager.Create(ctx, id)
+	// Get the driver the spec asks for from the controller
+	volDriver, err := vc.getVolumeDriver(volSpec)
+	if err != nil {
+		return err
+	}
+
+	id := volSpec.GetMeta().GetName()
+	nodeName := vc.node.GetMeta().GetName()
+
+	vol, err := volDriver.Create(ctx, id)
 	if err != nil {
 		_ = vc.clientset.VolumeV1().Status().Update(
 			ctx,
 			id,
 			&volumesv1.Status{
-				Phase: wrapperspb.String(consts.ERRPROVISIONING),
+				Controllers: map[string]*volumesv1.ControllerStatus{
+					nodeName: {
+						Phase: wrapperspb.String(consts.ERRPROVISIONING),
+						Ready: wrapperspb.Bool(false),
+					},
+				},
 			},
-			"phase",
+			"controllers",
 		)
 		return err
 	}
 
 	vc.logger.Debug("created host-local volume", "id", vol.ID(), "location", vol.Location())
 
-	err = vc.clientset.VolumeV1().Status().Update(
+	return vc.clientset.VolumeV1().Status().Update(
 		ctx,
 		string(vol.ID()),
 		&volumesv1.Status{
-			Location: wrapperspb.String(vol.Location()),
-			Phase:    wrapperspb.String(consts.PHASEPROVISIONED),
+			Controllers: map[string]*volumesv1.ControllerStatus{
+				nodeName: {
+					Phase:    wrapperspb.String(consts.PHASEPROVISIONED),
+					Location: wrapperspb.String(vol.Location()),
+					Ready:    wrapperspb.Bool(true),
+				},
+			},
 		},
-		"phase", "location",
+		"controllers",
 	)
-	if err != nil {
-		vc.logger.Error("error setting status on volume", "error", err)
-	}
-
-	return err
 }
 
 func (vc *VolumeController) onVolumeDelete(ctx context.Context, ev *eventsv1.Event) error {
@@ -119,33 +205,86 @@ func (vc *VolumeController) onVolumeDelete(ctx context.Context, ev *eventsv1.Eve
 		return err
 	}
 
-	hostLocalVolume := volSpec.GetConfig().GetHostLocal()
-	id := hostLocalVolume.GetName()
-	if err := vc.volManager.Delete(ctx, id); err != nil {
+	// Get the driver the spec asks for from the controller
+	volDriver, err := vc.getVolumeDriver(volSpec)
+	if err != nil {
+		return err
+	}
+
+	localVol, err := volDriver.Get(ctx, volSpec.GetMeta().GetName())
+	if err != nil {
+		return err
+	}
+
+	id := volSpec.GetMeta().GetName()
+	nodeName := vc.node.GetMeta().GetName()
+
+	if err := volDriver.Delete(ctx, id); err != nil {
 		_ = vc.clientset.VolumeV1().Status().Update(
 			ctx,
 			id,
 			&volumesv1.Status{
-				Phase: wrapperspb.String(consts.ERRDELETE),
+				Controllers: map[string]*volumesv1.ControllerStatus{
+					nodeName: {
+						Phase: wrapperspb.String(consts.ERRDELETE),
+						Ready: wrapperspb.Bool(false),
+					},
+				},
 			},
-			"phase",
+			"controllers",
 		)
 		return err
+	}
+
+	vc.logger.Debug("deleted host-local volume", "id", localVol.ID(), "location", localVol.Location())
+
+	// Update status once deleted
+	return vc.clientset.VolumeV1().Status().Update(
+		ctx,
+		id,
+		&volumesv1.Status{
+			Controllers: map[string]*volumesv1.ControllerStatus{
+				nodeName: {},
+			},
+		},
+		"controllers",
+	)
+}
+
+// Reconcile implements Controller.
+func (vc *VolumeController) Reconcile(ctx context.Context) error {
+	vc.logger.Info("reconciling volumes in runtime")
+
+	// Get containers from the server. Ultimately we want these to match with our runtime
+	vlist, err := vc.clientset.VolumeV1().List(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, vol := range vlist {
+		driver, err := vc.getVolumeDriver(vol)
+		if err != nil {
+			return err
+		}
+
+		driverVol, err := driver.Create(ctx, vol.GetMeta().GetName())
+		if err != nil {
+			return err
+		}
+
+		vc.logger.Debug("created volume on reconcile", "volume", driverVol.ID(), "location", driverVol.Location())
+
 	}
 
 	return nil
 }
 
-// Reconcile implements Controller.
-func (vc *VolumeController) Reconcile(context.Context) error {
-	panic("unimplemented")
-}
-
-func NewVolumeController(c *client.ClientSet, opts ...NewVolumeControllerOption) *VolumeController {
+func NewVolumeController(c *client.ClientSet, n *nodesv1.Node, opts ...NewVolumeControllerOption) *VolumeController {
 	m := &VolumeController{
+		node:       n,
 		clientset:  c,
 		logger:     logger.ConsoleLogger{},
-		volManager: volume.NewHostLocalManager("/var/lib/blipblop/volumes"),
+		volDrivers: make(map[volume.DriverType]volume.Driver),
 	}
 	for _, opt := range opts {
 		opt(m)

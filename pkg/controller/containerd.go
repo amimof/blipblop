@@ -483,7 +483,7 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func NewContainerdController(client *containerd.Client, cs *client.ClientSet, rt runtime.Runtime, opts ...NewContainerdControllerOption) *ContainerdController {
+func NewContainerdController(cs *client.ClientSet, client *containerd.Client, rt runtime.Runtime, opts ...NewContainerdControllerOption) *ContainerdController {
 	eh := &ContainerdController{
 		client:    client,
 		clientset: cs,

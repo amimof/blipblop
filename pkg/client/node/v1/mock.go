@@ -182,6 +182,26 @@ func (mr *MockNodeServiceClientMockRecorder) List(ctx, in any, opts ...any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockNodeServiceClient)(nil).List), varargs...)
 }
 
+// Patch mocks base method.
+func (m *MockNodeServiceClient) Patch(ctx context.Context, in *nodes.PatchRequest, opts ...grpc.CallOption) (*nodes.PatchResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Patch", varargs...)
+	ret0, _ := ret[0].(*nodes.PatchResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Patch indicates an expected call of Patch.
+func (mr *MockNodeServiceClientMockRecorder) Patch(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Patch", reflect.TypeOf((*MockNodeServiceClient)(nil).Patch), varargs...)
+}
+
 // Update mocks base method.
 func (m *MockNodeServiceClient) Update(ctx context.Context, in *nodes.UpdateRequest, opts ...grpc.CallOption) (*nodes.UpdateResponse, error) {
 	m.ctrl.T.Helper()

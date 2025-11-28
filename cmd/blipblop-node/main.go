@@ -20,7 +20,6 @@ import (
 	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
-	"github.com/amimof/blipblop/pkg/volume"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
@@ -55,7 +54,6 @@ var (
 	nodeFile           string
 	runtimeNamespace   string
 	otelEndpoint       string
-	volumeRootPath     string
 )
 
 func init() {
@@ -69,7 +67,6 @@ func init() {
 	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for containers")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
-	pflag.StringVar(&volumeRootPath, "volume-root-path", "/var/lib/blipblop/volumes", "Full path to directory to use for container volumes")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -176,7 +173,7 @@ func main() {
 
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	cs, err := client.New(
+	clientSet, err := client.New(
 		serverAddr,
 		client.WithGrpcDialOption(
 			metricsOpts,
@@ -191,7 +188,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
 	defer func() {
-		if err := cs.Close(); err != nil {
+		if err := clientSet.Close(); err != nil {
 			log.Error("error closing clientset connection", "error", err)
 		}
 	}()
@@ -209,15 +206,9 @@ func main() {
 	}()
 
 	// Join node
-	n, err := node.LoadNodeFromEnv(nodeFile)
+	nodeCfg, err := node.LoadNodeFromEnv(nodeFile)
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err)
-		return
-	}
-
-	err = cs.NodeV1().Join(ctx, n)
-	if err != nil {
-		log.Error("error joining node to server", "error", err)
 		return
 	}
 
@@ -239,8 +230,8 @@ func main() {
 
 	// Containerd runtime controller
 	containerdCtrl := controller.NewContainerdController(
+		clientSet,
 		cclient,
-		cs,
 		runtime,
 		controller.WithContainerdControllerLogger(log),
 	)
@@ -249,10 +240,10 @@ func main() {
 
 	// Node controller
 	nodeCtrl, err := controller.NewNodeController(
-		cs,
+		clientSet,
+		nodeCfg,
 		runtime,
 		controller.WithNodeControllerLogger(log),
-		controller.WithNodeName(n.GetMeta().GetName()),
 	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)
@@ -262,14 +253,22 @@ func main() {
 	log.Info("started node controller")
 
 	// Volume controller
-	volumeManager := volume.NewHostLocalManager(volumeRootPath)
+	volumeDrivers := node.NodeVolumeManagers(nodeCfg)
 	volumeCtrl := controller.NewVolumeController(
-		cs,
+		clientSet,
+		nodeCfg,
 		controller.WithVolumeControllerLogger(log),
-		controller.WithVolumeManager(volumeManager),
+		controller.WithVolumeDrivers(volumeDrivers),
 	)
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
+
+	// Join node to cluster
+	err = clientSet.NodeV1().Join(ctx, nodeCfg)
+	if err != nil {
+		log.Error("error joining node to server", "error", err)
+		return
+	}
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)

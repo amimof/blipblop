@@ -66,13 +66,20 @@ message Config {
   map<string, string> node_selector = 3;
 }
 
-message HostLocal {
-  string name = 1;
-}
+message HostLocal {}
 
 message Status {
+  map<string, ControllerStatus> controllers = 1;
+}
+
+message ControllerStatus {
   google.protobuf.StringValue phase = 1;
   google.protobuf.StringValue location = 2;
+  google.protobuf.BoolValue ready = 3;
+}
+
+message VolumeDriverHostLocal {
+  string root_dir = 2;
 }
 
 message GetRequest {

@@ -12,8 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var destination string
-
 func NewCmdCreateVolume(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "volume TYPE NAME",
@@ -57,9 +55,7 @@ bbctl create volume host-local data01 --destination /var/lib/blipblop/volumes/
 							Name: vname,
 						},
 						Config: &volumes.Config{
-							HostLocal: &volumes.HostLocal{
-								Name: vname,
-							},
+							HostLocal: &volumes.HostLocal{},
 						},
 					})
 				if err != nil {
@@ -72,17 +68,6 @@ bbctl create volume host-local data01 --destination /var/lib/blipblop/volumes/
 
 			logrus.Infof("request to create set %s successful", vname)
 		},
-	}
-
-	runCmd.Flags().StringVarP(
-		&destination,
-		"destination",
-		"d",
-		"",
-		"Destination directory for the host-local volume",
-	)
-	if err := runCmd.MarkFlagRequired("destination"); err != nil {
-		logrus.Fatal(err)
 	}
 
 	return runCmd

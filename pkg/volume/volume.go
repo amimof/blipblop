@@ -1,7 +1,11 @@
 // Package volume provides an API for working with volumes on nodes
 package volume
 
-import "context"
+import (
+	"context"
+
+	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
+)
 
 type ID string
 
@@ -30,14 +34,32 @@ type Driver interface {
 	Snapshot(context.Context, Volume, ...MountOpts) error
 }
 
-// type Volume struct {
-// 	ID       ID
-// 	Size     int64
-// 	Location string
-// }
-
 type Volume interface {
 	ID() ID
 	Size() int64
 	Location() string
+}
+
+type DriverType int32
+
+func (d DriverType) String() string {
+	switch d {
+	case DriverTypeUnspecified:
+		return "unspecified"
+	case DriverTypeHostLocal:
+		return "host-local"
+	}
+	return ""
+}
+
+const (
+	DriverTypeUnspecified DriverType = 0
+	DriverTypeHostLocal   DriverType = 1
+)
+
+func GetDriverType(vol *volumesv1.Volume) DriverType {
+	if vol.GetConfig().GetHostLocal() != nil {
+		return DriverTypeHostLocal
+	}
+	return DriverTypeUnspecified
 }

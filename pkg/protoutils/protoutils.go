@@ -217,7 +217,6 @@ func compareMessages(orig, upd protoreflect.Message, prefix string, paths *[]str
 				}
 			}
 		default:
-			// fmt.Println("scalar")
 			// scalar / enum
 			if oHas != uHas {
 				// presence changed (set or cleared)

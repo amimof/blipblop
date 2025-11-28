@@ -10,8 +10,25 @@ import (
 	"github.com/amimof/blipblop/api/services/nodes/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/blipblop/pkg/volume"
 	"gopkg.in/yaml.v3"
 )
+
+// NodeVolumeManagers returns a list of drivers, each configured according to the provided Node spec.
+// If no drivers are configured on the node then the list will be empty
+func NodeVolumeManagers(n *nodes.Node) map[volume.DriverType]volume.Driver {
+	result := make(map[volume.DriverType]volume.Driver)
+	drivers := n.GetConfig().GetVolumeDrivers()
+	if drivers == nil {
+		return result
+	}
+
+	if drivers.GetHostLocal() != nil {
+		result[volume.DriverTypeHostLocal] = volume.NewHostLocalManager(drivers.GetHostLocal().GetRootDir())
+	}
+
+	return result
+}
 
 func LoadNodeFromEnv(path string) (*nodes.Node, error) {
 	// Attempt to load from the file

@@ -27,6 +27,7 @@ type NodeServiceClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
+	Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
@@ -72,6 +73,15 @@ func (c *nodeServiceClient) Create(ctx context.Context, in *CreateRequest, opts 
 func (c *nodeServiceClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error) {
 	out := new(UpdateResponse)
 	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Update", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeServiceClient) Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error) {
+	out := new(PatchResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Patch", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +163,7 @@ type NodeServiceServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
+	Patch(context.Context, *PatchRequest) (*PatchResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
@@ -176,6 +187,9 @@ func (UnimplementedNodeServiceServer) Create(context.Context, *CreateRequest) (*
 }
 func (UnimplementedNodeServiceServer) Update(context.Context, *UpdateRequest) (*UpdateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (UnimplementedNodeServiceServer) Patch(context.Context, *PatchRequest) (*PatchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Patch not implemented")
 }
 func (UnimplementedNodeServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
@@ -273,6 +287,24 @@ func _NodeService_Update_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Update(ctx, req.(*UpdateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeService_Patch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).Patch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.nodes.v1.NodeService/Patch",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).Patch(ctx, req.(*PatchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -397,6 +429,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Update",
 			Handler:    _NodeService_Update_Handler,
+		},
+		{
+			MethodName: "Patch",
+			Handler:    _NodeService_Patch_Handler,
 		},
 		{
 			MethodName: "Delete",

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package services.nodes.v1;
 
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/api/client.proto";
 import "google/protobuf/empty.proto";
@@ -9,6 +10,7 @@ import "google/protobuf/field_mask.proto";
 import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
 import "services/logs/v1/logs.proto";
+import "services/volumes/v1/volumes.proto";
 import "types/v1/meta.proto";
 import "validate/validate.proto";
 
@@ -31,10 +33,12 @@ service NodeService {
     option (google.api.http) = {
       put: "/api/v1/nodes/{node.meta.name}"
       body: "node"
-      additional_bindings: {
-        patch: "/api/v1/nodes/{node.meta.name}"
-        body: "node"
-      }
+    };
+  }
+  rpc Patch(PatchRequest) returns (PatchResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/nodes/{node.meta.name}"
+      body: "node"
     };
   }
   rpc Delete(DeleteRequest) returns (DeleteResponse) {
@@ -50,22 +54,16 @@ service NodeService {
 
 message Node {
   types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  Status status = 2;
+  Config config = 2 [(validate.rules).message.required = true];
+  Status status = 3;
 }
 
 message Config {
-  repeated Volume volumes = 1;
+  VolumeConfig volume_config = 1;
 }
 
-message Volume {
-  string name = 1;
-  string location = 2;
-  VolumeType type = 3;
-}
-
-enum VolumeType {
-  UNSPECIFIED = 0;
-  HOSTLOCAL = 1;
+message VolumeConfig {
+  services.volumes.v1.VolumeDriverHostLocal host_local = 1;
 }
 
 message Status {
@@ -129,6 +127,16 @@ message UpdateRequest {
 }
 
 message UpdateResponse {
+  Node node = 1;
+}
+
+message PatchRequest {
+  string id = 1 [(validate.rules).string.min_len = 1];
+  Node node = 2 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 3;
+}
+
+message PatchResponse {
   Node node = 1;
 }
 

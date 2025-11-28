@@ -54,22 +54,23 @@ enum EventType {
   NodeDelete = 11;
   NodeList = 12;
   NodeUpdate = 13;
-  NodeJoin = 14;
-  NodeForget = 15;
-  NodeConnect = 16;
-  ContainerSetCreate = 17;
-  ContainerSetDelete = 18;
-  ContainerSetUpdate = 19;
-  Schedule = 20;
-  TailLogsStart = 21;
-  TailLogsStop = 22;
+  NodePatch = 14;
+  NodeJoin = 15;
+  NodeForget = 16;
+  NodeConnect = 17;
+  ContainerSetCreate = 18;
+  ContainerSetDelete = 19;
+  ContainerSetUpdate = 20;
+  Schedule = 21;
+  TailLogsStart = 22;
+  TailLogsStop = 23;
 
-  VolumeCreate = 23;
-  VolumeDelete = 24;
-  VolumeUpdate = 25;
-  VolumePatch = 26;
-  VolumeGet = 27;
-  VolumeList = 28;
+  VolumeCreate = 24;
+  VolumeDelete = 25;
+  VolumeUpdate = 26;
+  VolumePatch = 27;
+  VolumeGet = 28;
+  VolumeList = 29;
 }
 
 enum Operation {

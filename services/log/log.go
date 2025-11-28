@@ -3,7 +3,6 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
@@ -128,13 +127,10 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 			// Here we might log the error; returning ends the stream.
 			// For transient node issues, the node will reconnect.
 			st, ok := status.FromError(err)
-			fmt.Println(st)
 			if ok && st.Code() == codes.Canceled {
-				fmt.Println("disconnect????")
 				return nil
 			}
 
-			fmt.Print("disconnect", err)
 			return err
 		}
 
@@ -155,7 +151,6 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 		select {
 		case <-ctx.Done():
 
-			fmt.Println("Done")
 			return ctx.Err()
 		default:
 		}

@@ -40,9 +40,9 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	def = append(def, keysAndValues...)
 	l.logger.Error(msg, def...)
 	if errors.Is(err, repository.ErrNotFound) {
-		return status.Error(codes.NotFound, err.Error())
+		return status.Error(codes.NotFound, fmt.Sprintf("%s: %v", msg, err.Error()))
 	}
-	return status.Error(codes.Internal, err.Error())
+	return status.Error(codes.Internal, fmt.Sprintf("%s: %v", msg, err.Error()))
 }
 
 func applyMaskedUpdate(dst, src *volumes.Status, mask *fieldmaskpb.FieldMask) error {
@@ -52,16 +52,11 @@ func applyMaskedUpdate(dst, src *volumes.Status, mask *fieldmaskpb.FieldMask) er
 
 	for _, p := range mask.Paths {
 		switch p {
-		case "phase":
-			if src.Phase == nil {
+		case "controllers":
+			if src.Controllers == nil {
 				continue
 			}
-			dst.Phase = src.Phase
-		case "location":
-			if src.Location == nil {
-				continue
-			}
-			dst.Location = src.Location
+			dst.Controllers = src.Controllers
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}
@@ -207,8 +202,6 @@ func (l *local) UpdateStatus(ctx context.Context, req *volumes.UpdateStatusReque
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("existing volume", existingVolume.GetStatus())
 
 	// Apply mask safely
 	base := proto.Clone(existingVolume.GetStatus()).(*volumes.Status)
