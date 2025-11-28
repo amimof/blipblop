@@ -17,6 +17,8 @@ jobs:
         with:
           go-version: 1.23
 
+      - name: Pre-download modules
+        run: go mod download
       - name: License Report
         run: make license-report
       - name: License Check
