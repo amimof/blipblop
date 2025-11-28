@@ -7,6 +7,23 @@ on:
     branches: [master]
 
 jobs:
+  license:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24
+
+      - name: Pre-download modules
+        run: go mod download
+      - name: License Report
+        run: make license-report
+      - name: License Check
+        run: make license-check
+
   staticcheck:
     runs-on: ubuntu-24.04
     steps:
@@ -15,7 +32,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.23
+          go-version: 1.24
 
       - name: Lint
         run: make lint
@@ -30,7 +47,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.23
+          go-version: 1.24
 
       - name: Test
         run: make test
@@ -49,7 +66,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.23
+          go-version: 1.24
 
       - name: Compile Server
         run: make server
