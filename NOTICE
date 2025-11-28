@@ -1,0 +1,19 @@
+blipblop
+
+Copyright 2025 Amir Mofasser
+
+This product includes software developed by third parties, including but not limited to:
+
+- containerd (github.com/containerd/containerd)
+- OpenTelemetry (go.opentelemetry.io/...)
+- gRPC (google.golang.org/grpc)
+- Buf protovalidate (buf.build/protovalidate)
+- spf13 libraries (github.com/spf13/cobra, viper, pflag, etc.)
+- logrus (github.com/sirupsen/logrus)
+- testify (github.com/stretchr/testify)
+
+This NOTICE file is for informational purposes only and does not modify
+the terms of the Apache License, Version 2.0.
+
+This project is licensed under the Apache License, Version 2.0.
+See the LICENSE file for details.

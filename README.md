@@ -51,6 +51,11 @@ bbctl get nodes
 ```
 
 > Make sure `bbctl.yaml` is either in you current directory or `/etc/blipblop/bbctl.yaml`
+>
+## License
+
+blipblop is licensed under the Apache License, Version 2.0.
+See the [`LICENSE`](./LICENSE) file for details.
 
 ## Contributing
 
