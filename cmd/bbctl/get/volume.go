@@ -57,8 +57,6 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "TYPE", "AGE")
 				for _, c := range volumes {
 
 					numReady := fmt.Sprintf("%s/%d", getVolumeReadyStr(c.GetStatus().GetControllers()), len(c.GetStatus().GetControllers()))
@@ -83,7 +81,7 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 				}
 
 				marshaler := protojson.MarshalOptions{
-					EmitUnpopulated: true,
+					EmitUnpopulated: false,
 					Indent:          "  ",
 				}
 				b, err := marshaler.Marshal(container)

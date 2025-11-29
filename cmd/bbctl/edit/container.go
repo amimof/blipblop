@@ -30,11 +30,10 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-			defer cancel()
+			baseCtx := cmd.Context()
 
 			tracer := otel.Tracer("bbctl")
-			ctx, span := tracer.Start(ctx, "bbctl.edit.container")
+			baseCtx, span := tracer.Start(baseCtx, "bbctl.edit.container")
 			defer span.End()
 
 			// Setup client
@@ -51,13 +50,15 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 
 			cname := args[0]
 
-			ctr, err := c.ContainerV1().Get(ctx, cname)
+			getCtx, cancel := context.WithTimeout(baseCtx, time.Second*30)
+			defer cancel()
+			ctr, err := c.ContainerV1().Get(getCtx, cname)
 			if err != nil {
 				return err
 			}
 
 			marshaler := protojson.MarshalOptions{
-				EmitUnpopulated: true,
+				EmitUnpopulated: false,
 				Indent:          "  ",
 			}
 			b, err := marshaler.Marshal(ctr)
@@ -116,7 +117,9 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			}
 
 			// Send update to server
-			err = c.ContainerV1().Update(ctx, cname, &updatedCtr)
+			updateCtx, cancel := context.WithTimeout(baseCtx, time.Second*30)
+			defer cancel()
+			err = c.ContainerV1().Update(updateCtx, cname, &updatedCtr)
 			if err != nil {
 				return err
 			}

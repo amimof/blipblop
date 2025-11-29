@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
@@ -62,6 +63,28 @@ func (vc *VolumeController) handleErrors(h events.HandlerFunc) events.HandlerFun
 	}
 }
 
+// Helper that sets the status on the volume and passes through the error
+func (vc *VolumeController) setControllerStatus(ctx context.Context, volumeID, errConst string, err error) error {
+	nodeName := vc.node.GetMeta().GetName()
+	statusErr := vc.clientset.VolumeV1().Status().Update(
+		ctx,
+		volumeID,
+		&volumesv1.Status{
+			Controllers: map[string]*volumesv1.ControllerStatus{
+				nodeName: {
+					Phase: wrapperspb.String(errConst),
+					Ready: wrapperspb.Bool(false),
+				},
+			},
+		},
+		"controllers",
+	)
+	if statusErr != nil {
+		vc.logger.Warn("couldn't update volume status", "reason", statusErr, "volume", volumeID)
+	}
+	return err
+}
+
 // getVolumeDriver picks a volume driver on the controller based on what is defined in the Volume spec.
 // If the volume controller does not have the driver the Volume asks for then the return value will be nil and error will be ErrNoVolumeDriver.
 func (vc *VolumeController) getVolumeDriver(vol *volumesv1.Volume) (volume.Driver, error) {
@@ -100,7 +123,7 @@ func (vc *VolumeController) Run(ctx context.Context) {
 	// Setup Node Handlers
 	vc.clientset.EventV1().On(events.VolumeCreate, vc.handleErrors(vc.onVolumeCreate))
 	vc.clientset.EventV1().On(events.VolumeDelete, vc.handleErrors(vc.onVolumeDelete))
-	// vc.clientset.EventV1().On(events.NodeJoin, vc.handleErrors(vc.onNodeJoin))
+	vc.clientset.EventV1().On(events.NodeJoin, vc.handleErrors(vc.onNodeJoin))
 	// vc.clientset.EventV1().On(events.NodeConnect, vc.handleErrors(vc.onNodeConnect))
 	// vc.clientset.EventV1().On(events.NodeForget, vc.handleErrors(vc.onNodeForget))
 
@@ -127,24 +150,40 @@ func (vc *VolumeController) Run(ctx context.Context) {
 	}
 }
 
-// func (vc *VolumeController) onNodeJoin(ctx context.Context, ev *eventsv1.Event) error {
-// 	node := &nodesv1.Node{}
-// 	err := ev.GetObject().UnmarshalTo(node)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	vols, err := vc.clientset.VolumeV1().List(ctx)
-// 	for _, vol := range vols {
-// 		driver, err := vc.getVolumeDriver(vol)
-// 		if err != nil {
-// 			return err // Maybe not the best idea to error out here?
-// 		}
-//
-//
-//
-// 	}
-// }
+func (vc *VolumeController) onNodeJoin(ctx context.Context, ev *eventsv1.Event) error {
+	nodeSpec := &nodesv1.Node{}
+	err := ev.GetObject().UnmarshalTo(nodeSpec)
+	if err != nil {
+		return err
+	}
+
+	nodeName := vc.node.GetMeta().GetName()
+	joinedNode := nodeSpec.GetMeta().GetName()
+
+	if nodeName == joinedNode {
+		fmt.Println("THIS IS ME !!!!")
+	}
+
+	volumes, err := vc.clientset.VolumeV1().List(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, vol := range volumes {
+		id := vol.GetMeta().GetName()
+		volDriver, err := vc.getVolumeDriver(vol)
+		if err != nil {
+			return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
+		}
+
+		_, err = volDriver.Create(ctx, id)
+		if err != nil {
+			return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
+		}
+	}
+
+	return nil
+}
 
 func (vc *VolumeController) onVolumeCreate(ctx context.Context, ev *eventsv1.Event) error {
 	volSpec := &volumesv1.Volume{}
@@ -153,34 +192,21 @@ func (vc *VolumeController) onVolumeCreate(ctx context.Context, ev *eventsv1.Eve
 		return err
 	}
 
-	// Get the driver the spec asks for from the controller
-	volDriver, err := vc.getVolumeDriver(volSpec)
-	if err != nil {
-		return err
-	}
-
 	id := volSpec.GetMeta().GetName()
 	nodeName := vc.node.GetMeta().GetName()
 
-	vol, err := volDriver.Create(ctx, id)
+	// Get the driver the spec asks for from the controller
+	volDriver, err := vc.getVolumeDriver(volSpec)
 	if err != nil {
-		_ = vc.clientset.VolumeV1().Status().Update(
-			ctx,
-			id,
-			&volumesv1.Status{
-				Controllers: map[string]*volumesv1.ControllerStatus{
-					nodeName: {
-						Phase: wrapperspb.String(consts.ERRPROVISIONING),
-						Ready: wrapperspb.Bool(false),
-					},
-				},
-			},
-			"controllers",
-		)
-		return err
+		return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
 	}
 
-	vc.logger.Debug("created host-local volume", "id", vol.ID(), "location", vol.Location())
+	vol, err := volDriver.Create(ctx, id)
+	if err != nil {
+		return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
+	}
+
+	vc.logger.Debug("created volume", "id", vol.ID(), "location", vol.Location())
 
 	return vc.clientset.VolumeV1().Status().Update(
 		ctx,
@@ -205,35 +231,22 @@ func (vc *VolumeController) onVolumeDelete(ctx context.Context, ev *eventsv1.Eve
 		return err
 	}
 
+	id := volSpec.GetMeta().GetName()
+	nodeName := vc.node.GetMeta().GetName()
+
 	// Get the driver the spec asks for from the controller
 	volDriver, err := vc.getVolumeDriver(volSpec)
 	if err != nil {
-		return err
+		return vc.setControllerStatus(ctx, id, consts.ERRDELETE, err)
 	}
 
 	localVol, err := volDriver.Get(ctx, volSpec.GetMeta().GetName())
 	if err != nil {
-		return err
+		return vc.setControllerStatus(ctx, id, consts.ERRDELETE, err)
 	}
 
-	id := volSpec.GetMeta().GetName()
-	nodeName := vc.node.GetMeta().GetName()
-
 	if err := volDriver.Delete(ctx, id); err != nil {
-		_ = vc.clientset.VolumeV1().Status().Update(
-			ctx,
-			id,
-			&volumesv1.Status{
-				Controllers: map[string]*volumesv1.ControllerStatus{
-					nodeName: {
-						Phase: wrapperspb.String(consts.ERRDELETE),
-						Ready: wrapperspb.Bool(false),
-					},
-				},
-			},
-			"controllers",
-		)
-		return err
+		return vc.setControllerStatus(ctx, id, consts.ERRDELETE, err)
 	}
 
 	vc.logger.Debug("deleted host-local volume", "id", localVol.ID(), "location", localVol.Location())
@@ -261,19 +274,37 @@ func (vc *VolumeController) Reconcile(ctx context.Context) error {
 		return err
 	}
 
+	nodeName := vc.node.GetMeta().GetName()
+
 	for _, vol := range vlist {
+
+		id := vol.GetMeta().GetName()
 		driver, err := vc.getVolumeDriver(vol)
 		if err != nil {
-			return err
+			return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
 		}
 
 		driverVol, err := driver.Create(ctx, vol.GetMeta().GetName())
 		if err != nil {
-			return err
+			return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
 		}
 
 		vc.logger.Debug("created volume on reconcile", "volume", driverVol.ID(), "location", driverVol.Location())
 
+		_ = vc.clientset.VolumeV1().Status().Update(
+			ctx,
+			string(driverVol.ID()),
+			&volumesv1.Status{
+				Controllers: map[string]*volumesv1.ControllerStatus{
+					nodeName: {
+						Phase:    wrapperspb.String(consts.PHASEPROVISIONED),
+						Location: wrapperspb.String(driverVol.Location()),
+						Ready:    wrapperspb.Bool(true),
+					},
+				},
+			},
+			"controllers",
+		)
 	}
 
 	return nil

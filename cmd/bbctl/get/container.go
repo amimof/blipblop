@@ -84,7 +84,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 				}
 
 				marshaler := protojson.MarshalOptions{
-					EmitUnpopulated: true,
+					EmitUnpopulated: false,
 					Indent:          "  ",
 				}
 				b, err := marshaler.Marshal(container)
