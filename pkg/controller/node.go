@@ -3,7 +3,6 @@ package controller
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/amimof/blipblop/pkg/errors"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/amimof/blipblop/pkg/volume"
 	"go.opentelemetry.io/otel"
@@ -31,19 +29,25 @@ import (
 )
 
 type NodeController struct {
-	runtime   runtime.Runtime
-	logger    logger.Logger
-	clientset *client.ClientSet
-	// nodeName                 string
+	runtime                  runtime.Runtime
+	logger                   logger.Logger
+	clientset                *client.ClientSet
 	heartbeatIntervalSeconds int
 	tracer                   trace.Tracer
 	logChan                  chan *logsv1.LogEntry
 	activeLogStreams         map[events.LogKey]context.CancelFunc
 	logStreamsMu             sync.Mutex
 	node                     *nodesv1.Node
+	attacher                 volume.Attacher
 }
 
 type NewNodeControllerOption func(c *NodeController)
+
+func WithVolumeAttacher(a volume.Attacher) NewNodeControllerOption {
+	return func(c *NodeController) {
+		c.attacher = a
+	}
+}
 
 func WithNodeConfig(n *nodesv1.Node) NewNodeControllerOption {
 	return func(c *NodeController) {
@@ -172,7 +176,7 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 			c.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
 			return err
 		}
-		return nil
+		return err
 	}
 }
 
@@ -549,7 +553,21 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	containerID := ctr.GetMeta().GetName()
 	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", containerID)
 
+	// Remove any previous containers ignoring any errors
 	_ = c.onContainerDelete(ctx, e)
+
+	// Prepare volumes/mounts
+	if err := c.attacher.PrepareMounts(ctx, c.node, &ctr); err != nil {
+		// update container status with ERREXEC, include error message
+		_ = c.clientset.ContainerV1().Status().Update(
+			ctx,
+			containerID,
+			&containersv1.Status{
+				Phase:  wrapperspb.String(consts.ERREXEC),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
+		return err
+	}
 
 	// Pull image
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("pulling")}, "phase")
@@ -564,20 +582,6 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 			}, "phase", "status")
 		return err
 	}
-
-	// Resolve volume reference in container spec
-	mounts, err := c.resolvVolumeForMounts(ctx, ctr.GetConfig().GetMounts())
-	if err != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
-			ctx,
-			containerID,
-			&containersv1.Status{
-				Phase:  wrapperspb.String(consts.ERREXEC),
-				Status: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-	ctr.GetConfig().Mounts = mounts
 
 	// Run container
 	err = c.runtime.Run(ctx, &ctr)
@@ -595,41 +599,6 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
-}
-
-func (c *NodeController) resolvVolumeForMounts(ctx context.Context, mounts []*containersv1.Mount) ([]*containersv1.Mount, error) {
-	result := []*containersv1.Mount{}
-	for _, mount := range mounts {
-
-		// Get the volume configuration
-		v, err := c.clientset.VolumeV1().Get(ctx, mount.GetVolume())
-		if err != nil {
-			return nil, err
-		}
-
-		// Get the appropriate driver type for the volume
-		driverType := volume.GetDriverType(v)
-		if driverType == volume.DriverTypeUnspecified {
-			return nil, fmt.Errorf("unsupported driver type: %s", driverType.String())
-		}
-
-		// Get driver from the node and pick the correct driver if possible
-		drivers := node.NodeVolumeManagers(c.node)
-		driver, ok := drivers[driverType]
-		if !ok {
-			return nil, fmt.Errorf("driver %s is not configured for this node", driverType.String())
-		}
-
-		// Get the volume with the driver
-		vol, err := driver.Get(ctx, mount.GetVolume())
-		if err != nil {
-			return nil, err
-		}
-
-		mount.Source = vol.Location()
-		result = append(result, mount)
-	}
-	return result, nil
 }
 
 func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event) error {
@@ -663,6 +632,12 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 		return err
 	}
 
+	// Detach volumes
+	err = c.attacher.Detach(ctx, c.node, &ctr)
+	if err != nil {
+		return err
+	}
+
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
@@ -686,6 +661,7 @@ func NewNodeController(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime,
 		logChan:                  make(chan *logsv1.LogEntry),
 		activeLogStreams:         make(map[events.LogKey]context.CancelFunc),
 		node:                     n,
+		attacher:                 volume.NewDefaultAttacher(c.VolumeV1()),
 	}
 	for _, opt := range opts {
 		opt(m)

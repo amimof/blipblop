@@ -1,8 +1,7 @@
-package create
+package volume
 
 import (
 	"context"
-	"strings"
 
 	"github.com/amimof/blipblop/api/services/volumes/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
@@ -12,16 +11,16 @@ import (
 	"github.com/spf13/viper"
 )
 
-func NewCmdCreateVolume(cfg *client.Config) *cobra.Command {
+func NewCmdCreateHostLocalVolume(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:   "volume TYPE NAME",
+		Use:   "host-local NAME",
 		Short: "Create a volume",
 		Long:  "Create a volume",
 		Example: `
-# Create a host-local volume with /var/lib/blipblop/volumes/ as root 
-bbctl create volume host-local data01 --destination /var/lib/blipblop/volumes/
+# Create a host-local volume
+bbctl create volume host-local data01
 `,
-		Args: cobra.ExactArgs(2),
+		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
@@ -43,27 +42,20 @@ bbctl create volume host-local data01 --destination /var/lib/blipblop/volumes/
 				}
 			}()
 
-			vtype := strings.ToLower(args[0])
 			vname := args[1]
 
-			switch vtype {
-			case "host-local":
-				err = c.VolumeV1().Create(
-					ctx,
-					&volumes.Volume{
-						Meta: &metav1.Meta{
-							Name: vname,
-						},
-						Config: &volumes.Config{
-							HostLocal: &volumes.HostLocal{},
-						},
-					})
-				if err != nil {
-					logrus.Fatal(err)
-				}
-			default:
-				logrus.Fatalf("Volume type %s does not exist", vtype)
-
+			err = c.VolumeV1().Create(
+				ctx,
+				&volumes.Volume{
+					Meta: &metav1.Meta{
+						Name: vname,
+					},
+					Config: &volumes.Config{
+						HostLocal: &volumes.HostLocal{},
+					},
+				})
+			if err != nil {
+				logrus.Fatal(err)
 			}
 
 			logrus.Infof("request to create set %s successful", vname)

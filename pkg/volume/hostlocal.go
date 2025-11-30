@@ -33,21 +33,6 @@ type hostLocalDriver struct {
 	rootPath string
 }
 
-// Mount implements Driver.
-func (h *hostLocalDriver) Mount(context.Context, Volume, ...MountOpts) error {
-	panic("unimplemented")
-}
-
-// Snapshot implements Driver.
-func (h *hostLocalDriver) Snapshot(context.Context, Volume, ...MountOpts) error {
-	panic("unimplemented")
-}
-
-// Unmount implements Driver.
-func (h *hostLocalDriver) Unmount(context.Context, Volume, ...MountOpts) error {
-	panic("unimplemented")
-}
-
 // Create implements Manager.
 func (h *hostLocalDriver) Create(ctx context.Context, name string) (Volume, error) {
 	h.mu.Lock()

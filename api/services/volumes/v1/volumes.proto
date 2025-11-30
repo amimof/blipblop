@@ -58,15 +58,20 @@ message Config {
   option (buf.validate.message).oneof = {
     fields: [
       "host_local",
-      "rclone"
+      "template"
     ]
   };
   HostLocal host_local = 1;
-  HostLocal rclone = 2;
+  Template template = 2;
   map<string, string> node_selector = 3;
 }
 
 message HostLocal {}
+
+message Template {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  string data = 2 [(validate.rules).string.min_len = 1];
+}
 
 message Status {
   map<string, ControllerStatus> controllers = 1;
@@ -79,6 +84,10 @@ message ControllerStatus {
 }
 
 message VolumeDriverHostLocal {
+  string root_dir = 2;
+}
+
+message VolumeDriverTemplate {
   string root_dir = 2;
 }
 

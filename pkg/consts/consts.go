@@ -17,4 +17,6 @@ const (
 	PHASEMISSING     = "missing"
 	PHASEUNKNOWN     = "unknown"
 	PHASEPROVISIONED = "provisioned"
+	PHASEPDETACHED   = "detached"
+	PHASEATTACHED    = "attached"
 )

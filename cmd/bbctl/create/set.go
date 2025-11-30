@@ -14,7 +14,7 @@ import (
 
 func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "set",
+		Use:     "set NAME",
 		Short:   "Create a set",
 		Long:    "Create a set",
 		Example: `bbctl create set NAME`,

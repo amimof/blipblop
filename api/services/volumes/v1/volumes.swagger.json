@@ -411,8 +411,8 @@
         "hostLocal": {
           "$ref": "#/definitions/v1HostLocal"
         },
-        "rclone": {
-          "$ref": "#/definitions/v1HostLocal"
+        "template": {
+          "$ref": "#/definitions/v1Template"
         },
         "nodeSelector": {
           "type": "object",
@@ -470,6 +470,17 @@
       "properties": {
         "volume": {
           "$ref": "#/definitions/v1Volume"
+        }
+      }
+    },
+    "v1Template": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "string"
         }
       }
     },

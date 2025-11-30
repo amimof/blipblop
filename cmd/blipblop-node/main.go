@@ -20,6 +20,7 @@ import (
 	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
+	"github.com/amimof/blipblop/pkg/volume"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
@@ -244,6 +245,7 @@ func main() {
 		nodeCfg,
 		runtime,
 		controller.WithNodeControllerLogger(log),
+		controller.WithVolumeAttacher(volume.NewDefaultAttacher(clientSet.VolumeV1())),
 	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)
@@ -253,7 +255,7 @@ func main() {
 	log.Info("started node controller")
 
 	// Volume controller
-	volumeDrivers := node.NodeVolumeManagers(nodeCfg)
+	volumeDrivers := volume.NodeVolumeDrivers(clientSet.VolumeV1(), nodeCfg)
 	volumeCtrl := controller.NewVolumeController(
 		clientSet,
 		nodeCfg,

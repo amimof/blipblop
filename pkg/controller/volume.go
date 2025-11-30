@@ -97,6 +97,14 @@ func (vc *VolumeController) getVolumeDriver(vol *volumesv1.Volume) (volume.Drive
 		}
 		return volDriver, nil
 	}
+	if cfg.GetTemplate() != nil {
+
+		volDriver, ok := vc.volDrivers[volume.DriverTypeTemplate]
+		if !ok {
+			return nil, ErrVolumeDriverNotFound
+		}
+		return volDriver, nil
+	}
 	return nil, ErrVolumeDriverNotFound
 }
 
@@ -278,33 +286,38 @@ func (vc *VolumeController) Reconcile(ctx context.Context) error {
 
 	for _, vol := range vlist {
 
-		id := vol.GetMeta().GetName()
-		driver, err := vc.getVolumeDriver(vol)
-		if err != nil {
-			return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
-		}
+		// Reconcile host-local volumes. Template volumes will be created and attached
+		// dynamically on container startup
+		driverType := volume.GetDriverType(vol)
+		if driverType == volume.DriverTypeHostLocal {
+			id := vol.GetMeta().GetName()
+			driver, err := vc.getVolumeDriver(vol)
+			if err != nil {
+				return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
+			}
 
-		driverVol, err := driver.Create(ctx, vol.GetMeta().GetName())
-		if err != nil {
-			return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
-		}
+			driverVol, err := driver.Create(ctx, vol.GetMeta().GetName())
+			if err != nil {
+				return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
+			}
 
-		vc.logger.Debug("created volume on reconcile", "volume", driverVol.ID(), "location", driverVol.Location())
+			vc.logger.Debug("created volume on reconcile", "volume", driverVol.ID(), "location", driverVol.Location())
 
-		_ = vc.clientset.VolumeV1().Status().Update(
-			ctx,
-			string(driverVol.ID()),
-			&volumesv1.Status{
-				Controllers: map[string]*volumesv1.ControllerStatus{
-					nodeName: {
-						Phase:    wrapperspb.String(consts.PHASEPROVISIONED),
-						Location: wrapperspb.String(driverVol.Location()),
-						Ready:    wrapperspb.Bool(true),
+			_ = vc.clientset.VolumeV1().Status().Update(
+				ctx,
+				string(driverVol.ID()),
+				&volumesv1.Status{
+					Controllers: map[string]*volumesv1.ControllerStatus{
+						nodeName: {
+							Phase:    wrapperspb.String(consts.PHASEPROVISIONED),
+							Location: wrapperspb.String(driverVol.Location()),
+							Ready:    wrapperspb.Bool(true),
+						},
 					},
 				},
-			},
-			"controllers",
-		)
+				"controllers",
+			)
+		}
 	}
 
 	return nil

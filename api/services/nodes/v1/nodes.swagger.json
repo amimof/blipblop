@@ -397,7 +397,7 @@
       "type": "object",
       "properties": {
         "volumeDrivers": {
-          "$ref": "#/definitions/v1VolumeDrivers"
+          "$ref": "#/definitions/v1VolumeConfig"
         }
       }
     },
@@ -646,6 +646,17 @@
         }
       }
     },
+    "v1VolumeConfig": {
+      "type": "object",
+      "properties": {
+        "hostLocal": {
+          "$ref": "#/definitions/v1VolumeDriverHostLocal"
+        },
+        "template": {
+          "$ref": "#/definitions/v1VolumeDriverTemplate"
+        }
+      }
+    },
     "v1VolumeDriverHostLocal": {
       "type": "object",
       "properties": {
@@ -654,11 +665,11 @@
         }
       }
     },
-    "v1VolumeDrivers": {
+    "v1VolumeDriverTemplate": {
       "type": "object",
       "properties": {
-        "hostLocal": {
-          "$ref": "#/definitions/v1VolumeDriverHostLocal"
+        "rootDir": {
+          "type": "string"
         }
       }
     }

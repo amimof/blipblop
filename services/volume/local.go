@@ -21,6 +21,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"buf.build/go/protovalidate"
 )
 
 var (
@@ -78,9 +80,14 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	volume := req.GetVolume()
 	volume.GetMeta().Created = timestamppb.Now()
 
-	// Validate request
+	// Deprecated: Validate request
 	err := req.ValidateAll()
 	if err != nil {
+		return nil, err
+	}
+
+	// NEW: validate with buf
+	if err := protovalidate.Validate(req); err != nil {
 		return nil, err
 	}
 
