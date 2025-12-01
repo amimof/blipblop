@@ -169,6 +169,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...
 
 	container := req.GetContainer()
 	container.GetMeta().Created = timestamppb.Now()
+	container.GetMeta().Updated = timestamppb.Now()
 
 	// Validate request
 	err := req.ValidateAll()
@@ -438,6 +439,15 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateRequest, _ ...
 		return nil, err
 	}
 
+	updVal := protoreflect.ValueOfMessage(updateContainer.GetConfig().ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existingContainer.GetConfig().ProtoReflect())
+
+	// Only update metadata fields if spec is updated
+	if !updVal.Equal(newVal) {
+		updateContainer.Meta.Revision++
+		updateContainer.Meta.Updated = timestamppb.Now()
+	}
+
 	// Update the container
 	err = l.Repo().Update(ctx, updateContainer)
 	if err != nil {
@@ -451,11 +461,7 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateRequest, _ ...
 	}
 
 	// Only publish if spec is updated
-	updVal := protoreflect.ValueOfMessage(updateContainer.GetConfig().ProtoReflect())
-	newVal := protoreflect.ValueOfMessage(existingContainer.GetConfig().ProtoReflect())
 	if !updVal.Equal(newVal) {
-
-		updateContainer.Meta.Revision++
 
 		l.logger.Debug("container was updated, emitting event to listeners", "event", "ContainerUpdate", "name", ctr.GetMeta().GetName(), "revision", updateContainer.GetMeta().GetRevision())
 		err = l.exchange.Publish(ctx, eventsv1.EventType_ContainerUpdate, events.NewEvent(eventsv1.EventType_ContainerUpdate, ctr))

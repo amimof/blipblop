@@ -120,6 +120,7 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.
 
 	nodeID := node.Meta.GetName()
 	node.Meta.Created = timestamppb.Now()
+	node.Meta.Updated = timestamppb.Now()
 
 	err := req.Validate()
 	if err != nil {
@@ -300,6 +301,15 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 	// Ignore status field
 	updateNode.Status = existingNode.Status
 
+	updVal := protoreflect.ValueOfMessage(updateNode.GetConfig().ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existingNode.GetConfig().ProtoReflect())
+
+	// Only update metadata fields if spec is updated
+	if !updVal.Equal(newVal) {
+		updateNode.Meta.Revision++
+		updateNode.Meta.Updated = timestamppb.Now()
+	}
+
 	// Update the node
 	err = l.Repo().Update(ctx, updateNode)
 	if err != nil {
@@ -313,12 +323,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 	}
 
 	// Only publish if spec is updated
-	updVal := protoreflect.ValueOfMessage(updateNode.GetConfig().ProtoReflect())
-	newVal := protoreflect.ValueOfMessage(existingNode.GetConfig().ProtoReflect())
 	if !updVal.Equal(newVal) {
-
-		updateNode.Meta.Revision++
-
 		l.logger.Debug("node was updated, emitting event to listeners", "event", "NodeUpdate", "name", node.GetMeta().GetName(), "revision", updateNode.GetMeta().GetRevision())
 		err = l.exchange.Publish(ctx, eventsv1.EventType_NodeUpdate, events.NewEvent(eventsv1.EventType_NodeUpdate, node))
 		if err != nil {

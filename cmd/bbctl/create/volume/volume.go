@@ -1,4 +1,4 @@
-// Package create provides ability to create resources from the server
+// Package volume provides command line features to create volume resources
 package volume
 
 import (

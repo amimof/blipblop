@@ -79,6 +79,7 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 
 	volume := req.GetVolume()
 	volume.GetMeta().Created = timestamppb.Now()
+	volume.GetMeta().Updated = timestamppb.Now()
 
 	// Deprecated: Validate request
 	err := req.ValidateAll()
@@ -248,6 +249,15 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 		return nil, err
 	}
 
+	updVal := protoreflect.ValueOfMessage(updateVolume.GetConfig().ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existingVolume.GetConfig().ProtoReflect())
+
+	// Only update metadata fields if spec is updated
+	if !updVal.Equal(newVal) {
+		updateVolume.Meta.Revision++
+		updateVolume.Meta.Updated = timestamppb.Now()
+	}
+
 	// Update the volume
 	err = l.Repo().Update(ctx, updateVolume)
 	if err != nil {
@@ -261,12 +271,7 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 	}
 
 	// Only publish if spec is updated
-	updVal := protoreflect.ValueOfMessage(updateVolume.GetConfig().ProtoReflect())
-	newVal := protoreflect.ValueOfMessage(existingVolume.GetConfig().ProtoReflect())
 	if !updVal.Equal(newVal) {
-
-		updateVolume.Meta.Revision++
-
 		l.logger.Debug("volume was updated, emitting event to listeners", "event", "VolumeUpdate", "name", ctr.GetMeta().GetName(), "revision", updateVolume.GetMeta().GetRevision())
 		err = l.exchange.Publish(ctx, eventsv1.EventType_VolumeUpdate, events.NewEvent(eventsv1.EventType_VolumeUpdate, ctr))
 		if err != nil {
