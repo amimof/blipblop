@@ -861,6 +861,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 			exp := tt.expect
 			// Ignore timestamps
 			res.Container.Meta.Created = nil
+			res.Container.Meta.Updated = nil
 			if !proto.Equal(exp, res.Container) {
 				t.Errorf("\ngot:\n%v\nwant:\n%v", res.Container, exp)
 			}
