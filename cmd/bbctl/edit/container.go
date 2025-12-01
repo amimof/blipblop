@@ -2,17 +2,18 @@ package edit
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -57,17 +58,18 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 				return err
 			}
 
-			marshaler := protojson.MarshalOptions{
-				EmitUnpopulated: false,
-				Indent:          "  ",
-			}
-			b, err := marshaler.Marshal(ctr)
+			codec, err := cmdutil.CodecFor(output)
 			if err != nil {
-				return err
+				logrus.Fatalf("error creating serializer: %v", err)
+			}
+
+			b, err := codec.Serialize(ctr)
+			if err != nil {
+				logrus.Fatalf("error serializing: %v", err)
 			}
 
 			// Create temporary file to hold the JSON
-			tmpFile, err := os.CreateTemp("", "*.json")
+			tmpFile, err := os.CreateTemp("", fmt.Sprintf("*.%s", output))
 			if err != nil {
 				return err
 			}
@@ -105,7 +107,7 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			}
 
 			var updatedCtr containers.Container
-			err = protojson.Unmarshal(ub, &updatedCtr)
+			err = codec.Deserialize(ub, &updatedCtr)
 			if err != nil {
 				return err
 			}
