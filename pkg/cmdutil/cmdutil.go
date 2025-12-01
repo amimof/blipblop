@@ -1,9 +1,11 @@
+// Package cmdutil provides helper utilities and interfaces for working with command line tools
 package cmdutil
 
 import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -111,5 +113,78 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm", minutes)
 	} else {
 		return fmt.Sprintf("%ds", seconds)
+	}
+}
+
+type OutputFormat string
+
+var (
+	OutputFormatJSON  OutputFormat = "json"
+	OutputFormatYAML  OutputFormat = "yaml"
+	OutputFormatTable OutputFormat = "table"
+)
+
+func validateOutputFormat(s string) (OutputFormat, error) {
+	allowedOutputs := []OutputFormat{
+		OutputFormatJSON,
+		OutputFormatYAML,
+		OutputFormatTable,
+	}
+
+	o := strings.ToLower(s)
+	if ok := slices.Contains(allowedOutputs, OutputFormat(o)); !ok {
+		return "", fmt.Errorf("expected output to be one of %v", allowedOutputs)
+	}
+
+	return OutputFormat(o), nil
+}
+
+func SerializerFor(s string) (Serializer, error) {
+	o, err := validateOutputFormat(s)
+	if err != nil {
+		return nil, err
+	}
+
+	switch o {
+	case OutputFormatJSON:
+		return &JSONSerializer{}, nil
+	case OutputFormatYAML:
+		return &YamlSerializer{}, nil
+	case OutputFormatTable:
+		return &TableSerializer{}, nil
+	default:
+		return &JSONSerializer{}, nil
+	}
+}
+
+func DeserializerFor(s string) (Deserializer, error) {
+	o, err := validateOutputFormat(s)
+	if err != nil {
+		return nil, err
+	}
+
+	switch o {
+	case OutputFormatJSON:
+		return &JSONDeserializer{}, nil
+	case OutputFormatYAML:
+		return &YamlDeserializer{}, nil
+	default:
+		return &JSONDeserializer{}, nil
+	}
+}
+
+func CodecFor(s string) (Codec, error) {
+	o, err := validateOutputFormat(s)
+	if err != nil {
+		return nil, err
+	}
+
+	switch o {
+	case OutputFormatJSON:
+		return NewJSONCodec(), nil
+	case OutputFormatYAML:
+		return NewYamlCodec(), nil
+	default:
+		return NewJSONCodec(), nil
 	}
 }
