@@ -59,11 +59,12 @@ message Node {
 }
 
 message Config {
-  VolumeConfig volume_config = 1;
+  VolumeConfig volume_drivers = 1;
 }
 
 message VolumeConfig {
   services.volumes.v1.VolumeDriverHostLocal host_local = 1;
+  services.volumes.v1.VolumeDriverTemplate template = 2;
 }
 
 message Status {

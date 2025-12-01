@@ -274,7 +274,8 @@ func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
 		// In that case the container is already removed from the server, rendering the update method below useless
 		// and will always result in a not found error.
 		st := &containersv1.Status{
-			Phase: wrapperspb.String("stopped"),
+			Phase:  wrapperspb.String("stopped"),
+			Status: wrapperspb.String(fmt.Sprintf("exit status %d", e.GetExitStatus())),
 		}
 		err = c.clientset.ContainerV1().Status().Update(ctx, containerID, st, "phase")
 		if err != nil {

@@ -369,22 +369,22 @@ var _ interface {
 	ErrorName() string
 } = ConfigValidationError{}
 
-// Validate checks the field values on VolumeDrivers with the rules defined in
+// Validate checks the field values on VolumeConfig with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
-func (m *VolumeDrivers) Validate() error {
+func (m *VolumeConfig) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on VolumeDrivers with the rules defined
+// ValidateAll checks the field values on VolumeConfig with the rules defined
 // in the proto definition for this message. If any rules are violated, the
-// result is a list of violation errors wrapped in VolumeDriversMultiError, or
+// result is a list of violation errors wrapped in VolumeConfigMultiError, or
 // nil if none found.
-func (m *VolumeDrivers) ValidateAll() error {
+func (m *VolumeConfig) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *VolumeDrivers) validate(all bool) error {
+func (m *VolumeConfig) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
@@ -395,7 +395,7 @@ func (m *VolumeDrivers) validate(all bool) error {
 		switch v := interface{}(m.GetHostLocal()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, VolumeDriversValidationError{
+				errors = append(errors, VolumeConfigValidationError{
 					field:  "HostLocal",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -403,7 +403,7 @@ func (m *VolumeDrivers) validate(all bool) error {
 			}
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
-				errors = append(errors, VolumeDriversValidationError{
+				errors = append(errors, VolumeConfigValidationError{
 					field:  "HostLocal",
 					reason: "embedded message failed validation",
 					cause:  err,
@@ -412,7 +412,7 @@ func (m *VolumeDrivers) validate(all bool) error {
 		}
 	} else if v, ok := interface{}(m.GetHostLocal()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
-			return VolumeDriversValidationError{
+			return VolumeConfigValidationError{
 				field:  "HostLocal",
 				reason: "embedded message failed validation",
 				cause:  err,
@@ -420,20 +420,48 @@ func (m *VolumeDrivers) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetTemplate()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, VolumeConfigValidationError{
+					field:  "Template",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, VolumeConfigValidationError{
+					field:  "Template",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTemplate()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return VolumeConfigValidationError{
+				field:  "Template",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
-		return VolumeDriversMultiError(errors)
+		return VolumeConfigMultiError(errors)
 	}
 
 	return nil
 }
 
-// VolumeDriversMultiError is an error wrapping multiple validation errors
-// returned by VolumeDrivers.ValidateAll() if the designated constraints
-// aren't met.
-type VolumeDriversMultiError []error
+// VolumeConfigMultiError is an error wrapping multiple validation errors
+// returned by VolumeConfig.ValidateAll() if the designated constraints aren't met.
+type VolumeConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m VolumeDriversMultiError) Error() string {
+func (m VolumeConfigMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -442,11 +470,11 @@ func (m VolumeDriversMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m VolumeDriversMultiError) AllErrors() []error { return m }
+func (m VolumeConfigMultiError) AllErrors() []error { return m }
 
-// VolumeDriversValidationError is the validation error returned by
-// VolumeDrivers.Validate if the designated constraints aren't met.
-type VolumeDriversValidationError struct {
+// VolumeConfigValidationError is the validation error returned by
+// VolumeConfig.Validate if the designated constraints aren't met.
+type VolumeConfigValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -454,22 +482,22 @@ type VolumeDriversValidationError struct {
 }
 
 // Field function returns field value.
-func (e VolumeDriversValidationError) Field() string { return e.field }
+func (e VolumeConfigValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e VolumeDriversValidationError) Reason() string { return e.reason }
+func (e VolumeConfigValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e VolumeDriversValidationError) Cause() error { return e.cause }
+func (e VolumeConfigValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e VolumeDriversValidationError) Key() bool { return e.key }
+func (e VolumeConfigValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e VolumeDriversValidationError) ErrorName() string { return "VolumeDriversValidationError" }
+func (e VolumeConfigValidationError) ErrorName() string { return "VolumeConfigValidationError" }
 
 // Error satisfies the builtin error interface
-func (e VolumeDriversValidationError) Error() string {
+func (e VolumeConfigValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -481,14 +509,14 @@ func (e VolumeDriversValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sVolumeDrivers.%s: %s%s",
+		"invalid %sVolumeConfig.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = VolumeDriversValidationError{}
+var _ error = VolumeConfigValidationError{}
 
 var _ interface {
 	Field() string
@@ -496,7 +524,7 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = VolumeDriversValidationError{}
+} = VolumeConfigValidationError{}
 
 // Validate checks the field values on Status with the rules defined in the
 // proto definition for this message. If any rules are violated, the first

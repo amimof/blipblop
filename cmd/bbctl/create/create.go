@@ -2,6 +2,7 @@
 package create
 
 import (
+	"github.com/amimof/blipblop/cmd/bbctl/create/volume"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/spf13/cobra"
 )
@@ -27,7 +28,7 @@ func NewCmdCreate(cfg *client.Config) *cobra.Command {
 	createCmd.PersistentFlags().Uint64VarP(&waitTimeoutSeconds, "timeout", "", 30, "How long in seconds to wait for container to start before giving up")
 	createCmd.PersistentFlags().StringToStringVarP(&resourceLabels, "labels", "l", map[string]string{}, "Resource labels as key value pair")
 	createCmd.AddCommand(NewCmdCreateSet(cfg))
-	createCmd.AddCommand(NewCmdCreateVolume(cfg))
+	createCmd.AddCommand(volume.NewCmdCreateVolume(cfg))
 
 	return createCmd
 }

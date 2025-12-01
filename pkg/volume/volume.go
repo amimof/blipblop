@@ -4,7 +4,9 @@ package volume
 import (
 	"context"
 
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
+	clientv1 "github.com/amimof/blipblop/pkg/client/volume/v1"
 )
 
 type ID string
@@ -23,15 +25,6 @@ type Driver interface {
 
 	// List lists all valumes managed by the driver
 	List(context.Context) ([]Volume, error)
-
-	// Mount mounts the volume as described by the volume type
-	Mount(context.Context, Volume, ...MountOpts) error
-
-	// Unmount unmounts the volume as described by the volume type
-	Unmount(context.Context, Volume, ...MountOpts) error
-
-	// Snapshot allows for cheap cloning/snapshotting
-	Snapshot(context.Context, Volume, ...MountOpts) error
 }
 
 type Volume interface {
@@ -48,6 +41,8 @@ func (d DriverType) String() string {
 		return "unspecified"
 	case DriverTypeHostLocal:
 		return "host-local"
+	case DriverTypeTemplate:
+		return "template"
 	}
 	return ""
 }
@@ -55,11 +50,35 @@ func (d DriverType) String() string {
 const (
 	DriverTypeUnspecified DriverType = 0
 	DriverTypeHostLocal   DriverType = 1
+	DriverTypeTemplate    DriverType = 2
 )
 
 func GetDriverType(vol *volumesv1.Volume) DriverType {
 	if vol.GetConfig().GetHostLocal() != nil {
 		return DriverTypeHostLocal
 	}
+	if vol.GetConfig().GetTemplate() != nil {
+		return DriverTypeTemplate
+	}
 	return DriverTypeUnspecified
+}
+
+// NodeVolumeDrivers returns a list of drivers, each configured according to the provided Node spec.
+// If no drivers are configured on the node then the list will be empty
+func NodeVolumeDrivers(volumeClient clientv1.ClientV1, n *nodesv1.Node) map[DriverType]Driver {
+	result := make(map[DriverType]Driver)
+	drivers := n.GetConfig().GetVolumeDrivers()
+	if drivers == nil {
+		return result
+	}
+
+	if drivers.GetHostLocal() != nil {
+		result[DriverTypeHostLocal] = NewHostLocalManager(drivers.GetHostLocal().GetRootDir())
+	}
+
+	if drivers.GetTemplate() != nil {
+		result[DriverTypeTemplate] = NewTemplateDriver(volumeClient, drivers.GetTemplate().GetRootDir())
+	}
+
+	return result
 }
