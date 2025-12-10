@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
@@ -169,7 +168,7 @@ func (vc *VolumeController) onNodeJoin(ctx context.Context, ev *eventsv1.Event) 
 	joinedNode := nodeSpec.GetMeta().GetName()
 
 	if nodeName == joinedNode {
-		fmt.Println("THIS IS ME !!!!")
+		vc.logger.Debug("volume controller self-aware", "node", nodeName)
 	}
 
 	volumes, err := vc.clientset.VolumeV1().List(ctx)

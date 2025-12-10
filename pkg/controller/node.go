@@ -553,6 +553,10 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	containerID := ctr.GetMeta().GetName()
 	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", containerID)
 
+	// Run cleanup early while netns still exists.
+	// This will allow the CNI plugin to remove networks without leaking.
+	_ = c.runtime.Cleanup(ctx, containerID)
+
 	// Remove any previous containers ignoring any errors
 	_ = c.onContainerDelete(ctx, e)
 
@@ -614,7 +618,14 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 	containerID := ctr.GetMeta().GetName()
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
 
+	// Let everyone know that container is stoping
 	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
+
+	// Run cleanup early while netns still exists.
+	// This will allow the CNI plugin to remove networks without leaking.
+	_ = c.runtime.Cleanup(ctx, containerID)
+
+	// Stop the container
 	err = c.runtime.Stop(ctx, &ctr)
 	if errors.IgnoreNotFound(err) != nil {
 		_ = c.clientset.ContainerV1().Status().Update(

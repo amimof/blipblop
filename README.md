@@ -21,7 +21,7 @@ Blipblop is an event-driven system which means that any interactions made with t
 
 ## Installing
 
-Download the latest binaries under [relases](https://github.com/amimof/blipblop/releases)
+Download the latest binaries from [releases](https://github.com/amimof/blipblop/releases)
 
 ## Try it out
 

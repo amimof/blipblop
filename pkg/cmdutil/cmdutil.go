@@ -4,71 +4,44 @@ package cmdutil
 import (
 	"context"
 	"fmt"
-	"os"
+	"io"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
 )
 
-type Spinner struct {
-	stop   bool
-	Prefix *string
-	Suffix string
+type SyncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+	// tw *tabwriter.Writer
 }
 
-type NewSpinnerOpt func(*Spinner)
-
-func NewSpinner(opts ...NewSpinnerOpt) *Spinner {
-	s := &Spinner{
-		stop: false,
-	}
-
-	for _, opt := range opts {
-		opt(s)
-	}
-	return s
-}
-
-func WithPrefix(str *string) NewSpinnerOpt {
-	return func(s *Spinner) {
-		s.Prefix = str
-	}
-}
-
-func (s *Spinner) Start() {
-	chars := []rune{'⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'}
-	i := 0
-	_, _ = fmt.Fprint(os.Stdout, "\033[?25l")
-	go func() {
-		for {
-			fmt.Printf("%s %c\r", *s.Prefix, chars[i%len(chars)])
-			time.Sleep(130 * time.Millisecond)
-			i = i + 1
-			if s.stop {
-				return
-			}
-		}
-	}()
-}
-
-func (s *Spinner) Stop() {
-	s.stop = true
-	_, _ = fmt.Fprint(os.Stdout, "\033[?25h")
+func (sw *SyncWriter) Write(p []byte) (int, error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
 }
 
 func FormatPhase(phase string) string {
 	p := strings.ToUpper(phase)
 	switch p {
 	case "UNKNOWN":
-		return color.YellowString(p)
+		return color.YellowString(strings.ToLower(p))
 	case "RUNNING":
-		return color.GreenString(p)
+		return color.GreenString(strings.ToLower(p))
+	case "PULLING":
+		return color.GreenString(strings.ToLower(p))
+	case "STOPPED":
+		return color.RedString(strings.ToLower(p))
 	case "ERROR":
-		return color.RedString(p)
+		return color.HiRedString(strings.ToLower(p))
+	case "SCHEDULED":
+		return color.MagentaString(strings.ToLower(p))
 	default:
-		return color.CyanString(p)
+		return color.HiBlackString(strings.ToLower(p))
 	}
 }
 
