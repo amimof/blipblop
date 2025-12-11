@@ -45,7 +45,7 @@ func WithPrefix(str string) NewSpinnerOpt {
 }
 
 type formatText struct {
-	text string
+	// text string
 }
 
 type NewSpinnerOpt func(*Spinner)
