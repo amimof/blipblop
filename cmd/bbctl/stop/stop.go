@@ -32,7 +32,7 @@ func NewCmdStop(cfg *client.Config) *cobra.Command {
 		&wait,
 		"wait",
 		"w",
-		false,
+		true,
 		"Wait for command to finish",
 	)
 	stopCmd.PersistentFlags().DurationVarP(
