@@ -8,7 +8,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
 import "types/v1/meta.proto";
-import "validate/validate.proto";
+import "buf/validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
@@ -52,8 +52,8 @@ service ContainerService {
 }
 
 message Container {
-  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  Config config = 2 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
+  Config config = 2 [(buf.validate.field).required = true];
   Status status = 4;
 }
 
@@ -81,7 +81,7 @@ message RuntimeStatus {
 }
 
 message Config {
-  string image = 1 [(validate.rules).string.min_len = 1];
+  string image = 1 [(buf.validate.field).string.min_len = 1];
   repeated string args = 2;
   repeated EnvVar envvars = 3;
   repeated Mount mounts = 4;
@@ -90,7 +90,7 @@ message Config {
 }
 
 message Mount {
-  string name = 1 [(validate.rules).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   string destination = 2;
   string type = 3;
   string volume = 4;
@@ -99,12 +99,12 @@ message Mount {
 }
 
 message EnvVar {
-  string name = 1 [(validate.rules).string.min_len = 1];
-  string value = 2 [(validate.rules).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string value = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message PortMapping {
-  string name = 1 [(validate.rules).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   uint32 hostPort = 2;
   uint32 containerPort = 3;
   string protocol = 4;
@@ -129,7 +129,7 @@ message Event {
 }
 
 message GetRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -137,7 +137,7 @@ message GetResponse {
 }
 
 message CreateRequest {
-  Container container = 1 [(validate.rules).message.required = true];
+  Container container = 1 [(buf.validate.field).required = true];
 }
 
 message CreateResponse {
@@ -145,8 +145,8 @@ message CreateResponse {
 }
 
 message UpdateRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
-  Container container = 2 [(validate.rules).message.required = true];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  Container container = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -155,8 +155,8 @@ message UpdateResponse {
 }
 
 message PatchRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
-  Container container = 2 [(validate.rules).message.required = true];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  Container container = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -165,7 +165,7 @@ message PatchResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message DeleteResponse {
@@ -181,7 +181,7 @@ message ListResponse {
 }
 
 message StartRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message StartResponse {
@@ -189,7 +189,7 @@ message StartResponse {
 }
 
 message StopRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message StopResponse {
@@ -197,7 +197,7 @@ message StopResponse {
 }
 
 message KillRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
   bool forceKill = 2;
 }
 
@@ -207,8 +207,8 @@ message KillResponse {
 
 message UpdateStatusRequest {
   string id = 1;
-  google.protobuf.FieldMask update_mask = 2 [(validate.rules).message.required = true];
-  Status status = 3 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 2 [(buf.validate.field).required = true];
+  Status status = 3 [(buf.validate.field).required = true];
 }
 message UpdateStatusResponse {
   string id = 1;

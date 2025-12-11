@@ -122,17 +122,12 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.
 	node.Meta.Created = timestamppb.Now()
 	node.Meta.Updated = timestamppb.Now()
 
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
-
 	// Initialize status field if empty
 	if node.GetStatus() == nil {
 		node.Status = &nodes.Status{}
 	}
 
-	err = l.Repo().Create(ctx, node)
+	err := l.Repo().Create(ctx, node)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeID)
 	}
@@ -217,10 +212,6 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 	defer l.mu.Unlock()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	updateNode := req.GetNode()
 
@@ -245,12 +236,6 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 	// TODO: Handle errors
 	updated := maskedUpdate.(*nodes.Node)
 	existing = merge(existing, updated)
-
-	// Validate
-	err = existing.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	// Update the container
 	err = l.Repo().Update(ctx, existing)
@@ -285,10 +270,6 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 	defer l.mu.Unlock()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	updateNode := req.GetNode()
 

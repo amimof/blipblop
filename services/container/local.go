@@ -122,13 +122,6 @@ func (l *local) Get(ctx context.Context, req *containers.GetRequest, _ ...grpc.C
 	)
 	defer span.End()
 
-	// Validate request
-	err := req.Validate()
-	if err != nil {
-		span.RecordError(err)
-		return nil, err
-	}
-
 	// Get container from repo
 	container, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
@@ -148,10 +141,6 @@ func (l *local) List(ctx context.Context, req *containers.ListRequest, _ ...grpc
 	defer span.End()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	// Get containers from repo
 	ctrs, err := l.Repo().List(ctx, req.GetSelector())
@@ -172,10 +161,6 @@ func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...
 	container.GetMeta().Updated = timestamppb.Now()
 
 	// Validate request
-	err := req.ValidateAll()
-	if err != nil {
-		return nil, err
-	}
 
 	// Initialize status field if empty
 	if container.GetStatus() == nil {
@@ -190,7 +175,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...
 	}
 
 	// Create container in repo
-	err = l.Repo().Create(ctx, container)
+	err := l.Repo().Create(ctx, container)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerID)
 	}
@@ -286,10 +271,6 @@ func (l *local) Patch(ctx context.Context, req *containers.PatchRequest, _ ...gr
 	defer l.mu.Unlock()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	updateContainer := req.GetContainer()
 
@@ -314,12 +295,6 @@ func (l *local) Patch(ctx context.Context, req *containers.PatchRequest, _ ...gr
 	// TODO: Handle errors
 	updated := maskedUpdate.(*containers.Container)
 	existing = merge(existing, updated)
-
-	// Validate
-	err = existing.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	// Update the container
 	err = l.Repo().Update(ctx, existing)
@@ -426,10 +401,6 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateRequest, _ ...
 	defer l.mu.Unlock()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	updateContainer := req.GetContainer()
 

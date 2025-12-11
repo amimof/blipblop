@@ -16,7 +16,6 @@ require (
 	github.com/containerd/containerd/v2 v2.2.0
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/dgraph-io/badger/v4 v4.3.0
-	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fatih/color v1.7.0
 	github.com/google/uuid v1.6.0
@@ -61,6 +60,7 @@ require (
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.0 // indirect

@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"buf.build/go/protovalidate"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/events"
@@ -30,6 +31,7 @@ import (
 	"github.com/amimof/blipblop/services/node"
 	"github.com/amimof/blipblop/services/volume"
 	"github.com/dgraph-io/badger/v4"
+	protovalidate_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
@@ -286,7 +288,13 @@ func main() {
 	if err != nil {
 		log.Error("Failed to start prometheus exporter", "error", err)
 	}
-	serverOpts = append(serverOpts, server.WithGrpcOption(metricsOpts))
+
+	validator, err := protovalidate.New()
+	if err != nil {
+		log.Error("Failed to create protovalidate validator", "error", err)
+	}
+
+	serverOpts = append(serverOpts, server.WithGrpcOption(metricsOpts), server.WithGrpcOption(grpc.UnaryInterceptor(protovalidate_middleware.UnaryServerInterceptor(validator))))
 
 	go serveMetrics(promhttp.Handler())
 
