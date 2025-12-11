@@ -95,13 +95,21 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 
 func withContainerLabels(l labels.Label, container *containers.Container) containerd.NewContainerOpts {
 	pm := container.GetConfig().GetPortMappings()
-	b, _ := json.Marshal(&pm)
+
+	// Convert to CNI type once here
+	cniPorts := networking.ParseCNIPortMappings(pm...)
+
+	// Store CNI mappings, not API mappings
+	b, _ := json.Marshal(&cniPorts)
+
+	// Fill label set with values
 	l.Set("blipblop/revision", util.Uint64ToString(container.GetMeta().GetRevision()))
 	l.Set("blipblop/created", container.GetMeta().GetCreated().String())
 	l.Set("blipblop/updated", container.GetMeta().GetUpdated().String())
 	l.Set("blipblop/name", container.GetMeta().GetName())
 	l.Set("blipblop/namespace", "blipblop")
 	l.Set("blipblop/ports", string(b))
+
 	return containerd.WithContainerLabels(l)
 }
 
@@ -152,8 +160,13 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 		return err
 	}
 
+	c.logger.Debug("detaching cni network", "container", ctr.ID(), "pid", t.Pid(), "cniPorts", cniports)
+
 	// Delete CNI Network
-	err = c.cni.Detach(ctx, ctr.ID(), t.Pid(),
+	err = c.cni.Detach(
+		ctx,
+		ctr.ID(),
+		t.Pid(),
 		gocni.WithCapabilityPortMap(cniports),
 		gocni.WithArgs("IgnoreUnknown", "true"),
 	)

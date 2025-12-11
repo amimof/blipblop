@@ -3,8 +3,11 @@ package start
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,7 +20,7 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 		Short:   "Start a container",
 		Long:    "Start a container",
 		Example: `bbctl start container NAME`,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
@@ -43,14 +46,69 @@ func NewCmdStartContainer(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			// Start containers
-			for _, cname := range args {
-				_, err = c.ContainerV1().Start(ctx, cname)
-				if err != nil {
-					logrus.Fatal(err)
+			// Start container one by one without waiting
+			if !viper.GetBool("wait") {
+				for _, cname := range args {
+					_, err = c.ContainerV1().Start(ctx, cname)
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					fmt.Printf("Requested to start container %s\n", cname)
+				}
+			}
+
+			// Start containers in parallell and wait until they are running
+			if viper.GetBool("wait") {
+
+				dash := cmdutil.NewDashboard(args)
+				go dash.Loop(ctx)
+
+				for i, cname := range args {
+					// Fire off start operations concurrently
+					go func(idx int, containerID string) {
+						_, err := c.ContainerV1().Start(ctx, containerID)
+						if err != nil {
+							dash.FailMsg(idx, err.Error())
+							return
+						}
+
+						dash.Update(idx, func(s *cmdutil.ServiceState) {
+							s.Text = "starting…"
+						})
+
+						// Continously check container
+						for {
+
+							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
+
+							ctr, err := c.ContainerV1().Get(ctx, containerID)
+							if err != nil {
+								dash.FailMsg(idx, err.Error())
+								return
+							}
+
+							phase := ctr.GetStatus().GetPhase().GetValue()
+							dash.Update(idx, func(s *cmdutil.ServiceState) {
+								s.Text = fmt.Sprintf("%s…", phase)
+							})
+
+							if phase == "running" {
+								dash.DoneMsg(idx, "started successfully")
+								return
+							}
+
+							if strings.Contains(phase, "Err") {
+								dash.FailMsg(idx, "failed to start")
+								return
+							}
+
+							// Wait until retry
+							time.Sleep(250 * time.Millisecond)
+						}
+					}(i, cname)
 				}
 
-				fmt.Printf("Requested to start container %s\n", cname)
+				dash.WaitAnd(cancel)
 
 			}
 		},
