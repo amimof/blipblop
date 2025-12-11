@@ -12,7 +12,7 @@ import "services/events/v1/events.proto";
 import "services/logs/v1/logs.proto";
 import "services/volumes/v1/volumes.proto";
 import "types/v1/meta.proto";
-import "validate/validate.proto";
+// import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 
@@ -53,8 +53,8 @@ service NodeService {
 }
 
 message Node {
-  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  Config config = 2 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
+  Config config = 2 [(buf.validate.field).required = true];
   Status status = 3;
 }
 
@@ -98,7 +98,7 @@ message DNSStatus {
 }
 
 message GetRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -106,7 +106,7 @@ message GetResponse {
 }
 
 message CreateRequest {
-  Node node = 1 [(validate.rules).message.required = true];
+  Node node = 1 [(buf.validate.field).required = true];
 }
 
 message CreateResponse {
@@ -114,7 +114,7 @@ message CreateResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message DeleteResponse {
@@ -122,8 +122,8 @@ message DeleteResponse {
 }
 
 message UpdateRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
-  Node node = 2 [(validate.rules).message.required = true];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  Node node = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -132,8 +132,8 @@ message UpdateResponse {
 }
 
 message PatchRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
-  Node node = 2 [(validate.rules).message.required = true];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  Node node = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -150,7 +150,7 @@ message ListResponse {
 }
 
 message JoinRequest {
-  Node node = 1 [(validate.rules).message.required = true];
+  Node node = 1 [(buf.validate.field).required = true];
 }
 
 message JoinResponse {
@@ -158,7 +158,7 @@ message JoinResponse {
 }
 
 message ForgetRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message ForgetResponse {
@@ -166,8 +166,8 @@ message ForgetResponse {
 }
 message UpdateStatusRequest {
   string id = 1;
-  google.protobuf.FieldMask update_mask = 2 [(validate.rules).message.required = true];
-  Status status = 3 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 2 [(buf.validate.field).required = true];
+  Status status = 3 [(buf.validate.field).required = true];
 }
 message UpdateStatusResponse {
   string id = 1;

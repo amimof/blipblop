@@ -77,12 +77,7 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateRequest, 
 
 	containerSet.GetMeta().Created = timestamppb.Now()
 
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
-
-	err = l.Repo().Create(ctx, containerSet)
+	err := l.Repo().Create(ctx, containerSet)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerSet.GetMeta().GetName())
 	}
@@ -136,11 +131,6 @@ func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateRequest, 
 	proto.Merge(existing, maskedUpdate)
 
 	existing.GetMeta().Updated = timestamppb.Now()
-
-	err = existing.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	err = l.Repo().Update(ctx, existing)
 	if err != nil {

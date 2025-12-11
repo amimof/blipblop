@@ -14,7 +14,7 @@ plugins:
       - paths=source_relative
   - plugin: openapiv2
     out: ./api
-  - plugin: buf.build/bufbuild/validate-go
-    out: ./api
-    opt:
-      - paths=source_relative
+  # - plugin: buf.build/bufbuild/validate-go
+  #   out: ./api
+  #   opt:
+  #     - paths=source_relative

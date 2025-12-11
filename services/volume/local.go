@@ -82,10 +82,6 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	volume.GetMeta().Updated = timestamppb.Now()
 
 	// Deprecated: Validate request
-	err := req.ValidateAll()
-	if err != nil {
-		return nil, err
-	}
 
 	// NEW: validate with buf
 	if err := protovalidate.Validate(req); err != nil {
@@ -105,7 +101,7 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	}
 
 	// Create volume in repo
-	err = l.Repo().Create(ctx, volume)
+	err := l.Repo().Create(ctx, volume)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE volume in repo", "name", volumeID)
 	}
@@ -158,13 +154,6 @@ func (l *local) Get(ctx context.Context, req *volumes.GetRequest, opts ...grpc.C
 	)
 	defer span.End()
 
-	// Validate request
-	err := req.Validate()
-	if err != nil {
-		span.RecordError(err)
-		return nil, err
-	}
-
 	// Get volume from repo
 	volume, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
@@ -185,10 +174,6 @@ func (l *local) List(ctx context.Context, req *volumes.ListRequest, opts ...grpc
 	defer span.End()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
 
 	// Get volumes from repo
 	ctrs, err := l.Repo().List(ctx, req.GetSelector())
@@ -236,11 +221,6 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 	defer l.mu.Unlock()
 
 	// Validate request
-	err := req.Validate()
-	if err != nil {
-		return nil, err
-	}
-
 	updateVolume := req.GetVolume()
 
 	// Get the existing volume before updating so we can compare specs

@@ -11,7 +11,6 @@ import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
 import "services/logs/v1/logs.proto";
 import "types/v1/meta.proto";
-import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/volumes/v1;volumes";
 
@@ -49,8 +48,8 @@ service VolumeService {
 }
 
 message Volume {
-  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  Config config = 2 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
+  Config config = 2 [(buf.validate.field).required = true];
   Status status = 3;
 }
 
@@ -69,8 +68,8 @@ message Config {
 message HostLocal {}
 
 message Template {
-  string name = 1 [(validate.rules).string.min_len = 1];
-  string data = 2 [(validate.rules).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string data = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message Status {
@@ -92,7 +91,7 @@ message VolumeDriverTemplate {
 }
 
 message GetRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -100,7 +99,7 @@ message GetResponse {
 }
 
 message CreateRequest {
-  Volume volume = 1 [(validate.rules).message.required = true];
+  Volume volume = 1 [(buf.validate.field).required = true];
 }
 
 message CreateResponse {
@@ -108,7 +107,7 @@ message CreateResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
   bool purge = 2;
 }
 
@@ -117,8 +116,8 @@ message DeleteResponse {
 }
 
 message UpdateRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
-  Volume volume = 2 [(validate.rules).message.required = true];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  Volume volume = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
@@ -136,8 +135,8 @@ message ListResponse {
 
 message UpdateStatusRequest {
   string id = 1;
-  google.protobuf.FieldMask update_mask = 2 [(validate.rules).message.required = true];
-  Status status = 3 [(validate.rules).message.required = true];
+  google.protobuf.FieldMask update_mask = 2 [(buf.validate.field).required = true];
+  Status status = 3 [(buf.validate.field).required = true];
 }
 
 message UpdateStatusResponse {
@@ -145,8 +144,8 @@ message UpdateStatusResponse {
 }
 
 message PatchRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
-  Volume volume = 2 [(validate.rules).message.required = true];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  Volume volume = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 

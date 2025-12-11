@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package services.containersets.v1;
 
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/field_mask.proto";
 import "services/containers/v1/containers.proto";
 import "types/v1/meta.proto";
-import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containersets/v1;containersets";
 
@@ -39,12 +39,12 @@ service ContainerSetService {
 }
 
 message ContainerSet {
-  types.v1.Meta meta = 1 [(validate.rules).message.required = true];
-  services.containers.v1.Config template = 2 [(validate.rules).message.required = true];
+  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
+  services.containers.v1.Config template = 2 [(buf.validate.field).required = true];
 }
 
 message GetRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -52,7 +52,7 @@ message GetResponse {
 }
 
 message CreateRequest {
-  ContainerSet containerSet = 1 [(validate.rules).message.required = true];
+  ContainerSet containerSet = 1 [(buf.validate.field).required = true];
 }
 
 message CreateResponse {
@@ -60,7 +60,7 @@ message CreateResponse {
 }
 
 message UpdateRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
   ContainerSet containerSet = 2;
   google.protobuf.FieldMask update_mask = 3;
 }
@@ -70,7 +70,7 @@ message UpdateResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(validate.rules).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message DeleteResponse {
