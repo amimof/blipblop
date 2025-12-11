@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -27,20 +28,32 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const labelPrefix = "blipblop"
+const (
+	labelPrefix = "blipblop"
+	logFileName = "stdout.log"
+)
 
 var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
 
 type ContainerdRuntime struct {
-	client       *containerd.Client
-	cni          networking.Manager
-	logger       logger.Logger
-	ns           string
-	mu           sync.Mutex
-	containerIOs map[string]*ContainerIO
+	client         *containerd.Client
+	cni            networking.Manager
+	logger         logger.Logger
+	ns             string
+	mu             sync.Mutex
+	containerIOs   map[string]*ContainerIO
+	logFileRootFmt string
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
+
+// WithLogFileRootFmt allows for setting the root directory for container log files (stdout).
+// For example /var/lib/blipblop/containers/%s/log which happens to be the default location.
+func WithLogFileRootFmt(rootPath string) NewContainerdRuntimeOption {
+	return func(c *ContainerdRuntime) {
+		c.logFileRootFmt = rootPath
+	}
+}
 
 func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
@@ -160,7 +173,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 		return err
 	}
 
-	c.logger.Debug("detaching cni network", "container", ctr.ID(), "pid", t.Pid(), "cniPorts", cniports)
+	c.logger.Debug("detaching cni network from container", "container", ctr.ID(), "pid", t.Pid(), "cniPorts", cniports)
 
 	// Delete CNI Network
 	err = c.cni.Detach(
@@ -174,7 +187,9 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 		return err
 	}
 
-	return nil
+	logFile := path.Join(fmt.Sprintf(c.logFileRootFmt, ctr.ID()), logFileName)
+	c.logger.Debug("cleaning log file", "container", ctr.ID(), "pid", t.Pid(), "logFile", logFile)
+	return os.WriteFile(logFile, []byte{}, 0o666)
 }
 
 func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
@@ -448,8 +463,8 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	}
 
 	// Pipe stdout and stderr to log file on disk
-	logRoot := fmt.Sprintf("/var/lib/blipblop/containers/%s/log", containerID)
-	stdOut := filepath.Join(logRoot, "stdout.log")
+	logRoot := fmt.Sprintf(c.logFileRootFmt, containerID)
+	stdOut := filepath.Join(logRoot, logFileName)
 	ioCreator := cio.LogFile(stdOut)
 
 	// Create task
@@ -482,8 +497,8 @@ func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 }
 
 func (c *ContainerdRuntime) IO(ctx context.Context, containerID string) (*ContainerIO, error) {
-	logRoot := fmt.Sprintf("/var/lib/blipblop/containers/%s/log", containerID)
-	stdOut := filepath.Join(logRoot, "stdout.log")
+	logRoot := fmt.Sprintf(c.logFileRootFmt, containerID)
+	stdOut := filepath.Join(logRoot, logFileName)
 
 	f, err := os.OpenFile(stdOut, os.O_RDONLY, 0)
 	if err != nil {
@@ -495,11 +510,12 @@ func (c *ContainerdRuntime) IO(ctx context.Context, containerID string) (*Contai
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manager, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
 	runtime := &ContainerdRuntime{
-		client:       client,
-		cni:          cni,
-		logger:       logger.ConsoleLogger{},
-		ns:           DefaultNamespace,
-		containerIOs: map[string]*ContainerIO{},
+		client:         client,
+		cni:            cni,
+		logger:         logger.ConsoleLogger{},
+		ns:             DefaultNamespace,
+		containerIOs:   map[string]*ContainerIO{},
+		logFileRootFmt: "/var/lib/blipblop/containers/%s/log",
 	}
 
 	for _, opt := range opts {

@@ -562,7 +562,6 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 
 	// Prepare volumes/mounts
 	if err := c.attacher.PrepareMounts(ctx, c.node, &ctr); err != nil {
-		// update container status with ERREXEC, include error message
 		_ = c.clientset.ContainerV1().Status().Update(
 			ctx,
 			containerID,
