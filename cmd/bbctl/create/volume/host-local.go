@@ -42,7 +42,7 @@ bbctl create volume host-local data01
 				}
 			}()
 
-			vname := args[1]
+			vname := args[0]
 
 			err = c.VolumeV1().Create(
 				ctx,

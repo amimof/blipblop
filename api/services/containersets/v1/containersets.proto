@@ -39,8 +39,13 @@ service ContainerSetService {
 }
 
 message ContainerSet {
-  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
-  services.containers.v1.Config template = 2 [(buf.validate.field).required = true];
+  string version = 1 [
+    (buf.validate.field).string.min_len = 4,
+    (buf.validate.field).string.pattern = "^[a-z0-9]+(?:[._-][a-z0-9]+)*/[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+    (buf.validate.field).required = true
+  ];
+  types.v1.Meta meta = 2 [(buf.validate.field).required = true];
+  services.containers.v1.Config template = 3 [(buf.validate.field).required = true];
 }
 
 message GetRequest {

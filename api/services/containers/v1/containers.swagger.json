@@ -108,6 +108,9 @@
             "schema": {
               "type": "object",
               "properties": {
+                "version": {
+                  "type": "string"
+                },
                 "meta": {
                   "type": "object",
                   "properties": {
@@ -187,6 +190,9 @@
             "schema": {
               "type": "object",
               "properties": {
+                "version": {
+                  "type": "string"
+                },
                 "meta": {
                   "type": "object",
                   "properties": {
@@ -601,6 +607,9 @@
     "v1Container": {
       "type": "object",
       "properties": {
+        "version": {
+          "type": "string"
+        },
         "meta": {
           "$ref": "#/definitions/v1Meta"
         },

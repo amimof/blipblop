@@ -104,6 +104,7 @@ func NewNodeFromEnv() (*nodes.Node, error) {
 
 	// Construct node instance
 	n := &nodes.Node{
+		Version: "node/v1",
 		Meta: &types.Meta{
 			Name:   hostname,
 			Labels: l,

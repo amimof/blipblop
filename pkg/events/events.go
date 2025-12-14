@@ -103,6 +103,7 @@ func NewEvent(evType eventsv1.EventType, obj Object, labels ...map[string]string
 	}
 	o, _ := anypb.New(obj)
 	return &eventsv1.Event{
+		Version: "event/v1",
 		Meta: &types.Meta{
 			Name:   uuid.New().String(),
 			Labels: l,

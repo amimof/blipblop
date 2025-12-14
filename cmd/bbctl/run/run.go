@@ -12,11 +12,12 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/cmdutil"
 	"github.com/amimof/blipblop/pkg/networking"
+
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 )
 
 var (
@@ -62,21 +63,21 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			}()
 
 			// Setup ports
-			var cports []*containers.PortMapping
+			var cports []*containersv1.PortMapping
 			for _, p := range ports {
 
 				pm, err := networking.ParsePorts(p)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				cports = append(cports, &containers.PortMapping{Name: pm.String(), HostPort: pm.Source, ContainerPort: pm.Destination})
+				cports = append(cports, &containersv1.PortMapping{Name: pm.String(), HostPort: pm.Source, ContainerPort: pm.Destination})
 			}
 
-			err = c.ContainerV1().Create(ctx, &containers.Container{
+			err = c.ContainerV1().Create(ctx, &containersv1.Container{
 				Meta: &types.Meta{
 					Name: cname,
 				},
-				Config: &containers.Config{
+				Config: &containersv1.Config{
 					Image:        image,
 					PortMappings: cports,
 				},

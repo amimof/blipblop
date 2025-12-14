@@ -20,6 +20,17 @@ type SchedulerController struct {
 	logger    logger.Logger
 }
 
+func (c *SchedulerController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		err := h(ctx, ev)
+		if err != nil {
+			c.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
+			return err
+		}
+		return err
+	}
+}
+
 func (c *SchedulerController) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
 	// Get the container
 	var ctr containersv1.Container
@@ -65,7 +76,7 @@ func (c *SchedulerController) Run(ctx context.Context) {
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ContainerCreate)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(events.ContainerCreate, c.onContainerCreate)
+	c.clientset.EventV1().On(events.ContainerCreate, c.handleErrors(c.onContainerCreate))
 
 	// Handle errors
 	for e := range err {

@@ -2,13 +2,13 @@ syntax = "proto3";
 
 package services.containers.v1;
 
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
 import "types/v1/meta.proto";
-import "buf/validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
 
@@ -52,9 +52,14 @@ service ContainerService {
 }
 
 message Container {
-  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
-  Config config = 2 [(buf.validate.field).required = true];
-  Status status = 4;
+  string version = 1 [
+    (buf.validate.field).string.min_len = 4,
+    (buf.validate.field).string.pattern = "^[a-z0-9]+(?:[._-][a-z0-9]+)*/[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+    (buf.validate.field).required = true
+  ];
+  types.v1.Meta meta = 2 [(buf.validate.field).required = true];
+  Config config = 3 [(buf.validate.field).required = true];
+  Status status = 5;
 }
 
 message Status {

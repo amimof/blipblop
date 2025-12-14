@@ -12,9 +12,10 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
-var (
+const (
 	ContainerHealthHealthy   = "healthy"
 	ContainerHealthUnhealthy = "unhealthy"
+	Version                  = "continer/v1"
 )
 
 type CreateOption func(c *clientV1)
@@ -129,9 +130,14 @@ func (c *clientV1) Create(ctx context.Context, ctr *containers.Container, opts .
 	ctx, span := tracer.Start(ctx, "client.container.Update")
 	defer span.End()
 
+	if ctr.Version == "" {
+		ctr.Version = Version
+	}
+
 	for _, opt := range opts {
 		opt(c)
 	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
 	_, err := c.Client.Create(ctx, &containers.CreateRequest{Container: ctr})
 	if err != nil {

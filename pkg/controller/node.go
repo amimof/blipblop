@@ -103,7 +103,7 @@ func (c *NodeController) Run(ctx context.Context) {
 
 	go func() {
 		for e := range evt {
-			c.logger.Info("Got event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
+			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
 		}
 	}()
 
@@ -441,10 +441,10 @@ func (c *NodeController) onNodeUpdate(ctx context.Context, obj *eventsv1.Event) 
 	return nil
 }
 
-// BUG: this will delete and forget the node that the event was triggered on. We need to make sure
-// that the node that receives the event, checks that the id matches the node id so that only
-// the specific node unregisters itself from the server
 func (c *NodeController) onNodeDelete(ctx context.Context, obj *eventsv1.Event) error {
+	if obj.GetMeta().GetName() != c.node.GetMeta().GetName() {
+		return nil
+	}
 	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
 	if err != nil {
 		c.logger.Error("error unjoining node", "node", obj.GetMeta().GetName(), "error", err)
