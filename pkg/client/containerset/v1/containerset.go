@@ -13,9 +13,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var (
+const (
 	ContainerHealthHealthy   = "healthy"
 	ContainerHealthUnhealthy = "unhealthy"
+	Version                  = "containerset/v1"
 )
 
 type ClientV1 struct {

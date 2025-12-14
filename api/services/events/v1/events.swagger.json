@@ -78,6 +78,9 @@
     "v1Event": {
       "type": "object",
       "properties": {
+        "version": {
+          "type": "string"
+        },
         "meta": {
           "$ref": "#/definitions/v1Meta"
         },

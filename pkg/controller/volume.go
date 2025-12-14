@@ -259,6 +259,7 @@ func (vc *VolumeController) onVolumeDelete(ctx context.Context, ev *eventsv1.Eve
 	vc.logger.Debug("deleted host-local volume", "id", localVol.ID(), "location", localVol.Location())
 
 	// Update status once deleted
+	// TODO: This will probably always fail since updating a deleted volume is pointless
 	return vc.clientset.VolumeV1().Status().Update(
 		ctx,
 		id,

@@ -21,6 +21,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const Version = "containerset/v1"
+
 type ClientV1 struct {
 	id           string
 	eventService eventsv1.EventServiceClient

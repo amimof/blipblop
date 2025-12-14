@@ -12,7 +12,6 @@ import "services/events/v1/events.proto";
 import "services/logs/v1/logs.proto";
 import "services/volumes/v1/volumes.proto";
 import "types/v1/meta.proto";
-// import "validate/validate.proto";
 
 option go_package = "github.com/amimof/blipblop/api/services/nodes/v1;nodes";
 
@@ -53,9 +52,14 @@ service NodeService {
 }
 
 message Node {
-  types.v1.Meta meta = 1 [(buf.validate.field).required = true];
-  Config config = 2 [(buf.validate.field).required = true];
-  Status status = 3;
+  string version = 1 [
+    (buf.validate.field).string.min_len = 4,
+    (buf.validate.field).string.pattern = "^[a-z0-9]+(?:[._-][a-z0-9]+)*/[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+    (buf.validate.field).required = true
+  ];
+  types.v1.Meta meta = 2 [(buf.validate.field).required = true];
+  Config config = 3 [(buf.validate.field).required = true];
+  Status status = 4;
 }
 
 message Config {
