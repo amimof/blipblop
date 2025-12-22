@@ -55,6 +55,7 @@ var (
 	nodeFile           string
 	runtimeNamespace   string
 	otelEndpoint       string
+	runtimeLogDir      string
 )
 
 func init() {
@@ -68,6 +69,7 @@ func init() {
 	pflag.StringVar(&nodeFile, "node-file", "/etc/blipblop/node.yaml", "Path to node identity file")
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for containers")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
+	pflag.StringVar(&runtimeLogDir, "runtime-log-dir", "/var/lib/blipblop/containers/%s/logs", "Directory in which the runtime stores container log files in (stdout)")
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
@@ -226,6 +228,7 @@ func main() {
 		cni,
 		rt.WithLogger(log),
 		rt.WithNamespace(runtimeNamespace),
+		rt.WithLogDirFmt(runtimeLogDir),
 	)
 	exit := make(chan os.Signal, 1)
 

@@ -81,6 +81,7 @@ var (
 	tlsCertificateKey string
 	tlsCACertificate  string
 	otelEndpoint      string
+	dbPath            string
 
 	log *slog.Logger
 )
@@ -97,6 +98,7 @@ func init() {
 	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
+	pflag.StringVar(&dbPath, "db-path", "/var/lib/blipblop/db", "Directory to store database state")
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
@@ -227,7 +229,7 @@ func main() {
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 	// Setup badgerdb and repo
-	db, err := badger.Open(badger.DefaultOptions("/var/lib/blipblop"))
+	db, err := badger.Open(badger.DefaultOptions(dbPath))
 	if err != nil {
 		log.Error("error opening badger database", "error", err.Error())
 		os.Exit(1)
