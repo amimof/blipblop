@@ -42,7 +42,6 @@ type ContainerdRuntime struct {
 	ns           string
 	mu           sync.Mutex
 	containerIOs map[string]*ContainerIO
-	logDir       string
 	logDirFmt    string
 }
 
