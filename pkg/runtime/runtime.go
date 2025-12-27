@@ -4,6 +4,8 @@ package runtime
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"io"
 
 	"github.com/amimof/blipblop/api/services/containers/v1"
@@ -12,7 +14,14 @@ import (
 
 const (
 	DefaultNamespace = "blipblop"
+	IDMaxLen         = 64
 )
+
+type ID string
+
+func (id ID) String() string {
+	return string(id)
+}
 
 type ContainerIO struct {
 	Stdout io.ReadCloser
@@ -32,4 +41,13 @@ type Runtime interface {
 	IO(context.Context, string) (*ContainerIO, error)
 	Namespace() string
 	Version(context.Context) (string, error)
+	ID(context.Context, string) (string, error)
+	Name(context.Context, string) (string, error)
+}
+
+func GenerateID() ID {
+	blen := IDMaxLen / 2
+	b := make([]byte, blen)
+	_, _ = rand.Read(b)
+	return ID(hex.EncodeToString(b))
 }

@@ -58,3 +58,24 @@ func ParseCNIPortMappings(pm ...*containers.PortMapping) []gocni.PortMapping {
 	}
 	return mappings
 }
+
+func ParsePortMapping(pm gocni.PortMapping) *containers.PortMapping {
+	return &containers.PortMapping{
+		HostPort:      uint32(pm.HostPort),
+		ContainerPort: uint32(pm.ContainerPort),
+		Protocol:      pm.Protocol,
+		HostIp:        pm.HostIP,
+		Name:          fmt.Sprintf("%d:%d", pm.HostPort, pm.ContainerPort),
+	}
+}
+
+func ParsePortMappings(pm ...gocni.PortMapping) []*containers.PortMapping {
+	mappings := make([]*containers.PortMapping, len(pm))
+	for i, mapping := range pm {
+		if mapping.Protocol == "" {
+			mapping.Protocol = "TCP"
+		}
+		mappings[i] = ParsePortMapping(mapping)
+	}
+	return mappings
+}

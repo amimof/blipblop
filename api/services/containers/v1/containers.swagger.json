@@ -465,6 +465,18 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "status.runtime.containerId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.id",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -494,6 +506,9 @@
         },
         "runtime": {
           "$ref": "#/definitions/v1RuntimeStatus"
+        },
+        "id": {
+          "type": "string"
         }
       }
     },
@@ -735,6 +750,9 @@
           "type": "string"
         },
         "stderrPath": {
+          "type": "string"
+        },
+        "containerId": {
           "type": "string"
         }
       }

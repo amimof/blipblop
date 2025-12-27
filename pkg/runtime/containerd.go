@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/filters"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	gocni "github.com/containerd/go-cni"
@@ -131,7 +133,7 @@ func (c *ContainerdRuntime) Namespace() string {
 	return c.ns
 }
 
-// Version returns the version of the runtime
+// Version returns the version of the runtime. Should be printent in the form "runtime_name/version"
 func (c *ContainerdRuntime) Version(ctx context.Context) (string, error) {
 	// c.client.
 	ver, err := c.client.Version(ctx)
@@ -149,7 +151,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	ctr, err := c.client.LoadContainer(ctx, id)
+	ctr, err := c.get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -173,7 +175,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 		return err
 	}
 
-	c.logger.Debug("detaching cni network from container", "container", ctr.ID(), "pid", t.Pid(), "cniPorts", cniports)
+	c.logger.Debug("detaching cni network from container", "id", ctr.ID(), "name", id, "pid", t.Pid(), "cniPorts", cniports)
 
 	// Delete CNI Network
 	err = c.cni.Detach(
@@ -187,8 +189,8 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 		return err
 	}
 
-	logFile := path.Join(fmt.Sprintf(c.logDirFmt, ctr.ID()), logFileName)
-	c.logger.Debug("cleaning log file", "container", ctr.ID(), "pid", t.Pid(), "logFile", logFile)
+	logFile := path.Join(fmt.Sprintf(c.logDirFmt, id), logFileName)
+	c.logger.Debug("cleaning log file for container", "id", ctr.ID(), "name", id, "pid", t.Pid(), "logFile", logFile)
 	return os.WriteFile(logFile, []byte{}, 0o666)
 }
 
@@ -196,26 +198,43 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 	ctx, span := tracer.Start(ctx, "runtime.containerd.List")
 	defer span.End()
 
+	// We're only interested in containers with the blipblop.io/name label
+	filters := []string{
+		`labels."blipblop.io/name"`,
+	}
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	ctrs, err := c.client.Containers(ctx)
+	ctrs, err := c.client.Containers(ctx, filters...)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]*containers.Container, len(ctrs))
 	for i, c := range ctrs {
+
 		l, err := parseContainerLabels(ctx, c)
 		if err != nil {
 			return nil, err
 		}
+
 		info, err := c.Info(ctx, containerd.WithoutRefreshedMetadata)
 		if err != nil {
 			return nil, err
 		}
 
+		cl, err := c.Labels(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		containerName, ok := cl["blipblop.io/name"]
+		if !ok {
+			continue
+		}
+
 		result[i] = &containers.Container{
 			Meta: &types.Meta{
-				Name:     info.ID,
+				Name:     containerName,
 				Revision: util.StringToUint64(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "revision"))),
 				Created:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "created")))),
 				Updated:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "updated")))),
@@ -225,24 +244,58 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 			},
 		}
 	}
+
 	return result, nil
 }
 
-func (c *ContainerdRuntime) Get(ctx context.Context, key string) (*containers.Container, error) {
-	ctx, span := tracer.Start(ctx, "runtime.containerd.Get")
-	defer span.End()
-
-	ctx = namespaces.WithNamespace(ctx, c.ns)
-	ctrs, err := c.List(ctx)
+// Get returns the first container from the runtime that matches the provided id
+func (c *ContainerdRuntime) Get(ctx context.Context, id string) (*containers.Container, error) {
+	ctr, err := c.get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	for _, ctr := range ctrs {
-		if key == ctr.GetMeta().GetName() {
-			return ctr, nil
-		}
+
+	info, err := ctr.Info(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return nil, nil
+
+	return &containers.Container{
+		Meta: &types.Meta{
+			Name: id,
+		},
+		Config: &containers.Config{
+			Image: info.Image,
+		},
+	}, nil
+}
+
+func (c *ContainerdRuntime) get(ctx context.Context, id string) (containerd.Container, error) {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.get")
+	defer span.End()
+
+	ctx = namespaces.WithNamespace(ctx, c.ns)
+
+	cfilters := []string{
+		fmt.Sprintf(`labels."blipblop.io/name"==%s`, id),
+		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(id)),
+	}
+
+	_, err := filters.ParseAll(cfilters...)
+	if err != nil {
+		return nil, err
+	}
+
+	ctrs, err := c.client.Containers(ctx, cfilters...)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ctrs) == 0 {
+		return nil, errdefs.ErrNotFound
+	}
+
+	return ctrs[0], nil
 }
 
 func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container) error {
@@ -266,7 +319,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
-	container, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+	container, err := c.get(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return nil
@@ -321,7 +374,7 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+	cont, err := c.get(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		return err
 	}
@@ -377,7 +430,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
-	cont, err := c.client.LoadContainer(ctx, ctr.GetMeta().GetName())
+	cont, err := c.get(ctx, ctr.GetMeta().GetName())
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return nil
@@ -425,7 +478,6 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	containerID := ctr.GetMeta().GetName()
 
 	// Get the image. Assumes that image has been pulled beforehand
 	image, err := c.client.GetImage(ctx, ctr.GetConfig().GetImage())
@@ -438,7 +490,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		oci.WithDefaultSpec(),
 		oci.WithDefaultUnixDevices,
 		oci.WithImageConfig(image),
-		oci.WithHostname(containerID),
+		oci.WithHostname(ctr.GetMeta().GetName()),
 		oci.WithImageConfig(image),
 		withEnvVars(ctr.GetConfig().GetEnvvars()),
 		withMounts(ctr.GetConfig().GetMounts()),
@@ -449,21 +501,29 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		opts = append(opts, oci.WithProcessArgs(ctr.GetConfig().GetArgs()...))
 	}
 
+	// Assemble some labels
+	l := labels.New()
+	l.Set("blipblop.io/name", ctr.GetMeta().GetName())
+
+	// Generate ID for the container
+	containerID := GenerateID()
+	containerName := ctr.GetMeta().GetName()
+
 	// Create container
 	cont, err := c.client.NewContainer(
 		ctx,
-		containerID,
+		containerID.String(),
 		containerd.WithImage(image),
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerID), image),
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerName), image),
 		containerd.WithNewSpec(opts...),
-		withContainerLabels(labels.New(), ctr),
+		withContainerLabels(l, ctr),
 	)
 	if err != nil {
 		return err
 	}
 
 	// Pipe stdout and stderr to log file on disk
-	logRoot := fmt.Sprintf(c.logDirFmt, containerID)
+	logRoot := fmt.Sprintf(c.logDirFmt, containerName)
 	stdOut := filepath.Join(logRoot, logFileName)
 	ioCreator := cio.LogFile(stdOut)
 
@@ -496,8 +556,8 @@ func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 	return nil, nil
 }
 
-func (c *ContainerdRuntime) IO(ctx context.Context, containerID string) (*ContainerIO, error) {
-	logRoot := fmt.Sprintf(c.logDirFmt, containerID)
+func (c *ContainerdRuntime) IO(ctx context.Context, id string) (*ContainerIO, error) {
+	logRoot := fmt.Sprintf(c.logDirFmt, id)
 	stdOut := filepath.Join(logRoot, logFileName)
 
 	f, err := os.OpenFile(stdOut, os.O_RDONLY, 0)
@@ -506,6 +566,42 @@ func (c *ContainerdRuntime) IO(ctx context.Context, containerID string) (*Contai
 	}
 
 	return &ContainerIO{Stdout: f}, nil
+}
+
+func (c *ContainerdRuntime) ID(ctx context.Context, id string) (string, error) {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.ID")
+	defer span.End()
+
+	ctx = namespaces.WithNamespace(ctx, c.ns)
+
+	ctr, err := c.get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+
+	return ctr.ID(), nil
+}
+
+func (c *ContainerdRuntime) Name(ctx context.Context, id string) (string, error) {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Name")
+	defer span.End()
+
+	ctr, err := c.get(ctx, id)
+	if err != nil {
+		return "", err
+	}
+
+	l, err := ctr.Labels(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	cName, ok := l["blipblop.io/name"]
+	if !ok {
+		return "", errdefs.ErrNotFound
+	}
+
+	return cName, nil
 }
 
 func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manager, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
