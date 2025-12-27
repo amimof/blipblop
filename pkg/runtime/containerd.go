@@ -557,9 +557,6 @@ func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
 }
 
 func (c *ContainerdRuntime) IO(ctx context.Context, id string) (*ContainerIO, error) {
-	ctx, span := tracer.Start(ctx, "runtime.containerd.IO")
-	defer span.End()
-
 	logRoot := fmt.Sprintf(c.logDirFmt, id)
 	stdOut := filepath.Join(logRoot, logFileName)
 
