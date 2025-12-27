@@ -69,6 +69,7 @@ message Status {
   google.protobuf.StringValue ip = 4;
   TaskStatus task = 5;
   RuntimeStatus runtime = 6;
+  google.protobuf.StringValue id = 7;
 }
 
 message TaskStatus {
@@ -83,6 +84,7 @@ message RuntimeStatus {
   string runtime_version = 2;
   string stdout_path = 3;
   string stderr_path = 4;
+  string container_id = 5;
 }
 
 message Config {

@@ -472,14 +472,14 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 		return err
 	}
 
-	containerID := ctr.GetMeta().GetName()
+	containerID := runtime.ID(ctr.GetStatus().GetId().GetValue())
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
 
 	err = c.runtime.Delete(ctx, &ctr)
 	if err != nil {
 		_ = c.clientset.ContainerV1().Status().Update(
 			ctx,
-			containerID,
+			containerID.String(),
 			&containersv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
 				Status: wrapperspb.String(err.Error()),
