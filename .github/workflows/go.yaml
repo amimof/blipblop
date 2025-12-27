@@ -74,3 +74,8 @@ jobs:
         run: make node
       - name: Compile CLI
         run: make bbctl
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: build-artifacts
+          path: ./bin/*
