@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+const Version string = "container/v1"
+
 type NewServiceOption func(s *ContainerService)
 
 func WithLogger(l logger.Logger) NewServiceOption {

@@ -10,6 +10,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+const Version string = "volume/v1"
+
 type NewServiceOption func(s *VolumeService)
 
 func WithLogger(l logger.Logger) NewServiceOption {

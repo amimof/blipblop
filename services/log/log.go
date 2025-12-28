@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+const Version string = "log/v1"
+
 type NewServiceOption func(s *LogService)
 
 func WithLogger(l logger.Logger) NewServiceOption {

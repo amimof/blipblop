@@ -16,7 +16,6 @@ import (
 const (
 	ContainerHealthHealthy   = "healthy"
 	ContainerHealthUnhealthy = "unhealthy"
-	Version                  = "containerset/v1"
 )
 
 type ClientV1 struct {
