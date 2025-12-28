@@ -21,8 +21,6 @@ import (
 
 type CreateOption func(c *clientV1)
 
-const Version = "node/v1"
-
 func WithLogger(l logger.Logger) CreateOption {
 	return func(c *clientV1) {
 		c.logger = l

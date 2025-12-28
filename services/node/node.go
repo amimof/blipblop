@@ -23,6 +23,8 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+const Version string = "node/v1"
+
 type NewServiceOption func(s *NodeService)
 
 func WithLogger(l logger.Logger) NewServiceOption {

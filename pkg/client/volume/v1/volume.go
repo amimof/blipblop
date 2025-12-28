@@ -14,8 +14,6 @@ import (
 
 var _ ClientV1 = &clientV1{}
 
-const Version = "volume/v1"
-
 type CreateOption func(c *clientV1)
 
 func WithEmitLabels(l labels.Label) CreateOption {

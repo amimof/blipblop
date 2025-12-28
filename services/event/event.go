@@ -15,6 +15,8 @@ import (
 	"google.golang.org/grpc/peer"
 )
 
+const Version string = "event/v1"
+
 var ErrClientExists = errors.New("client already exists")
 
 type NewServiceOption func(s *EventService)

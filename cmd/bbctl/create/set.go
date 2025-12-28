@@ -29,12 +29,6 @@ func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Get labels, for some reason we cannot use viper here. Viper returns an empty map
-			// l, err := createCmd.PersistentFlags().GetStringToString("labels")
-			// if err != nil {
-			// 	log.Fatalf("error retrieving labels flag: %v", err)
-			// }
-
 			// Setup client
 			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
