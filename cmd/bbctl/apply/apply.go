@@ -40,15 +40,16 @@ func detectVersion(doc []byte) (string, error) {
 	if err := yaml.Unmarshal(doc, &h); err != nil {
 		return "", fmt.Errorf("decode version: %w", err)
 	}
+
 	if h.Version == "" {
 		return "", fmt.Errorf("missing version field")
 	}
-	// Use the prefix before '/' as "kind"
+
 	parts := strings.SplitN(h.Version, "/", 2)
 	if len(parts) != 2 {
 		return "", fmt.Errorf("invalid version %q", h.Version)
 	}
-	return h.Version, nil // or return parts[0] if you prefer
+	return h.Version, nil
 }
 
 func NewCmdApply(cfg *client.Config) *cobra.Command {
