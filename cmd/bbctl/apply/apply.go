@@ -95,7 +95,7 @@ bbctl apply -f resources.yaml
 
 			for {
 
-				var raw interface{}
+				var raw any
 				if err := dec.Decode(&raw); err != nil {
 					if err == io.EOF {
 						break

@@ -6,6 +6,7 @@ import (
 	"github.com/amimof/blipblop/api/services/volumes/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/services/volume"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -47,6 +48,7 @@ bbctl create volume host-local data01
 			err = c.VolumeV1().Create(
 				ctx,
 				&volumes.Volume{
+					Version: volume.Version,
 					Meta: &metav1.Meta{
 						Name: vname,
 					},

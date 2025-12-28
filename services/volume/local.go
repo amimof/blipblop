@@ -80,6 +80,7 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	volume := req.GetVolume()
 	volume.GetMeta().Created = timestamppb.Now()
 	volume.GetMeta().Updated = timestamppb.Now()
+	volume.GetMeta().Revision = 1
 
 	// Deprecated: Validate request
 
@@ -228,6 +229,12 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 	if err != nil {
 		return nil, err
 	}
+
+	// Ignore fields
+	updateVolume.Status = existingVolume.Status
+	updateVolume.GetMeta().Updated = existingVolume.Meta.Updated
+	updateVolume.GetMeta().Created = existingVolume.Meta.Created
+	updateVolume.GetMeta().Revision = existingVolume.Meta.Revision
 
 	updVal := protoreflect.ValueOfMessage(updateVolume.GetConfig().ProtoReflect())
 	newVal := protoreflect.ValueOfMessage(existingVolume.GetConfig().ProtoReflect())
