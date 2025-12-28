@@ -113,14 +113,18 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.
 	ctx, span := tracer.Start(ctx, "node.Create")
 	defer span.End()
 
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	node := req.GetNode()
 	if existing, _ := l.Repo().Get(ctx, node.GetMeta().GetName()); existing != nil {
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
 	}
 
-	nodeID := node.Meta.GetName()
-	node.Meta.Created = timestamppb.Now()
-	node.Meta.Updated = timestamppb.Now()
+	nodeID := node.GetMeta().GetName()
+	node.GetMeta().Created = timestamppb.Now()
+	node.GetMeta().Updated = timestamppb.Now()
+	node.GetMeta().Revision = 1
 
 	// Initialize status field if empty
 	if node.GetStatus() == nil {
@@ -269,8 +273,6 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Validate request
-
 	updateNode := req.GetNode()
 
 	// Get the existing node before updating so we can compare specs
@@ -279,8 +281,11 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", updateNode.GetMeta().GetName())
 	}
 
-	// Ignore status field
+	// Ignore fields
 	updateNode.Status = existingNode.Status
+	updateNode.GetMeta().Updated = existingNode.Meta.Updated
+	updateNode.GetMeta().Created = existingNode.Meta.Created
+	updateNode.GetMeta().Revision = existingNode.Meta.Revision
 
 	updVal := protoreflect.ValueOfMessage(updateNode.GetConfig().ProtoReflect())
 	newVal := protoreflect.ValueOfMessage(existingNode.GetConfig().ProtoReflect())
@@ -323,14 +328,11 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 
 	nodeID := req.GetNode().GetMeta().GetName()
 
-	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "node name cannot be empty")
-	}
-
 	node, err := l.Repo().Get(ctx, nodeID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			if _, err := l.Create(ctx, &nodes.CreateRequest{Node: req.Node}); err != nil {
+			l.logger.Debug("creating node that jonied", "nodeID", nodeID)
+			if _, err := l.Create(ctx, &nodes.CreateRequest{Node: req.GetNode()}); err != nil {
 				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeID)
 			}
 		} else {
@@ -338,13 +340,16 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	res, err := l.Update(ctx, &nodes.UpdateRequest{Id: nodeID, Node: req.GetNode()})
-	if err != nil {
-		return nil, err
-	}
-
-	if res != nil {
-		node = res.GetNode()
+	// Perform update if node exists
+	if err == nil {
+		l.logger.Debug("updating node that jonied", "nodeID", nodeID)
+		res, err := l.Update(ctx, &nodes.UpdateRequest{Id: nodeID, Node: req.GetNode()})
+		if err != nil {
+			return nil, err
+		}
+		if res != nil {
+			node = res.GetNode()
+		}
 	}
 
 	return &nodes.JoinResponse{
