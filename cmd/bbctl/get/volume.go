@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
@@ -31,7 +30,7 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second*30)
 			defer cancel()
 
 			tracer := otel.Tracer("bbctl")
@@ -57,6 +56,7 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "READY", "TYPE", "AGE")
 				for _, c := range volumes {
 
 					numReady := fmt.Sprintf("%s/%d", getVolumeReadyStr(c.GetStatus().GetControllers()), len(c.GetStatus().GetControllers()))
@@ -75,19 +75,21 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 
 			if len(args) == 1 {
 				cname := args[0]
-				container, err := c.VolumeV1().Get(context.Background(), cname)
+				volume, err := c.VolumeV1().Get(ctx, cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
 
-				marshaler := protojson.MarshalOptions{
-					EmitUnpopulated: false,
-					Indent:          "  ",
-				}
-				b, err := marshaler.Marshal(container)
+				codec, err := cmdutil.CodecFor(output)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Fatalf("error creating serializer: %v", err)
 				}
+
+				b, err := codec.Serialize(volume)
+				if err != nil {
+					logrus.Fatalf("error serializing: %v", err)
+				}
+
 				fmt.Printf("%s\n", string(b))
 			}
 		},

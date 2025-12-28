@@ -1,7 +1,6 @@
 package get
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
-	"gopkg.in/yaml.v3"
 )
 
 func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
@@ -31,7 +29,7 @@ func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second*30)
 			defer cancel()
 
 			tracer := otel.Tracer("bbctl")
@@ -70,19 +68,23 @@ func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
 			_ = wr.Flush()
 
 			if len(args) == 1 {
-				var b bytes.Buffer
-				enc := yaml.NewEncoder(&b)
-				enc.SetIndent(2)
 				cname := args[0]
-				container, err := c.ContainerSetV1().Get(context.Background(), cname)
+				container, err := c.ContainerSetV1().Get(ctx, cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				err = enc.Encode(&container)
+
+				codec, err := cmdutil.CodecFor(output)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Fatalf("error creating serializer: %v", err)
 				}
-				fmt.Printf("%s\n", b.String())
+
+				b, err := codec.Serialize(container)
+				if err != nil {
+					logrus.Fatalf("error serializing: %v", err)
+				}
+
+				fmt.Printf("%s\n", string(b))
 			}
 		},
 	}

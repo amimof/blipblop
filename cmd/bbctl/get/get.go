@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var output string
+
 func NewCmdGet(cfg *client.Config) *cobra.Command {
 	getCmd := &cobra.Command{
 		Use:   "get",
@@ -24,6 +26,8 @@ bbctl get nodes
 
 		Args: cobra.ExactArgs(1),
 	}
+
+	getCmd.PersistentFlags().StringVarP(&output, "output", "o", "json", "Output format")
 
 	getCmd.AddCommand(NewCmdGetEvent(cfg))
 	getCmd.AddCommand(NewCmdGetNode(cfg))

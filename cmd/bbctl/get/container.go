@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
@@ -30,7 +29,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second*30)
 			defer cancel()
 
 			tracer := otel.Tracer("bbctl")
@@ -78,19 +77,21 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 
 			if len(args) == 1 {
 				cname := args[0]
-				container, err := c.ContainerV1().Get(context.Background(), cname)
+				container, err := c.ContainerV1().Get(ctx, cname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
 
-				marshaler := protojson.MarshalOptions{
-					EmitUnpopulated: false,
-					Indent:          "  ",
-				}
-				b, err := marshaler.Marshal(container)
+				codec, err := cmdutil.CodecFor(output)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Fatalf("error creating serializer: %v", err)
 				}
+
+				b, err := codec.Serialize(container)
+				if err != nil {
+					logrus.Fatalf("error serializing: %v", err)
+				}
+
 				fmt.Printf("%s\n", string(b))
 			}
 		},
