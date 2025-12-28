@@ -10,6 +10,7 @@ import (
 	"github.com/amimof/blipblop/api/services/volumes/v1"
 	"github.com/amimof/blipblop/pkg/client"
 	"github.com/amimof/blipblop/pkg/cmdutil"
+	"github.com/amimof/blipblop/pkg/volume"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -60,12 +61,13 @@ func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 				for _, c := range volumes {
 
 					numReady := fmt.Sprintf("%s/%d", getVolumeReadyStr(c.GetStatus().GetControllers()), len(c.GetStatus().GetControllers()))
+					driverType := volume.GetDriverType(c)
 
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
 						numReady,
-						"host-local",
+						driverType.String(),
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
 					)
 				}

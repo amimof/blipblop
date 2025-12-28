@@ -412,6 +412,12 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateRequest, _ ...
 		return nil, err
 	}
 
+	// Ignore fields
+	updateContainer.Status = existingContainer.Status
+	updateContainer.GetMeta().Updated = existingContainer.Meta.Updated
+	updateContainer.GetMeta().Created = existingContainer.Meta.Created
+	updateContainer.GetMeta().Revision = existingContainer.Meta.Revision
+
 	updVal := protoreflect.ValueOfMessage(updateContainer.GetConfig().ProtoReflect())
 	newVal := protoreflect.ValueOfMessage(existingContainer.GetConfig().ProtoReflect())
 

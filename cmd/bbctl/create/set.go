@@ -7,6 +7,7 @@ import (
 	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
 	metav1 "github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/services/containerset"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -45,6 +46,7 @@ func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 			err = c.ContainerSetV1().Create(
 				ctx,
 				&containersetsv1.ContainerSet{
+					Version: containerset.Version,
 					Meta: &metav1.Meta{
 						Name: cname,
 					},
