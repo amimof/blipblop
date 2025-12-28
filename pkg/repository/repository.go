@@ -1,3 +1,4 @@
+// Package repository provides interfaces for implementing storage solutions for types
 package repository
 
 import (

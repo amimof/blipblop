@@ -159,8 +159,7 @@ func (l *local) Create(ctx context.Context, req *containers.CreateRequest, _ ...
 	container := req.GetContainer()
 	container.GetMeta().Created = timestamppb.Now()
 	container.GetMeta().Updated = timestamppb.Now()
-
-	// Validate request
+	container.GetMeta().Revision = 1
 
 	// Initialize status field if empty
 	if container.GetStatus() == nil {
@@ -404,8 +403,6 @@ func (l *local) Update(ctx context.Context, req *containers.UpdateRequest, _ ...
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	// Validate request
 
 	updateContainer := req.GetContainer()
 

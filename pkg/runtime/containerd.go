@@ -552,8 +552,26 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	return nil
 }
 
-func (c *ContainerdRuntime) Labels(ctx context.Context) (labels.Label, error) {
-	return nil, nil
+func (c *ContainerdRuntime) Labels(ctx context.Context, id string) (labels.Label, error) {
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Labels")
+	defer span.End()
+
+	ctx = namespaces.WithNamespace(ctx, c.ns)
+
+	ctr, err := c.get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	cl, err := ctr.Labels(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	l := labels.New()
+	l.AppendMap(cl)
+
+	return l, err
 }
 
 func (c *ContainerdRuntime) IO(ctx context.Context, id string) (*ContainerIO, error) {

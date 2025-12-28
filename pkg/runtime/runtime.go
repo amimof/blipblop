@@ -37,7 +37,7 @@ type Runtime interface {
 	Run(context.Context, *containers.Container) error
 	Cleanup(context.Context, string) error
 	Pull(context.Context, *containers.Container) error
-	Labels(context.Context) (labels.Label, error)
+	Labels(context.Context, string) (labels.Label, error)
 	IO(context.Context, string) (*ContainerIO, error)
 	Namespace() string
 	Version(context.Context) (string, error)
