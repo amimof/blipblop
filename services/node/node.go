@@ -90,6 +90,10 @@ func (n *NodeService) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatu
 	return n.local.UpdateStatus(ctx, req)
 }
 
+func (n *NodeService) Upgrade(ctx context.Context, req *nodesv1.UpgradeRequest) (*nodesv1.UpgradeResponse, error) {
+	return n.local.Upgrade(ctx, req)
+}
+
 func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	ctx := stream.Context()
 

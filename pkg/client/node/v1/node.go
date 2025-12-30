@@ -43,6 +43,8 @@ type ClientV1 interface {
 	Join(context.Context, *nodes.Node) error
 	Forget(context.Context, string) error
 	Connect(context.Context, string, chan *events.Event, chan error) error
+	Upgrade(context.Context, string, string) error
+	UpgradeAll(context.Context, map[string]string, string) error
 }
 
 type StatusClientV1 interface {
@@ -195,6 +197,22 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 		}
 
 	}
+}
+
+func (c *clientV1) Upgrade(ctx context.Context, nodeID string, version string) error {
+	_, err := c.Client.Upgrade(ctx, &nodes.UpgradeRequest{
+		NodeId:        nodeID,
+		TargetVersion: version,
+	})
+	return err
+}
+
+func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, version string) error {
+	_, err := c.Client.Upgrade(ctx, &nodes.UpgradeRequest{
+		NodeSelector:  selector,
+		TargetVersion: version,
+	})
+	return err
 }
 
 func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {

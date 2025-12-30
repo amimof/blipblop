@@ -122,6 +122,7 @@
         "NodeJoin",
         "NodeForget",
         "NodeConnect",
+        "NodeUpgrade",
         "ContainerSetCreate",
         "ContainerSetDelete",
         "ContainerSetUpdate",

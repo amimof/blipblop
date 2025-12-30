@@ -17,6 +17,7 @@ import (
 	"github.com/amimof/blipblop/cmd/bbctl/run"
 	"github.com/amimof/blipblop/cmd/bbctl/start"
 	"github.com/amimof/blipblop/cmd/bbctl/stop"
+	"github.com/amimof/blipblop/cmd/bbctl/upgrade"
 	"github.com/amimof/blipblop/pkg/client"
 )
 
@@ -101,6 +102,7 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.AddCommand(edit.NewCmdEdit(&cfg))
 	rootCmd.AddCommand(log.NewCmdLog(&cfg))
 	rootCmd.AddCommand(apply.NewCmdApply(&cfg))
+	rootCmd.AddCommand(upgrade.NewCmdUpgrade(&cfg))
 
 	return rootCmd
 }

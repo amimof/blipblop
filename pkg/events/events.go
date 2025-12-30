@@ -29,6 +29,7 @@ const (
 	NodeJoin           = eventsv1.EventType_NodeJoin
 	NodeForget         = eventsv1.EventType_NodeForget
 	NodeConnect        = eventsv1.EventType_NodeConnect
+	NodeUpgrade        = eventsv1.EventType_NodeUpgrade
 	ContainerSetCreate = eventsv1.EventType_ContainerSetCreate
 	ContainerSetDelete = eventsv1.EventType_ContainerSetDelete
 	ContainerSetUpdate = eventsv1.EventType_ContainerSetUpdate
@@ -59,6 +60,7 @@ var ALL = []eventsv1.EventType{
 	NodeJoin,
 	NodeForget,
 	NodeConnect,
+	NodeUpgrade,
 	ContainerSetCreate,
 	ContainerSetDelete,
 	ContainerSetUpdate,

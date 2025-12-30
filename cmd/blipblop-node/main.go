@@ -268,6 +268,16 @@ func main() {
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
 
+	// Node Upgrade Controller
+	upgradeCtrl := controller.NewNodeUpgradeController(
+		clientSet,
+		nodeCfg,
+		controller.WithNodeUpgradeVersion(VERSION, COMMIT, BRANCH, GOVERSION),
+		controller.WithNodeUpgradeControllerLogger(log),
+	)
+	go upgradeCtrl.Run(ctx)
+	log.Info("started node upgrade controller")
+
 	// Join node to cluster
 	err = clientSet.NodeV1().Join(ctx, nodeCfg)
 	if err != nil {
