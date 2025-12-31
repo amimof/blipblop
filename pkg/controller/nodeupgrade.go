@@ -183,7 +183,11 @@ func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch st
 		return "", err
 	}
 
-	defer tmpFile.Close()
+	defer func() {
+		if err := tmpFile.Close(); err != nil {
+			c.logger.Error("error closing response body", "error", err)
+		}
+	}()
 
 	url := fmt.Sprintf("https://api.github.com/repos/amimof/blipblop/releases/tags/%s", ver)
 	resp, err := c.httpClient.Get(url)
@@ -192,7 +196,11 @@ func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch st
 		return "", err
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Error("error closing response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("unexpected response from server: %s", resp.Status)
@@ -239,7 +247,11 @@ func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch st
 		return "", err
 	}
 
-	defer binResp.Body.Close()
+	defer func() {
+		if err := binResp.Body.Close(); err != nil {
+			c.logger.Error("error closing response body", "error", err)
+		}
+	}()
 
 	written, err := io.Copy(tmpFile, binResp.Body)
 	if err != nil {
@@ -267,14 +279,22 @@ func (c *NodeUpgradeController) replaceBinary(src, dst string) error {
 		return err
 	}
 
-	defer backupFile.Close()
+	defer func() {
+		if err := backupFile.Close(); err != nil {
+			c.logger.Error("error closing backup file", "error", err)
+		}
+	}()
 
 	dstFile, err := os.Open(dst)
 	if err != nil {
 		return err
 	}
 
-	defer dstFile.Close()
+	defer func() {
+		if err := dstFile.Close(); err != nil {
+			c.logger.Error("error closing dst file", "error", err)
+		}
+	}()
 
 	// Copy existing binary to a backup file with the leading _backup
 	_, err = io.Copy(backupFile, dstFile)
