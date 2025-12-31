@@ -46,6 +46,12 @@ func WithNodeUpgradeControllerDownloadPath(p string) NewNodeUpgradeControllerOpt
 	}
 }
 
+func WithNodeUpgradeControllerHttpClient(cl *http.Client) NewNodeUpgradeControllerOption {
+	return func(c *NodeUpgradeController) {
+		c.httpClient = cl
+	}
+}
+
 type nodeVersion struct {
 	version   string
 	commit    string
@@ -62,6 +68,7 @@ type NodeUpgradeController struct {
 	targetPath  string
 	tmpPath     string
 	binPath     string
+	httpClient  *http.Client
 }
 
 func (c *NodeUpgradeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
@@ -131,12 +138,10 @@ type apiResponse struct {
 	TagName     string `json:"tag_name"`
 	Name        string `json:"name"`
 	PublishedAt string `json:"published_at"`
-	TarballURL  string `json:"tarball_url"`
 	Assets      []struct {
 		Name        string `json:"name"`
-		URL         string `json:"url"`
 		DownloadURL string `json:"browser_download_url"`
-	}
+	} `json:"assets"`
 }
 
 func (c *NodeUpgradeController) getDownloadURL(ar apiResponse, arch string) (string, error) {
@@ -180,10 +185,8 @@ func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch st
 
 	defer tmpFile.Close()
 
-	httpClient := http.DefaultClient
-
 	url := fmt.Sprintf("https://api.github.com/repos/amimof/blipblop/releases/tags/%s", ver)
-	resp, err := httpClient.Get(url)
+	resp, err := c.httpClient.Get(url)
 	if err != nil {
 		c.failUpgrade(ctx, err)
 		return "", err
@@ -230,19 +233,21 @@ func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch st
 		return "", err
 	}
 
-	resp, err = httpClient.Get(assetURL)
+	binResp, err := c.httpClient.Get(assetURL)
 	if err != nil {
 		c.failUpgrade(ctx, err)
 		return "", err
 	}
 
-	written, err := io.Copy(tmpFile, resp.Body)
+	defer binResp.Body.Close()
+
+	written, err := io.Copy(tmpFile, binResp.Body)
 	if err != nil {
 		c.failUpgrade(ctx, err)
 		return "", err
 	}
 
-	c.logger.Debug("downloaded node binary", "path", tmpFile.Name(), "target_version", "previous_version", c.nodeVersion.version, "size_bytes", written, "asset_url", assetURL)
+	c.logger.Debug("downloaded node binary", "path", tmpFile.Name(), "target_version", ver, "previous_version", c.nodeVersion.version, "size_bytes", written, "asset_url", assetURL)
 
 	return tmpFile.Name(), nil
 }
