@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 
 	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
 	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
@@ -270,7 +271,7 @@ func (c *NodeUpgradeController) replaceBinary(src, dst string) error {
 		return fmt.Errorf("source file cannot be empty")
 	}
 	if dst == "" {
-		return fmt.Errorf("source file cannot be empty")
+		return fmt.Errorf("destination file cannot be empty")
 	}
 
 	backupPath := fmt.Sprintf("%s_backup", dst)
@@ -303,6 +304,11 @@ func (c *NodeUpgradeController) replaceBinary(src, dst string) error {
 	}
 
 	err = os.Rename(src, dst)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chmod(dst, 0o755)
 	if err != nil {
 		return err
 	}
@@ -345,7 +351,7 @@ func (c *NodeUpgradeController) onNodeUpgrade(ctx context.Context, e *eventsv1.E
 	}
 
 	// Build download URL based on version and architecture
-	downloadPath, err := c.downloadBinary(ctx, ver, "amd64")
+	downloadPath, err := c.downloadBinary(ctx, ver, runtime.GOARCH)
 	if err != nil {
 		return err
 	}
@@ -358,7 +364,7 @@ func (c *NodeUpgradeController) onNodeUpgrade(ctx context.Context, e *eventsv1.E
 	}
 
 	// Update status once connected
-	return c.clientset.NodeV1().Status().Update(
+	err = c.clientset.NodeV1().Status().Update(
 		ctx,
 		nodeName, &nodesv1.Status{
 			Phase:  wrapperspb.String(consts.PHASEREADY),
@@ -366,6 +372,14 @@ func (c *NodeUpgradeController) onNodeUpgrade(ctx context.Context, e *eventsv1.E
 		},
 		"phase", "status",
 	)
+	if err != nil {
+		return err
+	}
+
+	// Terminate program
+	os.Exit(0)
+
+	return nil
 }
 
 func (c *NodeUpgradeController) failUpgrade(ctx context.Context, err error) {
@@ -388,6 +402,7 @@ func NewNodeUpgradeController(c *client.ClientSet, n *nodesv1.Node, opts ...NewN
 		tracer:     otel.Tracer("node-upgrade-controller"),
 		targetPath: "/usr/local/bin/",
 		tmpPath:    "/tmp/",
+		httpClient: http.DefaultClient,
 	}
 	for _, opt := range opts {
 		opt(m)
