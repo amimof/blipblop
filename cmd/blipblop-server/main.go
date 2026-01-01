@@ -17,8 +17,19 @@ import (
 	"time"
 
 	"buf.build/go/protovalidate"
+	"github.com/dgraph-io/badger/v4"
+	protovalidate_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/controller"
+	containersetctrl "github.com/amimof/blipblop/pkg/controller/containerset"
+	schedulerctrl "github.com/amimof/blipblop/pkg/controller/scheduler"
 	"github.com/amimof/blipblop/pkg/events"
 	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/repository"
@@ -30,15 +41,6 @@ import (
 	logsvc "github.com/amimof/blipblop/services/log"
 	"github.com/amimof/blipblop/services/node"
 	"github.com/amimof/blipblop/services/volume"
-	"github.com/dgraph-io/badger/v4"
-	protovalidate_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/pflag"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -359,13 +361,13 @@ func main() {
 	}()
 
 	// Start controllers
-	containerSetCtrl := controller.NewContainerSetController(cs, controller.WithContainerSetLogger(log))
+	containerSetCtrl := containersetctrl.New(cs, containersetctrl.WithLogger(log))
 	go containerSetCtrl.Run(ctx)
 	log.Info("Started ContainerSet Controller")
 
 	// Start scheduler
 	sched := scheduling.NewHorizontalScheduler(cs)
-	schedulerCtrl := controller.NewSchedulerController(cs, sched)
+	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithLogger(log))
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Scheduler Controller")
 

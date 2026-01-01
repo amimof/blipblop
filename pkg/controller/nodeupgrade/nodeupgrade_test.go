@@ -1,4 +1,4 @@
-package controller
+package nodeupgradecontroller
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func TestReplaceBinary_Success(t *testing.T) {
 	}
 
 	// Setup node controller
-	c := &NodeUpgradeController{}
+	c := &Controller{}
 	if err := c.replaceBinary(srcPath, dstPath); err != nil {
 		t.Fatalf("replaceBinary() error = %v", err)
 	}
@@ -117,7 +117,7 @@ func TestDownloadBinary_Success(t *testing.T) {
 		httpmock.NewStringResponder(200, "BINARYDATA"),
 	)
 
-	c := &NodeUpgradeController{
+	c := &Controller{
 		tmpPath: dir,
 		clientset: &client.ClientSet{
 			NodeV1Client: nodesV1,
