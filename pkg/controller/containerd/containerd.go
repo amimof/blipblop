@@ -1,24 +1,25 @@
-package controller
+package containerdcontroller
 
 import (
-	//"os"
 	"context"
 	"fmt"
 	"os"
 	"time"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/runtime"
 	"github.com/containerd/containerd/api/events"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/runtime"
+
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
 )
 
-type ContainerdController struct {
+type Controller struct {
 	client    *containerd.Client
 	clientset *client.ClientSet
 	handlers  *RuntimeHandlerFuncs
@@ -26,10 +27,10 @@ type ContainerdController struct {
 	logger    logger.Logger
 }
 
-type NewContainerdControllerOption func(*ContainerdController)
+type NewOption func(*Controller)
 
-func WithContainerdControllerLogger(l logger.Logger) NewContainerdControllerOption {
-	return func(c *ContainerdController) {
+func WithLogger(l logger.Logger) NewOption {
+	return func(c *Controller) {
 		c.logger = l
 	}
 }
@@ -66,7 +67,7 @@ type RuntimeHandlerFuncs struct {
 	OnContentDelete    func(*events.ContentDelete)
 }
 
-func (c *ContainerdController) AddHandler(h *RuntimeHandlerFuncs) {
+func (c *Controller) AddHandler(h *RuntimeHandlerFuncs) {
 	c.handlers = h
 }
 
@@ -99,7 +100,7 @@ func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, 
 	}
 }
 
-func (c *ContainerdController) Run(ctx context.Context) {
+func (c *Controller) Run(ctx context.Context) {
 	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
 
 	err := c.Reconcile(ctx)
@@ -117,7 +118,7 @@ func (c *ContainerdController) Run(ctx context.Context) {
 	}
 }
 
-func (c *ContainerdController) streamEvents(ctx context.Context) error {
+func (c *Controller) streamEvents(ctx context.Context) error {
 	filters := []string{fmt.Sprintf("namespace==%s", c.runtime.Namespace())}
 	eventCh, errCh := c.client.Subscribe(ctx, filters...)
 	for {
@@ -141,7 +142,7 @@ func (c *ContainerdController) streamEvents(ctx context.Context) error {
 	}
 }
 
-func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj any) {
+func (c *Controller) HandleEvent(handlers *RuntimeHandlerFuncs, obj any) {
 	switch t := obj.(type) {
 	case *events.TaskExit:
 		if handlers.OnTaskExit != nil {
@@ -250,7 +251,7 @@ func (c *ContainerdController) HandleEvent(handlers *RuntimeHandlerFuncs, obj an
 
 // onTaskExitHandler is run whenever a container task exits. This is usually a good opportunity to perform
 // cleanup tasks because the task is not yet removed. See deleteHandler for handling deletions.
-func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
+func (c *Controller) onTaskExitHandler(e *events.TaskExit) {
 	c.logger.Debug("task exited", "event", "TaskExit", "container", e.GetContainerID(), "execID", e.GetID())
 
 	id := e.GetID()
@@ -292,7 +293,7 @@ func (c *ContainerdController) onTaskExitHandler(e *events.TaskExit) {
 	}
 }
 
-func (c *ContainerdController) onTaskCreateHandler(e *events.TaskCreate) {
+func (c *Controller) onTaskCreateHandler(e *events.TaskCreate) {
 	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	hostname, _ := os.Hostname()
 
@@ -316,7 +317,7 @@ func (c *ContainerdController) onTaskCreateHandler(e *events.TaskCreate) {
 	}
 }
 
-func (c *ContainerdController) onContainerCreateHandler(e *events.ContainerCreate) {
+func (c *Controller) onContainerCreateHandler(e *events.ContainerCreate) {
 	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 
 	containerID := e.GetID()
@@ -338,7 +339,7 @@ func (c *ContainerdController) onContainerCreateHandler(e *events.ContainerCreat
 	}
 }
 
-func (c *ContainerdController) onTaskStartHandler(e *events.TaskStart) {
+func (c *Controller) onTaskStartHandler(e *events.TaskStart) {
 	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	containerID := e.GetContainerID()
 
@@ -362,15 +363,15 @@ func (c *ContainerdController) onTaskStartHandler(e *events.TaskStart) {
 	}
 }
 
-func (c *ContainerdController) onTaskDeleteHandler(e *events.TaskDelete) {
+func (c *Controller) onTaskDeleteHandler(e *events.TaskDelete) {
 	c.logger.Debug("task deleted", "event", "TaskDelete", "container", e.GetContainerID(), "pid", e.GetID(), "exitStatus", e.GetExitStatus())
 }
 
-func (c *ContainerdController) onTaskIOHandler(e *events.TaskIO) {
+func (c *Controller) onTaskIOHandler(e *events.TaskIO) {
 	c.logger.Debug("handler not implemented", "event", "TaskIO")
 }
 
-func (c *ContainerdController) onTaskOOMHandler(e *events.TaskOOM) {
+func (c *Controller) onTaskOOMHandler(e *events.TaskOOM) {
 	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	containerID := e.GetContainerID()
 
@@ -394,11 +395,11 @@ func (c *ContainerdController) onTaskOOMHandler(e *events.TaskOOM) {
 	}
 }
 
-func (c *ContainerdController) onTaskExecAddedHandler(e *events.TaskExecAdded) {
+func (c *Controller) onTaskExecAddedHandler(e *events.TaskExecAdded) {
 	c.logger.Debug("task exec added", "event", "TaskExecAdded", "container", e.GetContainerID(), "execID", e.GetExecID())
 }
 
-func (c *ContainerdController) onTaskExecStartedHandler(e *events.TaskExecStarted) {
+func (c *Controller) onTaskExecStartedHandler(e *events.TaskExecStarted) {
 	// ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 
 	// st := &containersv1.Status{
@@ -414,7 +415,7 @@ func (c *ContainerdController) onTaskExecStartedHandler(e *events.TaskExecStarte
 	// }
 }
 
-func (c *ContainerdController) onTaskPausedHandler(e *events.TaskPaused) {
+func (c *Controller) onTaskPausedHandler(e *events.TaskPaused) {
 	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
 	containerID := e.GetContainerID()
 
@@ -438,35 +439,35 @@ func (c *ContainerdController) onTaskPausedHandler(e *events.TaskPaused) {
 	}
 }
 
-func (c *ContainerdController) onTaskResumedHandler(e *events.TaskResumed) {
+func (c *Controller) onTaskResumedHandler(e *events.TaskResumed) {
 	c.logger.Debug("handler not implemented", "event", "TaskIO")
 }
 
-func (c *ContainerdController) onTaskCeckpointedHandler(e *events.TaskCheckpointed) {
+func (c *Controller) onTaskCeckpointedHandler(e *events.TaskCheckpointed) {
 	c.logger.Debug("handler not implemented", "event", "TaskIO")
 }
 
-func (c *ContainerdController) onImageCreateHandler(e *events.ImageCreate) {
+func (c *Controller) onImageCreateHandler(e *events.ImageCreate) {
 	c.logger.Debug("image created", "event", "ImageCreate", "image", e.GetName(), e.GetLabels)
 }
 
-func (c *ContainerdController) onSnapshotPrepareHandler(e *events.SnapshotPrepare) {
+func (c *Controller) onSnapshotPrepareHandler(e *events.SnapshotPrepare) {
 	c.logger.Debug("snapshot prepared", "event", "SnapshotPrepare", "snapshotter", e.GetSnapshotter())
 }
 
-func (c *ContainerdController) onSnapshotCommitHandler(e *events.SnapshotCommit) {
+func (c *Controller) onSnapshotCommitHandler(e *events.SnapshotCommit) {
 	c.logger.Debug("snapshot commited", "event", "SnapshotCommit", "snapshotter", e.GetSnapshotter(), "name", e.GetName())
 }
 
-func (c *ContainerdController) onSnapshotRemoveHandler(e *events.SnapshotRemove) {
+func (c *Controller) onSnapshotRemoveHandler(e *events.SnapshotRemove) {
 	c.logger.Debug("snapshot removed", "event", "SnapshotRemove", "snapshotter", e.GetSnapshotter())
 }
 
-func (c *ContainerdController) onContentCreateHandler(e *events.ContentCreate) {
+func (c *Controller) onContentCreateHandler(e *events.ContentCreate) {
 	c.logger.Debug("content created", "event", "ContentCreate", "digest", e.GetDigest(), "size", e.GetSize())
 }
 
-func (c *ContainerdController) onContentDeleteHandler(e *events.ContentDelete) {
+func (c *Controller) onContentDeleteHandler(e *events.ContentDelete) {
 	c.logger.Debug("content deleted", "event", "ContentDelete", "digest", e.GetDigest())
 }
 
@@ -484,7 +485,7 @@ func contains(cs []*containersv1.Container, c *containersv1.Container) bool {
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (c *ContainerdController) Reconcile(ctx context.Context) error {
+func (c *Controller) Reconcile(ctx context.Context) error {
 	c.logger.Info("reconciling containers in containerd runtime")
 	// Get containers from the server. Ultimately we want these to match with our runtime
 	clist, err := c.clientset.ContainerV1().List(ctx)
@@ -541,8 +542,8 @@ func (c *ContainerdController) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func NewContainerdController(cs *client.ClientSet, client *containerd.Client, rt runtime.Runtime, opts ...NewContainerdControllerOption) *ContainerdController {
-	eh := &ContainerdController{
+func New(cs *client.ClientSet, client *containerd.Client, rt runtime.Runtime, opts ...NewOption) *Controller {
+	eh := &Controller{
 		client:    client,
 		clientset: cs,
 		runtime:   rt,

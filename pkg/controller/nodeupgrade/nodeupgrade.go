@@ -1,4 +1,4 @@
-package controller
+package nodeupgradecontroller
 
 import (
 	"context"
@@ -22,10 +22,10 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type NewNodeUpgradeControllerOption func(c *NodeUpgradeController)
+type NewOption func(c *Controller)
 
-func WithNodeUpgradeVersion(version, commit, branch, goversion string) NewNodeUpgradeControllerOption {
-	return func(c *NodeUpgradeController) {
+func WithVersion(version, commit, branch, goversion string) NewOption {
+	return func(c *Controller) {
 		c.nodeVersion = &nodeVersion{
 			version:   version,
 			commit:    commit,
@@ -35,20 +35,20 @@ func WithNodeUpgradeVersion(version, commit, branch, goversion string) NewNodeUp
 	}
 }
 
-func WithNodeUpgradeControllerLogger(l logger.Logger) NewNodeUpgradeControllerOption {
-	return func(c *NodeUpgradeController) {
+func WithLogger(l logger.Logger) NewOption {
+	return func(c *Controller) {
 		c.logger = l
 	}
 }
 
-func WithNodeUpgradeControllerDownloadPath(p string) NewNodeUpgradeControllerOption {
-	return func(c *NodeUpgradeController) {
+func WithDownloadPath(p string) NewOption {
+	return func(c *Controller) {
 		c.targetPath = p
 	}
 }
 
-func WithNodeUpgradeControllerHttpClient(cl *http.Client) NewNodeUpgradeControllerOption {
-	return func(c *NodeUpgradeController) {
+func WithHttpClient(cl *http.Client) NewOption {
+	return func(c *Controller) {
 		c.httpClient = cl
 	}
 }
@@ -60,7 +60,7 @@ type nodeVersion struct {
 	goversion string
 }
 
-type NodeUpgradeController struct {
+type Controller struct {
 	node        *nodesv1.Node
 	clientset   *client.ClientSet
 	logger      logger.Logger
@@ -72,7 +72,7 @@ type NodeUpgradeController struct {
 	httpClient  *http.Client
 }
 
-func (c *NodeUpgradeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		err := h(ctx, ev)
 		if err != nil {
@@ -83,7 +83,7 @@ func (c *NodeUpgradeController) handleErrors(h events.HandlerFunc) events.Handle
 	}
 }
 
-func (c *NodeUpgradeController) Run(ctx context.Context) {
+func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "nodeupgrade")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.NodeUpgrade)
@@ -145,7 +145,7 @@ type apiResponse struct {
 	} `json:"assets"`
 }
 
-func (c *NodeUpgradeController) getDownloadURL(ar apiResponse, arch string) (string, error) {
+func (c *Controller) getDownloadURL(ar apiResponse, arch string) (string, error) {
 	if ar.Assets == nil {
 		return "", fmt.Errorf("no assets in api response")
 	}
@@ -176,7 +176,7 @@ func (c *NodeUpgradeController) getDownloadURL(ar apiResponse, arch string) (str
 	return res, nil
 }
 
-func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch string) (string, error) {
+func (c *Controller) downloadBinary(ctx context.Context, ver, arch string) (string, error) {
 	// Download new node binary
 	tmpFile, err := os.CreateTemp(c.tmpPath, "blipblop-node-")
 	if err != nil {
@@ -265,7 +265,7 @@ func (c *NodeUpgradeController) downloadBinary(ctx context.Context, ver, arch st
 	return tmpFile.Name(), nil
 }
 
-func (c *NodeUpgradeController) replaceBinary(src, dst string) error {
+func (c *Controller) replaceBinary(src, dst string) error {
 	// Validate input
 	if src == "" {
 		return fmt.Errorf("source file cannot be empty")
@@ -316,7 +316,7 @@ func (c *NodeUpgradeController) replaceBinary(src, dst string) error {
 	return nil
 }
 
-func (c *NodeUpgradeController) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error {
 	_, span := c.tracer.Start(ctx, "controller.nodeupgrade.OnNodeUpgrade")
 	defer span.End()
 
@@ -382,7 +382,7 @@ func (c *NodeUpgradeController) onNodeUpgrade(ctx context.Context, e *eventsv1.E
 	return nil
 }
 
-func (c *NodeUpgradeController) failUpgrade(ctx context.Context, err error) {
+func (c *Controller) failUpgrade(ctx context.Context, err error) {
 	nodeName := c.node.GetMeta().GetName()
 	_ = c.clientset.NodeV1().Status().Update(
 		ctx,
@@ -394,8 +394,8 @@ func (c *NodeUpgradeController) failUpgrade(ctx context.Context, err error) {
 	)
 }
 
-func NewNodeUpgradeController(c *client.ClientSet, n *nodesv1.Node, opts ...NewNodeUpgradeControllerOption) *NodeUpgradeController {
-	m := &NodeUpgradeController{
+func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) *Controller {
+	m := &Controller{
 		node:       n,
 		clientset:  c,
 		logger:     logger.ConsoleLogger{},

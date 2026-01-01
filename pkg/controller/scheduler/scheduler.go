@@ -1,4 +1,4 @@
-package controller
+package schedulercontroller
 
 import (
 	"context"
@@ -14,13 +14,21 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type SchedulerController struct {
+type NewOption func(c *Controller)
+
+func WithLogger(l logger.Logger) NewOption {
+	return func(c *Controller) {
+		c.logger = l
+	}
+}
+
+type Controller struct {
 	clientset *client.ClientSet
 	scheduler scheduling.Scheduler
 	logger    logger.Logger
 }
 
-func (c *SchedulerController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		err := h(ctx, ev)
 		if err != nil {
@@ -31,7 +39,7 @@ func (c *SchedulerController) handleErrors(h events.HandlerFunc) events.HandlerF
 	}
 }
 
-func (c *SchedulerController) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
 	// Get the container
 	var ctr containersv1.Container
 	err := e.Object.UnmarshalTo(&ctr)
@@ -70,7 +78,7 @@ func (c *SchedulerController) onContainerCreate(ctx context.Context, e *eventsv1
 	return c.clientset.EventV1().Publish(ctx, ev, eventsv1.EventType_Schedule)
 }
 
-func (c *SchedulerController) Run(ctx context.Context) {
+func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "scheduler")
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ContainerCreate)
@@ -84,10 +92,15 @@ func (c *SchedulerController) Run(ctx context.Context) {
 	}
 }
 
-func NewSchedulerController(cs *client.ClientSet, scheduler scheduling.Scheduler) *SchedulerController {
-	return &SchedulerController{
+func New(cs *client.ClientSet, scheduler scheduling.Scheduler, opts ...NewOption) *Controller {
+	c := &Controller{
 		clientset: cs,
 		scheduler: scheduler,
 		logger:    logger.ConsoleLogger{},
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }

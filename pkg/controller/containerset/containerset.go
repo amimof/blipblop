@@ -1,4 +1,4 @@
-package controller
+package containersetcontroller
 
 import (
 	"context"
@@ -16,20 +16,20 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-type ContainerSetController struct {
+type Controller struct {
 	clientset *client.ClientSet
 	logger    logger.Logger
 }
 
-type NewContainerSetControllerOption func(c *ContainerSetController)
+type NewOption func(c *Controller)
 
-func WithContainerSetLogger(l logger.Logger) NewContainerSetControllerOption {
-	return func(c *ContainerSetController) {
+func WithLogger(l logger.Logger) NewOption {
+	return func(c *Controller) {
 		c.logger = l
 	}
 }
 
-func (c *ContainerSetController) Run(ctx context.Context) {
+func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "continersetcontroller")
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
@@ -47,7 +47,7 @@ func (c *ContainerSetController) Run(ctx context.Context) {
 	}
 }
 
-func (c *ContainerSetController) onCreate(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onCreate(ctx context.Context, e *eventsv1.Event) error {
 	var set containersetsv1.ContainerSet
 	err := e.Object.UnmarshalTo(&set)
 	if err != nil {
@@ -78,7 +78,7 @@ func (c *ContainerSetController) onCreate(ctx context.Context, e *eventsv1.Event
 	return nil
 }
 
-func (c *ContainerSetController) onDelete(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onDelete(ctx context.Context, e *eventsv1.Event) error {
 	var containerSet containersetsv1.ContainerSet
 	err := e.GetObject().UnmarshalTo(&containerSet)
 	if err != nil {
@@ -106,8 +106,8 @@ func (c *ContainerSetController) onDelete(ctx context.Context, e *eventsv1.Event
 	return nil
 }
 
-func NewContainerSetController(cs *client.ClientSet, opts ...NewContainerSetControllerOption) *ContainerSetController {
-	eh := &ContainerSetController{
+func New(cs *client.ClientSet, opts ...NewOption) *Controller {
+	eh := &Controller{
 		clientset: cs,
 		logger:    logger.ConsoleLogger{},
 	}

@@ -1,4 +1,5 @@
-package controller
+// Package nodecontroller implemenets controller and provides logic for multiplexing node management
+package nodecontroller
 
 import (
 	"bufio"
@@ -7,17 +8,6 @@ import (
 	"sync"
 	"time"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/consts"
-	"github.com/amimof/blipblop/pkg/errors"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/runtime"
-	"github.com/amimof/blipblop/pkg/volume"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -26,55 +16,61 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/blipblop/pkg/consts"
+	"github.com/amimof/blipblop/pkg/errors"
+	"github.com/amimof/blipblop/pkg/events"
+	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/blipblop/pkg/runtime"
+	"github.com/amimof/blipblop/pkg/volume"
+
+	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
+	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
+	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
+	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
 )
 
-type NodeController struct {
-	runtime                  runtime.Runtime
-	logger                   logger.Logger
-	clientset                *client.ClientSet
-	heartbeatIntervalSeconds int
-	tracer                   trace.Tracer
-	logChan                  chan *logsv1.LogEntry
-	activeLogStreams         map[events.LogKey]context.CancelFunc
-	logStreamsMu             sync.Mutex
-	node                     *nodesv1.Node
-	attacher                 volume.Attacher
+type Controller struct {
+	runtime          runtime.Runtime
+	logger           logger.Logger
+	clientset        *client.ClientSet
+	tracer           trace.Tracer
+	logChan          chan *logsv1.LogEntry
+	activeLogStreams map[events.LogKey]context.CancelFunc
+	logStreamsMu     sync.Mutex
+	node             *nodesv1.Node
+	attacher         volume.Attacher
 }
 
-type NewNodeControllerOption func(c *NodeController)
+type NewOption func(c *Controller)
 
-func WithVolumeAttacher(a volume.Attacher) NewNodeControllerOption {
-	return func(c *NodeController) {
+func WithVolumeAttacher(a volume.Attacher) NewOption {
+	return func(c *Controller) {
 		c.attacher = a
 	}
 }
 
-func WithNodeConfig(n *nodesv1.Node) NewNodeControllerOption {
-	return func(c *NodeController) {
+func WithConfig(n *nodesv1.Node) NewOption {
+	return func(c *Controller) {
 		c.node = n
 	}
 }
 
-func WithNodeControllerLogger(l logger.Logger) NewNodeControllerOption {
-	return func(c *NodeController) {
+func WithLogger(l logger.Logger) NewOption {
+	return func(c *Controller) {
 		c.logger = l
 	}
 }
 
-func WithHeartbeatInterval(s int) NewNodeControllerOption {
-	return func(c *NodeController) {
-		c.heartbeatIntervalSeconds = s
-	}
-}
-
-func WithNodeName(s string) NewNodeControllerOption {
-	return func(c *NodeController) {
+func WithName(s string) NewOption {
+	return func(c *Controller) {
 		c.node.GetMeta().Name = s
 	}
 }
 
 // Run implements controller
-func (c *NodeController) Run(ctx context.Context) {
+func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "node")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
@@ -169,7 +165,7 @@ func (c *NodeController) Run(ctx context.Context) {
 	}
 }
 
-func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		err := h(ctx, ev)
 		if err != nil {
@@ -180,7 +176,7 @@ func (c *NodeController) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	}
 }
 
-func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
 	s := &logsv1.TailLogRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
 	if err != nil {
@@ -341,7 +337,7 @@ func (c *NodeController) onLogStart(ctx context.Context, obj *eventsv1.Event) er
 	return nil
 }
 
-func (c *NodeController) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
 	s := &logsv1.TailLogRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
 	if err != nil {
@@ -371,7 +367,7 @@ func (c *NodeController) onLogStop(ctx context.Context, obj *eventsv1.Event) err
 	return nil
 }
 
-func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnSchedule")
 	defer span.End()
 
@@ -414,7 +410,7 @@ func (c *NodeController) onSchedule(ctx context.Context, obj *eventsv1.Event) er
 	return nil
 }
 
-func (c *NodeController) onNodeConnect(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onNodeConnect(ctx context.Context, e *eventsv1.Event) error {
 	_, span := c.tracer.Start(ctx, "controller.node.OnNodeConnect")
 	defer span.End()
 
@@ -433,15 +429,15 @@ func (c *NodeController) onNodeConnect(ctx context.Context, e *eventsv1.Event) e
 	return nil
 }
 
-func (c *NodeController) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
+func (c *Controller) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onNodeUpdate(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onNodeUpdate(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onNodeDelete(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onNodeDelete(ctx context.Context, obj *eventsv1.Event) error {
 	if obj.GetMeta().GetName() != c.node.GetMeta().GetName() {
 		return nil
 	}
@@ -454,15 +450,15 @@ func (c *NodeController) onNodeDelete(ctx context.Context, obj *eventsv1.Event) 
 	return nil
 }
 
-func (c *NodeController) onNodeJoin(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onNodeJoin(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onNodeForget(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onNodeForget(ctx context.Context, obj *eventsv1.Event) error {
 	return nil
 }
 
-func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onContainerDelete(ctx context.Context, e *eventsv1.Event) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerDelete")
 	defer span.End()
 
@@ -489,7 +485,7 @@ func (c *NodeController) onContainerDelete(ctx context.Context, e *eventsv1.Even
 	return nil
 }
 
-func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onContainerUpdate(ctx context.Context, e *eventsv1.Event) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerUpdate")
 	defer span.End()
 
@@ -504,7 +500,7 @@ func (c *NodeController) onContainerUpdate(ctx context.Context, e *eventsv1.Even
 	return nil
 }
 
-func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onContainerKill(ctx context.Context, e *eventsv1.Event) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerKill")
 	defer span.End()
 
@@ -540,7 +536,7 @@ func (c *NodeController) onContainerKill(ctx context.Context, e *eventsv1.Event)
 	return nil
 }
 
-func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onContainerStart(ctx context.Context, e *eventsv1.Event) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerStart")
 	defer span.End()
 
@@ -604,7 +600,7 @@ func (c *NodeController) onContainerStart(ctx context.Context, e *eventsv1.Event
 	return nil
 }
 
-func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onContainerStop(ctx context.Context, e *eventsv1.Event) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerStop")
 	defer span.End()
 
@@ -657,21 +653,20 @@ func (c *NodeController) onContainerStop(ctx context.Context, e *eventsv1.Event)
 // in the runtime environment. It removes any containers that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
-func (c *NodeController) Reconcile(ctx context.Context) error {
+func (c *Controller) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-func NewNodeController(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewNodeControllerOption) (*NodeController, error) {
-	m := &NodeController{
-		clientset:                c,
-		runtime:                  rt,
-		logger:                   logger.ConsoleLogger{},
-		heartbeatIntervalSeconds: 5,
-		tracer:                   otel.Tracer("controller"),
-		logChan:                  make(chan *logsv1.LogEntry),
-		activeLogStreams:         make(map[events.LogKey]context.CancelFunc),
-		node:                     n,
-		attacher:                 volume.NewDefaultAttacher(c.VolumeV1()),
+func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOption) (*Controller, error) {
+	m := &Controller{
+		clientset:        c,
+		runtime:          rt,
+		logger:           logger.ConsoleLogger{},
+		tracer:           otel.Tracer("controller"),
+		logChan:          make(chan *logsv1.LogEntry),
+		activeLogStreams: make(map[events.LogKey]context.CancelFunc),
+		node:             n,
+		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
 	}
 	for _, opt := range opts {
 		opt(m)

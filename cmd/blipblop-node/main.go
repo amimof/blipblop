@@ -15,21 +15,24 @@ import (
 	"syscall"
 	"time"
 
+	rt "github.com/amimof/blipblop/pkg/runtime"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+
 	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/controller"
 	"github.com/amimof/blipblop/pkg/instrumentation"
 	"github.com/amimof/blipblop/pkg/networking"
 	"github.com/amimof/blipblop/pkg/node"
 	"github.com/amimof/blipblop/pkg/volume"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc"
 
-	// "github.com/amimof/blipblop/pkg/runtime"
-	rt "github.com/amimof/blipblop/pkg/runtime"
-	containerd "github.com/containerd/containerd/v2/client"
-	"github.com/containerd/containerd/v2/pkg/namespaces"
-	"github.com/spf13/pflag"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	containerdctrl "github.com/amimof/blipblop/pkg/controller/containerd"
+	nodectrl "github.com/amimof/blipblop/pkg/controller/node"
+	nodeupgradectrl "github.com/amimof/blipblop/pkg/controller/nodeupgrade"
+	volumectrl "github.com/amimof/blipblop/pkg/controller/volume"
 )
 
 var (
@@ -233,22 +236,22 @@ func main() {
 	exit := make(chan os.Signal, 1)
 
 	// Containerd runtime controller
-	containerdCtrl := controller.NewContainerdController(
+	containerdCtrl := containerdctrl.New(
 		clientSet,
 		cclient,
 		runtime,
-		controller.WithContainerdControllerLogger(log),
+		containerdctrl.WithLogger(log),
 	)
 	go containerdCtrl.Run(ctx)
 	log.Info("started containerd controller")
 
 	// Node controller
-	nodeCtrl, err := controller.NewNodeController(
+	nodeCtrl, err := nodectrl.New(
 		clientSet,
 		nodeCfg,
 		runtime,
-		controller.WithNodeControllerLogger(log),
-		controller.WithVolumeAttacher(volume.NewDefaultAttacher(clientSet.VolumeV1())),
+		nodectrl.WithLogger(log),
+		nodectrl.WithVolumeAttacher(volume.NewDefaultAttacher(clientSet.VolumeV1())),
 	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)
@@ -259,21 +262,21 @@ func main() {
 
 	// Volume controller
 	volumeDrivers := volume.NodeVolumeDrivers(clientSet.VolumeV1(), nodeCfg)
-	volumeCtrl := controller.NewVolumeController(
+	volumeCtrl := volumectrl.New(
 		clientSet,
 		nodeCfg,
-		controller.WithVolumeControllerLogger(log),
-		controller.WithVolumeDrivers(volumeDrivers),
+		volumectrl.WithLogger(log),
+		volumectrl.WithVolumeDrivers(volumeDrivers),
 	)
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
 
 	// Node Upgrade Controller
-	upgradeCtrl := controller.NewNodeUpgradeController(
+	upgradeCtrl := nodeupgradectrl.New(
 		clientSet,
 		nodeCfg,
-		controller.WithNodeUpgradeVersion(VERSION, COMMIT, BRANCH, GOVERSION),
-		controller.WithNodeUpgradeControllerLogger(log),
+		nodeupgradectrl.WithVersion(VERSION, COMMIT, BRANCH, GOVERSION),
+		nodeupgradectrl.WithLogger(log),
 	)
 	go upgradeCtrl.Run(ctx)
 	log.Info("started node upgrade controller")
