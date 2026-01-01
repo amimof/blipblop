@@ -49,6 +49,7 @@ service NodeService {
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
     option (google.api.http) = {put: "/api/v1/nodes/{id}/status"};
   }
+  rpc Upgrade(UpgradeRequest) returns (UpgradeResponse) {}
 }
 
 message Node {
@@ -73,9 +74,11 @@ message VolumeConfig {
 
 message Status {
   google.protobuf.StringValue phase = 1;
-  IPStatus ip = 2;
-  google.protobuf.StringValue hostname = 3;
-  google.protobuf.StringValue runtime = 4;
+  google.protobuf.StringValue status = 2;
+  IPStatus ip = 3;
+  google.protobuf.StringValue hostname = 4;
+  google.protobuf.StringValue runtime = 5;
+  google.protobuf.StringValue version = 6;
 }
 
 message IPStatus {
@@ -176,3 +179,20 @@ message UpdateStatusRequest {
 message UpdateStatusResponse {
   string id = 1;
 }
+message UpgradeRequest {
+  string target_version = 1 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).string.pattern = "^v?(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+  ];
+
+  option (buf.validate.message).oneof = {
+    fields: [
+      "node_id",
+      "node_selector"
+    ]
+  };
+  string node_id = 2 [(buf.validate.field).string.min_len = 1];
+  map<string, string> node_selector = 3;
+}
+
+message UpgradeResponse {}

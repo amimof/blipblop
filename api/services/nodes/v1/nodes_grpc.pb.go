@@ -33,6 +33,7 @@ type NodeServiceClient interface {
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
 	Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
+	Upgrade(ctx context.Context, in *UpgradeRequest, opts ...grpc.CallOption) (*UpgradeResponse, error)
 }
 
 type nodeServiceClient struct {
@@ -155,6 +156,15 @@ func (c *nodeServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRe
 	return out, nil
 }
 
+func (c *nodeServiceClient) Upgrade(ctx context.Context, in *UpgradeRequest, opts ...grpc.CallOption) (*UpgradeResponse, error) {
+	out := new(UpgradeResponse)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Upgrade", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServiceServer is the server API for NodeService service.
 // All implementations must embed UnimplementedNodeServiceServer
 // for forward compatibility
@@ -169,6 +179,7 @@ type NodeServiceServer interface {
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
 	Connect(NodeService_ConnectServer) error
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
+	Upgrade(context.Context, *UpgradeRequest) (*UpgradeResponse, error)
 	mustEmbedUnimplementedNodeServiceServer()
 }
 
@@ -205,6 +216,9 @@ func (UnimplementedNodeServiceServer) Connect(NodeService_ConnectServer) error {
 }
 func (UnimplementedNodeServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
+}
+func (UnimplementedNodeServiceServer) Upgrade(context.Context, *UpgradeRequest) (*UpgradeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Upgrade not implemented")
 }
 func (UnimplementedNodeServiceServer) mustEmbedUnimplementedNodeServiceServer() {}
 
@@ -407,6 +421,24 @@ func _NodeService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeService_Upgrade_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpgradeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).Upgrade(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.nodes.v1.NodeService/Upgrade",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).Upgrade(ctx, req.(*UpgradeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NodeService_ServiceDesc is the grpc.ServiceDesc for NodeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -449,6 +481,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateStatus",
 			Handler:    _NodeService_UpdateStatus_Handler,
+		},
+		{
+			MethodName: "Upgrade",
+			Handler:    _NodeService_Upgrade_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

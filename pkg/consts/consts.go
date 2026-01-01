@@ -9,6 +9,7 @@ const (
 	ERRSTOP         = "ErrStopping"
 	ERRKILL         = "ErrKilling"
 	ERRPROVISIONING = "ErrProvisioning"
+	ERRUPGRADING    = "ErrUpgrading"
 
 	PHASERUNNING     = "running"
 	PHASESTOPPED     = "stopped"
@@ -19,4 +20,7 @@ const (
 	PHASEPROVISIONED = "provisioned"
 	PHASEPDETACHED   = "detached"
 	PHASEATTACHED    = "attached"
+
+	PHASEUPGRADING   = "upgrading"
+	PHASEDOWNLOADING = "downloading"
 )

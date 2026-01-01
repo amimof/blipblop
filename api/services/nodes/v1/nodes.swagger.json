@@ -172,6 +172,12 @@
             "type": "string"
           },
           {
+            "name": "status.status",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "status.ip.dns",
             "in": "query",
             "required": false,
@@ -185,6 +191,12 @@
           },
           {
             "name": "status.runtime",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.version",
             "in": "query",
             "required": false,
             "type": "string"
@@ -457,6 +469,9 @@
         "phase": {
           "type": "string"
         },
+        "status": {
+          "type": "string"
+        },
         "ip": {
           "$ref": "#/definitions/v1IPStatus"
         },
@@ -464,6 +479,9 @@
           "type": "string"
         },
         "runtime": {
+          "type": "string"
+        },
+        "version": {
           "type": "string"
         }
       }
@@ -531,6 +549,7 @@
         "NodeJoin",
         "NodeForget",
         "NodeConnect",
+        "NodeUpgrade",
         "ContainerSetCreate",
         "ContainerSetDelete",
         "ContainerSetUpdate",
@@ -657,6 +676,9 @@
           "$ref": "#/definitions/servicesnodesv1Status"
         }
       }
+    },
+    "v1UpgradeResponse": {
+      "type": "object"
     },
     "v1VolumeConfig": {
       "type": "object",

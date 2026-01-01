@@ -76,6 +76,11 @@ func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) erro
 				continue
 			}
 			dst.Phase = src.Phase
+		case "status":
+			if src.Status == nil {
+				continue
+			}
+			dst.Status = src.Status
 		case "hostname":
 			if src.Hostname == nil {
 				continue
@@ -86,6 +91,11 @@ func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) erro
 				continue
 			}
 			dst.Runtime = src.Runtime
+		case "version":
+			if src.Version == nil {
+				continue
+			}
+			dst.Version = src.Version
 		case "ip.dns":
 			if src.Ip.Dns == nil {
 				continue
@@ -381,6 +391,18 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 
 func (l *local) Connect(ctx context.Context, opt ...grpc.CallOption) (nodes.NodeService_ConnectClient, error) {
 	return nil, nil
+}
+
+func (l *local) Upgrade(ctx context.Context, req *nodes.UpgradeRequest, _ ...grpc.CallOption) (*nodes.UpgradeResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Upgrade")
+	defer span.End()
+
+	err := l.exchange.Publish(ctx, events.NodeUpgrade, events.NewEvent(eventsv1.EventType_NodeUpgrade, req))
+	if err != nil {
+		return nil, l.handleError(err, "error publishing UPGRADE event", "name", req.GetNodeSelector(), "event", "NodeUpgrade")
+	}
+
+	return &nodes.UpgradeResponse{}, nil
 }
 
 func (l *local) Repo() repository.NodeRepository {

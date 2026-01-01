@@ -136,7 +136,7 @@ func (vc *VolumeController) Run(ctx context.Context) {
 
 	go func() {
 		for e := range evt {
-			vc.logger.Info("Got event", "event", e.GetType().String(), "objectID", e.GetObjectId())
+			vc.logger.Info("volume controller got event", "event", e.GetType().String(), "objectID", e.GetObjectId())
 		}
 	}()
 
