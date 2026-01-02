@@ -82,7 +82,7 @@ NOTE: Run make help for more information on all potential make targets
 
 ## Quick Start
 
-1. Generate certificates. See [instruction here](/certs/README.md). Alternatively you may use pre-generated development certificfates under `./certs`. These certificates are only for testing purposes only!
+1. Generate certificates. See [instruction here](/certs/README.md). Alternatively you may use pre-generated development certificates under `./certs`. These certificates are for testing purposes only!
 
 2. Start the server
 
@@ -106,7 +106,8 @@ NOTE: Run make help for more information on all potential make targets
 4. Create a `bbctl` configuration
 
     ```bash
-    bbctl config create-server dev --address localhost:5743 --ca ./certs/ca.crt
+    bbctl config init
+    bbctl config create-server dev --address localhost:5743 --tls --ca ./certs/ca.crt
     ```
 
 5. Run a container
