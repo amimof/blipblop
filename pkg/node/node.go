@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/blipblop/api/services/volumes/v1"
 	"github.com/amimof/blipblop/api/types/v1"
 	"github.com/amimof/blipblop/pkg/labels"
 	"gopkg.in/yaml.v3"
@@ -109,6 +110,17 @@ func NewNodeFromEnv() (*nodes.Node, error) {
 			Name:   hostname,
 			Labels: l,
 		},
+		Config: &nodes.Config{
+			VolumeDrivers: &nodes.VolumeConfig{
+				HostLocal: &volumes.VolumeDriverHostLocal{
+					RootDir: "/var/lib/blipblop/volumes",
+				},
+				Template: &volumes.VolumeDriverTemplate{
+					RootDir: "/var/lib/blipblop/templates",
+				},
+			},
+		},
 	}
+
 	return n, err
 }
