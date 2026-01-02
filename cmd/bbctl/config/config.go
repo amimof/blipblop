@@ -36,6 +36,7 @@ func NewCmdConfig() *cobra.Command {
 	cmd.AddCommand(NewCmdConfigUse())
 	cmd.AddCommand(NewCmdConfigView())
 	cmd.AddCommand(NewCmdConfigListServers())
+	cmd.AddCommand(NewCmdConfigInit())
 
 	return cmd
 }
