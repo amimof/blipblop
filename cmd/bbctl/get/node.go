@@ -37,7 +37,12 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 			defer span.End()
 
 			// Setup client
-			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			currentSrv, err := cfg.CurrentServer()
+			if err != nil {
+				logrus.Fatal(err)
+			}
+
+			c, err := client.New(currentSrv.Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

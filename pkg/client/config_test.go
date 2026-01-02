@@ -6,6 +6,27 @@ import (
 	"github.com/amimof/blipblop/pkg/client"
 )
 
+func TestConfig_ValidateTLSConfig(t *testing.T) {
+	c := &client.Config{
+		Current: "prod",
+		Servers: []*client.Server{
+			{
+				Name:    "prod",
+				Address: "localhost:5700",
+			},
+		},
+	}
+
+	curr, err := c.CurrentServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = curr.TLSConfig.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case

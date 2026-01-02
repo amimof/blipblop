@@ -22,7 +22,8 @@ var (
 	version  string
 )
 
-func NewCmdUpgrade(cfg *client.Config) *cobra.Command {
+func NewCmdUpgrade() *cobra.Command {
+	var cfg client.Config
 	upgradeCmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: "Upgrade nodes",
@@ -39,7 +40,7 @@ bbctl upgrade node1 node2 --version v0.0.8
 bbctl upgrade -l blipblop/arch=amd64
 `,
 		Args: cobra.MinimumNArgs(0),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
 			}
@@ -51,6 +52,18 @@ bbctl upgrade -l blipblop/arch=amd64
 				return errors.New("must only provide either args or --label-selector flag")
 			}
 
+			if err := viper.BindPFlags(cmd.Flags()); err != nil {
+				return err
+			}
+			if err := viper.ReadInConfig(); err != nil {
+				logrus.Fatalf("error reading config: %v", err)
+			}
+			if err := viper.Unmarshal(&cfg); err != nil {
+				logrus.Fatalf("error decoding config into struct: %v", err)
+			}
+			if err := cfg.Validate(); err != nil {
+				logrus.Fatal(err)
+			}
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -62,7 +75,11 @@ bbctl upgrade -l blipblop/arch=amd64
 			defer span.End()
 
 			// Setup client
-			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			currentSrv, err := cfg.CurrentServer()
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			c, err := client.New(currentSrv.Address, client.WithTLSConfigFromCfg(&cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

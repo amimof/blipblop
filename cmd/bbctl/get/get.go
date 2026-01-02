@@ -3,12 +3,15 @@ package get
 
 import (
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var output string
 
-func NewCmdGet(cfg *client.Config) *cobra.Command {
+func NewCmdGet() *cobra.Command {
+	var cfg client.Config
 	getCmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get a resource",
@@ -23,17 +26,28 @@ bbctl get container prometheus
 # Get all nodes
 bbctl get nodes
 `,
-
 		Args: cobra.ExactArgs(1),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := viper.ReadInConfig(); err != nil {
+				logrus.Fatalf("error reading config: %v", err)
+			}
+			if err := viper.Unmarshal(&cfg); err != nil {
+				logrus.Fatalf("error decoding config into struct: %v", err)
+			}
+			if err := cfg.Validate(); err != nil {
+				logrus.Fatalf("config validation error: %v", err)
+			}
+			return nil
+		},
 	}
 
 	getCmd.PersistentFlags().StringVarP(&output, "output", "o", "json", "Output format")
 
-	getCmd.AddCommand(NewCmdGetEvent(cfg))
-	getCmd.AddCommand(NewCmdGetNode(cfg))
-	getCmd.AddCommand(NewCmdGetContainer(cfg))
-	getCmd.AddCommand(NewCmdGetContainerSet(cfg))
-	getCmd.AddCommand(NewCmdGetVolume(cfg))
+	getCmd.AddCommand(NewCmdGetEvent(&cfg))
+	getCmd.AddCommand(NewCmdGetNode(&cfg))
+	getCmd.AddCommand(NewCmdGetContainer(&cfg))
+	getCmd.AddCommand(NewCmdGetContainerSet(&cfg))
+	getCmd.AddCommand(NewCmdGetVolume(&cfg))
 
 	return getCmd
 }

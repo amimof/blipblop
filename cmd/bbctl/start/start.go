@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/amimof/blipblop/pkg/client"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -13,16 +15,32 @@ var (
 	waitTimeout time.Duration
 )
 
-func NewCmdStart(cfg *client.Config) *cobra.Command {
+func NewCmdStart() *cobra.Command {
+	var cfg client.Config
 	startCmd := &cobra.Command{
 		Use:     "start",
 		Short:   "Start a resource",
 		Long:    "Start a resource",
 		Example: `bbctl start container`,
 		Args:    cobra.ExactArgs(1),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := viper.BindPFlags(cmd.Flags()); err != nil {
+				return err
+			}
+			if err := viper.ReadInConfig(); err != nil {
+				logrus.Fatalf("error reading config: %v", err)
+			}
+			if err := viper.Unmarshal(&cfg); err != nil {
+				logrus.Fatalf("error decoding config into struct: %v", err)
+			}
+			if err := cfg.Validate(); err != nil {
+				logrus.Fatal(err)
+			}
+			return nil
+		},
 	}
 
-	startCmd.AddCommand(NewCmdStartContainer(cfg))
+	startCmd.AddCommand(NewCmdStartContainer(&cfg))
 
 	startCmd.PersistentFlags().BoolVarP(
 		&wait,
