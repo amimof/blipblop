@@ -52,7 +52,8 @@ func detectVersion(doc []byte) (string, error) {
 	return h.Version, nil
 }
 
-func NewCmdApply(cfg *client.Config) *cobra.Command {
+func NewCmdApply() *cobra.Command {
+	var cfg client.Config
 	applyCmd = &cobra.Command{
 		Use:   "apply",
 		Short: "Apply resources from a file",
@@ -62,9 +63,18 @@ func NewCmdApply(cfg *client.Config) *cobra.Command {
 bbctl apply -f resources.yaml
 `,
 		Args: cobra.ExactArgs(0),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
+			}
+			if err := viper.ReadInConfig(); err != nil {
+				logrus.Fatalf("error reading config: %v", err)
+			}
+			if err := viper.Unmarshal(&cfg); err != nil {
+				logrus.Fatalf("error decoding config into struct: %v", err)
+			}
+			if err := cfg.Validate(); err != nil {
+				logrus.Fatal(err)
 			}
 			return nil
 		},
@@ -79,7 +89,11 @@ bbctl apply -f resources.yaml
 			}
 
 			// Setup client
-			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			currentSrv, err := cfg.CurrentServer()
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			c, err := client.New(currentSrv.Address, client.WithTLSConfigFromCfg(&cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

@@ -3,12 +3,15 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/amimof/blipblop/cmd/bbctl/apply"
+	"github.com/amimof/blipblop/cmd/bbctl/config"
 	"github.com/amimof/blipblop/cmd/bbctl/create"
 	"github.com/amimof/blipblop/cmd/bbctl/delete"
 	"github.com/amimof/blipblop/cmd/bbctl/edit"
@@ -18,7 +21,6 @@ import (
 	"github.com/amimof/blipblop/cmd/bbctl/start"
 	"github.com/amimof/blipblop/cmd/bbctl/stop"
 	"github.com/amimof/blipblop/cmd/bbctl/upgrade"
-	"github.com/amimof/blipblop/pkg/client"
 )
 
 var (
@@ -29,7 +31,7 @@ var (
 		Short:         "Distributed containerd workloads",
 		Long:          `bbctl is a command line tool for interacting with blipblop-server.`,
 	}
-	config       string
+	configFile   string
 	verbosity    string
 	server       string
 	insecure     bool
@@ -44,19 +46,8 @@ func init() {
 }
 
 func initConfig() {
-	if config != "" {
-		viper.SetConfigFile(config)
-		return
-	}
-
-	viper.SetConfigName("bbctl")
+	viper.SetConfigFile(configFile)
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("/etc/blipblop")
-
-	if err := viper.ReadInConfig(); err != nil {
-		logrus.Fatalf("error reading config file %v", err)
-	}
 }
 
 func SetVersionInfo(version, commit, date, branch, goversion string) {
@@ -64,25 +55,24 @@ func SetVersionInfo(version, commit, date, branch, goversion string) {
 }
 
 func NewDefaultCommand() *cobra.Command {
-	var cfg client.Config
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		lvl, err := logrus.ParseLevel(verbosity)
 		if err != nil {
 			return err
 		}
 		logrus.SetLevel(lvl)
-		if err := viper.Unmarshal(&cfg); err != nil {
-			logrus.Fatalf("error decoding config into struct: %v", err)
-		}
-
-		if err := cfg.Validate(); err != nil {
-			logrus.Fatalf("Config validation failed %v:", err)
-		}
 		return nil
 	}
 
+	// Figure out path to default config file
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logrus.Fatalf("home directory cannot be determined: %v", err)
+	}
+	defaultConfigPath := filepath.Join(home, ".blipblop", "bbctl.yaml")
+
 	// Setup flags
-	rootCmd.PersistentFlags().StringVarP(&config, "config", "", "", "config file")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "", defaultConfigPath, "config file")
 	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "localhost:5700", "Address of the API Server")
 	rootCmd.PersistentFlags().StringVarP(&tlsCACert, "tls-ca-certificate", "", "", "CA Certificate file path")
 	rootCmd.PersistentFlags().StringVarP(&tlsCert, "tls-certificate", "", "", "Certificate file path")
@@ -92,17 +82,18 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.PersistentFlags().StringVarP(&verbosity, "v", "v", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
 
 	// Setup sub-commands
-	rootCmd.AddCommand(run.NewCmdRun(&cfg))
-	rootCmd.AddCommand(delete.NewCmdDelete(&cfg))
-	rootCmd.AddCommand(get.NewCmdGet(&cfg))
-	rootCmd.AddCommand(stop.NewCmdStop(&cfg))
-	rootCmd.AddCommand(run.NewCmdRun(&cfg))
-	rootCmd.AddCommand(start.NewCmdStart(&cfg))
-	rootCmd.AddCommand(create.NewCmdCreate(&cfg))
-	rootCmd.AddCommand(edit.NewCmdEdit(&cfg))
-	rootCmd.AddCommand(log.NewCmdLog(&cfg))
-	rootCmd.AddCommand(apply.NewCmdApply(&cfg))
-	rootCmd.AddCommand(upgrade.NewCmdUpgrade(&cfg))
+	rootCmd.AddCommand(run.NewCmdRun())
+	rootCmd.AddCommand(delete.NewCmdDelete())
+	rootCmd.AddCommand(get.NewCmdGet())
+	rootCmd.AddCommand(stop.NewCmdStop())
+	rootCmd.AddCommand(run.NewCmdRun())
+	rootCmd.AddCommand(start.NewCmdStart())
+	rootCmd.AddCommand(create.NewCmdCreate())
+	rootCmd.AddCommand(edit.NewCmdEdit())
+	rootCmd.AddCommand(log.NewCmdLog())
+	rootCmd.AddCommand(apply.NewCmdApply())
+	rootCmd.AddCommand(upgrade.NewCmdUpgrade())
+	rootCmd.AddCommand(config.NewCmdConfig())
 
 	return rootCmd
 }

@@ -27,7 +27,8 @@ var (
 	waitTimeout time.Duration
 )
 
-func NewCmdRun(cfg *client.Config) *cobra.Command {
+func NewCmdRun() *cobra.Command {
+	var cfg client.Config
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run a container",
@@ -36,9 +37,21 @@ func NewCmdRun(cfg *client.Config) *cobra.Command {
 # Run a prometheus container
 bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		Args: cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
+			}
+			if err := viper.BindPFlags(cmd.Flags()); err != nil {
+				return err
+			}
+			if err := viper.ReadInConfig(); err != nil {
+				logrus.Fatalf("error reading config: %v", err)
+			}
+			if err := viper.Unmarshal(&cfg); err != nil {
+				logrus.Fatalf("error decoding config into struct: %v", err)
+			}
+			if err := cfg.Validate(); err != nil {
+				logrus.Fatal(err)
 			}
 			return nil
 		},
@@ -52,7 +65,11 @@ bbctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			defer span.End()
 
 			// Setup client
-			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			currentSrv, err := cfg.CurrentServer()
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			c, err := client.New(currentSrv.Address, client.WithTLSConfigFromCfg(&cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

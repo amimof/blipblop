@@ -18,7 +18,7 @@ func NewCmdDeleteContainerSet(cfg *client.Config) *cobra.Command {
 		Long:    "Delete a containerset",
 		Example: `bbctl delete containerset NAME`,
 		Args:    cobra.MinimumNArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
 			}
@@ -29,7 +29,11 @@ func NewCmdDeleteContainerSet(cfg *client.Config) *cobra.Command {
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			currentSrv, err := cfg.CurrentServer()
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			c, err := client.New(currentSrv.Address, client.WithTLSConfigFromCfg(cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}

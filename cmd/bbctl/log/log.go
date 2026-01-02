@@ -22,16 +22,26 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewCmdLog(cfg *client.Config) *cobra.Command {
+func NewCmdLog() *cobra.Command {
+	var cfg client.Config
 	logCmd := &cobra.Command{
 		Use:     "log",
 		Short:   "Read container logs",
 		Long:    "Streams container logs from the node to stdout",
 		Example: `bbctl log CONTAINER_NAME`,
 		Args:    cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
+			}
+			if err := viper.ReadInConfig(); err != nil {
+				logrus.Fatalf("error reading config: %v", err)
+			}
+			if err := viper.Unmarshal(&cfg); err != nil {
+				logrus.Fatalf("error decoding config into struct: %v", err)
+			}
+			if err := cfg.Validate(); err != nil {
+				logrus.Fatal(err)
 			}
 			return nil
 		},
@@ -42,7 +52,11 @@ func NewCmdLog(cfg *client.Config) *cobra.Command {
 			defer cancel()
 
 			// Setup client
-			c, err := client.New(cfg.CurrentServer().Address, client.WithTLSConfigFromCfg(cfg))
+			currentSrv, err := cfg.CurrentServer()
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			c, err := client.New(currentSrv.Address, client.WithTLSConfigFromCfg(&cfg))
 			if err != nil {
 				logrus.Fatalf("error setting up client: %v", err)
 			}
