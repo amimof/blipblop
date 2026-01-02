@@ -12,31 +12,35 @@ var (
 )
 
 type Config struct {
-	Version string    `mapstructure:"version"`
-	Servers []*Server `mapstructure:"servers"`
-	Current string    `mapstructure:"current"`
+	Version string    `mapstructure:"version" json:"version" yaml:"version"`
+	Servers []*Server `mapstructure:"servers" json:"servers" yaml:"servers"`
+	Current string    `mapstructure:"current" json:"current" yaml:"current"`
 }
 
 type Server struct {
-	Name      string     `mapstructure:"name"`
-	Address   string     `mapstructure:"address"`
-	TLSConfig *TLSConfig `mapstructure:"tls"`
+	Name      string     `mapstructure:"name" json:"name" yaml:"name"`
+	Address   string     `mapstructure:"address" json:"address" yaml:"address"`
+	TLSConfig *TLSConfig `mapstructure:"tls" json:"tls" yaml:"tls"`
 }
 
 type TLSConfig struct {
-	CA          string `mapstructure:"ca"`
-	Certificate string `mapstructure:"certificate"`
-	Key         string `mapstructure:"key"`
-	Insecure    bool   `mapstructure:"insecure"`
+	CA          string `mapstructure:"ca,omitempty" json:"ca,omitempty" yaml:"ca,omitempty"`
+	Certificate string `mapstructure:"certificate,omitempty" json:"certificate,omitempty" yaml:"certificate,omitempty"`
+	Key         string `mapstructure:"key,omitempty" json:"key,omitempty" yaml:"key,omitempty"`
+	Insecure    bool   `mapstructure:"insecure,omitempty" json:"insecure,omitempty" yaml:"insecure,omitempty"`
 }
 
-func getServer(servers []*Server, name string) *Server {
+func getServer(servers []*Server, name string) (*Server, error) {
 	for _, server := range servers {
 		if server.Name == name {
-			return server
+			return server, nil
 		}
 	}
-	return nil
+	return nil, ErrServerNotFound
+}
+
+func (c *Config) GetServer(name string) (*Server, error) {
+	return getServer(c.Servers, name)
 }
 
 func (c *Config) AddServer(srv *Server) error {
@@ -46,7 +50,7 @@ func (c *Config) AddServer(srv *Server) error {
 	}
 
 	// Ensure server.Name is unique
-	if getServer(c.Servers, srv.Name) != nil {
+	if s, err := getServer(c.Servers, srv.Name); err == nil && s != nil {
 		return fmt.Errorf("server %s already exists", srv.Name)
 	}
 
@@ -63,8 +67,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("no servers are configured")
 	}
 
-	if s := getServer(c.Servers, c.Current); s == nil {
-		return ErrServerNotFound
+	if s, err := getServer(c.Servers, c.Current); err == nil && s == nil {
+		return err
 	}
 
 	for _, s := range c.Servers {
@@ -82,9 +86,9 @@ func (c *Config) CurrentServer() (*Server, error) {
 	if c.Current == "" {
 		return nil, ErrCurrentNotSet
 	}
-	srv := getServer(c.Servers, c.Current)
-	if srv == nil {
-		return nil, ErrCurrentNotFound
+	srv, err := getServer(c.Servers, c.Current)
+	if err != nil {
+		return nil, err
 	}
 	return srv, nil
 }

@@ -31,6 +31,7 @@ func NewCmdConfig() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&keyFile, "key", "", "Path to private key file")
 
 	cmd.AddCommand(NewCmdConfigCreateServer())
+	cmd.AddCommand(NewCmdConfigUse())
 
 	return cmd
 }

@@ -75,7 +75,8 @@ func WithTLSConfigFromFlags(f *pflag.FlagSet) NewClientOption {
 }
 
 // WithTLSConfigFromCfg returns a NewClientOption using the provided client.Config.
-// It runs Validate() on the config before returning
+// It runs Validate() on the config before returning. If passed in client config doesn't have
+// tls configuration, then tls config is not set on the client.
 func WithTLSConfigFromCfg(cfg *Config) NewClientOption {
 	return func(c *ClientSet) error {
 		if err := cfg.Validate(); err != nil {
@@ -87,16 +88,19 @@ func WithTLSConfigFromCfg(cfg *Config) NewClientOption {
 			return err
 		}
 
-		insecure := current.TLSConfig.Insecure
-		tlsCertificate := current.TLSConfig.Certificate
-		tlsCertificateKey := current.TLSConfig.Key
-		tlsCaCertificate := current.TLSConfig.CA
+		if current.TLSConfig != nil {
 
-		tlsConfig, err := getTLSConfig(tlsCertificate, tlsCertificateKey, tlsCaCertificate, insecure)
-		if err != nil {
-			return err
+			insecure := current.TLSConfig.Insecure
+			tlsCertificate := current.TLSConfig.Certificate
+			tlsCertificateKey := current.TLSConfig.Key
+			tlsCaCertificate := current.TLSConfig.CA
+
+			tlsConfig, err := getTLSConfig(tlsCertificate, tlsCertificateKey, tlsCaCertificate, insecure)
+			if err != nil {
+				return err
+			}
+			c.tlsConfig = tlsConfig
 		}
-		c.tlsConfig = tlsConfig
 		return nil
 	}
 }
