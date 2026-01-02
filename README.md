@@ -106,7 +106,8 @@ NOTE: Run make help for more information on all potential make targets
 4. Create a `bbctl` configuration
 
     ```bash
-    bbctl config create-server dev --address localhost:5743 --ca ./certs/ca.crt
+    bbctl config init
+    bbctl config create-server dev --address localhost:5743 --tls --ca ./certs/ca.crt
     ```
 
 5. Run a container
