@@ -1,18 +1,15 @@
 package config
 
 import (
-	"bytes"
-	"errors"
 	"os"
-	"os/exec"
-	"strings"
 
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/fatih/color"
+	fzf "github.com/junegunn/fzf/src"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
+
+	"github.com/amimof/blipblop/pkg/client"
 )
 
 func NewCmdConfigUse() *cobra.Command {
@@ -42,29 +39,54 @@ bbctl config use production
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			var serverName string
+			serverName := cfg.Current
 
 			// Fuzzy finder if no server name is provided on cmd line
 			if len(args) == 0 {
-				s, err := fzfListServers(&cfg)
+				inputChan := make(chan string)
+				go func() {
+					for _, s := range cfg.Servers {
+						inputChan <- s.Name
+					}
+					close(inputChan)
+				}()
+
+				outputChan := make(chan string)
+				go func() {
+					for s := range outputChan {
+						serverName = s
+					}
+				}()
+
+				options, err := fzf.ParseOptions(
+					true,
+					nil,
+				)
 				if err != nil {
-					logrus.Fatalf("error listing servers: %v", err)
+					logrus.Fatalf("fzf parse error: %v", err)
 				}
-				serverName = s
-				cfg.Current = serverName
+
+				options.Input = inputChan
+				options.Output = outputChan
+
+				_, err = fzf.Run(options)
+				if err != nil {
+					logrus.Fatalf("error running fzf: %v", err)
+				}
+
 			}
 
 			// Use server name from args
 			if len(args) > 0 {
 				serverName = args[0]
-
 				s, err := cfg.GetServer(serverName)
 				if err != nil {
 					logrus.Fatalf("error using server %s: %v", serverName, err)
 				}
-
-				cfg.Current = s.Name
+				serverName = s.Name
 			}
+
+			cfg.Current = serverName
 
 			b, err := yaml.Marshal(cfg)
 			if err != nil {
@@ -81,46 +103,4 @@ bbctl config use production
 	}
 
 	return cmd
-}
-
-// Fzf uses fzf to display a fuzzy finder in stdout.
-// Returns a string containing the selected item in the fzf result
-func fzf(in bytes.Buffer) (string, error) {
-	// TODO: Explore if we can use preview in fzf
-	cmd := exec.Command("/opt/homebrew/bin/fzf", "--ansi", "--height=~10")
-	var out bytes.Buffer
-
-	// var in bytes.Buffer
-	cmd.Stdin = &in
-	cmd.Stdout = &out
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		if _, ok := err.(*exec.ExitError); !ok {
-			return "", err
-		}
-	}
-
-	res := strings.TrimSpace(out.String())
-	if res == "" {
-		return "", errors.New("nothing selected")
-	}
-
-	return res, nil
-}
-
-func fzfListServers(cfg *client.Config) (string, error) {
-	var in bytes.Buffer
-
-	// Write each context to stdin
-	for _, k := range cfg.Servers {
-		if k.Name == cfg.Current {
-			in.WriteString(color.GreenString(k.Name))
-		} else {
-			in.WriteString(k.Name)
-		}
-		in.WriteString("\n")
-	}
-
-	return fzf(in)
 }
