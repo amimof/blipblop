@@ -42,33 +42,35 @@ bbctl config create-server dev --address localhost:5743 --ca ca.crt
 			newServer := &client.Server{
 				Name:    serverName,
 				Address: address,
-				TLSConfig: &client.TLSConfig{
+			}
+
+			if tls {
+				newServer.TLSConfig = &client.TLSConfig{
 					Insecure: insecure,
-				},
-			}
-
-			if caFile != "" {
-				caData, err := os.ReadFile(caFile)
-				if err != nil {
-					logrus.Fatalf("error reading ca file: %v", err)
 				}
-				newServer.TLSConfig.CA = string(caData)
-			}
-
-			if certFile != "" {
-				certData, err := os.ReadFile(certFile)
-				if err != nil {
-					logrus.Fatalf("error reading certificate file: %v", err)
+				if caFile != "" {
+					caData, err := os.ReadFile(caFile)
+					if err != nil {
+						logrus.Fatalf("error reading ca file: %v", err)
+					}
+					newServer.TLSConfig.CA = string(caData)
 				}
-				newServer.TLSConfig.Certificate = string(certData)
-			}
 
-			if keyFile != "" {
-				keyData, err := os.ReadFile(keyFile)
-				if err != nil {
-					logrus.Fatalf("error reading key file: %v", err)
+				if certFile != "" {
+					certData, err := os.ReadFile(certFile)
+					if err != nil {
+						logrus.Fatalf("error reading certificate file: %v", err)
+					}
+					newServer.TLSConfig.Certificate = string(certData)
 				}
-				newServer.TLSConfig.Key = string(keyData)
+
+				if keyFile != "" {
+					keyData, err := os.ReadFile(keyFile)
+					if err != nil {
+						logrus.Fatalf("error reading key file: %v", err)
+					}
+					newServer.TLSConfig.Key = string(keyData)
+				}
 			}
 
 			if current {

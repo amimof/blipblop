@@ -6,12 +6,13 @@ import (
 )
 
 var (
+	tls      bool
 	insecure bool
+	current  bool
 	caFile   string
 	certFile string
 	keyFile  string
 	address  string
-	current  bool
 )
 
 func NewCmdConfig() *cobra.Command {
@@ -25,6 +26,7 @@ func NewCmdConfig() *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS verification. Not recommended")
 	cmd.PersistentFlags().BoolVar(&current, "current", true, "Set as current server")
+	cmd.PersistentFlags().BoolVar(&tls, "tls", false, "Use TLS for this server")
 	cmd.PersistentFlags().StringVar(&address, "address", "", "Endpoint address of the server")
 	cmd.PersistentFlags().StringVar(&caFile, "ca", "", "Path to ca certificate file")
 	cmd.PersistentFlags().StringVar(&certFile, "certificate", "", "Path to certificate file")
@@ -32,6 +34,8 @@ func NewCmdConfig() *cobra.Command {
 
 	cmd.AddCommand(NewCmdConfigCreateServer())
 	cmd.AddCommand(NewCmdConfigUse())
+	cmd.AddCommand(NewCmdConfigView())
+	cmd.AddCommand(NewCmdConfigListServers())
 
 	return cmd
 }
