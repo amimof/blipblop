@@ -2,7 +2,9 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"path"
 
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
@@ -48,6 +50,11 @@ bbctl config init --config /etc/blipblop/bbctl.yaml
 				logrus.Fatalf("error marshal: %v", err)
 			}
 
+			err = os.MkdirAll(path.Dir(configPath), 0o755)
+			if err != nil {
+				logrus.Fatalf("error creating config dir: %v", err)
+			}
+
 			err = os.WriteFile(configPath, b, 0o666)
 			if err != nil {
 				logrus.Fatalf("error writing config file: %v", err)
@@ -56,6 +63,8 @@ bbctl config init --config /etc/blipblop/bbctl.yaml
 			if err := viper.ReadInConfig(); err != nil {
 				logrus.Fatalf("error reading config: %v", err)
 			}
+
+			fmt.Printf("Configuration created in %s\n", configPath)
 		},
 	}
 
