@@ -31,9 +31,6 @@ bbctl config create-server dev --address localhost:5743 --ca ca.crt
 			if err := viper.Unmarshal(&cfg); err != nil {
 				logrus.Fatalf("error decoding config into struct: %v", err)
 			}
-			if err := cfg.Validate(); err != nil {
-				logrus.Fatal(err)
-			}
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
