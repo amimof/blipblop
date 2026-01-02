@@ -82,7 +82,7 @@ NOTE: Run make help for more information on all potential make targets
 
 ## Quick Start
 
-1. Generate certificates. See [instruction here](/certs/README.md). Alternatively you may use pre-generated development certificfates under `./certs`. These certificates are only for testing purposes only!
+1. Generate certificates. See [instruction here](/certs/README.md). Alternatively you may use pre-generated development certificates under `./certs`. These certificates are for testing purposes only!
 
 2. Start the server
 
