@@ -7,10 +7,10 @@ import (
 	"path"
 	"runtime"
 
-	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/api/services/volumes/v1"
-	"github.com/amimof/blipblop/api/types/v1"
-	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/labels"
 	"gopkg.in/yaml.v3"
 )
 
@@ -113,10 +113,10 @@ func NewNodeFromEnv() (*nodes.Node, error) {
 		Config: &nodes.Config{
 			VolumeDrivers: &nodes.VolumeConfig{
 				HostLocal: &volumes.VolumeDriverHostLocal{
-					RootDir: "/var/lib/blipblop/volumes",
+					RootDir: "/var/lib/voiyd/volumes",
 				},
 				Template: &volumes.VolumeDriverTemplate{
-					RootDir: "/var/lib/blipblop/templates",
+					RootDir: "/var/lib/voiyd/templates",
 				},
 			},
 		},

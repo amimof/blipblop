@@ -2,7 +2,7 @@ package labels
 
 import "fmt"
 
-const DefaultLabelPrefix = "blipblop.io"
+const DefaultLabelPrefix = "voiyd.io"
 
 var DefaultContainerLabels = []string{LabelPrefix("uuid").String()}
 

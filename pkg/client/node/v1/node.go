@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -95,7 +95,7 @@ func (c *statusClientV1) Update(ctx context.Context, id string, status *nodes.St
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Delete(ctx, &nodes.DeleteRequest{Id: id})
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 }
 
 func (c *clientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	n, err := c.Client.Get(ctx, &nodes.GetRequest{Id: id})
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
 }
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodes.Node, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	n, err := c.Client.List(ctx, &nodes.ListRequest{})
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodes.Node, 
 }
 
 func (c *clientV1) Update(ctx context.Context, id string, node *nodes.Node) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Update(ctx, &nodes.UpdateRequest{Id: id, Node: node})
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (c *clientV1) Update(ctx context.Context, id string, node *nodes.Node) erro
 }
 
 func (c *clientV1) Create(ctx context.Context, node *nodes.Node, opts ...CreateOption) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &nodes.CreateRequest{Node: node})
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (c *clientV1) Create(ctx context.Context, node *nodes.Node, opts ...CreateO
 }
 
 func (c *clientV1) Join(ctx context.Context, node *nodes.Node) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Join(ctx, &nodes.JoinRequest{Node: node})
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func (c *clientV1) Join(ctx context.Context, node *nodes.Node) error {
 }
 
 func (c *clientV1) Forget(ctx context.Context, n string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	req := &nodes.ForgetRequest{
 		Id: n,
 	}
@@ -216,7 +216,7 @@ func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, v
 }
 
 func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {
-	mdCtx := metadata.AppendToOutgoingContext(ctx, "blipblop_node_name", nodeName)
+	mdCtx := metadata.AppendToOutgoingContext(ctx, "voiyd_node_name", nodeName)
 	stream, err := c.Client.Connect(mdCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)

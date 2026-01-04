@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/types/v1"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/networking"
-	"github.com/amimof/blipblop/pkg/util"
+	"github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/amimof/voiyd/pkg/util"
 	"github.com/containerd/containerd/errdefs"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/cio"
@@ -31,11 +31,11 @@ import (
 )
 
 const (
-	labelPrefix = "blipblop"
+	labelPrefix = "voiyd"
 	logFileName = "stdout.log"
 )
 
-var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
+var tracer = otel.GetTracerProvider().Tracer("voiyd-node")
 
 type ContainerdRuntime struct {
 	client       *containerd.Client
@@ -50,7 +50,7 @@ type ContainerdRuntime struct {
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
 
 // WithLogDirFmt allows for setting the root directory for container log files (stdout).
-// For example /var/lib/blipblop/containers/%s/log which happens to be the default location.
+// For example /var/lib/voiyd/containers/%s/log which happens to be the default location.
 func WithLogDirFmt(rootPath string) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
 		c.logDirFmt = rootPath
@@ -118,12 +118,12 @@ func withContainerLabels(l labels.Label, container *containers.Container) contai
 	b, _ := json.Marshal(&cniPorts)
 
 	// Fill label set with values
-	l.Set("blipblop/revision", util.Uint64ToString(container.GetMeta().GetRevision()))
-	l.Set("blipblop/created", container.GetMeta().GetCreated().String())
-	l.Set("blipblop/updated", container.GetMeta().GetUpdated().String())
-	l.Set("blipblop/name", container.GetMeta().GetName())
-	l.Set("blipblop/namespace", "blipblop")
-	l.Set("blipblop/ports", string(b))
+	l.Set("voiyd/revision", util.Uint64ToString(container.GetMeta().GetRevision()))
+	l.Set("voiyd/created", container.GetMeta().GetCreated().String())
+	l.Set("voiyd/updated", container.GetMeta().GetUpdated().String())
+	l.Set("voiyd/name", container.GetMeta().GetName())
+	l.Set("voiyd/namespace", "voiyd")
+	l.Set("voiyd/ports", string(b))
 
 	return containerd.WithContainerLabels(l)
 }
@@ -168,7 +168,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 	}
 
 	// Unmarshal ports label
-	b := ctrLabels["blipblop/ports"]
+	b := ctrLabels["voiyd/ports"]
 	cniports := []gocni.PortMapping{}
 	err = json.Unmarshal([]byte(b), &cniports)
 	if err != nil {
@@ -198,9 +198,9 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 	ctx, span := tracer.Start(ctx, "runtime.containerd.List")
 	defer span.End()
 
-	// We're only interested in containers with the blipblop.io/name label
+	// We're only interested in containers with the voiyd.io/name label
 	filters := []string{
-		`labels."blipblop.io/name"`,
+		`labels."voiyd.io/name"`,
 	}
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
@@ -227,7 +227,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 			return nil, err
 		}
 
-		containerName, ok := cl["blipblop.io/name"]
+		containerName, ok := cl["voiyd.io/name"]
 		if !ok {
 			continue
 		}
@@ -277,7 +277,7 @@ func (c *ContainerdRuntime) get(ctx context.Context, id string) (containerd.Cont
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	cfilters := []string{
-		fmt.Sprintf(`labels."blipblop.io/name"==%s`, id),
+		fmt.Sprintf(`labels."voiyd.io/name"==%s`, id),
 		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(id)),
 	}
 
@@ -503,7 +503,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 
 	// Assemble some labels
 	l := labels.New()
-	l.Set("blipblop.io/name", ctr.GetMeta().GetName())
+	l.Set("voiyd.io/name", ctr.GetMeta().GetName())
 
 	// Generate ID for the container
 	containerID := GenerateID()
@@ -614,7 +614,7 @@ func (c *ContainerdRuntime) Name(ctx context.Context, id string) (string, error)
 		return "", err
 	}
 
-	cName, ok := l["blipblop.io/name"]
+	cName, ok := l["voiyd.io/name"]
 	if !ok {
 		return "", errdefs.ErrNotFound
 	}
@@ -629,7 +629,7 @@ func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manage
 		logger:       logger.ConsoleLogger{},
 		ns:           DefaultNamespace,
 		containerIOs: map[string]*ContainerIO{},
-		logDirFmt:    "/var/lib/blipblop/containers/%s/log",
+		logDirFmt:    "/var/lib/voiyd/containers/%s/log",
 	}
 
 	for _, opt := range opts {

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path"
 
-	v1 "github.com/amimof/blipblop/pkg/client/volume/v1"
+	v1 "github.com/amimof/voiyd/pkg/client/volume/v1"
 )
 
 var _ Driver = &templateDriver{}

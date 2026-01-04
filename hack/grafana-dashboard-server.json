@@ -1242,14 +1242,14 @@
       {
         "current": {
           "selected": false,
-          "text": "blipblop-server",
-          "value": "blipblop-server"
+          "text": "voiyd-server",
+          "value": "voiyd-server"
         },
         "datasource": {
           "type": "prometheus",
           "uid": "bb486d3b-c169-4c0a-bf6d-b42bd7a31001"
         },
-        "definition": "label_values(blipblop_build_info,job)",
+        "definition": "label_values(voiyd_build_info,job)",
         "hide": 0,
         "includeAll": false,
         "label": "Job",
@@ -1258,7 +1258,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(blipblop_build_info,job)",
+          "query": "label_values(voiyd_build_info,job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1294,7 +1294,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Blipblop Server",
+  "title": "voiyd Server",
   "uid": "209ad6ef-72bf-4a33-9025-4d86ef7f27d7",
   "version": 3,
   "weekStart": ""

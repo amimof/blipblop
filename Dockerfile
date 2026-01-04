@@ -1,7 +1,7 @@
 FROM ubuntu:25.10 AS build
 
-COPY . /blipblop/src/
-WORKDIR /blipblop/src
+COPY . /voiyd/src/
+WORKDIR /voiyd/src
 
 ENV PATH="$PATH:/usr/local/go/bin"
 
@@ -19,6 +19,6 @@ RUN set -x \
 
 FROM alpine:3.22.2
 RUN apk add --no-cache iptables
-COPY  --from=build /blipblop/src/bin/ /usr/local/bin/
+COPY  --from=build /voiyd/src/bin/ /usr/local/bin/
 COPY  --from=build /opt/cni /opt/cni
 COPY  --from=build /etc/cni /etc/cni

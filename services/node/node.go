@@ -8,13 +8,13 @@ import (
 	"io"
 	"sync"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/pkg/consts"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/repository"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -99,14 +99,14 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 
 	var nodeName string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if res, ok := md["blipblop_node_name"]; ok && len(res) > 0 {
+		if res, ok := md["voiyd_node_name"]; ok && len(res) > 0 {
 			nodeName = res[0]
 		}
 	}
 
 	// Return if no node name was found in context
 	if nodeName == "" {
-		return status.Error(codes.FailedPrecondition, "missing blipblop_node_name in context")
+		return status.Error(codes.FailedPrecondition, "missing voiyd_node_name in context")
 	}
 
 	// Check if node is joined to cluster prior to connecting

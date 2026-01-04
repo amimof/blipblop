@@ -5,8 +5,8 @@ import (
 	"context"
 	"maps"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/api/types/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"

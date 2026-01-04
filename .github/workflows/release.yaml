@@ -25,27 +25,27 @@ jobs:
 
       - name: Build Server Binaries
         run: |
-          GOOS=linux GOARCH=amd64 BINARY_NAME=blipblop-server-linux-amd64 make server
-          GOOS=linux GOARCH=arm BINARY_NAME=blipblop-server-linux-arm make server
-          GOOS=linux GOARCH=arm64 BINARY_NAME=blipblop-server-linux-arm64 make server
-          GOOS=windows GOARCH=amd64 BINARY_NAME=blipblop-server-windows-amd64.exe make server
-          GOOS=darwin GOARCH=amd64 BINARY_NAME=blipblop-server-darwin-amd64 make server
-          GOOS=darwin GOARCH=arm64 BINARY_NAME=blipblop-server-darwin-arm64 make server
+          GOOS=linux GOARCH=amd64 BINARY_NAME=voiyd-server-linux-amd64 make server
+          GOOS=linux GOARCH=arm BINARY_NAME=voiyd-server-linux-arm make server
+          GOOS=linux GOARCH=arm64 BINARY_NAME=voiyd-server-linux-arm64 make server
+          GOOS=windows GOARCH=amd64 BINARY_NAME=voiyd-server-windows-amd64.exe make server
+          GOOS=darwin GOARCH=amd64 BINARY_NAME=voiyd-server-darwin-amd64 make server
+          GOOS=darwin GOARCH=arm64 BINARY_NAME=voiyd-server-darwin-arm64 make server
 
       - name: Build Node Binaries
         run: |
-          GOOS=linux GOARCH=amd64 BINARY_NAME=blipblop-node-linux-amd64 make node
-          GOOS=linux GOARCH=arm BINARY_NAME=blipblop-node-linux-arm make node
-          GOOS=linux GOARCH=arm64 BINARY_NAME=blipblop-node-linux-arm64 make node
+          GOOS=linux GOARCH=amd64 BINARY_NAME=voiyd-node-linux-amd64 make node
+          GOOS=linux GOARCH=arm BINARY_NAME=voiyd-node-linux-arm make node
+          GOOS=linux GOARCH=arm64 BINARY_NAME=voiyd-node-linux-arm64 make node
 
       - name: Build CLI Binaries
         run: |
-          GOOS=linux GOARCH=amd64 BINARY_NAME=bbctl-linux-amd64 make bbctl
-          GOOS=linux GOARCH=arm BINARY_NAME=bbctl-linux-arm make bbctl
-          GOOS=linux GOARCH=arm64 BINARY_NAME=bbctl-linux-arm64 make bbctl
-          GOOS=windows GOARCH=amd64 BINARY_NAME=bbctl-windows-amd64.exe make bbctl
-          GOOS=darwin GOARCH=amd64 BINARY_NAME=bbctl-darwin-amd64 make bbctl
-          GOOS=darwin GOARCH=arm64 BINARY_NAME=bbctl-darwin-arm64 make bbctl
+          GOOS=linux GOARCH=amd64 BINARY_NAME=voiydctl-linux-amd64 make voiydctl
+          GOOS=linux GOARCH=arm BINARY_NAME=voiydctl-linux-arm make voiydctl
+          GOOS=linux GOARCH=arm64 BINARY_NAME=voiydctl-linux-arm64 make voiydctl
+          GOOS=windows GOARCH=amd64 BINARY_NAME=voiydctl-windows-amd64.exe make voiydctl
+          GOOS=darwin GOARCH=amd64 BINARY_NAME=voiydctl-darwin-amd64 make voiydctl
+          GOOS=darwin GOARCH=arm64 BINARY_NAME=voiydctl-darwin-arm64 make voiydctl
 
       - name: Create Release
         uses: ncipollo/release-action@v1

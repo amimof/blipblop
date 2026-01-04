@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amimof/blipblop/api/services/volumes/v1"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/util"
+	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/util"
 	"github.com/dgraph-io/badger/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"

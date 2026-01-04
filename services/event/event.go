@@ -5,10 +5,10 @@ import (
 	"context"
 	"errors"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/repository"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -81,14 +81,14 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 		attribute.String("peer.addr", peer.Addr.String()),
 	)
 
-	s.logger.Debug("client connected", "clientId", clientID, "address", peer.Addr.String(), "controller", md.Get("blipblop_controller_name"))
+	s.logger.Debug("client connected", "clientId", clientID, "address", peer.Addr.String(), "controller", md.Get("voiyd_controller_name"))
 
 	go func() {
 		for {
 			select {
 			case n := <-eventChan:
 
-				s.logger.Info("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId, "controller", md.Get("blipblop_controller_name"))
+				s.logger.Info("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId, "controller", md.Get("voiyd_controller_name"))
 				err := stream.Send(n)
 				if err != nil {
 					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
@@ -99,7 +99,7 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 
 				// Get node name from context
 				if md, ok := metadata.FromIncomingContext(ctx); ok {
-					if nodeName, ok := md["blipblop_node_name"]; ok && len(nodeName) > 0 {
+					if nodeName, ok := md["voiyd_node_name"]; ok && len(nodeName) > 0 {
 						_, err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
 						if err != nil {
 							s.logger.Error("error publishing event", "error", err)

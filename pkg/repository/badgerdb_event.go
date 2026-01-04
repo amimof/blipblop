@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amimof/blipblop/api/services/events/v1"
+	"github.com/amimof/voiyd/api/services/events/v1"
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
 )

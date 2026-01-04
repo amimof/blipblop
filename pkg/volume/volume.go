@@ -4,9 +4,9 @@ package volume
 import (
 	"context"
 
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
-	clientv1 "github.com/amimof/blipblop/pkg/client/volume/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	clientv1 "github.com/amimof/voiyd/pkg/client/volume/v1"
 )
 
 type ID string

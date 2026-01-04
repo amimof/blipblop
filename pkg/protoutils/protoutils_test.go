@@ -9,8 +9,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/types/v1"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 	jsonpatch "github.com/evanphx/json-patch"
 )
 
@@ -199,8 +199,8 @@ func TestClearRepeatedFields(t *testing.T) {
 				},
 			},
 			NodeSelector: map[string]string{
-				"blipblop.io/arch": "amd64",
-				"blipblop.io/os":   "linux",
+				"voiyd.io/arch": "amd64",
+				"voiyd.io/os":   "linux",
 			},
 		},
 	}
@@ -220,8 +220,8 @@ func TestClearRepeatedFields(t *testing.T) {
 			Args:         []string{},
 			Mounts:       []*containersv1.Mount{},
 			NodeSelector: map[string]string{
-				"blipblop.io/arch": "amd64",
-				"blipblop.io/os":   "linux",
+				"voiyd.io/arch": "amd64",
+				"voiyd.io/os":   "linux",
 			},
 		},
 	}

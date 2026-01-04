@@ -1,7 +1,7 @@
 package services
 
 import (
-	"github.com/amimof/blipblop/api/types/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 	"google.golang.org/grpc"
 )
 

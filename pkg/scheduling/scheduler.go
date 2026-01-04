@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/services/nodes/v1"
+	"github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/api/services/nodes/v1"
 )
 
 var ErrSchedulingNoNode = errors.New("no node fit for scheduling")

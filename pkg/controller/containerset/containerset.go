@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/api/types/v1"
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/util"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/util"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -31,7 +31,7 @@ func WithLogger(l logger.Logger) NewOption {
 
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "continersetcontroller")
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "continersetcontroller")
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Handlers

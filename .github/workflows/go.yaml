@@ -73,7 +73,7 @@ jobs:
       - name: Compile Node
         run: make node
       - name: Compile CLI
-        run: make bbctl
+        run: make voiydctl
 
       - uses: actions/upload-artifact@v6
         with:

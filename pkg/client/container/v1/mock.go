@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	containers "github.com/amimof/blipblop/api/services/containers/v1"
+	containers "github.com/amimof/voiyd/api/services/containers/v1"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
 )

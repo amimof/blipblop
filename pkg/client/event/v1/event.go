@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/util"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/util"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -60,7 +60,7 @@ func (c *ClientV1) Create(ctx context.Context, e *eventsv1.Event) (*eventsv1.Eve
 }
 
 func (c *ClientV1) Publish(ctx context.Context, obj events.Object, evt eventsv1.EventType) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	req := events.NewRequest(evt, obj)
 	// re := &eventsv1.PublishRequest{Event: event.NewEventFor(c.id, id, evt)}
 	_, err := c.eventService.Publish(ctx, req)

@@ -5,8 +5,8 @@ import (
 	"context"
 	"sync"
 
-	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
-	"github.com/amimof/blipblop/pkg/logger"
+	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
+	"github.com/amimof/voiyd/pkg/logger"
 	"google.golang.org/grpc"
 )
 

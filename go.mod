@@ -1,4 +1,4 @@
-module github.com/amimof/blipblop
+module github.com/amimof/voiyd
 
 go 1.24.3
 

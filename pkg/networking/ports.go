@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
+	"github.com/amimof/voiyd/api/services/containers/v1"
 	gocni "github.com/containerd/go-cni"
 )
 

@@ -12,11 +12,11 @@ import (
 	typeurl "github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/runtime"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/runtime"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
 )
 
 type Controller struct {

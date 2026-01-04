@@ -5,7 +5,7 @@ package services.logs.v1;
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/amimof/blipblop/api/services/logs/v1;logs";
+option go_package = "github.com/amimof/voiyd/api/services/logs/v1;logs";
 
 service LogService {
   rpc TailLogs(TailLogRequest) returns (stream LogEntry) {}

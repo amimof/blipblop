@@ -26,12 +26,12 @@ func ParseVersion(in string) (string, error) {
 
 	// If user provides "latest"
 	if in == "latest" {
-		url = fmt.Sprintf("https://api.github.com/repos/amimof/blipblop/releases/%s", in)
+		url = fmt.Sprintf("https://api.github.com/repos/amimof/voiyd/releases/%s", in)
 	}
 
 	// If user provides semver tag
 	if semver.IsValid(in) {
-		url = fmt.Sprintf("https://api.github.com/repos/amimof/blipblop/releases/tags/%s", in)
+		url = fmt.Sprintf("https://api.github.com/repos/amimof/voiyd/releases/tags/%s", in)
 	}
 
 	// If url is empty then user provided incorrect version string

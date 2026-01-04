@@ -7,11 +7,11 @@ import (
 	"net"
 	"testing"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/types/v1"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/repository"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -81,8 +81,8 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 				},
 			},
 			NodeSelector: map[string]string{
-				"blipblop.io/arch": "amd64",
-				"blipblop.io/os":   "linux",
+				"voiyd.io/arch": "amd64",
+				"voiyd.io/os":   "linux",
 			},
 		},
 	}
@@ -256,8 +256,8 @@ func Test_ContainerService_Equal(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -357,8 +357,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -425,8 +425,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -489,8 +489,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -505,7 +505,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 				Config: &containersv1.Config{
 					Image: "docker.io/library/nginx:latest",
 					NodeSelector: map[string]string{
-						"blipblop.io/unschedulable": "true",
+						"voiyd.io/unschedulable": "true",
 					},
 				},
 			},
@@ -546,9 +546,9 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch":          "amd64",
-						"blipblop.io/os":            "linux",
-						"blipblop.io/unschedulable": "true",
+						"voiyd.io/arch":          "amd64",
+						"voiyd.io/os":            "linux",
+						"voiyd.io/unschedulable": "true",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -604,8 +604,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -682,8 +682,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{},
@@ -759,8 +759,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{
@@ -838,8 +838,8 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 					NodeSelector: map[string]string{
-						"blipblop.io/arch": "amd64",
-						"blipblop.io/os":   "linux",
+						"voiyd.io/arch": "amd64",
+						"voiyd.io/os":   "linux",
 					},
 				},
 				Status: &containersv1.Status{

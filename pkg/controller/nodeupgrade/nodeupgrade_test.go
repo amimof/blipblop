@@ -10,12 +10,12 @@ import (
 	"github.com/jarcoal/httpmock"
 	"go.uber.org/mock/gomock"
 
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/logger"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/logger"
 
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	typesv1 "github.com/amimof/blipblop/api/types/v1"
-	nodesclientv1 "github.com/amimof/blipblop/pkg/client/node/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
+	nodesclientv1 "github.com/amimof/voiyd/pkg/client/node/v1"
 )
 
 func TestReplaceBinary_Success(t *testing.T) {
@@ -93,7 +93,7 @@ func TestDownloadBinary_Success(t *testing.T) {
 	// Register mock responder for GitHub release metadata call
 	httpmock.RegisterResponder(
 		"GET",
-		"https://api.github.com/repos/amimof/blipblop/releases/tags/v0.0.8",
+		"https://api.github.com/repos/amimof/voiyd/releases/tags/v0.0.8",
 		httpmock.NewJsonResponderOrPanic(
 			200,
 			map[string]any{
@@ -102,8 +102,8 @@ func TestDownloadBinary_Success(t *testing.T) {
 				"published_at": "2025-12-28T19:30:48Z",
 				"assets": []map[string]string{
 					{
-						"name":                 "blipblop-node-linux-amd64",
-						"browser_download_url": "https://github.com/amimof/blipblop/releases/download/v0.0.8/blipblop-node-linux-amd64",
+						"name":                 "voiyd-node-linux-amd64",
+						"browser_download_url": "https://github.com/amimof/voiyd/releases/download/v0.0.8/voiyd-node-linux-amd64",
 					},
 				},
 			},
@@ -113,7 +113,7 @@ func TestDownloadBinary_Success(t *testing.T) {
 	// Register mock responder for the binary download
 	httpmock.RegisterResponder(
 		"GET",
-		"https://github.com/amimof/blipblop/releases/download/v0.0.8/blipblop-node-linux-amd64",
+		"https://github.com/amimof/voiyd/releases/download/v0.0.8/voiyd-node-linux-amd64",
 		httpmock.NewStringResponder(200, "BINARYDATA"),
 	)
 
@@ -154,13 +154,13 @@ func TestDownloadBinary_Success(t *testing.T) {
 	}
 
 	// Verify httpmock calls
-	expect := "GET https://api.github.com/repos/amimof/blipblop/releases/tags/v0.0.8"
+	expect := "GET https://api.github.com/repos/amimof/voiyd/releases/tags/v0.0.8"
 	info := httpmock.GetCallCountInfo()
 	if info[expect] != 1 {
 		t.Errorf("expected 1 call to release API, got %d", info[expect])
 	}
 
-	expect = "GET https://github.com/amimof/blipblop/releases/download/v0.0.8/blipblop-node-linux-amd64"
+	expect = "GET https://github.com/amimof/voiyd/releases/download/v0.0.8/voiyd-node-linux-amd64"
 	if info[expect] != 1 {
 		t.Errorf("expected 1 call to binary download, got %d", info[expect])
 	}

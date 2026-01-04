@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/pkg/cache"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/util"
+	"github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/pkg/cache"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/util"
 )
 
 type containerInMemRepo struct {

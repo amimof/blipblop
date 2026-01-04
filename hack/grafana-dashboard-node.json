@@ -2292,8 +2292,8 @@
       {
         "current": {
           "selected": false,
-          "text": "blipblop-node",
-          "value": "blipblop-node"
+          "text": "voiyd-node",
+          "value": "voiyd-node"
         },
         "datasource": {
           "type": "prometheus",
@@ -2325,7 +2325,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Blipblop Node",
+  "title": "voiyd Node",
   "uid": "16bf86e9-0883-4e7c-b9c9-a6e29624df0c",
   "version": 1,
   "weekStart": ""

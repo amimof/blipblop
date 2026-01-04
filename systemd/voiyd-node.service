@@ -1,0 +1,25 @@
+[Unit]
+Description=voiyd Node Agent
+Documentation=https://github.com/amimof/voiyd
+After=network-online.target containerd.service voiyd-server.service
+Wants=network-online.target containerd.service
+
+[Service]
+Type=simple
+
+# Node reads its identity from /etc/voiyd/node.yaml by default.
+# It connects to the server over gRPC on port 5743 with TLS.
+ExecStart=/usr/local/bin/voiyd-node \
+  --port=5743 \
+  --tls-ca=/etc/voiyd/tls/ca.crt \
+  --metrics-host=0.0.0.0
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening (tune as needed)
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

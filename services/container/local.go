@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/protoutils"
-	"github.com/amimof/blipblop/pkg/repository"
+	"github.com/amimof/voiyd/api/services/containers/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/protoutils"
+	"github.com/amimof/voiyd/pkg/repository"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -33,7 +33,7 @@ type local struct {
 
 var (
 	_      containers.ContainerServiceClient = &local{}
-	tracer                                   = otel.GetTracerProvider().Tracer("blipblop-server")
+	tracer                                   = otel.GetTracerProvider().Tracer("voiyd-server")
 )
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {

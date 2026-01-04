@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/util"
-	"github.com/amimof/blipblop/services/container"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/util"
+	"github.com/amimof/voiyd/services/container"
 )
 
 const (
@@ -91,7 +91,7 @@ func (c *clientV1) Kill(ctx context.Context, id string) (*containersv1.KillRespo
 	ctx, span := tracer.Start(ctx, "client.container.Kill")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	resp, err := c.Client.Kill(ctx, &containersv1.KillRequest{Id: id, ForceKill: true})
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (c *clientV1) Stop(ctx context.Context, id string) (*containersv1.KillRespo
 	ctx, span := tracer.Start(ctx, "client.container.Start")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	resp, err := c.Client.Kill(ctx, &containersv1.KillRequest{Id: id, ForceKill: false})
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (c *clientV1) Start(ctx context.Context, id string) (*containersv1.StartRes
 	ctx, span := tracer.Start(ctx, "client.container.Start")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	resp, err := c.Client.Start(ctx, &containersv1.StartRequest{Id: id})
 	if err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *containersv1.Container, opts
 		opt(c)
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &containersv1.CreateRequest{Container: ctr})
 	if err != nil {
 		return err
@@ -152,7 +152,7 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *containersv1.Cont
 	ctx, span := tracer.Start(ctx, "client.container.Update")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Update(ctx, &containersv1.UpdateRequest{Id: id, Container: ctr})
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *containersv1.Conta
 	ctx, span := tracer.Start(ctx, "client.container.Patch")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Patch(ctx, &containersv1.PatchRequest{Id: id, Container: ctr})
 	if err != nil {
 		return err
@@ -174,7 +174,7 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *containersv1.Conta
 }
 
 func (c *clientV1) Get(ctx context.Context, id string) (*containersv1.Container, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Get")
@@ -188,7 +188,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*containersv1.Container,
 }
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*containersv1.Container, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.List")
@@ -203,7 +203,7 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*containersv1
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Delete")

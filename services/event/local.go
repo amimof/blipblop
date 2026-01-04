@@ -3,8 +3,8 @@ package event
 import (
 	"context"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/pkg/repository"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/repository"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 )

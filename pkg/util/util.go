@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/voiyd/pkg/labels"
 )
 
 type Serializer struct {

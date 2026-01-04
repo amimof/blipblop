@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
-	"github.com/amimof/blipblop/pkg/cache"
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	"github.com/amimof/voiyd/pkg/cache"
 )
 
 type containerSetInMemRepo struct {

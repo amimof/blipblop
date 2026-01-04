@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
 )
