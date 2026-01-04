@@ -31,7 +31,7 @@ func TestImmutableFields(t *testing.T) {
 		},
 		Status: &containersv1.Status{
 			Phase: wrapperspb.String("idle"),
-			Node:  wrapperspb.String("bbnode"),
+			Node:  wrapperspb.String("voiydnode"),
 		},
 	}
 
