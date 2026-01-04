@@ -60,12 +60,12 @@ jobs:
 
       - uses: actions/upload-artifact@v6
         with:
-          name: coverage-report
+          name: coverage-raw
           path: ./test/coverage.out
 
       - uses: actions/upload-artifact@v6
         with:
-          name: coverage-report
+          name: coverage-html
           path: ./test/coverage.html
   build:
     runs-on: ubuntu-24.04
