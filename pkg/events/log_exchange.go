@@ -3,7 +3,7 @@ package events
 import (
 	"sync"
 
-	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
+	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
 )
 
 type LogKey struct {

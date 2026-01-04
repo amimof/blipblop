@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	containersetsv1 "github.com/amimof/blipblop/api/services/containersets/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
-	"github.com/amimof/blipblop/pkg/labels"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/labels"
 )
 
 var ErrNotFound = errors.New("item not found")

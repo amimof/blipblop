@@ -27,7 +27,7 @@ export GO111MODULE=on
 export CGO_ENABLED=0
 
 .PHONY: all
-all: server node bbctl
+all: server node voiydctl
 
 # Run
 
@@ -36,7 +36,7 @@ run: run-server run-node
 
 .PHONY: run-server
 run-server: ; $(info $(M) running server) @ ## Run a server on localhost
-	$Q $(GO) run cmd/blipblop-server/main.go \
+	$Q $(GO) run cmd/voiyd-server/main.go \
 		--tls-key ./certs/server.key \
 		--tls-certificate ./certs/server.crt \
 		--tls-host 0.0.0.0 \
@@ -45,7 +45,7 @@ run-server: ; $(info $(M) running server) @ ## Run a server on localhost
 
 .PHONY: run-node
 run-node: ; $(info $(M) running node) @ ## Run a node on localhost
-	$Q $(GO) run cmd/blipblop-node/main.go --tls-ca ./certs/ca.crt --port 5743 --log-level debug
+	$Q $(GO) run cmd/voiyd-node/main.go --tls-ca ./certs/ca.crt --port 5743 --log-level debug
 
 # Build
 
@@ -54,26 +54,26 @@ server: | $(BIN) ; $(info $(M) building server executable to $(BUILDPATH)/$(BINA
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH)/$${BINARY_NAME:=blipblop-server} cmd/blipblop-server/main.go
+		-o $(BUILDPATH)/$${BINARY_NAME:=voiyd-server} cmd/voiyd-server/main.go
 
 .PHONY: node
 node: | $(BIN) ; $(info $(M) building node executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH)/$${BINARY_NAME:=blipblop-node} cmd/blipblop-node/main.go
+		-o $(BUILDPATH)/$${BINARY_NAME:=voiyd-node} cmd/voiyd-node/main.go
 
-.PHONY: bbctl
-bbctl: | $(BIN) ; $(info $(M) building bbctl executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
+.PHONY: voiydctl
+voiydctl: | $(BIN) ; $(info $(M) building voiydctl executable to $(BUILDPATH)/$(BINARY_NAME)) @ ## Build program binary
 	$Q $(GO) build \
 		-tags release \
 		-ldflags '-X main.VERSION=${VERSION} -X main.DATE=${DATE} -X main.COMMIT=${COMMIT} -X main.BRANCH=${BRANCH} -X main.GOVERSION=${GOVERSION}' \
-		-o $(BUILDPATH)/$${BINARY_NAME:=bbctl} main.go
+		-o $(BUILDPATH)/$${BINARY_NAME:=voiydctl} main.go
 
 .PHONY: oci
 oci: ; $(info $(M) building container image) @ ## Build container image from Dockerfile
-	$(RUNTIME) build -t ghcr.io/amimof/blipblop:${VERSION} .
-	$(RUNTIME) tag ghcr.io/amimof/blipblop:${VERSION} ghcr.io/amimof/blipblop:latest
+	$(RUNTIME) build -t ghcr.io/amimof/voiyd:${VERSION} .
+	$(RUNTIME) tag ghcr.io/amimof/voiyd:${VERSION} ghcr.io/amimof/voiyd:latest
 
 .PHONY: protos
 protos: $(API_SERVICES)/* ; $(info $(M) generating protos) @ ## Generate protos
@@ -154,7 +154,7 @@ license: ## Runs license-check, license-report and license-save
 
 .PHONY: helm_lint
 helm_lint: ; $(info $(M) running helm lint) @ ## Verifies that the chart is well-formed
-	helm lint charts/blipblop/
+	helm lint charts/voiyd/
 
 # Misc
 

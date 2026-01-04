@@ -17,18 +17,18 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/consts"
-	"github.com/amimof/blipblop/pkg/errors"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/runtime"
-	"github.com/amimof/blipblop/pkg/volume"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/runtime"
+	"github.com/amimof/voiyd/pkg/volume"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 )
 
 type Controller struct {
@@ -72,7 +72,7 @@ func WithName(s string) NewOption {
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "node")
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "node")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Node Handlers

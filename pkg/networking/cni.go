@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-var tracer = otel.GetTracerProvider().Tracer("blipblop-node")
+var tracer = otel.GetTracerProvider().Tracer("voiyd-node")
 
 type Manager interface {
 	Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
@@ -231,9 +231,9 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
 		CNIConfDir:             "/etc/cni/net.d",
 		NetNSPathFmt:           "/proc/%d/ns/net",
 		CNIDataDir:             "/var/run/cni",
-		DefaultCNIConfFilename: "10-blipblop.conflist",
+		DefaultCNIConfFilename: "10-voiyd.conflist",
 		DefaultNetworkName:     "bridge",
-		DefaultBridgeName:      "blipblop0",
+		DefaultBridgeName:      "voiyd0",
 		DefaultSubnet:          "10.69.0.0/16",
 		DefaultSubnetGw:        "10.69.0.1",
 		DefaultIfPrefix:        "eth",

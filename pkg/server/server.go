@@ -5,8 +5,8 @@ import (
 	"io"
 	"net"
 
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/services"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/services"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"

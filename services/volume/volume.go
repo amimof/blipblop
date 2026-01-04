@@ -3,10 +3,10 @@ package volume
 import (
 	"context"
 
-	"github.com/amimof/blipblop/api/services/volumes/v1"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/repository"
+	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
 	"google.golang.org/grpc"
 )
 

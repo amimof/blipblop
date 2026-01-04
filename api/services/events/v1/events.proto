@@ -6,7 +6,7 @@ import "buf/validate/validate.proto";
 import "google/protobuf/any.proto";
 import "types/v1/meta.proto";
 
-option go_package = "github.com/amimof/blipblop/api/services/events/v1;events";
+option go_package = "github.com/amimof/voiyd/api/services/events/v1;events";
 
 service EventService {
   rpc Get(GetRequest) returns (GetResponse) {}

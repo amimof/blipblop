@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
+	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
 )
 
 // helper to create a basic LogEntry

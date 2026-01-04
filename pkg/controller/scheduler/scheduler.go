@@ -3,12 +3,12 @@ package schedulercontroller
 import (
 	"context"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/scheduling"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/scheduling"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -80,7 +80,7 @@ func (c *Controller) onContainerCreate(ctx context.Context, e *eventsv1.Event) e
 
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "scheduler")
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "scheduler")
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ContainerCreate)
 
 	// Setup Handlers

@@ -5,9 +5,9 @@ import (
 	"context"
 	"io"
 
-	logsv1 "github.com/amimof/blipblop/api/services/logs/v1"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
+	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

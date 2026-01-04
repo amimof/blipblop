@@ -1,0 +1,28 @@
+[Unit]
+Description=voiyd Server
+Documentation=https://github.com/amimof/voiyd
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Adjust binary path if installed elsewhere
+ExecStart=/usr/local/bin/voiyd-server \
+  --log-level=info \
+  --tls-certificate=/etc/voiyd/tls/server.crt \
+  --tls-key=/etc/voiyd/tls/server.key \
+  --tls-ca=/etc/voiyd/tls/ca.crt \
+  --tls-host=0.0.0.0 \
+  --tcp-tls-host=0.0.0.0 \
+  --metrics-host=0.0.0.0
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening (tune as needed)
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	"github.com/amimof/blipblop/pkg/logger"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )

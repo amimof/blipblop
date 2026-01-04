@@ -9,13 +9,13 @@ import (
 	"os"
 	"runtime"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/cmdutil"
-	"github.com/amimof/blipblop/pkg/consts"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
@@ -85,7 +85,7 @@ func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "nodeupgrade")
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "nodeupgrade")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.NodeUpgrade)
 
 	// Setup Node Handlers
@@ -160,7 +160,7 @@ func (c *Controller) getDownloadURL(ar apiResponse, arch string) (string, error)
 		return "", fmt.Errorf("unsupported architecture %s", arch)
 	}
 
-	match := fmt.Sprintf("blipblop-node-linux-%s", arch)
+	match := fmt.Sprintf("voiyd-node-linux-%s", arch)
 	var res string
 	for _, asset := range ar.Assets {
 		if asset.Name == match {
@@ -178,7 +178,7 @@ func (c *Controller) getDownloadURL(ar apiResponse, arch string) (string, error)
 
 func (c *Controller) downloadBinary(ctx context.Context, ver, arch string) (string, error) {
 	// Download new node binary
-	tmpFile, err := os.CreateTemp(c.tmpPath, "blipblop-node-")
+	tmpFile, err := os.CreateTemp(c.tmpPath, "voiyd-node-")
 	if err != nil {
 		c.failUpgrade(ctx, err)
 		return "", err
@@ -190,7 +190,7 @@ func (c *Controller) downloadBinary(ctx context.Context, ver, arch string) (stri
 		}
 	}()
 
-	url := fmt.Sprintf("https://api.github.com/repos/amimof/blipblop/releases/tags/%s", ver)
+	url := fmt.Sprintf("https://api.github.com/repos/amimof/voiyd/releases/tags/%s", ver)
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
 		c.failUpgrade(ctx, err)

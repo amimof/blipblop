@@ -12,7 +12,7 @@ import "services/events/v1/events.proto";
 import "services/logs/v1/logs.proto";
 import "types/v1/meta.proto";
 
-option go_package = "github.com/amimof/blipblop/api/services/volumes/v1;volumes";
+option go_package = "github.com/amimof/voiyd/api/services/volumes/v1;volumes";
 
 service VolumeService {
   rpc List(ListRequest) returns (ListResponse) {

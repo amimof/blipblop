@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	cmd "github.com/amimof/blipblop/cmd/bbctl"
+	cmd "github.com/amimof/voiyd/cmd/voiydctl"
 	"github.com/sirupsen/logrus"
 )
 

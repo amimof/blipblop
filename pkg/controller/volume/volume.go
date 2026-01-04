@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 
-	eventsv1 "github.com/amimof/blipblop/api/services/events/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
-	"github.com/amimof/blipblop/pkg/client"
-	"github.com/amimof/blipblop/pkg/consts"
-	"github.com/amimof/blipblop/pkg/events"
-	"github.com/amimof/blipblop/pkg/logger"
-	"github.com/amimof/blipblop/pkg/volume"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/volume"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -109,7 +109,7 @@ func (vc *Controller) getVolumeDriver(vol *volumesv1.Volume) (volume.Driver, err
 
 func (vc *Controller) Run(ctx context.Context) {
 	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_controller_name", "volume")
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "volume")
 
 	err := vc.Reconcile(ctx)
 	if err != nil {

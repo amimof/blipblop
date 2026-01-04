@@ -2,7 +2,7 @@
 
 # blipblop
 
-Blipblop is a lightweight container orchestration platform with a central server and agent nodes. It lets you schedule and manage containers across many number of arbitrary Linux hosts using a simple CLI (bbctl) and a gRPC/HTTP API. It’s designed to be small, understandable, and easy to run on your own infrastructure.
+Blipblop is a lightweight container orchestration platform with a central server and agent nodes. It lets you schedule and manage containers across many number of arbitrary Linux hosts using a simple CLI (voiydctl) and a gRPC/HTTP API. It’s designed to be small, understandable, and easy to run on your own infrastructure.
 
 ## Features
 
@@ -14,12 +14,12 @@ Blipblop is a lightweight container orchestration platform with a central server
 - **Event and log streaming**: Event service for cluster events (create/update/delete, etc). Log service for streaming container logs.
 - **Node management and upgrades**: Register and list nodes. Node upgrade support and associated controllers.
 - **Pluggable storage backends**: BadgerDB-based repository implementation. In-memory repositories for testing.
-- **CLI-focused**: Use bbctl to manage clusters.
+- **CLI-focused**: Use voiydctl to manage clusters.
 - **Instrumentation**: Metrics and tracing hooks in pkg/instrumentation.
 
 ## Architecture Overview
 
-Blipblop is an event-driven system which means that any interactions made with the server emits an event that clients within the cluster may react to. For example using `bbctl` you can `run` a container. The run command will publish a `ContainerCreate` event to the server. All nodes in the cluser may choose to react to that event, based on labels etc, to start the container on the host. The system consists of three main pieces:
+Blipblop is an event-driven system which means that any interactions made with the server emits an event that clients within the cluster may react to. For example using `voiydctl` you can `run` a container. The run command will publish a `ContainerCreate` event to the server. All nodes in the cluser may choose to react to that event, based on labels etc, to start the container on the host. The system consists of three main pieces:
 
 - **Control plane**: `blipblop-server`
   - Exposes gRPC/HTTP APIs defined in api/.
@@ -28,13 +28,13 @@ Blipblop is an event-driven system which means that any interactions made with t
   - Runs on each node.
   - Talks to containerd (pkg/runtime, pkg/containerd) to manage containers.
   - Reports status and metrics back to the server.
-- **CLI**: `bbctl`
+- **CLI**: `voiydctl`
   - Used by operators to interact with the server and nodes.
   - Provides subcommands for create/get/apply/delete, logs, upgrade, etc.
 
 ## Prerequisites
 
-blipblop-server and bbctl can run on pretty much any platform whereas blipblop-node requires Linux with the following requirements:
+blipblop-server and voiydctl can run on pretty much any platform whereas blipblop-node requires Linux with the following requirements:
 
 - Linux
 - [Containerd](https://containerd.io/downloads/) >= 1.6
@@ -52,8 +52,8 @@ You can install Blipblop either from source or using pre-built binaries from [re
 3. Make it executable and move it into your `PATH`
 
    ```bash
-   chmod +x bbctl blipblop-server blipblop-node
-   sudo mv bbctl blipblop-server blipblop-node /usr/local/bin/
+   chmod +x voiydctl blipblop-server blipblop-node
+   sudo mv voiydctl blipblop-server blipblop-node /usr/local/bin/
     ```
 
 ### Build From Source
@@ -64,7 +64,7 @@ cd blipblop
 make
 ```
 
-To build a specific binary you may run `make bbctl`, `make node` or `make server`. Use env variables to specify target os, architecture and binary name with `GOOS`, `GOARCH` and `BINARY_NAME`. For example:
+To build a specific binary you may run `make voiydctl`, `make node` or `make server`. Use env variables to specify target os, architecture and binary name with `GOOS`, `GOARCH` and `BINARY_NAME`. For example:
 
 ```bash
 GOOS=windows GOARCH=amd64 BINARY_NAME=blipblop-server-windows-amd64.exe make server
@@ -103,17 +103,17 @@ NOTE: Run make help for more information on all potential make targets
         --port 5743
     ```
 
-4. Create a `bbctl` configuration
+4. Create a `voiydctl` configuration
 
     ```bash
-    bbctl config init
-    bbctl config create-server dev --address localhost:5743 --tls --ca ./certs/ca.crt
+    voiydctl config init
+    voiydctl config create-server dev --address localhost:5743 --tls --ca ./certs/ca.crt
     ```
 
 5. Run a container
 
     ```bash
-    bbctl run victoria-metrics --image docker.io/victoriametrics/victoria-metrics:v1.130.0
+    voiydctl run victoria-metrics --image docker.io/victoriametrics/victoria-metrics:v1.130.0
     ```
 
 ## License

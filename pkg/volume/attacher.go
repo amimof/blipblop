@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	containersv1 "github.com/amimof/blipblop/api/services/containers/v1"
-	nodesv1 "github.com/amimof/blipblop/api/services/nodes/v1"
-	volumesv1 "github.com/amimof/blipblop/api/services/volumes/v1"
-	clientv1 "github.com/amimof/blipblop/pkg/client/volume/v1"
-	"github.com/amimof/blipblop/pkg/consts"
+	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	clientv1 "github.com/amimof/voiyd/pkg/client/volume/v1"
+	"github.com/amimof/voiyd/pkg/consts"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )

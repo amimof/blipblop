@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/amimof/blipblop/api/services/nodes/v1"
-	"github.com/amimof/blipblop/pkg/cache"
+	"github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/pkg/cache"
 )
 
 type nodeInMemRepo struct {

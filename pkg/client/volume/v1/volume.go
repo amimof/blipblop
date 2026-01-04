@@ -3,9 +3,9 @@ package v1
 import (
 	"context"
 
-	"github.com/amimof/blipblop/api/services/volumes/v1"
-	"github.com/amimof/blipblop/pkg/labels"
-	"github.com/amimof/blipblop/pkg/util"
+	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/util"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -86,7 +86,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *volumes.Volume, opts ...Crea
 	for _, opt := range opts {
 		opt(c)
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &volumes.CreateRequest{Volume: ctr})
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *volumes.Volume) e
 	ctx, span := tracer.Start(ctx, "client.container.Update")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Update(ctx, &volumes.UpdateRequest{Id: id, Volume: ctr})
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *volumes.Volume) er
 	ctx, span := tracer.Start(ctx, "client.container.Patch")
 	defer span.End()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Patch(ctx, &volumes.PatchRequest{Id: id, Volume: ctr})
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *volumes.Volume) er
 }
 
 func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Get")
@@ -135,7 +135,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) 
 }
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*volumes.Volume, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.List")
@@ -150,7 +150,7 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*volumes.Volu
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "blipblop_client_id", c.id)
+	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.container.Delete")

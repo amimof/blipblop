@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/api/types/v1"
-	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,9 +29,9 @@ func initInMemContainerRepo(ctx context.Context, repo ContainerRepository) (Cont
 			Meta: &types.Meta{
 				Name: "container-with-multiple-labels",
 				Labels: map[string]string{
-					"app":                       "backend",
-					"region":                    "west",
-					"blipblop.io/container-set": "test-set",
+					"app":                    "backend",
+					"region":                 "west",
+					"voiyd.io/container-set": "test-set",
 				},
 			},
 		},

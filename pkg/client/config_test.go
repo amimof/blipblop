@@ -3,7 +3,7 @@ package client_test
 import (
 	"testing"
 
-	"github.com/amimof/blipblop/pkg/client"
+	"github.com/amimof/voiyd/pkg/client"
 )
 
 func TestConfig_ValidateTLSConfig(t *testing.T) {

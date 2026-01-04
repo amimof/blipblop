@@ -8,12 +8,12 @@ import (
 	"encoding/hex"
 	"io"
 
-	"github.com/amimof/blipblop/api/services/containers/v1"
-	"github.com/amimof/blipblop/pkg/labels"
+	"github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/pkg/labels"
 )
 
 const (
-	DefaultNamespace = "blipblop"
+	DefaultNamespace = "voiyd"
 	IDMaxLen         = 64
 )
 

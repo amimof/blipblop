@@ -10,7 +10,7 @@ import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
 import "types/v1/meta.proto";
 
-option go_package = "github.com/amimof/blipblop/api/services/containers/v1;containers";
+option go_package = "github.com/amimof/voiyd/api/services/containers/v1;containers";
 
 service ContainerService {
   rpc Get(GetRequest) returns (GetResponse) {
