@@ -12,7 +12,7 @@ import (
 )
 
 func initInMemTaskRepo(ctx context.Context, repo TaskRepository) (TaskRepository, error) {
-	ctrs := []*tasksv1.Task{
+	tasks := []*tasksv1.Task{
 		{
 			Meta: &types.Meta{
 				Name: "container-without-labels",
@@ -38,8 +38,8 @@ func initInMemTaskRepo(ctx context.Context, repo TaskRepository) (TaskRepository
 		},
 	}
 
-	for _, ctr := range ctrs {
-		err := repo.Create(ctx, ctr)
+	for _, task := range tasks {
+		err := repo.Create(ctx, task)
 		if err != nil {
 			return nil, err
 		}
@@ -56,17 +56,17 @@ func TestListTasksWithFilter(t *testing.T) {
 	repo, err := initInMemTaskRepo(ctx, NewTaskInMemRepo())
 	assert.NoError(t, err)
 
-	ctrs, err := repo.List(ctx, filter)
+	tasks, err := repo.List(ctx, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expected := "container-with-labels"
 
-	assert.Len(t, ctrs, 1, "length of containers should be 1")
+	assert.Len(t, tasks, 1, "length of containers should be 1")
 
-	for _, ctr := range ctrs {
-		assert.Equal(t, ctr.GetMeta().GetName(), expected, "containers should match")
+	for _, task := range tasks {
+		assert.Equal(t, task.GetMeta().GetName(), expected, "task should match")
 	}
 }
 
@@ -76,10 +76,10 @@ func TestListTasksWithNoFilter(t *testing.T) {
 	repo, err := initInMemTaskRepo(ctx, NewTaskInMemRepo())
 	assert.NoError(t, err)
 
-	ctrs, err := repo.List(ctx)
+	tasks, err := repo.List(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Len(t, ctrs, 3, "length of containers should be 3")
+	assert.Len(t, tasks, 3, "length of tasks should be 3")
 }

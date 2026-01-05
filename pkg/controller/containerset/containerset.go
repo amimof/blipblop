@@ -87,17 +87,17 @@ func (c *Controller) onDelete(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	ctrs, err := c.clientset.TaskV1().List(ctx)
+	tasks, err := c.clientset.TaskV1().List(ctx)
 	if err != nil {
 		return err
 	}
 
 	key := labels.LabelPrefix("task-set").String()
 
-	for _, ctr := range ctrs {
-		if _, ok := ctr.GetMeta().GetLabels()[key]; ok {
-			if ctr.GetMeta().GetLabels()[key] == taskSet.GetMeta().GetName() {
-				err = c.clientset.TaskV1().Delete(ctx, ctr.GetMeta().GetName())
+	for _, task := range tasks {
+		if _, ok := task.GetMeta().GetLabels()[key]; ok {
+			if task.GetMeta().GetLabels()[key] == taskSet.GetMeta().GetName() {
+				err = c.clientset.TaskV1().Delete(ctx, task.GetMeta().GetName())
 				if err != nil {
 					return err
 				}

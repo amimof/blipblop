@@ -15,32 +15,32 @@ import (
 )
 
 var (
-	containerPrefix = []byte("container")
-	tracer          = otel.GetTracerProvider().Tracer("voiyd-server")
+	taskPrefix = []byte("task")
+	tracer     = otel.GetTracerProvider().Tracer("voiyd-server")
 )
 
 type TaskID string
 
 func (c TaskID) String() string {
-	return fmt.Sprintf("%s:%s", string(containerPrefix), string(c))
+	return fmt.Sprintf("%s:%s", string(taskPrefix), string(c))
 }
 
-type containerBadgerRepo struct {
+type taskBadgerRepo struct {
 	db *badger.DB
 }
 
-func NewTaskBadgerRepository(db *badger.DB) *containerBadgerRepo {
-	return &containerBadgerRepo{
+func NewTaskBadgerRepository(db *badger.DB) *taskBadgerRepo {
+	return &taskBadgerRepo{
 		db: db,
 	}
 }
 
-func (r *containerBadgerRepo) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
-	_, span := tracer.Start(ctx, "repo.container.Get")
+func (r *taskBadgerRepo) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
+	_, span := tracer.Start(ctx, "repo.task.Get")
 	span.SetAttributes(
 		attribute.String("service", "Database"),
 		attribute.String("provider", "badger"),
-		attribute.String("container.id", id),
+		attribute.String("task.id", id),
 	)
 	defer span.End()
 
@@ -67,24 +67,24 @@ func (r *containerBadgerRepo) Get(ctx context.Context, id string) (*tasksv1.Task
 	return res, nil
 }
 
-func (r *containerBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*tasksv1.Task, error) {
-	_, span := tracer.Start(ctx, "repo.container.List")
+func (r *taskBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*tasksv1.Task, error) {
+	_, span := tracer.Start(ctx, "repo.task.List")
 	defer span.End()
 
 	filter := util.MergeLabels(l...)
 	var result []*tasksv1.Task
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.Prefix = containerPrefix
+		opts.Prefix = taskPrefix
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		it.Seek(containerPrefix)
-		for it.ValidForPrefix(containerPrefix) {
+		it.Seek(taskPrefix)
+		for it.ValidForPrefix(taskPrefix) {
 			item := it.Item()
-			ctr := &tasksv1.Task{}
+			task := &tasksv1.Task{}
 			err := item.Value(func(val []byte) error {
-				err := proto.Unmarshal(val, ctr)
+				err := proto.Unmarshal(val, task)
 				if err != nil {
 					return err
 				}
@@ -94,8 +94,8 @@ func (r *containerBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*t
 				return err
 			}
 			filter := labels.NewCompositeSelectorFromMap(filter)
-			if filter.Matches(ctr.GetMeta().GetLabels()) {
-				result = append(result, ctr)
+			if filter.Matches(task.GetMeta().GetLabels()) {
+				result = append(result, task)
 			}
 			it.Next()
 		}
@@ -107,13 +107,13 @@ func (r *containerBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*t
 	return result, nil
 }
 
-func (r *containerBadgerRepo) Create(ctx context.Context, container *tasksv1.Task) error {
-	_, span := tracer.Start(ctx, "repo.container.Create")
+func (r *taskBadgerRepo) Create(ctx context.Context, task *tasksv1.Task) error {
+	_, span := tracer.Start(ctx, "repo.task.Create")
 	defer span.End()
 
 	return r.db.Update(func(txn *badger.Txn) error {
-		key := TaskID(container.GetMeta().GetName()).String()
-		b, err := proto.Marshal(container)
+		key := TaskID(task.GetMeta().GetName()).String()
+		b, err := proto.Marshal(task)
 		if err != nil {
 			return err
 		}
@@ -121,7 +121,7 @@ func (r *containerBadgerRepo) Create(ctx context.Context, container *tasksv1.Tas
 	})
 }
 
-func (r *containerBadgerRepo) Delete(ctx context.Context, id string) error {
+func (r *taskBadgerRepo) Delete(ctx context.Context, id string) error {
 	_, span := tracer.Start(ctx, "repo.container.Delete")
 	defer span.End()
 
@@ -138,9 +138,9 @@ func (r *containerBadgerRepo) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (r *containerBadgerRepo) Update(ctx context.Context, container *tasksv1.Task) error {
-	_, span := tracer.Start(ctx, "repo.container.Update")
+func (r *taskBadgerRepo) Update(ctx context.Context, task *tasksv1.Task) error {
+	_, span := tracer.Start(ctx, "repo.task.Update")
 	defer span.End()
 
-	return r.Create(ctx, container)
+	return r.Create(ctx, task)
 }
