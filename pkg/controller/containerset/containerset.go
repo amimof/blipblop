@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
-	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"google.golang.org/grpc/metadata"
+
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/util"
-	"google.golang.org/grpc/metadata"
+
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type Controller struct {
@@ -35,11 +37,11 @@ func (c *Controller) Run(ctx context.Context) {
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(events.ContainerCreate, c.onCreate)
-	c.clientset.EventV1().On(events.ContainerUpdate, func(ctx context.Context, e *eventsv1.Event) error {
+	c.clientset.EventV1().On(events.TaskCreate, c.onCreate)
+	c.clientset.EventV1().On(events.TaskUpdate, func(ctx context.Context, e *eventsv1.Event) error {
 		return nil
 	})
-	c.clientset.EventV1().On(events.ContainerDelete, c.onDelete)
+	c.clientset.EventV1().On(events.TaskDelete, c.onDelete)
 
 	// Handle errors
 	for e := range err {
@@ -54,14 +56,14 @@ func (c *Controller) onCreate(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	// Merge labels from containerset into container
+	// Merge labels from containerset into task
 	l := labels.New()
-	l.Set(labels.LabelPrefix("container-set").String(), set.GetMeta().GetName())
+	l.Set(labels.LabelPrefix("task-set").String(), set.GetMeta().GetName())
 	l.AppendMap(set.GetMeta().GetLabels())
 	template := set.GetTemplate()
 
-	// Create container instance
-	container := &containersv1.Container{
+	// Create task instance
+	task := &tasksv1.Task{
 		Meta: &types.Meta{
 			Name:   fmt.Sprintf("%s-%s", set.GetMeta().GetName(), util.GenerateBase36(8)),
 			Labels: l,
@@ -69,8 +71,8 @@ func (c *Controller) onCreate(ctx context.Context, e *eventsv1.Event) error {
 		Config: template,
 	}
 
-	// Create container request
-	err = c.clientset.ContainerV1().Create(ctx, container)
+	// Create task request
+	err = c.clientset.TaskV1().Create(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -79,23 +81,23 @@ func (c *Controller) onCreate(ctx context.Context, e *eventsv1.Event) error {
 }
 
 func (c *Controller) onDelete(ctx context.Context, e *eventsv1.Event) error {
-	var containerSet containersetsv1.ContainerSet
-	err := e.GetObject().UnmarshalTo(&containerSet)
+	var taskSet containersetsv1.ContainerSet
+	err := e.GetObject().UnmarshalTo(&taskSet)
 	if err != nil {
 		return err
 	}
 
-	ctrs, err := c.clientset.ContainerV1().List(ctx)
+	tasks, err := c.clientset.TaskV1().List(ctx)
 	if err != nil {
 		return err
 	}
 
-	key := labels.LabelPrefix("container-set").String()
+	key := labels.LabelPrefix("task-set").String()
 
-	for _, ctr := range ctrs {
-		if _, ok := ctr.GetMeta().GetLabels()[key]; ok {
-			if ctr.GetMeta().GetLabels()[key] == containerSet.GetMeta().GetName() {
-				err = c.clientset.ContainerV1().Delete(ctx, ctr.GetMeta().GetName())
+	for _, task := range tasks {
+		if _, ok := task.GetMeta().GetLabels()[key]; ok {
+			if task.GetMeta().GetLabels()[key] == taskSet.GetMeta().GetName() {
+				err = c.clientset.TaskV1().Delete(ctx, task.GetMeta().GetName())
 				if err != nil {
 					return err
 				}

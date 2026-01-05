@@ -8,12 +8,12 @@ import (
 )
 
 // helper to create a basic LogEntry
-func newLogEntry(node, container, session, line string) *logsv1.LogEntry {
+func newLogEntry(node, task, session, line string) *logsv1.LogEntry {
 	return &logsv1.LogEntry{
-		NodeId:      node,
-		ContainerId: container,
-		SessionId:   session,
-		Line:        line,
+		NodeId:    node,
+		TaskId:    task,
+		SessionId: session,
+		Line:      line,
 	}
 }
 
@@ -22,9 +22,9 @@ func TestLogExchange_SubscribeAndPublishSingleSubscriber(t *testing.T) {
 		topics: make(map[LogKey][]chan *logsv1.LogEntry),
 	}
 	key := LogKey{
-		NodeID:      "node-1",
-		ContainerID: "ctr-1",
-		SessionID:   "sess-1",
+		NodeID:    "node-1",
+		TaskID:    "ctr-1",
+		SessionID: "sess-1",
 	}
 
 	ch := lx.Subscribe(key)
@@ -61,9 +61,9 @@ func TestLogExchange_PublishToMultipleSubscribersSameKey(t *testing.T) {
 		topics: make(map[LogKey][]chan *logsv1.LogEntry),
 	}
 	key := LogKey{
-		NodeID:      "node-1",
-		ContainerID: "ctr-1",
-		SessionID:   "sess-1",
+		NodeID:    "node-1",
+		TaskID:    "ctr-1",
+		SessionID: "sess-1",
 	}
 
 	ch1 := lx.Subscribe(key)
@@ -92,18 +92,18 @@ func TestLogExchange_SessionIsolation(t *testing.T) {
 		topics: make(map[LogKey][]chan *logsv1.LogEntry),
 	}
 	baseKey := LogKey{
-		NodeID:      "node-1",
-		ContainerID: "ctr-1",
+		NodeID: "node-1",
+		TaskID: "ctr-1",
 	}
 
-	keySess1 := LogKey{NodeID: baseKey.NodeID, ContainerID: baseKey.ContainerID, SessionID: "sess-1"}
-	keySess2 := LogKey{NodeID: baseKey.NodeID, ContainerID: baseKey.ContainerID, SessionID: "sess-2"}
+	keySess1 := LogKey{NodeID: baseKey.NodeID, TaskID: baseKey.TaskID, SessionID: "sess-1"}
+	keySess2 := LogKey{NodeID: baseKey.NodeID, TaskID: baseKey.TaskID, SessionID: "sess-2"}
 
 	ch1 := lx.Subscribe(keySess1)
 	ch2 := lx.Subscribe(keySess2)
 
-	entry1 := newLogEntry(baseKey.NodeID, baseKey.ContainerID, "sess-1", "from sess-1")
-	entry2 := newLogEntry(baseKey.NodeID, baseKey.ContainerID, "sess-2", "from sess-2")
+	entry1 := newLogEntry(baseKey.NodeID, baseKey.TaskID, "sess-1", "from sess-1")
+	entry2 := newLogEntry(baseKey.NodeID, baseKey.TaskID, "sess-2", "from sess-2")
 
 	// Publish entry for session 1; only ch1 should receive it.
 	lx.Publish(entry1)
@@ -149,9 +149,9 @@ func TestLogExchange_UnsubscribeRemovesSubscriberAndCleansUpTopic(t *testing.T) 
 		topics: make(map[LogKey][]chan *logsv1.LogEntry),
 	}
 	key := LogKey{
-		NodeID:      "node-1",
-		ContainerID: "ctr-1",
-		SessionID:   "sess-1",
+		NodeID:    "node-1",
+		TaskID:    "ctr-1",
+		SessionID: "sess-1",
 	}
 
 	ch1 := lx.Subscribe(key)
@@ -192,9 +192,9 @@ func TestLogExchange_CloseKeyClosesAllSubscribersAndRemovesTopic(t *testing.T) {
 		topics: make(map[LogKey][]chan *logsv1.LogEntry),
 	}
 	key := LogKey{
-		NodeID:      "node-1",
-		ContainerID: "ctr-1",
-		SessionID:   "sess-1",
+		NodeID:    "node-1",
+		TaskID:    "ctr-1",
+		SessionID: "sess-1",
 	}
 
 	ch1 := lx.Subscribe(key)

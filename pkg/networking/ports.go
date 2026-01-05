@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
 	gocni "github.com/containerd/go-cni"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type PortMapping struct {
@@ -39,16 +40,16 @@ func (p *PortMapping) String() string {
 	return fmt.Sprintf("%d:%d", p.Source, p.Destination)
 }
 
-func ParseCNIPortMapping(pm *containers.PortMapping) gocni.PortMapping {
+func ParseCNIPortMapping(pm *tasksv1.PortMapping) gocni.PortMapping {
 	return gocni.PortMapping{
 		HostPort:      int32(pm.GetHostPort()),
-		ContainerPort: int32(pm.GetContainerPort()),
+		ContainerPort: int32(pm.GetTargetPort()),
 		Protocol:      pm.GetProtocol(),
 		HostIP:        pm.GetHostIp(),
 	}
 }
 
-func ParseCNIPortMappings(pm ...*containers.PortMapping) []gocni.PortMapping {
+func ParseCNIPortMappings(pm ...*tasksv1.PortMapping) []gocni.PortMapping {
 	mappings := make([]gocni.PortMapping, len(pm))
 	for i, mapping := range pm {
 		if mapping.Protocol == "" {
@@ -59,18 +60,18 @@ func ParseCNIPortMappings(pm ...*containers.PortMapping) []gocni.PortMapping {
 	return mappings
 }
 
-func ParsePortMapping(pm gocni.PortMapping) *containers.PortMapping {
-	return &containers.PortMapping{
-		HostPort:      uint32(pm.HostPort),
-		ContainerPort: uint32(pm.ContainerPort),
-		Protocol:      pm.Protocol,
-		HostIp:        pm.HostIP,
-		Name:          fmt.Sprintf("%d:%d", pm.HostPort, pm.ContainerPort),
+func ParsePortMapping(pm gocni.PortMapping) *tasksv1.PortMapping {
+	return &tasksv1.PortMapping{
+		HostPort:   uint32(pm.HostPort),
+		TargetPort: uint32(pm.ContainerPort),
+		Protocol:   pm.Protocol,
+		HostIp:     pm.HostIP,
+		Name:       fmt.Sprintf("%d:%d", pm.HostPort, pm.ContainerPort),
 	}
 }
 
-func ParsePortMappings(pm ...gocni.PortMapping) []*containers.PortMapping {
-	mappings := make([]*containers.PortMapping, len(pm))
+func ParsePortMappings(pm ...gocni.PortMapping) []*tasksv1.PortMapping {
+	mappings := make([]*tasksv1.PortMapping, len(pm))
 	for i, mapping := range pm {
 		if mapping.Protocol == "" {
 			mapping.Protocol = "TCP"

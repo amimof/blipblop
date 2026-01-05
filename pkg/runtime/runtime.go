@@ -8,8 +8,9 @@ import (
 	"encoding/hex"
 	"io"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
 	"github.com/amimof/voiyd/pkg/labels"
+
+	taskv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 const (
@@ -23,22 +24,22 @@ func (id ID) String() string {
 	return string(id)
 }
 
-type ContainerIO struct {
+type TaskIO struct {
 	Stdout io.ReadCloser
 	Stderr io.ReadCloser
 }
 
 type Runtime interface {
-	List(context.Context) ([]*containers.Container, error)
-	Get(context.Context, string) (*containers.Container, error)
-	Delete(context.Context, *containers.Container) error
-	Kill(context.Context, *containers.Container) error
-	Stop(context.Context, *containers.Container) error
-	Run(context.Context, *containers.Container) error
+	List(context.Context) ([]*taskv1.Task, error)
+	Get(context.Context, string) (*taskv1.Task, error)
+	Delete(context.Context, *taskv1.Task) error
+	Kill(context.Context, *taskv1.Task) error
+	Stop(context.Context, *taskv1.Task) error
+	Run(context.Context, *taskv1.Task) error
 	Cleanup(context.Context, string) error
-	Pull(context.Context, *containers.Container) error
+	Pull(context.Context, *taskv1.Task) error
 	Labels(context.Context, string) (labels.Label, error)
-	IO(context.Context, string) (*ContainerIO, error)
+	IO(context.Context, string) (*TaskIO, error)
 	Namespace() string
 	Version(context.Context) (string, error)
 	ID(context.Context, string) (string, error)

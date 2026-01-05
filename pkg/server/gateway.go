@@ -6,14 +6,15 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
-	"github.com/amimof/voiyd/api/services/containersets/v1"
-	"github.com/amimof/voiyd/api/services/nodes/v1"
-	"github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 )
 
 var DefaultMux = runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true}}))
@@ -82,19 +83,19 @@ func NewGateway(ctx context.Context, addr string, mux *runtime.ServeMux, opts ..
 	if err != nil {
 		return nil, err
 	}
-	err = containersets.RegisterContainerSetServiceHandler(ctx, mux, conn)
+	err = containersetsv1.RegisterContainerSetServiceHandler(ctx, mux, conn)
 	if err != nil {
 		return nil, err
 	}
-	err = containers.RegisterContainerServiceHandler(ctx, mux, conn)
+	err = tasksv1.RegisterTaskServiceHandler(ctx, mux, conn)
 	if err != nil {
 		return nil, err
 	}
-	err = nodes.RegisterNodeServiceHandler(ctx, mux, conn)
+	err = nodesv1.RegisterNodeServiceHandler(ctx, mux, conn)
 	if err != nil {
 		return nil, err
 	}
-	err = volumes.RegisterVolumeServiceHandler(ctx, mux, conn)
+	err = volumesv1.RegisterVolumeServiceHandler(ctx, mux, conn)
 	if err != nil {
 		return nil, err
 	}

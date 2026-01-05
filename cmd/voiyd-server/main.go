@@ -35,11 +35,11 @@ import (
 	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/amimof/voiyd/pkg/scheduling"
 	"github.com/amimof/voiyd/pkg/server"
-	"github.com/amimof/voiyd/services/container"
 	"github.com/amimof/voiyd/services/containerset"
 	"github.com/amimof/voiyd/services/event"
 	logsvc "github.com/amimof/voiyd/services/log"
 	"github.com/amimof/voiyd/services/node"
+	"github.com/amimof/voiyd/services/task"
 	"github.com/amimof/voiyd/services/volume"
 )
 
@@ -265,10 +265,10 @@ func main() {
 		containerset.WithExchange(exchange),
 	)
 
-	containerService := container.NewService(
-		repository.NewContainerBadgerRepository(db),
-		container.WithLogger(log),
-		container.WithExchange(exchange),
+	taskService := task.NewService(
+		repository.NewTaskBadgerRepository(db),
+		task.WithLogger(log),
+		task.WithExchange(exchange),
 	)
 
 	logService := logsvc.NewService(
@@ -310,7 +310,7 @@ func main() {
 	}
 
 	// Register services to gRPC server
-	err = s.RegisterService(eventService, nodeService, containerSetService, containerService, logService, volumeService)
+	err = s.RegisterService(eventService, nodeService, containerSetService, taskService, logService, volumeService)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)

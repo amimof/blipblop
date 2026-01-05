@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+
 	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
-	"github.com/amimof/voiyd/pkg/labels"
 )
 
 var ErrNotFound = errors.New("item not found")
@@ -23,12 +24,12 @@ type ContainerSetRepository interface {
 	Update(context.Context, *containersetsv1.ContainerSet) error
 }
 
-type ContainerRepository interface {
-	Create(context.Context, *containersv1.Container) error
-	Get(context.Context, string) (*containersv1.Container, error)
+type TaskRepository interface {
+	Create(context.Context, *tasksv1.Task) error
+	Get(context.Context, string) (*tasksv1.Task, error)
 	Delete(context.Context, string) error
-	List(context.Context, ...labels.Label) ([]*containersv1.Container, error)
-	Update(context.Context, *containersv1.Container) error
+	List(context.Context, ...labels.Label) ([]*tasksv1.Task, error)
+	Update(context.Context, *tasksv1.Task) error
 }
 
 type NodeRepository interface {

@@ -5,55 +5,56 @@ import (
 	"slices"
 	"testing"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
 	"github.com/amimof/voiyd/api/types/v1"
-	jsonpatch "github.com/evanphx/json-patch"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 func TestImmutableFields(t *testing.T) {
-	existingContainer := &containersv1.Container{
+	existingTask := &tasksv1.Task{
 		Meta: &types.Meta{
-			Name: "test-container",
+			Name: "test-task",
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "test-image-new",
-			PortMappings: []*containersv1.PortMapping{
+			PortMappings: []*tasksv1.PortMapping{
 				{
-					HostPort:      8080,
-					ContainerPort: 8080,
-					Protocol:      "TCP",
+					HostPort:   8080,
+					TargetPort: 8080,
+					Protocol:   "TCP",
 				},
 			},
 		},
-		Status: &containersv1.Status{
+		Status: &tasksv1.Status{
 			Phase: wrapperspb.String("idle"),
 			Node:  wrapperspb.String("voiydnode"),
 		},
 	}
 
-	patchContainer := &containersv1.Container{
-		Config: &containersv1.Config{
+	patchTask := &tasksv1.Task{
+		Config: &tasksv1.Config{
 			Image: "test-image-new",
-			PortMappings: []*containersv1.PortMapping{
+			PortMappings: []*tasksv1.PortMapping{
 				{
-					HostPort:      443,
-					ContainerPort: 8080,
-					Protocol:      "TCP",
+					HostPort:   443,
+					TargetPort: 8080,
+					Protocol:   "TCP",
 				},
 				{
-					HostPort:      8080,
-					ContainerPort: 8080,
-					Protocol:      "TCP",
+					HostPort:   8080,
+					TargetPort: 8080,
+					Protocol:   "TCP",
 				},
 			},
 		},
 	}
 
-	updated, err := StrategicMergePatch(existingContainer, patchContainer)
+	updated, err := StrategicMergePatch(existingTask, patchTask)
 	if err != nil {
 		t.Error(err)
 	}
@@ -61,7 +62,7 @@ func TestImmutableFields(t *testing.T) {
 	t.Logf("Result: %+v", updated)
 }
 
-func StrategicMergePatch(target, patch *containersv1.Container) (*containersv1.Container, error) {
+func StrategicMergePatch(target, patch *tasksv1.Task) (*tasksv1.Task, error) {
 	targetb, err := json.Marshal(target)
 	if err != nil {
 		return nil, err
@@ -77,7 +78,7 @@ func StrategicMergePatch(target, patch *containersv1.Container) (*containersv1.C
 		return nil, err
 	}
 
-	var c containersv1.Container
+	var c tasksv1.Task
 	err = json.Unmarshal(b, &c)
 	if err != nil {
 		return nil, err
@@ -162,26 +163,26 @@ func TestMergeSlices(t *testing.T) {
 }
 
 func TestClearRepeatedFields(t *testing.T) {
-	baseContainer := containersv1.Container{
+	baseTask := tasksv1.Task{
 		Meta: &types.Meta{
-			Name: "test-container",
+			Name: "test-task",
 			Labels: map[string]string{
 				"team":        "backend",
 				"environment": "production",
 				"role":        "root",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/nginx:latest",
-			PortMappings: []*containersv1.PortMapping{
+			PortMappings: []*tasksv1.PortMapping{
 				{
-					Name:          "http",
-					HostPort:      8080,
-					ContainerPort: 80,
-					Protocol:      "TCP",
+					Name:       "http",
+					HostPort:   8080,
+					TargetPort: 80,
+					Protocol:   "TCP",
 				},
 			},
-			Envvars: []*containersv1.EnvVar{
+			Envvars: []*tasksv1.EnvVar{
 				{
 					Name:  "HTTP_PROXY",
 					Value: "proxy.foo.com",
@@ -190,7 +191,7 @@ func TestClearRepeatedFields(t *testing.T) {
 			Args: []string{
 				"--config /mnt/cfg/config.yaml",
 			},
-			Mounts: []*containersv1.Mount{
+			Mounts: []*tasksv1.Mount{
 				{
 					Name:        "temp",
 					Source:      "/tmp",
@@ -204,21 +205,21 @@ func TestClearRepeatedFields(t *testing.T) {
 			},
 		},
 	}
-	expect := containersv1.Container{
+	expect := tasksv1.Task{
 		Meta: &types.Meta{
-			Name: "test-container",
+			Name: "test-task",
 			Labels: map[string]string{
 				"team":        "backend",
 				"environment": "production",
 				"role":        "root",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image:        "docker.io/library/nginx:latest",
-			PortMappings: []*containersv1.PortMapping{},
-			Envvars:      []*containersv1.EnvVar{},
+			PortMappings: []*tasksv1.PortMapping{},
+			Envvars:      []*tasksv1.EnvVar{},
 			Args:         []string{},
-			Mounts:       []*containersv1.Mount{},
+			Mounts:       []*tasksv1.Mount{},
 			NodeSelector: map[string]string{
 				"voiyd.io/arch": "amd64",
 				"voiyd.io/os":   "linux",
@@ -226,10 +227,10 @@ func TestClearRepeatedFields(t *testing.T) {
 		},
 	}
 
-	ClearRepeatedFields(&baseContainer)
+	ClearRepeatedFields(&baseTask)
 
-	if !proto.Equal(&baseContainer, &expect) {
-		t.Errorf("\ngot:\n%v\nwant:\n%v", &baseContainer, &expect)
+	if !proto.Equal(&baseTask, &expect) {
+		t.Errorf("\ngot:\n%v\nwant:\n%v", &baseTask, &expect)
 	}
 }
 
@@ -241,11 +242,11 @@ func TestClearProto(t *testing.T) {
 	}{
 		{
 			name:   "should reset all fields on message",
-			expect: &containersv1.Status{},
-			message: &containersv1.Status{
+			expect: &tasksv1.Status{},
+			message: &tasksv1.Status{
 				Phase: wrapperspb.String("running"),
 				Node:  wrapperspb.String("localhost"),
-				Task: &containersv1.TaskStatus{
+				Task: &tasksv1.TaskStatus{
 					Pid:   wrapperspb.UInt32(17778),
 					Error: wrapperspb.String("exit code 0"),
 				},
@@ -272,10 +273,10 @@ func TestToFields(t *testing.T) {
 		{
 			name:   "should have field paths for wrappers",
 			expect: []string{"phase", "node", "task.pid", "task.error"},
-			message: &containersv1.Status{
+			message: &tasksv1.Status{
 				Phase: wrapperspb.String("running"),
 				Node:  wrapperspb.String("localhost"),
-				Task: &containersv1.TaskStatus{
+				Task: &tasksv1.TaskStatus{
 					Pid:   wrapperspb.UInt32(17778),
 					Error: wrapperspb.String("exit code 0"),
 				},
@@ -284,10 +285,10 @@ func TestToFields(t *testing.T) {
 		{
 			name:   "should have field paths for scalars",
 			expect: []string{"node", "ip", "runtime.runtime_version", "runtime.runtime_env"},
-			message: &containersv1.Status{
+			message: &tasksv1.Status{
 				Node: wrapperspb.String("node-01"),
 				Ip:   wrapperspb.String("172.19.1.123"),
-				Runtime: &containersv1.RuntimeStatus{
+				Runtime: &tasksv1.RuntimeStatus{
 					RuntimeEnv:     "containerd",
 					RuntimeVersion: "v1.7",
 				},
@@ -296,8 +297,8 @@ func TestToFields(t *testing.T) {
 		{
 			name:   "should have field paths for lists",
 			expect: []string{"config.image", "config.args"},
-			message: &containersv1.Container{
-				Config: &containersv1.Config{
+			message: &tasksv1.Task{
+				Config: &tasksv1.Config{
 					Image: "docker.io/prometheus/prom:latest",
 					Args:  []string{"--debug", "--insecure"},
 				},

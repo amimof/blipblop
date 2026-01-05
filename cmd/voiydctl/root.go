@@ -28,7 +28,7 @@ var (
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Use:           "voiydctl",
-		Short:         "Distributed containerd workloads",
+		Short:         "Lightweight, event‑driven orchestration for container workloads",
 		Long:          `voiydctl is a command line tool for interacting with voiyd-server.`,
 	}
 	configFile   string

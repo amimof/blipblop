@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amimof/voiyd/api/services/volumes/v1"
-	"github.com/amimof/voiyd/pkg/labels"
-	"github.com/amimof/voiyd/pkg/util"
 	"github.com/dgraph-io/badger/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/util"
+
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 )
 
 var volumePrefix = []byte("volume")
@@ -30,7 +32,7 @@ func NewvolumeBadgerRepository(db *badger.DB) *volumeBadgerRepo {
 	}
 }
 
-func (r *volumeBadgerRepo) Get(ctx context.Context, id string) (*volumes.Volume, error) {
+func (r *volumeBadgerRepo) Get(ctx context.Context, id string) (*volumesv1.Volume, error) {
 	_, span := tracer.Start(ctx, "repo.volume.Get")
 	span.SetAttributes(
 		attribute.String("service", "Database"),
@@ -39,7 +41,7 @@ func (r *volumeBadgerRepo) Get(ctx context.Context, id string) (*volumes.Volume,
 	)
 	defer span.End()
 
-	res := &volumes.Volume{}
+	res := &volumesv1.Volume{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := VolumeID(id).String()
 		item, err := txn.Get([]byte(key))
@@ -62,12 +64,12 @@ func (r *volumeBadgerRepo) Get(ctx context.Context, id string) (*volumes.Volume,
 	return res, nil
 }
 
-func (r *volumeBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*volumes.Volume, error) {
+func (r *volumeBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*volumesv1.Volume, error) {
 	_, span := tracer.Start(ctx, "repo.volume.List")
 	defer span.End()
 
 	filter := util.MergeLabels(l...)
-	var result []*volumes.Volume
+	var result []*volumesv1.Volume
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.Prefix = volumePrefix
@@ -77,9 +79,9 @@ func (r *volumeBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*volu
 		it.Seek(volumePrefix)
 		for it.ValidForPrefix(volumePrefix) {
 			item := it.Item()
-			ctr := &volumes.Volume{}
+			vol := &volumesv1.Volume{}
 			err := item.Value(func(val []byte) error {
-				err := proto.Unmarshal(val, ctr)
+				err := proto.Unmarshal(val, vol)
 				if err != nil {
 					return err
 				}
@@ -89,8 +91,8 @@ func (r *volumeBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*volu
 				return err
 			}
 			filter := labels.NewCompositeSelectorFromMap(filter)
-			if filter.Matches(ctr.GetMeta().GetLabels()) {
-				result = append(result, ctr)
+			if filter.Matches(vol.GetMeta().GetLabels()) {
+				result = append(result, vol)
 			}
 			it.Next()
 		}
@@ -102,7 +104,7 @@ func (r *volumeBadgerRepo) List(ctx context.Context, l ...labels.Label) ([]*volu
 	return result, nil
 }
 
-func (r *volumeBadgerRepo) Create(ctx context.Context, volume *volumes.Volume) error {
+func (r *volumeBadgerRepo) Create(ctx context.Context, volume *volumesv1.Volume) error {
 	_, span := tracer.Start(ctx, "repo.volume.Create")
 	defer span.End()
 
@@ -133,7 +135,7 @@ func (r *volumeBadgerRepo) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (r *volumeBadgerRepo) Update(ctx context.Context, volume *volumes.Volume) error {
+func (r *volumeBadgerRepo) Update(ctx context.Context, volume *volumesv1.Volume) error {
 	_, span := tracer.Start(ctx, "repo.volume.Update")
 	defer span.End()
 

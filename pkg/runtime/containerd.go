@@ -12,12 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
-	"github.com/amimof/voiyd/api/types/v1"
-	"github.com/amimof/voiyd/pkg/labels"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/networking"
-	"github.com/amimof/voiyd/pkg/util"
 	"github.com/containerd/containerd/errdefs"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/cio"
@@ -28,6 +22,14 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/amimof/voiyd/pkg/util"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 const (
@@ -43,7 +45,7 @@ type ContainerdRuntime struct {
 	logger       logger.Logger
 	ns           string
 	mu           sync.Mutex
-	containerIOs map[string]*ContainerIO
+	containerIOs map[string]*TaskIO
 	logDirFmt    string
 }
 
@@ -65,7 +67,7 @@ func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 
 // withMounts creates an oci compatible list of volume mounts to be used by the runtime.
 // Default mount type is read-write bind mount if not otherwise specified.
-func withMounts(m []*containers.Mount) oci.SpecOpts {
+func withMounts(m []*tasksv1.Mount) oci.SpecOpts {
 	var mounts []specs.Mount
 	for _, mount := range m {
 		mountType := mount.Type
@@ -86,7 +88,7 @@ func withMounts(m []*containers.Mount) oci.SpecOpts {
 	return oci.WithMounts(mounts)
 }
 
-func withEnvVars(envs []*containers.EnvVar) oci.SpecOpts {
+func withEnvVars(envs []*tasksv1.EnvVar) oci.SpecOpts {
 	envVars := make([]string, len(envs))
 	for i, env := range envs {
 		envVars[i] = fmt.Sprintf("%s=%s", env.GetName(), env.GetValue())
@@ -108,8 +110,8 @@ func parseContainerLabels(ctx context.Context, container containerd.Container) (
 	return info, nil
 }
 
-func withContainerLabels(l labels.Label, container *containers.Container) containerd.NewContainerOpts {
-	pm := container.GetConfig().GetPortMappings()
+func withContainerLabels(l labels.Label, task *tasksv1.Task) containerd.NewContainerOpts {
+	pm := task.GetConfig().GetPortMappings()
 
 	// Convert to CNI type once here
 	cniPorts := networking.ParseCNIPortMappings(pm...)
@@ -118,10 +120,10 @@ func withContainerLabels(l labels.Label, container *containers.Container) contai
 	b, _ := json.Marshal(&cniPorts)
 
 	// Fill label set with values
-	l.Set("voiyd/revision", util.Uint64ToString(container.GetMeta().GetRevision()))
-	l.Set("voiyd/created", container.GetMeta().GetCreated().String())
-	l.Set("voiyd/updated", container.GetMeta().GetUpdated().String())
-	l.Set("voiyd/name", container.GetMeta().GetName())
+	l.Set("voiyd/revision", util.Uint64ToString(task.GetMeta().GetRevision()))
+	l.Set("voiyd/created", task.GetMeta().GetCreated().String())
+	l.Set("voiyd/updated", task.GetMeta().GetUpdated().String())
+	l.Set("voiyd/name", task.GetMeta().GetName())
 	l.Set("voiyd/namespace", "voiyd")
 	l.Set("voiyd/ports", string(b))
 
@@ -194,7 +196,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 	return os.WriteFile(logFile, []byte{}, 0o666)
 }
 
-func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, error) {
+func (c *ContainerdRuntime) List(ctx context.Context) ([]*tasksv1.Task, error) {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.List")
 	defer span.End()
 
@@ -209,7 +211,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 		return nil, err
 	}
 
-	result := make([]*containers.Container, len(ctrs))
+	result := make([]*tasksv1.Task, len(ctrs))
 	for i, c := range ctrs {
 
 		l, err := parseContainerLabels(ctx, c)
@@ -232,14 +234,14 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 			continue
 		}
 
-		result[i] = &containers.Container{
+		result[i] = &tasksv1.Task{
 			Meta: &types.Meta{
 				Name:     containerName,
 				Revision: util.StringToUint64(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "revision"))),
 				Created:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "created")))),
 				Updated:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "updated")))),
 			},
-			Config: &containers.Config{
+			Config: &tasksv1.Config{
 				Image: info.Image,
 			},
 		}
@@ -249,7 +251,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*containers.Container, 
 }
 
 // Get returns the first container from the runtime that matches the provided id
-func (c *ContainerdRuntime) Get(ctx context.Context, id string) (*containers.Container, error) {
+func (c *ContainerdRuntime) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
 	ctr, err := c.get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -260,11 +262,11 @@ func (c *ContainerdRuntime) Get(ctx context.Context, id string) (*containers.Con
 		return nil, err
 	}
 
-	return &containers.Container{
+	return &tasksv1.Task{
 		Meta: &types.Meta{
 			Name: id,
 		},
-		Config: &containers.Config{
+		Config: &tasksv1.Config{
 			Image: info.Image,
 		},
 	}, nil
@@ -298,12 +300,12 @@ func (c *ContainerdRuntime) get(ctx context.Context, id string) (containerd.Cont
 	return ctrs[0], nil
 }
 
-func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Pull(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Pull")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	_, err := c.client.Pull(ctx, ctr.Config.Image, containerd.WithPullUnpack)
+	_, err := c.client.Pull(ctx, task.Config.Image, containerd.WithPullUnpack)
 	if err != nil {
 		return err
 	}
@@ -312,14 +314,14 @@ func (c *ContainerdRuntime) Pull(ctx context.Context, ctr *containers.Container)
 
 // Delete deletes the container and any tasks associated with it.
 // Tasks will be forcefully stopped if running.
-func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Delete")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
-	container, err := c.get(ctx, ctr.GetMeta().GetName())
+	container, err := c.get(ctx, t.GetMeta().GetName())
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return nil
@@ -337,7 +339,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 
 	// Make sure to stop tasks before deleting container. Using Kill here which is a forceful operation
 	if task != nil {
-		err = c.Kill(ctx, ctr)
+		err = c.Kill(ctx, t)
 		if err != nil && !errdefs.IsNotFound(err) {
 			return err
 		}
@@ -345,14 +347,14 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 
 	// Clean up IO streams
 	c.mu.Lock()
-	if io, exists := c.containerIOs[ctr.GetMeta().GetName()]; exists {
+	if io, exists := c.containerIOs[t.GetMeta().GetName()]; exists {
 		if io.Stdout != nil {
 			_ = io.Stdout.Close()
 		}
 		if io.Stderr != nil {
 			_ = io.Stderr.Close()
 		}
-		delete(c.containerIOs, ctr.GetMeta().GetName())
+		delete(c.containerIOs, t.GetMeta().GetName())
 	}
 	c.mu.Unlock()
 
@@ -369,12 +371,12 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, ctr *containers.Containe
 // Stop will attempt to gracefully stop tasks, but will eventually do it forcefully
 // if timeout is reached. Stop does not perform any garbage colletion and it is
 // up to the caller to call Cleanup() after calling Stop()
-func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Stop(ctx context.Context, t *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Stop")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	cont, err := c.get(ctx, ctr.GetMeta().GetName())
+	cont, err := c.get(ctx, t.GetMeta().GetName())
 	if err != nil {
 		return err
 	}
@@ -424,13 +426,13 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, ctr *containers.Container)
 
 // Kill forcefully stops the container and tasks within by sending SIGKILL to the process.
 // Like Stop(), Kill() does not perform garbage collection. Use Gleanup() for this.
-func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Kill(ctx context.Context, t *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Kill")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
-	cont, err := c.get(ctx, ctr.GetMeta().GetName())
+	cont, err := c.get(ctx, t.GetMeta().GetName())
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return nil
@@ -473,14 +475,14 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, ctr *containers.Container)
 	return err
 }
 
-func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) error {
+func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Run")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the image. Assumes that image has been pulled beforehand
-	image, err := c.client.GetImage(ctx, ctr.GetConfig().GetImage())
+	image, err := c.client.GetImage(ctx, t.GetConfig().GetImage())
 	if err != nil {
 		return err
 	}
@@ -490,24 +492,24 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		oci.WithDefaultSpec(),
 		oci.WithDefaultUnixDevices,
 		oci.WithImageConfig(image),
-		oci.WithHostname(ctr.GetMeta().GetName()),
+		oci.WithHostname(t.GetMeta().GetName()),
 		oci.WithImageConfig(image),
-		withEnvVars(ctr.GetConfig().GetEnvvars()),
-		withMounts(ctr.GetConfig().GetMounts()),
+		withEnvVars(t.GetConfig().GetEnvvars()),
+		withMounts(t.GetConfig().GetMounts()),
 	}
 
 	// Add args opts
-	if len(ctr.GetConfig().GetArgs()) > 0 {
-		opts = append(opts, oci.WithProcessArgs(ctr.GetConfig().GetArgs()...))
+	if len(t.GetConfig().GetArgs()) > 0 {
+		opts = append(opts, oci.WithProcessArgs(t.GetConfig().GetArgs()...))
 	}
 
 	// Assemble some labels
 	l := labels.New()
-	l.Set("voiyd.io/name", ctr.GetMeta().GetName())
+	l.Set("voiyd.io/name", t.GetMeta().GetName())
 
 	// Generate ID for the container
 	containerID := GenerateID()
-	containerName := ctr.GetMeta().GetName()
+	containerName := t.GetMeta().GetName()
 
 	// Create container
 	cont, err := c.client.NewContainer(
@@ -516,7 +518,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 		containerd.WithImage(image),
 		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerName), image),
 		containerd.WithNewSpec(opts...),
-		withContainerLabels(l, ctr),
+		withContainerLabels(l, t),
 	)
 	if err != nil {
 		return err
@@ -534,7 +536,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, ctr *containers.Container) 
 	}
 
 	// ctr.GetConfig().GetPortMappings()
-	pm := networking.ParseCNIPortMappings(ctr.GetConfig().PortMappings...)
+	pm := networking.ParseCNIPortMappings(t.GetConfig().PortMappings...)
 
 	// Setup networking
 	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
@@ -574,7 +576,7 @@ func (c *ContainerdRuntime) Labels(ctx context.Context, id string) (labels.Label
 	return l, err
 }
 
-func (c *ContainerdRuntime) IO(ctx context.Context, id string) (*ContainerIO, error) {
+func (c *ContainerdRuntime) IO(ctx context.Context, id string) (*TaskIO, error) {
 	logRoot := fmt.Sprintf(c.logDirFmt, id)
 	stdOut := filepath.Join(logRoot, logFileName)
 
@@ -583,7 +585,7 @@ func (c *ContainerdRuntime) IO(ctx context.Context, id string) (*ContainerIO, er
 		return nil, err
 	}
 
-	return &ContainerIO{Stdout: f}, nil
+	return &TaskIO{Stdout: f}, nil
 }
 
 func (c *ContainerdRuntime) ID(ctx context.Context, id string) (string, error) {
@@ -628,7 +630,7 @@ func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manage
 		cni:          cni,
 		logger:       logger.ConsoleLogger{},
 		ns:           DefaultNamespace,
-		containerIOs: map[string]*ContainerIO{},
+		containerIOs: map[string]*TaskIO{},
 		logDirFmt:    "/var/lib/voiyd/containers/%s/log",
 	}
 

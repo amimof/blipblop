@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package services.containers.v1;
+package services.tasks.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
@@ -10,48 +10,48 @@ import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
 import "types/v1/meta.proto";
 
-option go_package = "github.com/amimof/voiyd/api/services/containers/v1;containers";
+option go_package = "github.com/amimof/voiyd/api/services/tasks/v1;tasks";
 
-service ContainerService {
+service TaskService {
   rpc Get(GetRequest) returns (GetResponse) {
-    option (google.api.http) = {get: "/api/v1/containers/{id}"};
+    option (google.api.http) = {get: "/api/v1/tasks/{id}"};
   }
   rpc List(ListRequest) returns (ListResponse) {
-    option (google.api.http) = {get: "/api/v1/containers"};
+    option (google.api.http) = {get: "/api/v1/tasks"};
   }
   rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
-      post: "/api/v1/containers"
-      body: "container"
+      post: "/api/v1/tasks"
+      body: "task"
     };
   }
   rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
-      put: "/api/v1/containers/{container.meta.name}"
-      body: "container"
+      put: "/api/v1/tasks/{task.meta.name}"
+      body: "task"
     };
   }
   rpc Patch(PatchRequest) returns (PatchResponse) {
     option (google.api.http) = {
-      patch: "/api/v1/containers/{container.meta.name}"
-      body: "container"
+      patch: "/api/v1/tasks/{task.meta.name}"
+      body: "task"
     };
   }
   rpc Delete(DeleteRequest) returns (DeleteResponse) {
-    option (google.api.http) = {delete: "/api/v1/containers/{id}"};
+    option (google.api.http) = {delete: "/api/v1/tasks/{id}"};
   }
   rpc Start(StartRequest) returns (StartResponse) {
-    option (google.api.http) = {put: "/api/v1/containers/{id}/start"};
+    option (google.api.http) = {put: "/api/v1/tasks/{id}/start"};
   }
   rpc Kill(KillRequest) returns (KillResponse) {
-    option (google.api.http) = {put: "/api/v1/containers/{id}/kill"};
+    option (google.api.http) = {put: "/api/v1/tasks/{id}/kill"};
   }
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
-    option (google.api.http) = {put: "/api/v1/containers/{id}/status"};
+    option (google.api.http) = {put: "/api/v1/tasks/{id}/status"};
   }
 }
 
-message Container {
+message Task {
   string version = 1 [
     (buf.validate.field).string.min_len = 4,
     (buf.validate.field).string.pattern = "^[a-z0-9]+(?:[._-][a-z0-9]+)*/[a-z0-9]+(?:[._-][a-z0-9]+)*$",
@@ -84,7 +84,7 @@ message RuntimeStatus {
   string runtime_version = 2;
   string stdout_path = 3;
   string stderr_path = 4;
-  string container_id = 5;
+  string task_id = 5;
 }
 
 message Config {
@@ -113,7 +113,7 @@ message EnvVar {
 message PortMapping {
   string name = 1 [(buf.validate.field).string.min_len = 1];
   uint32 hostPort = 2;
-  uint32 containerPort = 3;
+  uint32 targetPort = 3;
   string protocol = 4;
   string host_ip = 5;
 }
@@ -140,35 +140,35 @@ message GetRequest {
 }
 
 message GetResponse {
-  Container container = 1;
+  Task task = 1;
 }
 
 message CreateRequest {
-  Container container = 1 [(buf.validate.field).required = true];
+  Task task = 1 [(buf.validate.field).required = true];
 }
 
 message CreateResponse {
-  Container container = 1;
+  Task task = 1;
 }
 
 message UpdateRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
-  Container container = 2 [(buf.validate.field).required = true];
+  Task task = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
 message UpdateResponse {
-  Container container = 1;
+  Task task = 1;
 }
 
 message PatchRequest {
   string id = 1 [(buf.validate.field).string.min_len = 1];
-  Container container = 2 [(buf.validate.field).required = true];
+  Task task = 2 [(buf.validate.field).required = true];
   google.protobuf.FieldMask update_mask = 3;
 }
 
 message PatchResponse {
-  Container container = 1;
+  Task task = 1;
 }
 
 message DeleteRequest {
@@ -184,7 +184,7 @@ message ListRequest {
 }
 
 message ListResponse {
-  repeated Container containers = 1;
+  repeated Task tasks = 1;
 }
 
 message StartRequest {

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amimof/voiyd/api/services/events/v1"
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 var eventPrefix = []byte("event")
@@ -30,11 +31,11 @@ type eventBadgerRepo struct {
 	maxItems uint64
 }
 
-func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*events.Event, error) {
+func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*eventsv1.Event, error) {
 	_, span := tracer.Start(ctx, "repo.event.Get")
 	defer span.End()
 
-	res := &events.Event{}
+	res := &eventsv1.Event{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := EventID(id).String()
 		item, err := txn.Get([]byte(key))
@@ -51,11 +52,11 @@ func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*events.Event, er
 	return res, nil
 }
 
-func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
+func (r *eventBadgerRepo) List(ctx context.Context) ([]*eventsv1.Event, error) {
 	_, span := tracer.Start(ctx, "repo.event.List")
 	defer span.End()
 
-	var result []*events.Event
+	var result []*eventsv1.Event
 	err := r.db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
@@ -63,12 +64,12 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
 		for it.Seek(eventPrefix); it.ValidForPrefix(eventPrefix); it.Next() {
 			item := it.Item()
 			return item.Value(func(val []byte) error {
-				ctr := &events.Event{}
-				err := proto.Unmarshal(val, ctr)
+				event := &eventsv1.Event{}
+				err := proto.Unmarshal(val, event)
 				if err != nil {
 					return err
 				}
-				result = append(result, ctr)
+				result = append(result, event)
 				return nil
 			})
 		}
@@ -80,7 +81,7 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*events.Event, error) {
 	return result, nil
 }
 
-func (r *eventBadgerRepo) Create(ctx context.Context, event *events.Event) error {
+func (r *eventBadgerRepo) Create(ctx context.Context, event *eventsv1.Event) error {
 	_, span := tracer.Start(ctx, "repo.event.Create")
 	defer span.End()
 
@@ -117,7 +118,7 @@ func (r *eventBadgerRepo) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (r *eventBadgerRepo) Update(ctx context.Context, event *events.Event) error {
+func (r *eventBadgerRepo) Update(ctx context.Context, event *eventsv1.Event) error {
 	_, span := tracer.Start(ctx, "repo.event.Update")
 	defer span.End()
 

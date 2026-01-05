@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	ContainerCreate    = eventsv1.EventType_ContainerCreate
-	ContainerDelete    = eventsv1.EventType_ContainerDelete
-	ContainerUpdate    = eventsv1.EventType_ContainerUpdate
-	ContainerStart     = eventsv1.EventType_ContainerStart
-	ContainerGet       = eventsv1.EventType_ContainerGet
-	ContainerList      = eventsv1.EventType_ContainerList
-	ContainerKill      = eventsv1.EventType_ContainerKill
-	ContainerStop      = eventsv1.EventType_ContainerStop
+	TaskCreate         = eventsv1.EventType_TaskCreate
+	TaskDelete         = eventsv1.EventType_TaskDelete
+	TaskUpdate         = eventsv1.EventType_TaskUpdate
+	TaskStart          = eventsv1.EventType_TaskStart
+	TaskGet            = eventsv1.EventType_TaskGet
+	TaskList           = eventsv1.EventType_TaskList
+	TaskKill           = eventsv1.EventType_TaskKill
+	TaskStop           = eventsv1.EventType_TaskStop
 	NodeGet            = eventsv1.EventType_NodeGet
 	NodeCreate         = eventsv1.EventType_NodeCreate
 	NodeDelete         = eventsv1.EventType_NodeDelete
@@ -44,14 +44,14 @@ const (
 )
 
 var ALL = []eventsv1.EventType{
-	ContainerCreate,
-	ContainerDelete,
-	ContainerUpdate,
-	ContainerStart,
-	ContainerGet,
-	ContainerList,
-	ContainerKill,
-	ContainerStop,
+	TaskCreate,
+	TaskDelete,
+	TaskUpdate,
+	TaskStart,
+	TaskGet,
+	TaskList,
+	TaskKill,
+	TaskStop,
 	NodeGet,
 	NodeCreate,
 	NodeDelete,

@@ -18,10 +18,10 @@ var (
 func NewCmdStart() *cobra.Command {
 	var cfg client.Config
 	startCmd := &cobra.Command{
-		Use:     "start",
+		Use:     "start NAME",
 		Short:   "Start a resource",
 		Long:    "Start a resource",
-		Example: `voiydctl start container`,
+		Example: `voiydctl start task`,
 		Args:    cobra.ExactArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -40,7 +40,7 @@ func NewCmdStart() *cobra.Command {
 		},
 	}
 
-	startCmd.AddCommand(NewCmdStartContainer(&cfg))
+	startCmd.AddCommand(NewCmdStartTask(&cfg))
 
 	startCmd.PersistentFlags().BoolVarP(
 		&wait,
@@ -54,7 +54,7 @@ func NewCmdStart() *cobra.Command {
 		"timeout",
 		"",
 		time.Second*30,
-		"How long in seconds to wait for container to start before giving up",
+		"How long in seconds to wait for task to start before giving up",
 	)
 
 	return startCmd

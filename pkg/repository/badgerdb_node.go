@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/amimof/voiyd/api/services/nodes/v1"
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
+
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 )
 
 var nodePrefix = []byte("node")
@@ -27,11 +28,11 @@ func NewNodeBadgerRepository(db *badger.DB) *nodeBadgerRepo {
 	}
 }
 
-func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error) {
+func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodesv1.Node, error) {
 	_, span := tracer.Start(ctx, "repo.node.Get")
 	defer span.End()
 
-	res := &nodes.Node{}
+	res := &nodesv1.Node{}
 	err := r.db.View(func(txn *badger.Txn) error {
 		key := NodeID(id).String()
 		item, err := txn.Get([]byte(key))
@@ -51,11 +52,11 @@ func (r *nodeBadgerRepo) Get(ctx context.Context, id string) (*nodes.Node, error
 	return res, nil
 }
 
-func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
+func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodesv1.Node, error) {
 	_, span := tracer.Start(ctx, "repo.node.List")
 	defer span.End()
 
-	var result []*nodes.Node
+	var result []*nodesv1.Node
 	err := r.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.Prefix = nodePrefix
@@ -65,9 +66,9 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 		it.Seek(nodePrefix)
 		for it.ValidForPrefix(nodePrefix) {
 			item := it.Item()
-			ctr := &nodes.Node{}
+			node := &nodesv1.Node{}
 			err := item.Value(func(val []byte) error {
-				err := proto.Unmarshal(val, ctr)
+				err := proto.Unmarshal(val, node)
 				if err != nil {
 					return err
 				}
@@ -76,7 +77,7 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 			if err != nil {
 				return err
 			}
-			result = append(result, ctr)
+			result = append(result, node)
 			it.Next()
 		}
 		return nil
@@ -87,7 +88,7 @@ func (r *nodeBadgerRepo) List(ctx context.Context) ([]*nodes.Node, error) {
 	return result, nil
 }
 
-func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodes.Node) error {
+func (r *nodeBadgerRepo) Create(ctx context.Context, node *nodesv1.Node) error {
 	_, span := tracer.Start(ctx, "repo.node.Create")
 	defer span.End()
 
@@ -111,7 +112,7 @@ func (r *nodeBadgerRepo) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (r *nodeBadgerRepo) Update(ctx context.Context, node *nodes.Node) error {
+func (r *nodeBadgerRepo) Update(ctx context.Context, node *nodesv1.Node) error {
 	_, span := tracer.Start(ctx, "repo.node.Update")
 	defer span.End()
 

@@ -230,7 +230,7 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
 		CNIBinDir:              "/opt/cni/bin",
 		CNIConfDir:             "/etc/cni/net.d",
 		NetNSPathFmt:           "/proc/%d/ns/net",
-		CNIDataDir:             "/var/run/cni",
+		CNIDataDir:             "",
 		DefaultCNIConfFilename: "10-voiyd.conflist",
 		DefaultNetworkName:     "bridge",
 		DefaultBridgeName:      "voiyd0",

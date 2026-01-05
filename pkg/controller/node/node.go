@@ -25,10 +25,10 @@ import (
 	"github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/volume"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type Controller struct {
@@ -83,12 +83,12 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
 
-	// Setup container handlers
-	c.clientset.EventV1().On(events.ContainerDelete, c.handleErrors(c.onContainerDelete))
-	c.clientset.EventV1().On(events.ContainerUpdate, c.handleErrors(c.onContainerUpdate))
-	c.clientset.EventV1().On(events.ContainerStop, c.handleErrors(c.onContainerStop))
-	c.clientset.EventV1().On(events.ContainerKill, c.handleErrors(c.onContainerKill))
-	c.clientset.EventV1().On(events.ContainerStart, c.handleErrors(c.onContainerStart))
+	// Setup task handlers
+	c.clientset.EventV1().On(events.TaskDelete, c.handleErrors(c.onTaskDelete))
+	c.clientset.EventV1().On(events.TaskUpdate, c.handleErrors(c.onTaskUpdate))
+	c.clientset.EventV1().On(events.TaskStop, c.handleErrors(c.onTaskStop))
+	c.clientset.EventV1().On(events.TaskKill, c.handleErrors(c.onTaskKill))
+	c.clientset.EventV1().On(events.TaskStart, c.handleErrors(c.onTaskStart))
 	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
 
 	// Setup log handlers
@@ -182,29 +182,29 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	if err != nil {
 		return err
 	}
-	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId(), "sessionID", s.GetSessionId())
+	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
 
 	if s.GetNodeId() != c.node.GetMeta().GetName() {
 		return nil
 	}
 
 	streamKey := events.LogKey{
-		NodeID:      s.GetNodeId(),
-		ContainerID: s.GetContainerId(),
-		SessionID:   s.GetSessionId(),
+		NodeID:    s.GetNodeId(),
+		TaskID:    s.GetTaskId(),
+		SessionID: s.GetSessionId(),
 	}
 
 	c.logStreamsMu.Lock()
 	if _, exists := c.activeLogStreams[streamKey]; exists {
 		c.logStreamsMu.Unlock()
-		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId(), "sessionID", s.GetSessionId())
+		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
 		return nil
 	}
 	c.logStreamsMu.Unlock()
 
-	containerIO, err := c.runtime.IO(ctx, s.GetContainerId())
+	taskIO, err := c.runtime.IO(ctx, s.GetTaskId())
 	if err != nil {
-		c.logger.Error("error getting container logs", "error", err)
+		c.logger.Error("error getting task logs", "error", err)
 		return err
 	}
 
@@ -221,7 +221,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	c.logStreamsMu.Unlock()
 
 	go func() {
-		c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+		c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 
 		defer func() {
 			c.logStreamsMu.Lock()
@@ -229,14 +229,14 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 			c.logStreamsMu.Unlock()
 			cancel()
 			_ = logStream.Close()
-			if containerIO.Stdout != nil {
-				_ = containerIO.Stdout.Close()
+			if taskIO.Stdout != nil {
+				_ = taskIO.Stdout.Close()
 			}
 		}()
 
 		// Setup scanner. We use a channel to send each line through
 		lines := make(chan string)
-		scanner := bufio.NewScanner(containerIO.Stdout)
+		scanner := bufio.NewScanner(taskIO.Stdout)
 
 		// Goroutine that scans the log file and sends each line on the channel
 		go func() {
@@ -247,7 +247,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 				// Exit early on cancel even when at EOF
 				select {
 				case <-streamCtx.Done():
-					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 					return
 				default:
 				}
@@ -257,7 +257,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 					line := scanner.Text()
 					select {
 					case <-streamCtx.Done():
-						c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+						c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 						return
 					case lines <- line: // Send line through
 					}
@@ -270,7 +270,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 						"error reading from stdout",
 						"error", err,
 						"nodeID", s.GetNodeId(),
-						"containerID", s.GetContainerId(),
+						"taskID", s.GetTaskId(),
 					)
 					return
 				}
@@ -278,13 +278,13 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 				// No errors, maybe EOF?
 				select {
 				case <-streamCtx.Done():
-					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 					return
 				case <-time.After(300 * time.Millisecond): // Wait a bit before iterating again
 				}
 
 				// EOF reached, ovewrite the scanner to start reading again
-				scanner = bufio.NewScanner(containerIO.Stdout)
+				scanner = bufio.NewScanner(taskIO.Stdout)
 			}
 		}()
 
@@ -296,31 +296,31 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 		for {
 			select {
 			case <-streamCtx.Done():
-				c.logger.Debug("log stream cancelled", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+				c.logger.Debug("log stream cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 				return
 			case <-time.After(5 * time.Minute):
-				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 				return
 			case line, ok := <-lines:
 
 				if !ok {
-					c.logger.Debug("log stream completed", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+					c.logger.Debug("log stream completed", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 					return
 				}
 
 				// Send the line as log entry to the server
 				if err := logStream.Send(&logsv1.LogEntry{
-					ContainerId: s.GetContainerId(),
-					NodeId:      s.GetNodeId(),
-					SessionId:   s.GetSessionId(),
-					Timestamp:   timestamppb.Now(),
-					Line:        line,
-					Seq:         seq,
+					TaskId:    s.GetTaskId(),
+					NodeId:    s.GetNodeId(),
+					SessionId: s.GetSessionId(),
+					Timestamp: timestamppb.Now(),
+					Line:      line,
+					Seq:       seq,
 				}); err != nil {
 					c.logger.Error(
 						"error pushing log entry",
 						"error", err,
-						"containerID", s.GetContainerId(),
+						"taskID", s.GetTaskId(),
 						"nodeID", s.GetNodeId(),
 						"sessionID", s.GetSessionId(),
 						"seq", seq,
@@ -343,16 +343,16 @@ func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 
 	if s.GetNodeId() != c.node.GetMeta().GetName() {
 		return nil
 	}
 
 	streamKey := events.LogKey{
-		NodeID:      s.GetNodeId(),
-		ContainerID: s.GetContainerId(),
-		SessionID:   s.GetSessionId(),
+		NodeID:    s.GetNodeId(),
+		TaskID:    s.GetTaskId(),
+		SessionID: s.GetSessionId(),
 	}
 
 	c.logStreamsMu.Lock()
@@ -361,7 +361,7 @@ func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
 
 	if exists {
 		cancel()
-		c.logger.Debug("cancelled log stream", "nodeID", s.GetNodeId(), "containerID", s.GetContainerId())
+		c.logger.Debug("cancelled log stream", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 	}
 
 	return nil
@@ -390,19 +390,19 @@ func (c *Controller) onSchedule(ctx context.Context, obj *eventsv1.Event) error 
 		return nil
 	}
 
-	var ctr containersv1.Container
-	err = s.GetContainer().UnmarshalTo(&ctr)
+	var task tasksv1.Task
+	err = s.GetTask().UnmarshalTo(&task)
 	if err != nil {
 		return err
 	}
 
 	newObj := proto.Clone(obj).(*eventsv1.Event)
-	newObj.Object, err = anypb.New(&ctr)
+	newObj.Object, err = anypb.New(&task)
 	if err != nil {
 		return err
 	}
 
-	err = c.onContainerStart(ctx, newObj)
+	err = c.onTaskStart(ctx, newObj)
 	if err != nil {
 		return err
 	}
@@ -458,25 +458,25 @@ func (c *Controller) onNodeForget(ctx context.Context, obj *eventsv1.Event) erro
 	return nil
 }
 
-func (c *Controller) onContainerDelete(ctx context.Context, e *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerDelete")
+func (c *Controller) onTaskDelete(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskDelete")
 	defer span.End()
 
-	var ctr containersv1.Container
-	err := e.GetObject().UnmarshalTo(&ctr)
+	var task tasksv1.Task
+	err := e.GetObject().UnmarshalTo(&task)
 	if err != nil {
 		return err
 	}
 
-	containerID := runtime.ID(ctr.GetStatus().GetId().GetValue())
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", ctr.GetMeta().GetName())
+	taskID := runtime.ID(task.GetStatus().GetId().GetValue())
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", task.GetMeta().GetName())
 
-	err = c.runtime.Delete(ctx, &ctr)
+	err = c.runtime.Delete(ctx, &task)
 	if err != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
+		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			containerID.String(),
-			&containersv1.Status{
+			taskID.String(),
+			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
@@ -485,83 +485,83 @@ func (c *Controller) onContainerDelete(ctx context.Context, e *eventsv1.Event) e
 	return nil
 }
 
-func (c *Controller) onContainerUpdate(ctx context.Context, e *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerUpdate")
+func (c *Controller) onTaskUpdate(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskUpdate")
 	defer span.End()
 
-	err := c.onContainerStop(ctx, e)
+	err := c.onTaskStop(ctx, e)
 	if errors.IgnoreNotFound(err) != nil {
 		return err
 	}
-	err = c.onContainerStart(ctx, e)
+	err = c.onTaskStart(ctx, e)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Controller) onContainerKill(ctx context.Context, e *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerKill")
+func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
 	defer span.End()
 
-	var ctr containersv1.Container
-	err := e.GetObject().UnmarshalTo(&ctr)
+	var task tasksv1.Task
+	err := e.GetObject().UnmarshalTo(&task)
 	if err != nil {
 		return err
 	}
 
-	containerID := ctr.GetMeta().GetName()
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
+	taskID := task.GetMeta().GetName()
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
 
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
-	err = c.runtime.Kill(ctx, &ctr)
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
+	err = c.runtime.Kill(ctx, &task)
 	if errors.IgnoreNotFound(err) != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
+		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			containerID,
-			&containersv1.Status{
+			taskID,
+			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRKILL),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
 
-	err = c.onContainerDelete(ctx, e)
+	err = c.onTaskDelete(ctx, e)
 	if errors.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
 
-func (c *Controller) onContainerStart(ctx context.Context, e *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerStart")
+func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
 
-	var ctr containersv1.Container
-	err := e.GetObject().UnmarshalTo(&ctr)
+	var task tasksv1.Task
+	err := e.GetObject().UnmarshalTo(&task)
 	if err != nil {
 		return err
 	}
 
-	containerID := ctr.GetMeta().GetName()
-	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", containerID)
+	taskID := task.GetMeta().GetName()
+	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", taskID)
 
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
-	_ = c.runtime.Cleanup(ctx, containerID)
+	_ = c.runtime.Cleanup(ctx, taskID)
 
-	// Remove any previous containers ignoring any errors
-	_ = c.onContainerDelete(ctx, e)
+	// Remove any previous tasks ignoring any errors
+	_ = c.onTaskDelete(ctx, e)
 
 	// Prepare volumes/mounts
-	if err := c.attacher.PrepareMounts(ctx, c.node, &ctr); err != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
+	if err := c.attacher.PrepareMounts(ctx, c.node, &task); err != nil {
+		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			containerID,
-			&containersv1.Status{
+			taskID,
+			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERREXEC),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
@@ -569,88 +569,88 @@ func (c *Controller) onContainerStart(ctx context.Context, e *eventsv1.Event) er
 	}
 
 	// Pull image
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("pulling")}, "phase")
-	err = c.runtime.Pull(ctx, &ctr)
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String("pulling")}, "phase")
+	err = c.runtime.Pull(ctx, &task)
 	if err != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
+		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			containerID,
-			&containersv1.Status{
+			taskID,
+			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRIMAGEPULL),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
 
-	// Run container
-	err = c.runtime.Run(ctx, &ctr)
+	// Run task
+	err = c.runtime.Run(ctx, &task)
 	if err != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
+		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			containerID,
-			&containersv1.Status{
+			taskID,
+			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERREXEC),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
 
-func (c *Controller) onContainerStop(ctx context.Context, e *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnContainerStop")
+func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStop")
 	defer span.End()
 
-	var ctr containersv1.Container
-	err := e.GetObject().UnmarshalTo(&ctr)
+	var task tasksv1.Task
+	err := e.GetObject().UnmarshalTo(&task)
 	if err != nil {
 		return err
 	}
 
-	containerID := ctr.GetMeta().GetName()
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", containerID)
+	taskID := task.GetMeta().GetName()
+	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
 
-	// Let everyone know that container is stoping
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
+	// Let everyone know that task is stoping
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
 
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
-	_ = c.runtime.Cleanup(ctx, containerID)
+	_ = c.runtime.Cleanup(ctx, taskID)
 
-	// Stop the container
-	err = c.runtime.Stop(ctx, &ctr)
+	// Stop the task
+	err = c.runtime.Stop(ctx, &task)
 	if errors.IgnoreNotFound(err) != nil {
-		_ = c.clientset.ContainerV1().Status().Update(
+		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			containerID,
-			&containersv1.Status{
+			taskID,
+			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRSTOP),
 				Status: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
 
-	err = c.onContainerDelete(ctx, e)
+	err = c.onTaskDelete(ctx, e)
 	if errors.IgnoreNotFound(err) != nil {
 		return err
 	}
 
 	// Detach volumes
-	err = c.attacher.Detach(ctx, c.node, &ctr)
+	err = c.attacher.Detach(ctx, c.node, &task)
 	if err != nil {
 		return err
 	}
 
-	_ = c.clientset.ContainerV1().Status().Update(ctx, containerID, &containersv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
 
-// Reconcile ensures that desired containers matches with containers
-// in the runtime environment. It removes any containers that are not
+// Reconcile ensures that desired tasks matches with tasks
+// in the runtime environment. It removes any tasks that are not
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
 func (c *Controller) Reconcile(ctx context.Context) error {

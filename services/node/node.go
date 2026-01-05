@@ -8,19 +8,21 @@ import (
 	"io"
 	"sync"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	"github.com/amimof/voiyd/pkg/consts"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/repository"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 const Version string = "node/v1"
@@ -175,11 +177,11 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 }
 
 func (n *NodeService) setupHandlers() {
-	n.exchange.On(events.ContainerDelete, n.onContainer)
-	n.exchange.On(events.ContainerUpdate, n.onContainer)
-	n.exchange.On(events.ContainerStart, n.onContainer)
-	n.exchange.On(events.ContainerKill, n.onContainer)
-	n.exchange.On(events.ContainerStop, n.onContainer)
+	n.exchange.On(events.TaskDelete, n.onTask)
+	n.exchange.On(events.TaskUpdate, n.onTask)
+	n.exchange.On(events.TaskStart, n.onTask)
+	n.exchange.On(events.TaskKill, n.onTask)
+	n.exchange.On(events.TaskStop, n.onTask)
 	n.exchange.On(events.Schedule, n.onSchedule)
 }
 
@@ -191,8 +193,8 @@ func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Get the container from the request
-	var ctr containersv1.Container
-	if err := req.GetContainer().UnmarshalTo(&ctr); err != nil {
+	var ctr tasksv1.Task
+	if err := req.GetTask().UnmarshalTo(&ctr); err != nil {
 		return err
 	}
 
@@ -210,7 +212,7 @@ func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Construct event that is to be forwarded to the node
-	newEvent := events.NewRequest(eventsv1.EventType_ContainerCreate, &ctr)
+	newEvent := events.NewRequest(eventsv1.EventType_TaskCreate, &ctr)
 
 	// Schedule container on node
 	n.logger.Info("scheduling container", "node", node.GetMeta().GetName(), "container", ctr.GetMeta().GetName())
@@ -222,9 +224,9 @@ func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
 	return nil
 }
 
-func (n *NodeService) onContainer(ctx context.Context, e *eventsv1.Event) error {
-	// Unmarshal Container from event
-	var ctr containersv1.Container
+func (n *NodeService) onTask(ctx context.Context, e *eventsv1.Event) error {
+	// Unmarshal Task from event
+	var ctr tasksv1.Task
 	err := e.GetObject().UnmarshalTo(&ctr)
 	if err != nil {
 		return err

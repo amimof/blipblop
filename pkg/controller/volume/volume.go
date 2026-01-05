@@ -276,7 +276,7 @@ func (vc *Controller) onVolumeDelete(ctx context.Context, ev *eventsv1.Event) er
 func (vc *Controller) Reconcile(ctx context.Context) error {
 	vc.logger.Info("reconciling volumes in runtime")
 
-	// Get containers from the server. Ultimately we want these to match with our runtime
+	// Get tasks.from the server. Ultimately we want these to match with our runtime
 	vlist, err := vc.clientset.VolumeV1().List(ctx)
 	if err != nil {
 		return err
@@ -287,7 +287,7 @@ func (vc *Controller) Reconcile(ctx context.Context) error {
 	for _, vol := range vlist {
 
 		// Reconcile host-local volumes. Template volumes will be created and attached
-		// dynamically on container startup
+		// dynamically on task startup
 		driverType := volume.GetDriverType(vol)
 		if driverType == volume.DriverTypeHostLocal {
 			id := vol.GetMeta().GetName()

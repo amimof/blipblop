@@ -40,7 +40,7 @@ func NewCmdCreate() *cobra.Command {
 	}
 
 	createCmd.PersistentFlags().BoolVarP(&wait, "wait", "w", true, "Wait for command to finish")
-	createCmd.PersistentFlags().Uint64VarP(&waitTimeoutSeconds, "timeout", "", 30, "How long in seconds to wait for container to start before giving up")
+	createCmd.PersistentFlags().Uint64VarP(&waitTimeoutSeconds, "timeout", "", 30, "How long in seconds to wait for task to start before giving up")
 	createCmd.PersistentFlags().StringToStringVarP(&resourceLabels, "labels", "l", map[string]string{}, "Resource labels as key value pair")
 	createCmd.AddCommand(NewCmdCreateSet(&cfg))
 	createCmd.AddCommand(volume.NewCmdCreateVolume(&cfg))

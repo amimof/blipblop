@@ -37,20 +37,20 @@ message Event {
 }
 
 message ScheduleRequest {
-  google.protobuf.Any container = 1;
+  google.protobuf.Any task = 1;
   google.protobuf.Any node = 2;
 }
 
 enum EventType {
-  ContainerCreate = 0;
-  ContainerDelete = 1;
-  ContainerUpdate = 2;
-  ContainerPatch = 3;
-  ContainerStart = 4;
-  ContainerGet = 5;
-  ContainerList = 6;
-  ContainerKill = 7;
-  ContainerStop = 8;
+  TaskCreate = 0;
+  TaskDelete = 1;
+  TaskUpdate = 2;
+  TaskPatch = 3;
+  TaskStart = 4;
+  TaskGet = 5;
+  TaskList = 6;
+  TaskKill = 7;
+  TaskStop = 8;
   NodeGet = 9;
   NodeCreate = 10;
   NodeDelete = 11;

@@ -46,7 +46,7 @@ func (s *LogService) Register(server *grpc.Server) error {
 func (s *LogService) sendStartLogsCommand(ctx context.Context, req *logsv1.TailLogRequest) error {
 	err := s.exchange.Publish(ctx, events.TailLogsStart, events.NewEvent(events.TailLogsStart, req))
 	if err != nil {
-		s.logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetContainerId(), "tail?", req.GetWatch())
+		s.logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetTaskId(), "tail?", req.GetWatch())
 		return err
 	}
 	return nil
@@ -55,7 +55,7 @@ func (s *LogService) sendStartLogsCommand(ctx context.Context, req *logsv1.TailL
 func (s *LogService) sendStopLogsCommand(ctx context.Context, req *logsv1.TailLogRequest) error {
 	err := s.exchange.Publish(ctx, events.TailLogsStop, events.NewEvent(events.TailLogsStop, req))
 	if err != nil {
-		s.logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetContainerId(), "tail?", req.GetWatch())
+		s.logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetTaskId(), "tail?", req.GetWatch())
 		return err
 	}
 	return nil
@@ -73,9 +73,9 @@ func (s *LogService) TailLogs(req *logsv1.TailLogRequest, srv logsv1.LogService_
 
 	// Subscribe and get the log channel
 	key := events.LogKey{
-		NodeID:      req.GetNodeId(),
-		ContainerID: req.GetContainerId(),
-		SessionID:   req.GetSessionId(),
+		NodeID:    req.GetNodeId(),
+		TaskID:    req.GetTaskId(),
+		SessionID: req.GetSessionId(),
 	}
 
 	logCh := s.logExchange.Subscribe(key)
@@ -137,12 +137,12 @@ func (s *LogService) PushLogs(stream logsv1.LogService_PushLogsServer) error {
 		}
 
 		key := events.LogKey{
-			NodeID:      entry.GetNodeId(),
-			ContainerID: entry.GetContainerId(),
-			SessionID:   entry.GetSessionId(),
+			NodeID:    entry.GetNodeId(),
+			TaskID:    entry.GetTaskId(),
+			SessionID: entry.GetSessionId(),
 		}
 
-		if key.NodeID != "" && key.ContainerID != "" {
+		if key.NodeID != "" && key.TaskID != "" {
 			seenKeys[key] = struct{}{}
 		}
 

@@ -51,7 +51,7 @@
         "nodeId": {
           "type": "string"
         },
-        "containerId": {
+        "taskId": {
           "type": "string"
         },
         "sessionId": {

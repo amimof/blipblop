@@ -16,14 +16,14 @@
     "application/json"
   ],
   "paths": {
-    "/api/v1/containers": {
-      "post": {
-        "operationId": "ContainerSetService_Create",
+    "/api/v1/containersets": {
+      "get": {
+        "operationId": "ContainerSetService_List",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersetsv1CreateResponse"
+              "$ref": "#/definitions/servicescontainersetsv1ListResponse"
             }
           },
           "default": {
@@ -35,12 +35,11 @@
         },
         "parameters": [
           {
-            "name": "containerSet",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/v1ContainerSet"
-            }
+            "name": "selector",
+            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -48,7 +47,7 @@
         ]
       }
     },
-    "/api/v1/containers/{containerSet.meta.name}": {
+    "/api/v1/containersets/{containerSet.meta.name}": {
       "put": {
         "operationId": "ContainerSetService_Update",
         "responses": {
@@ -202,37 +201,6 @@
         ]
       }
     },
-    "/api/v1/containersets": {
-      "get": {
-        "operationId": "ContainerSetService_List",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/servicescontainersetsv1ListResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "selector",
-            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "ContainerSetService"
-        ]
-      }
-    },
     "/api/v1/containersets/{id}": {
       "get": {
         "operationId": "ContainerSetService_Get",
@@ -284,6 +252,38 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      }
+    },
+    "/api/v1/containerssets": {
+      "post": {
+        "operationId": "ContainerSetService_Create",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicescontainersetsv1CreateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "containerSet",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ContainerSet"
+            }
           }
         ],
         "tags": [
@@ -495,7 +495,7 @@
           "type": "integer",
           "format": "int64"
         },
-        "containerPort": {
+        "targetPort": {
           "type": "integer",
           "format": "int64"
         },

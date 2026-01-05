@@ -104,15 +104,15 @@
     "v1EventType": {
       "type": "string",
       "enum": [
-        "ContainerCreate",
-        "ContainerDelete",
-        "ContainerUpdate",
-        "ContainerPatch",
-        "ContainerStart",
-        "ContainerGet",
-        "ContainerList",
-        "ContainerKill",
-        "ContainerStop",
+        "TaskCreate",
+        "TaskDelete",
+        "TaskUpdate",
+        "TaskPatch",
+        "TaskStart",
+        "TaskGet",
+        "TaskList",
+        "TaskKill",
+        "TaskStop",
         "NodeGet",
         "NodeCreate",
         "NodeDelete",
@@ -136,7 +136,7 @@
         "VolumeGet",
         "VolumeList"
       ],
-      "default": "ContainerCreate"
+      "default": "TaskCreate"
     },
     "v1GetResponse": {
       "type": "object",

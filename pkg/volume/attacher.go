@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 	clientv1 "github.com/amimof/voiyd/pkg/client/volume/v1"
 	"github.com/amimof/voiyd/pkg/consts"
@@ -20,10 +20,10 @@ type Attacher interface {
 	// PrepareMounts inspects ctr.Config.Mounts, resolves any mount.Volume
 	// to a local host path using the appropriate Driver, and updates the
 	// mounts with mount.Source = host path.
-	PrepareMounts(ctx context.Context, node *nodesv1.Node, ctr *containersv1.Container) error
+	PrepareMounts(ctx context.Context, node *nodesv1.Node, ctr *tasksv1.Task) error
 
 	// Allows for reversal of provisioned resources
-	Detach(ctx context.Context, node *nodesv1.Node, ctr *containersv1.Container) error
+	Detach(ctx context.Context, node *nodesv1.Node, ctr *tasksv1.Task) error
 }
 
 type DefaultAttacher struct {
@@ -36,7 +36,7 @@ func NewDefaultAttacher(vc clientv1.ClientV1) *DefaultAttacher {
 }
 
 // PrepareMounts implements Attacher interface
-func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ctr *containersv1.Container) error {
+func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ctr *tasksv1.Task) error {
 	mounts := ctr.GetConfig().GetMounts()
 	if len(mounts) == 0 {
 		return nil
@@ -44,7 +44,7 @@ func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ct
 
 	nodeName := n.GetMeta().GetName()
 	drivers := NodeVolumeDrivers(a.volumeClient, n)
-	resolved := make([]*containersv1.Mount, 0, len(mounts))
+	resolved := make([]*tasksv1.Mount, 0, len(mounts))
 
 	for _, m := range mounts {
 
@@ -74,7 +74,7 @@ func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ct
 		}
 
 		// Create a copy of the mount with resolved source
-		nm := proto.Clone(m).(*containersv1.Mount)
+		nm := proto.Clone(m).(*tasksv1.Mount)
 		nm.Source = localVol.Location() // what containerd will bind‑mount
 		resolved = append(resolved, nm)
 
@@ -96,13 +96,13 @@ func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ct
 
 	}
 
-	// Overwrite container mounts with resolved slice
+	// Overwrite task mounts with resolved slice
 	ctr.Config.Mounts = resolved
 	return nil
 }
 
 // Detach implements Attacher interface
-func (a *DefaultAttacher) Detach(ctx context.Context, n *nodesv1.Node, ctr *containersv1.Container) error {
+func (a *DefaultAttacher) Detach(ctx context.Context, n *nodesv1.Node, ctr *tasksv1.Task) error {
 	mounts := ctr.GetConfig().GetMounts()
 	if len(mounts) == 0 {
 		return nil

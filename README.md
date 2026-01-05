@@ -17,35 +17,32 @@ Voiyd is a lightweight container orchestration platform with a central server an
 
 ## Features
 
-- **Central control plane**: voiyd-server provides a gRPC/HTTP API and manages cluster state.
-- **Node agent**: voiyd-node runs on each worker node and integrates with containerd. More runtimes are beeing added.
-- **Container management**: Create, run, start, stop, update, and delete containers. Manage “containersets” as grouped workloads.
+- **Central control plane**: voiyd-server provides the API and manages cluster state.
+- **Node agent**: voiyd-node runs on each worker node and integrates with a *Runtime* such as [containerd](https://containerd.io). More runtimes are beeing added for example the *Exec* runtime for legacy applications.
+- **Task orchestration**: Deploy workload with *Tasks* - the unit of scheduling.
 - **Volume management**: Create and attach host-local volumes. Snapshot and template support (where configured).
-- **Scheduling**: Built-in scheduler for placing workloads on nodes. Horizontal scheduling utilities for multi-node clusters.
+- **Networking**: Expose services with built-in [CNI](https://www.cni.dev) support.
+- **Scheduling**: Built-in scheduler for placing *Tasks* on nodes. Horizontal scheduling utilities for multi-node clusters.
 - **Event and log streaming**: Event service for cluster events. Log service for streaming container logs.
 - **Node management and upgrades**: Node upgrade support and associated controllers.
 - **Pluggable storage backends**: BadgerDB-based repository implementation. In-memory repositories for testing.
 - **CLI-focused**: Use voiydctl to manage clusters.
 - **Instrumentation**: Metrics and tracing hooks in pkg/instrumentation.
 
-## Architecture Overview
+## Components
 
-Voiyd is an event‑driven system. When you issue a command with `voiydctl` (for example `run`), the CLI sends a request to the server. The server validates the request, updates cluster state, and emits an event (such as `ContainerCreate`).
-
-Nodes are completely walled off from the outside: the server never connects to them. Instead, each `voiyd-node` establishes an outbound connection to the server, subscribes to the event stream, and reports its own status. As long as a node can reach the server, it can participate in the cluster—even if it is behind NAT, firewalls, or in a different network segment—because all communication is initiated from the node side.
-
-- **Control plane**: `voiydtl-server`  
+- **Control plane**: `voiyd-server`  
   - Exposes gRPC/HTTP APIs defined in `api/`.  
   - Stores cluster resources via the repository layer.  
   - State replication for redundancy is in development.
 - **Node agent**: `voiyd-node`  
   - Runs on each node.
   - Establishes an outbound connection to the server and subscribes to events.  
-  - Manages containers using a runtime and reports status and metrics back to the server.  
+  - Manages tasks using a runtime and reports status and metrics back to the server.  
   - Can operate behind NAT/firewalls as long as it can reach the server.
 - **CLI**: `voiyd`  
   - Talks only to the server and never connects directly to nodes.
-  - Provides subcommands for create/get/apply/delete, logs, upgrade, etc.  
+  - Multi-cluster support with the use of `contexts`
 
 ## Prerequisites
 
@@ -125,7 +122,7 @@ NOTE: Run make help for more information on all potential make targets
     voiydctl config create-server dev --address localhost:5743 --tls --ca ./certs/ca.crt
     ```
 
-5. Run a container
+5. Run a `Task`
 
     ```bash
     voiydctl run victoria-metrics --image docker.io/victoriametrics/victoria-metrics:v1.130.0

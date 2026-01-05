@@ -4,14 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/stretchr/testify/assert"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
-func initInMemContainerRepo(ctx context.Context, repo ContainerRepository) (ContainerRepository, error) {
-	ctrs := []*containers.Container{
+func initInMemTaskRepo(ctx context.Context, repo TaskRepository) (TaskRepository, error) {
+	tasks := []*tasksv1.Task{
 		{
 			Meta: &types.Meta{
 				Name: "container-without-labels",
@@ -37,8 +38,8 @@ func initInMemContainerRepo(ctx context.Context, repo ContainerRepository) (Cont
 		},
 	}
 
-	for _, ctr := range ctrs {
-		err := repo.Create(ctx, ctr)
+	for _, task := range tasks {
+		err := repo.Create(ctx, task)
 		if err != nil {
 			return nil, err
 		}
@@ -47,38 +48,38 @@ func initInMemContainerRepo(ctx context.Context, repo ContainerRepository) (Cont
 	return repo, nil
 }
 
-func TestListContainersWithFilter(t *testing.T) {
+func TestListTasksWithFilter(t *testing.T) {
 	ctx := context.Background()
 	filter := labels.New()
 	filter.Set("app", "default")
 
-	repo, err := initInMemContainerRepo(ctx, NewContainerInMemRepo())
+	repo, err := initInMemTaskRepo(ctx, NewTaskInMemRepo())
 	assert.NoError(t, err)
 
-	ctrs, err := repo.List(ctx, filter)
+	tasks, err := repo.List(ctx, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expected := "container-with-labels"
 
-	assert.Len(t, ctrs, 1, "length of containers should be 1")
+	assert.Len(t, tasks, 1, "length of containers should be 1")
 
-	for _, ctr := range ctrs {
-		assert.Equal(t, ctr.GetMeta().GetName(), expected, "containers should match")
+	for _, task := range tasks {
+		assert.Equal(t, task.GetMeta().GetName(), expected, "task should match")
 	}
 }
 
-func TestListContainersWithNoFilter(t *testing.T) {
+func TestListTasksWithNoFilter(t *testing.T) {
 	ctx := context.Background()
 
-	repo, err := initInMemContainerRepo(ctx, NewContainerInMemRepo())
+	repo, err := initInMemTaskRepo(ctx, NewTaskInMemRepo())
 	assert.NoError(t, err)
 
-	ctrs, err := repo.List(ctx)
+	tasks, err := repo.List(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Len(t, ctrs, 3, "length of containers should be 3")
+	assert.Len(t, tasks, 3, "length of tasks should be 3")
 }
