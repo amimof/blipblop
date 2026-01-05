@@ -22,7 +22,7 @@ func NewCmdStop() *cobra.Command {
 		Use:     "stop",
 		Short:   "Stop a resource",
 		Long:    "Stop a resource",
-		Example: `voiydctl stop container`,
+		Example: `voiydctl stop task`,
 		Args:    cobra.ExactArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -44,7 +44,7 @@ func NewCmdStop() *cobra.Command {
 	stopCmd.PersistentFlags().BoolVar(&force,
 		"force",
 		false,
-		"Attempt forceful shutdown of the continaner",
+		"Attempt forceful shutdown of the task",
 	)
 	stopCmd.PersistentFlags().BoolVarP(
 		&wait,
@@ -58,9 +58,9 @@ func NewCmdStop() *cobra.Command {
 		"timeout",
 		"",
 		time.Second*30,
-		"How long in seconds to wait for container to start before giving up",
+		"How long in seconds to wait for task to start before giving up",
 	)
-	stopCmd.AddCommand(NewCmdStopContainer(&cfg))
+	stopCmd.AddCommand(NewCmdStopTask(&cfg))
 
 	return stopCmd
 }

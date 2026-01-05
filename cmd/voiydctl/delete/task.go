@@ -11,12 +11,12 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
+func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "container",
-		Short:   "Delete a container",
-		Long:    "Delete a container",
-		Example: `voiydctl delete container NAME`,
+		Use:     "task",
+		Short:   "Delete a task",
+		Long:    "Delete a task",
+		Example: `voiydctl delete task NAME`,
 		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -29,7 +29,7 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 			defer cancel()
 
 			tracer := otel.Tracer("voiydctl")
-			ctx, span := tracer.Start(ctx, "voiydctl.delete.container")
+			ctx, span := tracer.Start(ctx, "voiydctl.delete.task")
 			defer span.End()
 
 			// Setup client
@@ -47,9 +47,9 @@ func NewCmdDeleteContainer(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			for _, cname := range args {
-				fmt.Printf("Requested to delete container %s\n", cname)
-				err = c.ContainerV1().Delete(ctx, cname)
+			for _, tname := range args {
+				fmt.Printf("Requested to delete task %s\n", tname)
+				err = c.TaskV1().Delete(ctx, tname)
 				if err != nil {
 					logrus.Fatal(err)
 				}

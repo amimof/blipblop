@@ -15,7 +15,7 @@ func NewCmdDelete() *cobra.Command {
 		Long:    "Delete a resource",
 		Example: `voiydctl delete container`,
 		Args:    cobra.ExactArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.ReadInConfig(); err != nil {
 				logrus.Fatalf("error reading config: %v", err)
 			}
@@ -29,7 +29,7 @@ func NewCmdDelete() *cobra.Command {
 		},
 	}
 
-	deleteCmd.AddCommand(NewCmdDeleteContainer(&cfg))
+	deleteCmd.AddCommand(NewCmdDeleteTask(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteNode(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteContainerSet(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteVolume(&cfg))

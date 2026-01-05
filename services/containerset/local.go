@@ -6,17 +6,19 @@ import (
 	"fmt"
 	"sync"
 
-	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/protoutils"
-	"github.com/amimof/voiyd/pkg/repository"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/protoutils"
+	"github.com/amimof/voiyd/pkg/repository"
+
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 )
 
 type local struct {

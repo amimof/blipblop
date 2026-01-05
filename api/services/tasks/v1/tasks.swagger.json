@@ -1,12 +1,12 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "services/containers/v1/containers.proto",
+    "title": "services/tasks/v1/tasks.proto",
     "version": "version not set"
   },
   "tags": [
     {
-      "name": "ContainerService"
+      "name": "TaskService"
     }
   ],
   "consumes": [
@@ -16,14 +16,14 @@
     "application/json"
   ],
   "paths": {
-    "/api/v1/containers": {
+    "/api/v1/tasks": {
       "get": {
-        "operationId": "ContainerService_List",
+        "operationId": "TaskService_List",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersv1ListResponse"
+              "$ref": "#/definitions/servicestasksv1ListResponse"
             }
           },
           "default": {
@@ -43,16 +43,16 @@
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
         ]
       },
       "post": {
-        "operationId": "ContainerService_Create",
+        "operationId": "TaskService_Create",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersv1CreateResponse"
+              "$ref": "#/definitions/servicestasksv1CreateResponse"
             }
           },
           "default": {
@@ -64,187 +64,27 @@
         },
         "parameters": [
           {
-            "name": "container",
+            "name": "task",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/v1Container"
+              "$ref": "#/definitions/v1Task"
             }
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
         ]
       }
     },
-    "/api/v1/containers/{container.meta.name}": {
-      "put": {
-        "operationId": "ContainerService_Update",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1UpdateResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "container.meta.name",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "container",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "revision": {
-                      "type": "string",
-                      "format": "uint64"
-                    }
-                  }
-                },
-                "config": {
-                  "$ref": "#/definitions/v1Config"
-                },
-                "status": {
-                  "$ref": "#/definitions/containersv1Status"
-                }
-              }
-            }
-          },
-          {
-            "name": "id",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "updateMask",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "ContainerService"
-        ]
-      },
-      "patch": {
-        "operationId": "ContainerService_Patch",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1PatchResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "container.meta.name",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "container",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "revision": {
-                      "type": "string",
-                      "format": "uint64"
-                    }
-                  }
-                },
-                "config": {
-                  "$ref": "#/definitions/v1Config"
-                },
-                "status": {
-                  "$ref": "#/definitions/containersv1Status"
-                }
-              }
-            }
-          },
-          {
-            "name": "id",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "ContainerService"
-        ]
-      }
-    },
-    "/api/v1/containers/{id}": {
+    "/api/v1/tasks/{id}": {
       "get": {
-        "operationId": "ContainerService_Get",
+        "operationId": "TaskService_Get",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersv1GetResponse"
+              "$ref": "#/definitions/servicestasksv1GetResponse"
             }
           },
           "default": {
@@ -263,16 +103,16 @@
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
         ]
       },
       "delete": {
-        "operationId": "ContainerService_Delete",
+        "operationId": "TaskService_Delete",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersv1DeleteResponse"
+              "$ref": "#/definitions/servicestasksv1DeleteResponse"
             }
           },
           "default": {
@@ -291,13 +131,13 @@
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
         ]
       }
     },
-    "/api/v1/containers/{id}/kill": {
+    "/api/v1/tasks/{id}/kill": {
       "put": {
-        "operationId": "ContainerService_Kill",
+        "operationId": "TaskService_Kill",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -327,13 +167,13 @@
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
         ]
       }
     },
-    "/api/v1/containers/{id}/start": {
+    "/api/v1/tasks/{id}/start": {
       "put": {
-        "operationId": "ContainerService_Start",
+        "operationId": "TaskService_Start",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -357,13 +197,13 @@
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
         ]
       }
     },
-    "/api/v1/containers/{id}/status": {
+    "/api/v1/tasks/{id}/status": {
       "put": {
-        "operationId": "ContainerService_UpdateStatus",
+        "operationId": "TaskService_UpdateStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -467,7 +307,7 @@
             "type": "string"
           },
           {
-            "name": "status.runtime.containerId",
+            "name": "status.runtime.taskId",
             "in": "query",
             "required": false,
             "type": "string"
@@ -480,38 +320,172 @@
           }
         ],
         "tags": [
-          "ContainerService"
+          "TaskService"
+        ]
+      }
+    },
+    "/api/v1/tasks/{task.meta.name}": {
+      "put": {
+        "operationId": "TaskService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "task.meta.name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "task",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "format": "uint64"
+                    }
+                  }
+                },
+                "config": {
+                  "$ref": "#/definitions/v1Config"
+                },
+                "status": {
+                  "$ref": "#/definitions/tasksv1Status"
+                }
+              }
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      },
+      "patch": {
+        "operationId": "TaskService_Patch",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PatchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "task.meta.name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "task",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "labels": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "created": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "updated": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "string",
+                      "format": "uint64"
+                    }
+                  }
+                },
+                "config": {
+                  "$ref": "#/definitions/v1Config"
+                },
+                "status": {
+                  "$ref": "#/definitions/tasksv1Status"
+                }
+              }
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
         ]
       }
     }
   },
   "definitions": {
-    "containersv1Status": {
-      "type": "object",
-      "properties": {
-        "phase": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        },
-        "node": {
-          "type": "string"
-        },
-        "ip": {
-          "type": "string"
-        },
-        "task": {
-          "$ref": "#/definitions/v1TaskStatus"
-        },
-        "runtime": {
-          "$ref": "#/definitions/v1RuntimeStatus"
-        },
-        "id": {
-          "type": "string"
-        }
-      }
-    },
     "googlerpcStatus": {
       "type": "object",
       "properties": {
@@ -542,15 +516,15 @@
       "additionalProperties": {},
       "description": "`Any` contains an arbitrary serialized protocol buffer message along with a\nURL that describes the type of the serialized message.\n\nProtobuf library provides support to pack/unpack Any values in the form\nof utility functions or additional generated methods of the Any type.\n\nExample 1: Pack and unpack a message in C++.\n\n    Foo foo = ...;\n    Any any;\n    any.PackFrom(foo);\n    ...\n    if (any.UnpackTo(\u0026foo)) {\n      ...\n    }\n\nExample 2: Pack and unpack a message in Java.\n\n    Foo foo = ...;\n    Any any = Any.pack(foo);\n    ...\n    if (any.is(Foo.class)) {\n      foo = any.unpack(Foo.class);\n    }\n    // or ...\n    if (any.isSameTypeAs(Foo.getDefaultInstance())) {\n      foo = any.unpack(Foo.getDefaultInstance());\n    }\n\n Example 3: Pack and unpack a message in Python.\n\n    foo = Foo(...)\n    any = Any()\n    any.Pack(foo)\n    ...\n    if any.Is(Foo.DESCRIPTOR):\n      any.Unpack(foo)\n      ...\n\n Example 4: Pack and unpack a message in Go\n\n     foo := \u0026pb.Foo{...}\n     any, err := anypb.New(foo)\n     if err != nil {\n       ...\n     }\n     ...\n     foo := \u0026pb.Foo{}\n     if err := any.UnmarshalTo(foo); err != nil {\n       ...\n     }\n\nThe pack methods provided by protobuf library will by default use\n'type.googleapis.com/full.type.name' as the type URL and the unpack\nmethods only use the fully qualified type name after the last '/'\nin the type URL, for example \"foo.bar.com/x/y.z\" will yield type\nname \"y.z\".\n\nJSON\n====\nThe JSON representation of an `Any` value uses the regular\nrepresentation of the deserialized, embedded message, with an\nadditional field `@type` which contains the type URL. Example:\n\n    package google.profile;\n    message Person {\n      string first_name = 1;\n      string last_name = 2;\n    }\n\n    {\n      \"@type\": \"type.googleapis.com/google.profile.Person\",\n      \"firstName\": \u003cstring\u003e,\n      \"lastName\": \u003cstring\u003e\n    }\n\nIf the embedded message type is well-known and has a custom JSON\nrepresentation, that representation will be embedded adding a field\n`value` which holds the custom JSON in addition to the `@type`\nfield. Example (for message [google.protobuf.Duration][]):\n\n    {\n      \"@type\": \"type.googleapis.com/google.protobuf.Duration\",\n      \"value\": \"1.212s\"\n    }"
     },
-    "servicescontainersv1CreateResponse": {
+    "servicestasksv1CreateResponse": {
       "type": "object",
       "properties": {
-        "container": {
-          "$ref": "#/definitions/v1Container"
+        "task": {
+          "$ref": "#/definitions/v1Task"
         }
       }
     },
-    "servicescontainersv1DeleteResponse": {
+    "servicestasksv1DeleteResponse": {
       "type": "object",
       "properties": {
         "id": {
@@ -558,23 +532,49 @@
         }
       }
     },
-    "servicescontainersv1GetResponse": {
+    "servicestasksv1GetResponse": {
       "type": "object",
       "properties": {
-        "container": {
-          "$ref": "#/definitions/v1Container"
+        "task": {
+          "$ref": "#/definitions/v1Task"
         }
       }
     },
-    "servicescontainersv1ListResponse": {
+    "servicestasksv1ListResponse": {
       "type": "object",
       "properties": {
-        "containers": {
+        "tasks": {
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/v1Container"
+            "$ref": "#/definitions/v1Task"
           }
+        }
+      }
+    },
+    "tasksv1Status": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "ip": {
+          "type": "string"
+        },
+        "task": {
+          "$ref": "#/definitions/v1TaskStatus"
+        },
+        "runtime": {
+          "$ref": "#/definitions/v1RuntimeStatus"
+        },
+        "id": {
+          "type": "string"
         }
       }
     },
@@ -616,23 +616,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        }
-      }
-    },
-    "v1Container": {
-      "type": "object",
-      "properties": {
-        "version": {
-          "type": "string"
-        },
-        "meta": {
-          "$ref": "#/definitions/v1Meta"
-        },
-        "config": {
-          "$ref": "#/definitions/v1Config"
-        },
-        "status": {
-          "$ref": "#/definitions/containersv1Status"
         }
       }
     },
@@ -710,8 +693,8 @@
     "v1PatchResponse": {
       "type": "object",
       "properties": {
-        "container": {
-          "$ref": "#/definitions/v1Container"
+        "task": {
+          "$ref": "#/definitions/v1Task"
         }
       }
     },
@@ -725,7 +708,7 @@
           "type": "integer",
           "format": "int64"
         },
-        "containerPort": {
+        "targetPort": {
           "type": "integer",
           "format": "int64"
         },
@@ -752,7 +735,7 @@
         "stderrPath": {
           "type": "string"
         },
-        "containerId": {
+        "taskId": {
           "type": "string"
         }
       }
@@ -762,6 +745,23 @@
       "properties": {
         "id": {
           "type": "string"
+        }
+      }
+    },
+    "v1Task": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "meta": {
+          "$ref": "#/definitions/v1Meta"
+        },
+        "config": {
+          "$ref": "#/definitions/v1Config"
+        },
+        "status": {
+          "$ref": "#/definitions/tasksv1Status"
         }
       }
     },
@@ -788,8 +788,8 @@
     "v1UpdateResponse": {
       "type": "object",
       "properties": {
-        "container": {
-          "$ref": "#/definitions/v1Container"
+        "task": {
+          "$ref": "#/definitions/v1Task"
         }
       }
     },

@@ -11,8 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/amimof/voiyd/api/services/logs/v1"
-	"github.com/amimof/voiyd/pkg/client"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -20,15 +18,18 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/amimof/voiyd/api/services/logs/v1"
+	"github.com/amimof/voiyd/pkg/client"
 )
 
 func NewCmdLog() *cobra.Command {
 	var cfg client.Config
 	logCmd := &cobra.Command{
-		Use:     "log",
-		Short:   "Read container logs",
-		Long:    "Streams container logs from the node to stdout",
-		Example: `voiydctl log CONTAINER_NAME`,
+		Use:     "log NAME",
+		Short:   "Read task logs",
+		Long:    "Streams task logs from the node to stdout",
+		Example: `voiydctl log TASK_NAME`,
 		Args:    cobra.ExactArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -70,17 +71,17 @@ func NewCmdLog() *cobra.Command {
 			exit := make(chan os.Signal, 1)
 			signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-			// We need to know which node the container is scheduled on
-			containerID := args[0]
-			ctr, err := c.ContainerV1().Get(ctx, containerID)
+			// We need to know which node the task is scheduled on
+			taskID := args[0]
+			task, err := c.TaskV1().Get(ctx, taskID)
 			if err != nil {
 				return err
 			}
 
 			req := logs.TailLogRequest{
-				NodeId:      ctr.GetStatus().GetNode().GetValue(),
-				ContainerId: ctr.GetMeta().GetName(),
-				Watch:       true,
+				NodeId: task.GetStatus().GetNode().GetValue(),
+				TaskId: task.GetMeta().GetName(),
+				Watch:  true,
 			}
 
 			stream, err := c.LogV1().TailLogs(ctx, &req)
@@ -109,7 +110,7 @@ func NewCmdLog() *cobra.Command {
 						fmt.Printf("%s %s/%s: %s\n",
 							entry.GetTimestamp().AsTime().Format(time.RFC3339),
 							entry.GetNodeId(),
-							entry.GetContainerId(),
+							entry.GetTaskId(),
 							entry.GetLine(),
 						)
 					}

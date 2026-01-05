@@ -80,7 +80,7 @@ func (c *statusV1) Update(ctx context.Context, id string, status *volumes.Status
 
 func (c *clientV1) Create(ctx context.Context, ctr *volumes.Volume, opts ...CreateOption) error {
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.container.Update")
+	ctx, span := tracer.Start(ctx, "client.volume.Update")
 	defer span.End()
 
 	for _, opt := range opts {
@@ -96,7 +96,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *volumes.Volume, opts ...Crea
 
 func (c *clientV1) Update(ctx context.Context, id string, ctr *volumes.Volume) error {
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.container.Update")
+	ctx, span := tracer.Start(ctx, "client.volume.Update")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
@@ -109,7 +109,7 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *volumes.Volume) e
 
 func (c *clientV1) Patch(ctx context.Context, id string, ctr *volumes.Volume) error {
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.container.Patch")
+	ctx, span := tracer.Start(ctx, "client.volume.Patch")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
@@ -124,7 +124,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.container.Get")
+	ctx, span := tracer.Start(ctx, "client.volume.Get")
 	defer span.End()
 
 	res, err := c.Client.Get(ctx, &volumes.GetRequest{Id: id})
@@ -138,7 +138,7 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*volumes.Volu
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.container.List")
+	ctx, span := tracer.Start(ctx, "client.volume.List")
 	defer span.End()
 
 	mergedLabels := util.MergeLabels(l...)
@@ -153,7 +153,7 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.container.Delete")
+	ctx, span := tracer.Start(ctx, "client.volume.Delete")
 
 	defer span.End()
 	_, err := c.Client.Delete(ctx, &volumes.DeleteRequest{Id: id})
@@ -171,10 +171,10 @@ func NewClientV1(opts ...CreateOption) ClientV1 {
 	return c
 }
 
-func NewClientV1WithConn(conn *grpc.ClientConn, clientId string, opts ...CreateOption) ClientV1 {
+func NewClientV1WithConn(conn *grpc.ClientConn, clientID string, opts ...CreateOption) ClientV1 {
 	c := &clientV1{
 		Client: volumes.NewVolumeServiceClient(conn),
-		id:     clientId,
+		id:     clientID,
 	}
 
 	for _, opt := range opts {

@@ -1,4 +1,4 @@
-package container
+package task
 
 import (
 	"context"
@@ -7,12 +7,6 @@ import (
 	"net"
 	"testing"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
-	"github.com/amimof/voiyd/api/types/v1"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/repository"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -20,6 +14,13 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 const bufSize = 1024 * 1024
@@ -29,8 +30,8 @@ var lis *bufconn.Listener
 func initTestServer() (*grpc.Server, *bufconn.Listener) {
 	lis = bufconn.Listen(bufSize)
 	s := grpc.NewServer()
-	svc := NewService(repository.NewContainerInMemRepo(), WithExchange(events.NewExchange()), WithLogger(&logger.DevNullLogger{}))
-	containersv1.RegisterContainerServiceServer(s, svc)
+	svc := NewService(repository.NewTaskInMemRepo(), WithExchange(events.NewExchange()), WithLogger(&logger.DevNullLogger{}))
+	tasksv1.RegisterTaskServiceServer(s, svc)
 	go func() {
 		if err := s.Serve(lis); err != nil {
 			panic(err)
@@ -43,27 +44,27 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 	return lis.Dial()
 }
 
-func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
-	baseContainer := containersv1.Container{
+func initDB(ctx context.Context, c tasksv1.TaskServiceClient) error {
+	baseTask := tasksv1.Task{
 		Meta: &types.Meta{
-			Name: "test-container",
+			Name: "test-task",
 			Labels: map[string]string{
 				"team":        "backend",
 				"environment": "production",
 				"role":        "root",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/nginx:latest",
-			PortMappings: []*containersv1.PortMapping{
+			PortMappings: []*tasksv1.PortMapping{
 				{
-					Name:          "http",
-					HostPort:      8080,
-					ContainerPort: 80,
-					Protocol:      "TCP",
+					Name:       "http",
+					HostPort:   8080,
+					TargetPort: 80,
+					Protocol:   "TCP",
 				},
 			},
-			Envvars: []*containersv1.EnvVar{
+			Envvars: []*tasksv1.EnvVar{
 				{
 					Name:  "HTTP_PROXY",
 					Value: "proxy.foo.com",
@@ -72,7 +73,7 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 			Args: []string{
 				"--config /mnt/cfg/config.yaml",
 			},
-			Mounts: []*containersv1.Mount{
+			Mounts: []*tasksv1.Mount{
 				{
 					Name:        "temp",
 					Source:      "/tmp",
@@ -87,27 +88,27 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 		},
 	}
 
-	// Create 5 copies of baseContainer but with different names
+	// Create 5 copies of baseTask but with different names
 	for i := 1; i < 10; i++ {
-		ctr := &baseContainer
-		ctr.Meta.Name = fmt.Sprintf("test-container-%d", i)
-		_, err := c.Create(ctx, &containersv1.CreateRequest{Container: ctr})
+		task := &baseTask
+		task.Meta.Name = fmt.Sprintf("test-task-%d", i)
+		_, err := c.Create(ctx, &tasksv1.CreateRequest{Task: task})
 		if err != nil {
 			return err
 		}
 	}
 
-	bareBoneContainer := &containersv1.Container{
+	bareBoneTask := &tasksv1.Task{
 		Meta: &types.Meta{
-			Name: "bare-container",
+			Name: "bare-task",
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/nginx:latest",
 		},
 	}
 
-	// Create bare bone container so test nilness
-	_, err := c.Create(ctx, &containersv1.CreateRequest{Container: bareBoneContainer})
+	// Create bare bone task so test nilness
+	_, err := c.Create(ctx, &tasksv1.CreateRequest{Task: bareBoneTask})
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func initDB(ctx context.Context, c containersv1.ContainerServiceClient) error {
 	return nil
 }
 
-func Test_ContainerService_Status(t *testing.T) {
+func Test_TaskService_Status(t *testing.T) {
 	server, _ := initTestServer()
 	defer server.Stop()
 
@@ -132,26 +133,26 @@ func Test_ContainerService_Status(t *testing.T) {
 		}
 	}()
 
-	client := containersv1.NewContainerServiceClient(conn)
+	client := tasksv1.NewTaskServiceClient(conn)
 	if err := initDB(ctx, client); err != nil {
 		log.Fatalf("error initializing DB: %v", err)
 	}
 
 	testCases := []struct {
-		name        string
-		expect      *containersv1.Status
-		patch       *containersv1.Status
-		containerID string
-		mask        string
+		name   string
+		expect *tasksv1.Status
+		patch  *tasksv1.Status
+		taskID string
+		mask   string
 	}{
 		{
-			name:        "should be equal",
-			containerID: "test-container-1",
-			mask:        "phase",
-			patch: &containersv1.Status{
+			name:   "should be equal",
+			taskID: "test-task-1",
+			mask:   "phase",
+			patch: &tasksv1.Status{
 				Phase: wrapperspb.String("creating"),
 			},
-			expect: &containersv1.Status{
+			expect: &tasksv1.Status{
 				Phase: wrapperspb.String("creating"),
 			},
 		},
@@ -159,20 +160,20 @@ func Test_ContainerService_Status(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &containersv1.UpdateStatusRequest{Id: tt.containerID, Status: tt.patch, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{tt.mask}}}
+			req := &tasksv1.UpdateStatusRequest{Id: tt.taskID, Status: tt.patch, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{tt.mask}}}
 			_, err := client.UpdateStatus(ctx, req)
 			if err != nil {
-				t.Fatal("error updating container", err)
+				t.Fatal("error updating task", err)
 			}
 
 			expectedVal := protoreflect.ValueOfMessage(tt.expect.ProtoReflect())
 
-			updated, err := client.Get(ctx, &containersv1.GetRequest{Id: tt.containerID})
+			updated, err := client.Get(ctx, &tasksv1.GetRequest{Id: tt.taskID})
 			if err != nil {
-				t.Fatal("error getting container", err)
+				t.Fatal("error getting task", err)
 			}
 
-			resultVal := protoreflect.ValueOfMessage(updated.GetContainer().GetStatus().ProtoReflect())
+			resultVal := protoreflect.ValueOfMessage(updated.GetTask().GetStatus().ProtoReflect())
 
 			if !resultVal.Equal(expectedVal) {
 				t.Errorf("\ngot:\n%v\nwant:\n%v", resultVal, expectedVal)
@@ -181,7 +182,7 @@ func Test_ContainerService_Status(t *testing.T) {
 	}
 }
 
-func Test_ContainerService_Equal(t *testing.T) {
+func Test_TaskService_Equal(t *testing.T) {
 	server, _ := initTestServer()
 	defer server.Stop()
 
@@ -198,47 +199,47 @@ func Test_ContainerService_Equal(t *testing.T) {
 		}
 	}()
 
-	client := containersv1.NewContainerServiceClient(conn)
+	client := tasksv1.NewTaskServiceClient(conn)
 	if err := initDB(ctx, client); err != nil {
 		log.Fatalf("error initializing DB: %v", err)
 	}
 
 	testCases := []struct {
 		name   string
-		expect *containersv1.Container
-		patch  *containersv1.Container
+		expect *tasksv1.Task
+		patch  *tasksv1.Task
 	}{
 		{
 			name: "should be equal",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-1",
+					Name: "test-task-1",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					// Updates image tag
 					Image: "docker.io/library/nginx:v1.27.3",
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container",
+					Name: "test-task",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:v1.27.3",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -247,7 +248,7 @@ func Test_ContainerService_Equal(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -260,21 +261,21 @@ func Test_ContainerService_Equal(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &containersv1.PatchRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
+			req := &tasksv1.PatchRequest{Id: tt.patch.Meta.Name, Task: tt.patch}
 			res, err := client.Patch(ctx, req)
 			if err != nil {
-				t.Fatal("error updating container", err)
+				t.Fatal("error updating task", err)
 			}
 
 			expectedVal := protoreflect.ValueOfMessage(tt.expect.GetConfig().ProtoReflect())
-			resultVal := protoreflect.ValueOfMessage(res.GetContainer().GetConfig().ProtoReflect())
+			resultVal := protoreflect.ValueOfMessage(res.GetTask().GetConfig().ProtoReflect())
 
 			if !resultVal.Equal(expectedVal) {
 				t.Errorf("\ngot:\n%v\nwant:\n%v", resultVal, expectedVal)
@@ -283,7 +284,7 @@ func Test_ContainerService_Equal(t *testing.T) {
 	}
 }
 
-func Test_ContainerService_Patch(t *testing.T) {
+func Test_TaskService_Patch(t *testing.T) {
 	server, _ := initTestServer()
 	defer server.Stop()
 
@@ -300,46 +301,46 @@ func Test_ContainerService_Patch(t *testing.T) {
 		}
 	}()
 
-	client := containersv1.NewContainerServiceClient(conn)
+	client := tasksv1.NewTaskServiceClient(conn)
 	if err := initDB(ctx, client); err != nil {
 		log.Fatalf("error initializing DB: %v", err)
 	}
 
 	testCases := []struct {
 		name   string
-		expect *containersv1.Container
-		patch  *containersv1.Container
+		expect *tasksv1.Task
+		patch  *tasksv1.Task
 	}{
 		{
-			name: "should only update container image",
-			patch: &containersv1.Container{
+			name: "should only update task image",
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-1",
+					Name: "test-task-1",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:v1.27.2",
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-1",
+					Name: "test-task-1",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:v1.27.2",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -348,7 +349,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -361,18 +362,18 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should add to environment variables",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-2",
+					Name: "test-task-2",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTPS_PROXY",
 							Value: "proxy.a.b:8443",
@@ -384,26 +385,26 @@ func Test_ContainerService_Patch(t *testing.T) {
 					},
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-2",
+					Name: "test-task-2",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "new-proxy.foo.com:8080",
@@ -416,7 +417,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -429,18 +430,18 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should replace volume mounts",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-3",
+					Name: "test-task-3",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/var/lib/nginx/config",
@@ -451,26 +452,26 @@ func Test_ContainerService_Patch(t *testing.T) {
 					},
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-3",
+					Name: "test-task-3",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -479,7 +480,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/var/lib/nginx/config",
@@ -493,42 +494,42 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should add label to node selector",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-4",
+					Name: "test-task-4",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
 					NodeSelector: map[string]string{
 						"voiyd.io/unschedulable": "true",
 					},
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-4",
+					Name: "test-task-4",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -537,7 +538,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -551,40 +552,40 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/unschedulable": "true",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should replace args",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-5",
+					Name: "test-task-5",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
 					Args:  []string{"--config /mnt/cfg/config.yaml", "--log-level debug", "--insecure-skip-verify"},
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-5",
+					Name: "test-task-5",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -595,7 +596,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"--log-level debug",
 						"--insecure-skip-verify",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -608,63 +609,63 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should add to port mappings",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-6",
+					Name: "test-task-6",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "metrics",
-							ContainerPort: 9000,
+							Name:       "metrics",
+							TargetPort: 9000,
 						},
 						{
-							Name:          "http",
-							HostPort:      8088,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8088,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 						{
-							Name:          "https",
-							ContainerPort: 8443,
+							Name:       "https",
+							TargetPort: 8443,
 						},
 					},
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-6",
+					Name: "test-task-6",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8088,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8088,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 						{
-							Name:          "metrics",
-							ContainerPort: 9000,
+							Name:       "metrics",
+							TargetPort: 9000,
 						},
 						{
-							Name:          "https",
-							ContainerPort: 8443,
+							Name:       "https",
+							TargetPort: 8443,
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -673,7 +674,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -686,62 +687,62 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should add to empty args field",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "bare-container",
+					Name: "bare-task",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "bare-container",
+					Name: "bare-task",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
 				},
-				Status: &containersv1.Status{},
+				Status: &tasksv1.Status{},
 			},
 		},
 		{
 			name: "should only update status",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-7",
+					Name: "test-task-7",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
 				},
-				Status: &containersv1.Status{
+				Status: &tasksv1.Status{
 					Phase: wrapperspb.String("RUNNING"),
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-7",
+					Name: "test-task-7",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -750,7 +751,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -763,20 +764,20 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{
+				Status: &tasksv1.Status{
 					Phase: wrapperspb.String("RUNNING"),
 				},
 			},
 		},
 		{
 			name: "should not add volumes with identic names",
-			patch: &containersv1.Container{
+			patch: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-8",
+					Name: "test-task-8",
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "data",
 							Source:      "/data",
@@ -791,30 +792,30 @@ func Test_ContainerService_Patch(t *testing.T) {
 						},
 					},
 				},
-				Status: &containersv1.Status{
+				Status: &tasksv1.Status{
 					Phase: wrapperspb.String("RUNNING"),
 				},
 			},
-			expect: &containersv1.Container{
+			expect: &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: "test-container-8",
+					Name: "test-task-8",
 					Labels: map[string]string{
 						"team":        "backend",
 						"environment": "production",
 						"role":        "root",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/nginx:latest",
-					PortMappings: []*containersv1.PortMapping{
+					PortMappings: []*tasksv1.PortMapping{
 						{
-							Name:          "http",
-							HostPort:      8080,
-							ContainerPort: 80,
-							Protocol:      "TCP",
+							Name:       "http",
+							HostPort:   8080,
+							TargetPort: 80,
+							Protocol:   "TCP",
 						},
 					},
-					Envvars: []*containersv1.EnvVar{
+					Envvars: []*tasksv1.EnvVar{
 						{
 							Name:  "HTTP_PROXY",
 							Value: "proxy.foo.com",
@@ -823,7 +824,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 					Args: []string{
 						"--config /mnt/cfg/config.yaml",
 					},
-					Mounts: []*containersv1.Mount{
+					Mounts: []*tasksv1.Mount{
 						{
 							Name:        "temp",
 							Source:      "/tmp",
@@ -842,7 +843,7 @@ func Test_ContainerService_Patch(t *testing.T) {
 						"voiyd.io/os":   "linux",
 					},
 				},
-				Status: &containersv1.Status{
+				Status: &tasksv1.Status{
 					Phase: wrapperspb.String("RUNNING"),
 				},
 			},
@@ -852,19 +853,19 @@ func Test_ContainerService_Patch(t *testing.T) {
 	// Run tests
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &containersv1.PatchRequest{Id: tt.patch.Meta.Name, Container: tt.patch}
+			req := &tasksv1.PatchRequest{Id: tt.patch.Meta.Name, Task: tt.patch}
 			res, err := client.Patch(ctx, req)
 			if err != nil {
-				t.Fatal("error updating container", err)
+				t.Fatal("error updating task", err)
 			}
 
 			exp := tt.expect
 			// Ignore timestamps
-			res.Container.Meta.Created = nil
-			res.Container.Meta.Updated = nil
-			res.Container.Meta.Revision = 0
-			if !proto.Equal(exp, res.Container) {
-				t.Errorf("\ngot:\n%v\nwant:\n%v", res.Container, exp)
+			res.Task.Meta.Created = nil
+			res.Task.Meta.Updated = nil
+			res.Task.Meta.Revision = 0
+			if !proto.Equal(exp, res.Task) {
+				t.Errorf("\ngot:\n%v\nwant:\n%v", res.Task, exp)
 			}
 		})
 	}

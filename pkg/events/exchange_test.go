@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	"github.com/amimof/voiyd/pkg/logger"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 func TestExchange_Subscribe(t *testing.T) {
@@ -18,7 +19,7 @@ func TestExchange_Subscribe(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	topic := eventsv1.EventType_ContainerCreate
+	topic := eventsv1.EventType_TaskCreate
 
 	ch := e.Subscribe(ctx, topic)
 	if ch == nil {
@@ -44,13 +45,13 @@ func TestExchange_Publish(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	topic := eventsv1.EventType_ContainerCreate
+	topic := eventsv1.EventType_TaskCreate
 
 	// Subscribe to the topic
 	ch := e.Subscribe(ctx, topic)
 
 	// Publish an event
-	event := &eventsv1.Event{Type: eventsv1.EventType_ContainerCreate}
+	event := &eventsv1.Event{Type: eventsv1.EventType_TaskCreate}
 	err := e.Publish(ctx, topic, event)
 	if err != nil {
 		t.Fatalf("Publish returned an error: %v", err)
@@ -70,8 +71,8 @@ func TestExchange_Publish(t *testing.T) {
 
 func TestExchange_Handler(t *testing.T) {
 	ctx := context.Background()
-	topic := eventsv1.EventType_ContainerCreate
-	event := &eventsv1.Event{Type: eventsv1.EventType_ContainerCreate}
+	topic := eventsv1.EventType_TaskCreate
+	event := &eventsv1.Event{Type: eventsv1.EventType_TaskCreate}
 
 	i := 0
 	e := NewExchange()
@@ -97,8 +98,8 @@ func TestExchange_Handler(t *testing.T) {
 
 func TextExchange_FireOnceHandler(t *testing.T) {
 	ctx := context.Background()
-	topic := eventsv1.EventType_ContainerCreate
-	event := &eventsv1.Event{Type: eventsv1.EventType_ContainerCreate}
+	topic := eventsv1.EventType_TaskCreate
+	event := &eventsv1.Event{Type: eventsv1.EventType_TaskCreate}
 
 	i := 0
 	e := NewExchange()
@@ -127,7 +128,7 @@ func TestExchange_ThreadSafety(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	topic := eventsv1.EventType_ContainerCreate
+	topic := eventsv1.EventType_TaskCreate
 
 	// Start multiple goroutines to subscribe and publish
 	const goroutines = 100
@@ -142,7 +143,7 @@ func TestExchange_ThreadSafety(t *testing.T) {
 			ch := e.Subscribe(ctx, topic)
 
 			// Publish an event
-			event := &eventsv1.Event{Type: eventsv1.EventType_ContainerCreate}
+			event := &eventsv1.Event{Type: eventsv1.EventType_TaskCreate}
 			err := e.Publish(ctx, topic, event)
 			if err != nil {
 				t.Errorf("Publish returned an error in goroutine %d: %v", i, err)

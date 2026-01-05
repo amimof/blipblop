@@ -15,12 +15,12 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
+func NewCmdGetTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "container",
-		Short:   "Get a container",
-		Long:    "Get a container",
-		Example: `voiydctl get container`,
+		Use:     "task",
+		Short:   "Get a task",
+		Long:    "Get a task",
+		Example: `voiydctl get task`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -33,7 +33,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			defer cancel()
 
 			tracer := otel.Tracer("voiydctl")
-			ctx, span := tracer.Start(ctx, "voiydctl.get.container")
+			ctx, span := tracer.Start(ctx, "voiydctl.get.task")
 			defer span.End()
 
 			// Setup client
@@ -55,13 +55,13 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
 			if len(args) == 0 {
-				containers, err := c.ContainerV1().List(ctx)
+				tasks, err := c.TaskV1().List(ctx)
 				if err != nil {
 					logrus.Fatal(err)
 				}
 
 				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
-				for _, c := range containers {
+				for _, c := range tasks {
 					status := "OK"
 					if c.GetStatus().GetStatus() != nil && c.GetStatus().GetStatus().GetValue() != "" {
 						status = c.GetStatus().GetStatus().GetValue()
@@ -80,8 +80,8 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 			_ = wr.Flush()
 
 			if len(args) == 1 {
-				cname := args[0]
-				container, err := c.ContainerV1().Get(ctx, cname)
+				tname := args[0]
+				task, err := c.TaskV1().Get(ctx, tname)
 				if err != nil {
 					logrus.Fatal(err)
 				}
@@ -91,7 +91,7 @@ func NewCmdGetContainer(cfg *client.Config) *cobra.Command {
 					logrus.Fatalf("error creating serializer: %v", err)
 				}
 
-				b, err := codec.Serialize(container)
+				b, err := codec.Serialize(task)
 				if err != nil {
 					logrus.Fatalf("error serializing: %v", err)
 				}

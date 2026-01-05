@@ -3,14 +3,15 @@ package create
 import (
 	"context"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
-	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
-	metav1 "github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/services/containerset"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	metav1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
@@ -54,7 +55,7 @@ func NewCmdCreateSet(cfg *client.Config) *cobra.Command {
 					Meta: &metav1.Meta{
 						Name: cname,
 					},
-					Template: &containers.Config{
+					Template: &tasksv1.Config{
 						Image: "docker.io/library/nginx:latest",
 					},
 				})

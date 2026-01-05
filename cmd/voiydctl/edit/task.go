@@ -7,22 +7,24 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
-	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/cmdutil"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "container",
-		Short:   "Edit a container",
-		Long:    "Edit a container",
-		Example: `voiydctl edit container NAME`,
+		Use:     "task NAME",
+		Short:   "Edit a task",
+		Long:    "Edit a task",
+		Example: `voiydctl edit task NAME`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -34,7 +36,7 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			baseCtx := cmd.Context()
 
 			tracer := otel.Tracer("voiydctl")
-			baseCtx, span := tracer.Start(baseCtx, "voiydctl.edit.container")
+			baseCtx, span := tracer.Start(baseCtx, "voiydctl.edit.task")
 			defer span.End()
 
 			// Setup client
@@ -53,11 +55,11 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			cname := args[0]
+			tname := args[0]
 
 			getCtx, cancel := context.WithTimeout(baseCtx, time.Second*30)
 			defer cancel()
-			ctr, err := c.ContainerV1().Get(getCtx, cname)
+			task, err := c.TaskV1().Get(getCtx, tname)
 			if err != nil {
 				return err
 			}
@@ -67,7 +69,7 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 				logrus.Fatalf("error creating serializer: %v", err)
 			}
 
-			b, err := codec.Serialize(ctr)
+			b, err := codec.Serialize(task)
 			if err != nil {
 				logrus.Fatalf("error serializing: %v", err)
 			}
@@ -110,14 +112,14 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 				return err
 			}
 
-			var updatedCtr containers.Container
-			err = codec.Deserialize(ub, &updatedCtr)
+			var updatedTask tasksv1.Task
+			err = codec.Deserialize(ub, &updatedTask)
 			if err != nil {
 				return err
 			}
 
 			// Exit early if no changes where made
-			if proto.Equal(ctr, &updatedCtr) {
+			if proto.Equal(task, &updatedTask) {
 				logrus.Info("no changes detected")
 				os.Exit(0)
 			}
@@ -125,12 +127,12 @@ func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 			// Send update to server
 			updateCtx, cancel := context.WithTimeout(baseCtx, time.Second*30)
 			defer cancel()
-			err = c.ContainerV1().Update(updateCtx, cname, &updatedCtr)
+			err = c.TaskV1().Update(updateCtx, tname, &updatedTask)
 			if err != nil {
 				return err
 			}
 
-			logrus.Infof("container %s was updated", cname)
+			logrus.Infof("task %s was updated", tname)
 
 			return nil
 		},

@@ -8,13 +8,6 @@ import (
 	"sync"
 	"time"
 
-	containerv1 "github.com/amimof/voiyd/pkg/client/container/v1"
-	containersetv1 "github.com/amimof/voiyd/pkg/client/containerset/v1"
-	eventv1 "github.com/amimof/voiyd/pkg/client/event/v1"
-	logv1 "github.com/amimof/voiyd/pkg/client/log/v1"
-	nodev1 "github.com/amimof/voiyd/pkg/client/node/v1"
-	volumev1 "github.com/amimof/voiyd/pkg/client/volume/v1"
-	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -23,6 +16,15 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+
+	"github.com/amimof/voiyd/pkg/logger"
+
+	containersetv1 "github.com/amimof/voiyd/pkg/client/containerset/v1"
+	eventv1 "github.com/amimof/voiyd/pkg/client/event/v1"
+	logv1 "github.com/amimof/voiyd/pkg/client/log/v1"
+	nodev1 "github.com/amimof/voiyd/pkg/client/node/v1"
+	taskv1 "github.com/amimof/voiyd/pkg/client/task/v1"
+	volumev1 "github.com/amimof/voiyd/pkg/client/volume/v1"
 )
 
 var DefaultTLSConfig = &tls.Config{
@@ -132,7 +134,7 @@ func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
 type ClientSet struct {
 	conn                 *grpc.ClientConn
 	NodeV1Client         nodev1.ClientV1
-	ContainerV1Client    containerv1.ClientV1
+	TaskV1Client         taskv1.ClientV1
 	containerSetV1Client *containersetv1.ClientV1
 	eventV1Client        *eventv1.ClientV1
 	logV1Client          *logv1.ClientV1
@@ -152,8 +154,8 @@ func (c *ClientSet) ContainerSetV1() *containersetv1.ClientV1 {
 	return c.containerSetV1Client
 }
 
-func (c *ClientSet) ContainerV1() containerv1.ClientV1 {
-	return c.ContainerV1Client
+func (c *ClientSet) TaskV1() taskv1.ClientV1 {
+	return c.TaskV1Client
 }
 
 func (c *ClientSet) EventV1() *eventv1.ClientV1 {
@@ -246,7 +248,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 
 	c.conn = conn
 	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.clientId, nodev1.WithLogger(c.logger))
-	c.ContainerV1Client = containerv1.NewClientV1WithConn(conn, c.clientId)
+	c.TaskV1Client = taskv1.NewClientV1WithConn(conn, c.clientId)
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
 	c.logV1Client = logv1.NewClientV1(conn)

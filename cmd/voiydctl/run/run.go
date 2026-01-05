@@ -17,7 +17,7 @@ import (
 	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/pkg/networking"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 var (
@@ -30,11 +30,11 @@ var (
 func NewCmdRun() *cobra.Command {
 	var cfg client.Config
 	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "Run a container",
-		Long:  "Run a container. The run command required an image to be provided. The image must be in the format: registry/repo/image:tag",
+		Use:   "run NAME",
+		Short: "Run a task",
+		Long:  "Run a task. The run command required an image to be provided. The image must be in the format: registry/repo/image:tag",
 		Example: `
-# Run a prometheus container
+# Run a prometheus task
 voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		Args: cobra.ExactArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -56,12 +56,12 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			cname := args[0]
+			tname := args[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
 			tracer := otel.Tracer("voiydctl")
-			ctx, span := tracer.Start(ctx, "voiydctl.run.container")
+			ctx, span := tracer.Start(ctx, "voiydctl.run.task")
 			defer span.End()
 
 			// Setup client
@@ -80,23 +80,23 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			}()
 
 			// Setup ports
-			var cports []*containersv1.PortMapping
+			var tports []*tasksv1.PortMapping
 			for _, p := range ports {
 
 				pm, err := networking.ParsePorts(p)
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				cports = append(cports, &containersv1.PortMapping{Name: pm.String(), HostPort: pm.Source, ContainerPort: pm.Destination})
+				tports = append(tports, &tasksv1.PortMapping{Name: pm.String(), HostPort: pm.Source, TargetPort: pm.Destination})
 			}
 
-			err = c.ContainerV1().Create(ctx, &containersv1.Container{
+			err = c.TaskV1().Create(ctx, &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: cname,
+					Name: tname,
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image:        image,
-					PortMappings: cports,
+					PortMappings: tports,
 				},
 			})
 			if err != nil {
@@ -104,7 +104,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 			}
 
 			if !viper.GetBool("wait") {
-				fmt.Printf("Requested to run container %s\n", cname)
+				fmt.Printf("Requested to run task %s\n", tname)
 			}
 
 			if viper.GetBool("wait") {
@@ -113,17 +113,17 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				go dash.Loop(ctx)
 
 				// Fire off start operations concurrently
-				go func(idx int, containerID string) {
+				go func(idx int, taskID string) {
 					dash.Update(idx, func(s *cmdutil.ServiceState) {
 						s.Text = "starting…"
 					})
 
-					// Continously check container
+					// Continously check task
 					for {
 
 						dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
 
-						ctr, werr := c.ContainerV1().Get(ctx, containerID)
+						ctr, werr := c.TaskV1().Get(ctx, taskID)
 						if werr != nil {
 							dash.FailMsg(idx, werr.Error())
 							return
@@ -147,7 +147,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 						// Wait until retry
 						time.Sleep(250 * time.Millisecond)
 					}
-				}(0, cname)
+				}(0, tname)
 
 				dash.WaitAnd(cancel)
 
@@ -166,7 +166,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"port",
 		"p",
 		[]string{},
-		"Forward a local port to the container",
+		"Forward a local port to the task",
 	)
 	runCmd.PersistentFlags().BoolVarP(
 		&wait,
@@ -180,7 +180,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"timeout",
 		"",
 		time.Second*30,
-		"How long in seconds to wait for container to start before giving up",
+		"How long in seconds to wait for task to start before giving up",
 	)
 	if err := runCmd.MarkFlagRequired("image"); err != nil {
 		logrus.Fatal(err)

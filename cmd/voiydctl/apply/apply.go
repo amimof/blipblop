@@ -15,16 +15,17 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
-	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
-	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/services/container"
 	"github.com/amimof/voiyd/services/containerset"
 	"github.com/amimof/voiyd/services/node"
+	"github.com/amimof/voiyd/services/task"
 	"github.com/amimof/voiyd/services/volume"
+
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 )
 
 var file string
@@ -143,12 +144,12 @@ voiydctl apply -f resources.yaml
 					if err := applyNode(ctx, c, &n); err != nil {
 						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
 					}
-				case container.Version:
-					var ctr containersv1.Container
+				case task.Version:
+					var ctr tasksv1.Task
 					if err := codec.Deserialize(docBytes, &ctr); err != nil {
 						logrus.Fatalf("error deserializing %s %d: %v", v, idx, err)
 					}
-					if err := applyContainer(ctx, c, &ctr); err != nil {
+					if err := applyTask(ctx, c, &ctr); err != nil {
 						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
 					}
 				case volume.Version:
@@ -164,7 +165,7 @@ voiydctl apply -f resources.yaml
 					if err := codec.Deserialize(docBytes, &cs); err != nil {
 						logrus.Fatalf("error deserializing %s %d: %v", v, idx, err)
 					}
-					if err := applyContainerSet(ctx, c, &cs); err != nil {
+					if err := applyTaskSet(ctx, c, &cs); err != nil {
 						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
 					}
 				default:
@@ -206,20 +207,20 @@ func applyNode(ctx context.Context, c *client.ClientSet, n *nodesv1.Node) error 
 	return c.NodeV1().Update(ctx, name, n)
 }
 
-func applyContainer(ctx context.Context, c *client.ClientSet, ctr *containersv1.Container) error {
+func applyTask(ctx context.Context, c *client.ClientSet, ctr *tasksv1.Task) error {
 	name := ctr.GetMeta().GetName()
 	if name == "" {
 		return fmt.Errorf("container.meta.name is required")
 	}
 
 	// Try to get existing
-	_, err := c.ContainerV1().Get(ctx, name)
+	_, err := c.TaskV1().Get(ctx, name)
 	if status.Code(err) == codes.NotFound {
 		if ctr.Version == "" {
-			ctr.Version = container.Version
+			ctr.Version = task.Version
 		}
 		logrus.Infof("created %s: %s", ctr.Version, ctr.GetMeta().GetName())
-		return c.ContainerV1().Create(ctx, ctr)
+		return c.TaskV1().Create(ctx, ctr)
 	}
 	if err != nil {
 		return err
@@ -227,7 +228,7 @@ func applyContainer(ctx context.Context, c *client.ClientSet, ctr *containersv1.
 
 	// Update if already exists
 	logrus.Infof("updated %s: %s", ctr.Version, ctr.GetMeta().GetName())
-	return c.ContainerV1().Update(ctx, name, ctr)
+	return c.TaskV1().Update(ctx, name, ctr)
 }
 
 func applyVolume(ctx context.Context, c *client.ClientSet, v *volumesv1.Volume) error {
@@ -254,7 +255,7 @@ func applyVolume(ctx context.Context, c *client.ClientSet, v *volumesv1.Volume) 
 	return c.VolumeV1().Update(ctx, name, v)
 }
 
-func applyContainerSet(ctx context.Context, c *client.ClientSet, cs *containersetsv1.ContainerSet) error {
+func applyTaskSet(ctx context.Context, c *client.ClientSet, cs *containersetsv1.ContainerSet) error {
 	name := cs.GetMeta().GetName()
 	if name == "" {
 		return fmt.Errorf("containerset.meta.name is required")

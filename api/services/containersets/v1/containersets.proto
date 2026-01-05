@@ -5,7 +5,7 @@ package services.containersets.v1;
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/field_mask.proto";
-import "services/containers/v1/containers.proto";
+import "services/tasks/v1/tasks.proto";
 import "types/v1/meta.proto";
 
 option go_package = "github.com/amimof/voiyd/api/services/containersets/v1;containersets";
@@ -19,16 +19,16 @@ service ContainerSetService {
   }
   rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
-      post: "/api/v1/containers"
+      post: "/api/v1/containerssets"
       body: "containerSet"
     };
   }
   rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
-      put: "/api/v1/containers/{containerSet.meta.name}"
+      put: "/api/v1/containersets/{containerSet.meta.name}"
       body: "containerSet"
       additional_bindings: {
-        patch: "/api/v1/containers/{containerSet.meta.name}"
+        patch: "/api/v1/containersets/{containerSet.meta.name}"
         body: "containerSet"
       }
     };
@@ -45,7 +45,7 @@ message ContainerSet {
     (buf.validate.field).required = true
   ];
   types.v1.Meta meta = 2 [(buf.validate.field).required = true];
-  services.containers.v1.Config template = 3 [(buf.validate.field).required = true];
+  services.tasks.v1.Config template = 3 [(buf.validate.field).required = true];
 }
 
 message GetRequest {

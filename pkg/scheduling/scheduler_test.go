@@ -4,18 +4,20 @@ import (
 	"context"
 	"testing"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
-	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	"github.com/amimof/voiyd/api/types/v1"
-	"github.com/amimof/voiyd/pkg/client"
-	containers "github.com/amimof/voiyd/pkg/client/container/v1"
-	nodes "github.com/amimof/voiyd/pkg/client/node/v1"
-	"github.com/amimof/voiyd/pkg/consts"
-	"github.com/amimof/voiyd/pkg/labels"
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/stretchr/testify/assert"
+
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	nodes "github.com/amimof/voiyd/pkg/client/node/v1"
+	tasks "github.com/amimof/voiyd/pkg/client/task/v1"
 )
 
 type want struct {
@@ -57,12 +59,12 @@ var testNodes = &nodesv1.ListResponse{
 	},
 }
 
-var testContainers = []*containersv1.Container{
+var testTasks = []*tasksv1.Task{
 	{
 		Meta: &types.Meta{
 			Name: "container-a",
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/nginx:latest",
 		},
 	},
@@ -70,7 +72,7 @@ var testContainers = []*containersv1.Container{
 		Meta: &types.Meta{
 			Name: "container-b",
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/nginx:latest",
 		},
 	},
@@ -78,12 +80,12 @@ var testContainers = []*containersv1.Container{
 		Meta: &types.Meta{
 			Name: "container-c",
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/nginx:latest",
 		},
 	},
 
-	// Containers part of a 2-replica set: Set A
+	// Tasks part of a 2-replica set: Set A
 	{
 		Meta: &types.Meta{
 			Name: "set-a-container-a",
@@ -91,10 +93,10 @@ var testContainers = []*containersv1.Container{
 				labels.LabelPrefix("container-set").String(): "set-a",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/redis:latest",
 		},
-		Status: &containersv1.Status{
+		Status: &tasksv1.Status{
 			Node: wrapperspb.String("node-a"),
 		},
 	},
@@ -105,10 +107,10 @@ var testContainers = []*containersv1.Container{
 				labels.LabelPrefix("container-set").String(): "set-a",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/redis:latest",
 		},
-		Status: &containersv1.Status{
+		Status: &tasksv1.Status{
 			Node: wrapperspb.String("node-b"),
 		},
 	},
@@ -119,15 +121,15 @@ var testContainers = []*containersv1.Container{
 				labels.LabelPrefix("container-set").String(): "set-a",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/redis:latest",
 		},
-		Status: &containersv1.Status{
+		Status: &tasksv1.Status{
 			Node: wrapperspb.String("node-c"),
 		},
 	},
 
-	// Containers part of a 2-replica set: Set B
+	// Tasks part of a 2-replica set: Set B
 	{
 		Meta: &types.Meta{
 			Name: "set-b-container-a",
@@ -135,10 +137,10 @@ var testContainers = []*containersv1.Container{
 				labels.LabelPrefix("container-set").String(): "set-b",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/redis:latest",
 		},
-		Status: &containersv1.Status{
+		Status: &tasksv1.Status{
 			Node: wrapperspb.String("node-a"),
 		},
 	},
@@ -149,10 +151,10 @@ var testContainers = []*containersv1.Container{
 				labels.LabelPrefix("container-set").String(): "set-b",
 			},
 		},
-		Config: &containersv1.Config{
+		Config: &tasksv1.Config{
 			Image: "docker.io/library/redis:latest",
 		},
-		Status: &containersv1.Status{
+		Status: &tasksv1.Status{
 			Node: wrapperspb.String("node-b"),
 		},
 	},
@@ -189,9 +191,9 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Setup mock client
-	containerMockClient := containers.NewMockContainerServiceClient(ctrl)
+	containerMockClient := tasks.NewMockTaskServiceClient(ctrl)
 	nodeMockClient := nodes.NewMockNodeServiceClient(ctrl)
-	clientV1 := containers.NewClientV1(containers.WithClient(containerMockClient))
+	clientV1 := tasks.NewClientV1(tasks.WithClient(containerMockClient))
 	nodesV1 := nodes.NewClientV1(nodes.WithClient(nodeMockClient))
 
 	// Setup Mocks
@@ -200,10 +202,10 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 			call:   nodeMockClient.EXPECT().List(gomock.Any(), gomock.Any()).AnyTimes(),
 			expect: testNodes,
 		},
-		"ListContainers": {
+		"ListTasks": {
 			call: containerMockClient.EXPECT().List(gomock.Any(), gomock.Any()).AnyTimes(),
-			expect: &containersv1.ListResponse{
-				Containers: testContainers,
+			expect: &tasksv1.ListResponse{
+				Tasks: testTasks,
 			},
 		},
 	}
@@ -214,22 +216,22 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 	}
 
 	// Setup Scheduler
-	cs := &client.ClientSet{ContainerV1Client: clientV1, NodeV1Client: nodesV1}
+	cs := &client.ClientSet{TaskV1Client: clientV1, NodeV1Client: nodesV1}
 	scheduler := NewHorizontalScheduler(cs)
 
 	cases := map[string]struct {
-		input       *containersv1.Container
+		input       *tasksv1.Task
 		expectOneOf []*nodesv1.Node
 	}{
-		"ContainerInSetA": {
-			input: &containersv1.Container{
+		"TaskInSetA": {
+			input: &tasksv1.Task{
 				Meta: &types.Meta{
 					Name: "amirs-container",
 					Labels: map[string]string{
 						labels.LabelPrefix("container-set").String(): "set-a",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/redis:latest",
 				},
 			},
@@ -257,15 +259,15 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 				},
 			},
 		},
-		"ContainerWithNodeSelector": {
-			input: &containersv1.Container{
+		"TaskWithNodeSelector": {
+			input: &tasksv1.Task{
 				Meta: &types.Meta{
 					Name: "amirs-container",
 					Labels: map[string]string{
 						labels.LabelPrefix("container-set").String(): "set-a",
 					},
 				},
-				Config: &containersv1.Config{
+				Config: &tasksv1.Config{
 					Image: "docker.io/library/redis:latest",
 					NodeSelector: map[string]string{
 						labels.LabelPrefix("plattform").String(): "linux/amd64",

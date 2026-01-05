@@ -1,4 +1,4 @@
-package stop
+package start
 
 import (
 	"context"
@@ -14,12 +14,12 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
+func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "container",
-		Short:   "Stop a container",
-		Long:    "Stop a container",
-		Example: `voiydctl stop container NAME`,
+		Use:     "task NAME",
+		Short:   "Start a task",
+		Long:    "Start a task",
+		Example: `voiydctl start task NAME`,
 		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -32,7 +32,7 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 			defer cancel()
 
 			tracer := otel.Tracer("voiydctl")
-			ctx, span := tracer.Start(ctx, "voiydctl.stop.container")
+			ctx, span := tracer.Start(ctx, "voiydctl.start.task")
 			defer span.End()
 
 			// Setup client
@@ -50,56 +50,44 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			// Send stop or kill for each container in args without waiting
+			// Start task one by one without waiting
 			if !viper.GetBool("wait") {
-				for _, cname := range args {
-
-					if viper.GetBool("force") {
-						if _, err = c.ContainerV1().Kill(ctx, cname); err != nil {
-							logrus.Fatal(err)
-						}
-					} else {
-						if _, err = c.ContainerV1().Stop(ctx, cname); err != nil {
-							logrus.Fatal(err)
-						}
+				for _, tname := range args {
+					_, err = c.TaskV1().Start(ctx, tname)
+					if err != nil {
+						logrus.Fatal(err)
 					}
-
-					fmt.Printf("requested to stop container %s\n", cname)
+					fmt.Printf("Requested to start task %s\n", tname)
 				}
 			}
 
-			// Send stop or kill for each container in args and wait for them all to stop
+			// Start tasks in parallell and wait until they are running
 			if viper.GetBool("wait") {
+
 				dash := cmdutil.NewDashboard(args)
 				go dash.Loop(ctx)
 
 				for i, cname := range args {
 					// Fire off start operations concurrently
-					go func(idx int, containerID string) {
-						if viper.GetBool("force") {
-							if _, err = c.ContainerV1().Kill(ctx, cname); err != nil {
-								dash.FailMsg(idx, fmt.Sprintf("failed to start: %v", err))
-								return
-							}
-						} else {
-							if _, err = c.ContainerV1().Stop(ctx, cname); err != nil {
-								dash.FailMsg(idx, fmt.Sprintf("failed to start: %v", err))
-								return
-							}
+					go func(idx int, taskID string) {
+						_, err := c.TaskV1().Start(ctx, taskID)
+						if err != nil {
+							dash.FailMsg(idx, err.Error())
+							return
 						}
 
 						dash.Update(idx, func(s *cmdutil.ServiceState) {
-							s.Text = "stopping…"
+							s.Text = "starting…"
 						})
 
-						// Continously check container
+						// Continously check task
 						for {
 
 							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
 
-							ctr, werr := c.ContainerV1().Get(ctx, containerID)
-							if werr != nil {
-								dash.FailMsg(idx, werr.Error())
+							ctr, err := c.TaskV1().Get(ctx, taskID)
+							if err != nil {
+								dash.FailMsg(idx, err.Error())
 								return
 							}
 
@@ -108,8 +96,8 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 								s.Text = fmt.Sprintf("%s…", phase)
 							})
 
-							if phase == "stopped" {
-								dash.DoneMsg(idx, "stopped successfully")
+							if phase == "running" {
+								dash.DoneMsg(idx, "started successfully")
 								return
 							}
 
@@ -129,6 +117,5 @@ func NewCmdStopContainer(cfg *client.Config) *cobra.Command {
 			}
 		},
 	}
-
 	return runCmd
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/runtime"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type Controller struct {
@@ -71,7 +71,7 @@ func (c *Controller) AddHandler(h *RuntimeHandlerFuncs) {
 	c.handlers = h
 }
 
-func connectContainerd(address string) (*containerd.Client, error) {
+func connectTaskd(address string) (*containerd.Client, error) {
 	client, err := containerd.New(address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
@@ -89,7 +89,7 @@ func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, 
 	// TODO: Parameterize the backoff so it's not hardcoded
 	backoff := 2 * time.Second
 	for {
-		client, err = connectContainerd(address)
+		client, err = connectTaskd(address)
 		if err == nil {
 			l.Info("successfully connected to containerd", "address", address)
 			return client, nil
@@ -281,14 +281,14 @@ func (c *Controller) onTaskExitHandler(e *events.TaskExit) {
 		// NOTE: The following update will not work if the task has exited as a result of a container delete event.
 		// In that case the container is already removed from the server, rendering the update method below useless
 		// and will always result in a not found error.
-		st := &containersv1.Status{
+		st := &tasksv1.Status{
 			Phase:  wrapperspb.String("stopped"),
 			Status: wrapperspb.String(fmt.Sprintf("exit status %d", e.GetExitStatus())),
 			Id:     wrapperspb.String(containerID),
 		}
-		err = c.clientset.ContainerV1().Status().Update(ctx, cName, st, "phase", "status", "id")
+		err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "phase", "status", "id")
 		if err != nil {
-			c.logger.Error("error setting container state", "error", err, "id", containerID, "event", "TaskExit", "name", cName)
+			c.logger.Error("error setting task state", "error", err, "id", containerID, "event", "TaskExit", "name", cName)
 		}
 	}
 }
@@ -305,15 +305,15 @@ func (c *Controller) onTaskCreateHandler(e *events.TaskCreate) {
 		return
 	}
 
-	st := &containersv1.Status{
+	st := &tasksv1.Status{
 		Node:  wrapperspb.String(hostname),
 		Phase: wrapperspb.String("created"),
 		Id:    wrapperspb.String(containerID),
 	}
 
-	err = c.clientset.ContainerV1().Status().Update(ctx, cName, st, "node", "phase", "id")
+	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
 	if err != nil {
-		c.logger.Error("error setting container state", "error", err, "id", e.ContainerID, "name", cName, "event", "TaskCreate")
+		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
 	}
 }
 
@@ -328,14 +328,14 @@ func (c *Controller) onContainerCreateHandler(e *events.ContainerCreate) {
 		return
 	}
 
-	st := &containersv1.Status{
+	st := &tasksv1.Status{
 		Phase: wrapperspb.String("creating"),
 		Id:    wrapperspb.String(containerID),
 	}
 
-	err = c.clientset.ContainerV1().Status().Update(ctx, cName, st, "phase", "id")
+	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "phase", "id")
 	if err != nil {
-		c.logger.Error("error setting container state", "error", err, "id", e.GetID(), "name", cName, "event", "ContainerCreate")
+		c.logger.Error("error setting task state", "error", err, "id", e.GetID(), "name", cName, "event", "TaskCreate")
 	}
 }
 
@@ -351,15 +351,15 @@ func (c *Controller) onTaskStartHandler(e *events.TaskStart) {
 
 	hostname, _ := os.Hostname()
 
-	st := &containersv1.Status{
+	st := &tasksv1.Status{
 		Node:  wrapperspb.String(hostname),
 		Phase: wrapperspb.String("running"),
 		Id:    wrapperspb.String(containerID),
 	}
 
-	err = c.clientset.ContainerV1().Status().Update(ctx, cName, st, "node", "phase", "id")
+	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
 	if err != nil {
-		c.logger.Error("error setting container state", "error", err, "id", e.ContainerID, "name", cName, "event", "TaskCreate")
+		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
 	}
 }
 
@@ -383,15 +383,15 @@ func (c *Controller) onTaskOOMHandler(e *events.TaskOOM) {
 
 	hostname, _ := os.Hostname()
 
-	st := &containersv1.Status{
+	st := &tasksv1.Status{
 		Node:  wrapperspb.String(hostname),
 		Phase: wrapperspb.String("oom"),
 		Id:    wrapperspb.String(containerID),
 	}
 
-	err = c.clientset.ContainerV1().Status().Update(ctx, cName, st, "node", "phase", "id")
+	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
 	if err != nil {
-		c.logger.Error("error setting container state", "error", err, "id", e.ContainerID, "name", cName, "event", "TaskCreate")
+		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
 	}
 }
 
@@ -409,9 +409,9 @@ func (c *Controller) onTaskExecStartedHandler(e *events.TaskExecStarted) {
 	// 	},
 	// }
 	//
-	// err := c.clientset.ContainerV1().Status().Update(ctx, e.ContainerID, st, "phase", "task.pid")
+	// err := c.clientset.TaskV1().Status().Update(ctx, e.TaskID, st, "phase", "task.pid")
 	// if err != nil {
-	// 	c.logger.Error("error setting container state", "id", e.ContainerID, "event", "TaskExecStarted", "error", err)
+	// 	c.logger.Error("error setting task state", "id", e.TaskID, "event", "TaskExecStarted", "error", err)
 	// }
 }
 
@@ -427,15 +427,15 @@ func (c *Controller) onTaskPausedHandler(e *events.TaskPaused) {
 
 	hostname, _ := os.Hostname()
 
-	st := &containersv1.Status{
+	st := &tasksv1.Status{
 		Node:  wrapperspb.String(hostname),
 		Phase: wrapperspb.String("paused"),
 		Id:    wrapperspb.String(containerID),
 	}
 
-	err = c.clientset.ContainerV1().Status().Update(ctx, cName, st, "node", "phase", "id")
+	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
 	if err != nil {
-		c.logger.Error("error setting container state", "error", err, "id", e.ContainerID, "name", cName, "event", "TaskCreate")
+		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
 	}
 }
 
@@ -472,7 +472,7 @@ func (c *Controller) onContentDeleteHandler(e *events.ContentDelete) {
 }
 
 // Checks to see if c is present in cs
-func contains(cs []*containersv1.Container, c *containersv1.Container) bool {
+func contains(cs []*tasksv1.Task, c *tasksv1.Task) bool {
 	for _, container := range cs {
 		if container.GetMeta().GetRevision() == c.GetMeta().GetRevision() && container.GetMeta().GetName() == c.GetMeta().GetName() {
 			return true
@@ -488,30 +488,30 @@ func contains(cs []*containersv1.Container, c *containersv1.Container) bool {
 func (c *Controller) Reconcile(ctx context.Context) error {
 	c.logger.Info("reconciling containers in containerd runtime")
 	// Get containers from the server. Ultimately we want these to match with our runtime
-	clist, err := c.clientset.ContainerV1().List(ctx)
+	clist, err := c.clientset.TaskV1().List(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Get containers from containerd
-	currentContainers, err := c.runtime.List(ctx)
+	currentTasks, err := c.runtime.List(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Check if there are containers in our runtime that doesn't exist on the server.
-	for _, currentContainer := range currentContainers {
-		if !contains(clist, currentContainer) {
+	for _, currentTask := range currentTasks {
+		if !contains(clist, currentTask) {
 
-			containerName := currentContainer.GetMeta().GetName()
+			containerName := currentTask.GetMeta().GetName()
 
 			c.logger.Info("removing container from runtime since it's not expected to exist", "name", containerName)
-			err := c.runtime.Kill(ctx, currentContainer)
+			err := c.runtime.Kill(ctx, currentTask)
 			if err != nil {
 				c.logger.Error("error stopping container", "error", err, "name", containerName)
 			}
 
-			err = c.runtime.Delete(ctx, currentContainer)
+			err = c.runtime.Delete(ctx, currentTask)
 			if err != nil {
 				c.logger.Error("error deleting container", "error", err, "name", containerName)
 			}
@@ -519,19 +519,19 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 	}
 
 	// Check if  there are containers on the server that doesn't exist in our runtime
-	for _, container := range clist {
-		if !contains(currentContainers, container) {
+	for _, task := range clist {
+		if !contains(currentTasks, task) {
 
-			containerName := container.GetMeta().GetName()
+			containerName := task.GetMeta().GetName()
 
 			c.logger.Info("creating container in runtime since it's expected to exist", "name", containerName)
 
-			err := c.runtime.Pull(ctx, container)
+			err := c.runtime.Pull(ctx, task)
 			if err != nil {
 				c.logger.Error("error pulling image", "error", err, "container", containerName)
 			}
 
-			err = c.runtime.Run(ctx, container)
+			err = c.runtime.Run(ctx, task)
 			if err != nil {
 				c.logger.Error("error running container", "error", err, "name", containerName)
 			}

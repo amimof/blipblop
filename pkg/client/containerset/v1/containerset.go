@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"reflect"
 
-	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
-	"github.com/amimof/voiyd/pkg/labels"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/amimof/voiyd/pkg/labels"
+
+	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 )
 
 const (

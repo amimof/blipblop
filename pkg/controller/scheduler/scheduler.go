@@ -3,15 +3,17 @@ package schedulercontroller
 import (
 	"context"
 
-	containersv1 "github.com/amimof/voiyd/api/services/containers/v1"
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/scheduling"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type NewOption func(c *Controller)
@@ -39,9 +41,9 @@ func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	}
 }
 
-func (c *Controller) onContainerCreate(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onTaskCreate(ctx context.Context, e *eventsv1.Event) error {
 	// Get the container
-	var ctr containersv1.Container
+	var ctr tasksv1.Task
 	err := e.Object.UnmarshalTo(&ctr)
 	if err != nil {
 		return err
@@ -54,10 +56,10 @@ func (c *Controller) onContainerCreate(ctx context.Context, e *eventsv1.Event) e
 	}
 
 	// Update container status
-	_ = c.clientset.ContainerV1().Status().Update(
+	_ = c.clientset.TaskV1().Status().Update(
 		ctx,
 		ctr.GetMeta().GetName(),
-		&containersv1.Status{
+		&tasksv1.Status{
 			Phase: wrapperspb.String("scheduled"),
 			Node:  wrapperspb.String(n.GetMeta().GetName()),
 		},
@@ -73,7 +75,7 @@ func (c *Controller) onContainerCreate(ctx context.Context, e *eventsv1.Event) e
 		return err
 	}
 
-	ev := &eventsv1.ScheduleRequest{Container: containerProto, Node: nodeProto}
+	ev := &eventsv1.ScheduleRequest{Task: containerProto, Node: nodeProto}
 
 	return c.clientset.EventV1().Publish(ctx, ev, eventsv1.EventType_Schedule)
 }
@@ -81,10 +83,10 @@ func (c *Controller) onContainerCreate(ctx context.Context, e *eventsv1.Event) e
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "scheduler")
-	_, err := c.clientset.EventV1().Subscribe(ctx, events.ContainerCreate)
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.TaskCreate)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(events.ContainerCreate, c.handleErrors(c.onContainerCreate))
+	c.clientset.EventV1().On(events.TaskCreate, c.handleErrors(c.onTaskCreate))
 
 	// Handle errors
 	for e := range err {

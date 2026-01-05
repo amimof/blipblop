@@ -4,14 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/amimof/voiyd/api/services/containers/v1"
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/stretchr/testify/assert"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
-func initInMemContainerRepo(ctx context.Context, repo ContainerRepository) (ContainerRepository, error) {
-	ctrs := []*containers.Container{
+func initInMemTaskRepo(ctx context.Context, repo TaskRepository) (TaskRepository, error) {
+	ctrs := []*tasksv1.Task{
 		{
 			Meta: &types.Meta{
 				Name: "container-without-labels",
@@ -47,12 +48,12 @@ func initInMemContainerRepo(ctx context.Context, repo ContainerRepository) (Cont
 	return repo, nil
 }
 
-func TestListContainersWithFilter(t *testing.T) {
+func TestListTasksWithFilter(t *testing.T) {
 	ctx := context.Background()
 	filter := labels.New()
 	filter.Set("app", "default")
 
-	repo, err := initInMemContainerRepo(ctx, NewContainerInMemRepo())
+	repo, err := initInMemTaskRepo(ctx, NewTaskInMemRepo())
 	assert.NoError(t, err)
 
 	ctrs, err := repo.List(ctx, filter)
@@ -69,10 +70,10 @@ func TestListContainersWithFilter(t *testing.T) {
 	}
 }
 
-func TestListContainersWithNoFilter(t *testing.T) {
+func TestListTasksWithNoFilter(t *testing.T) {
 	ctx := context.Background()
 
-	repo, err := initInMemContainerRepo(ctx, NewContainerInMemRepo())
+	repo, err := initInMemTaskRepo(ctx, NewTaskInMemRepo())
 	assert.NoError(t, err)
 
 	ctrs, err := repo.List(ctx)
