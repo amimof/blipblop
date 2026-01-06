@@ -3,14 +3,14 @@ package cmdutil
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/juju/ansiterm"
 )
-
-type Color string
 
 const (
 	ColorReset Color = "\x1b[0m"
@@ -36,6 +36,44 @@ const (
 	BgGrey233 Color = "\x1b[48;5;233m"
 )
 
+type Color string
+
+type Option func(*Dashboard)
+
+var (
+	DefaultColoredTabWriter = ansiterm.NewTabWriter(os.Stdout, 0, 8, 2, ' ', 0)
+	DefaultTabWriter        = tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
+)
+
+// WithWriter assigns a io.Writer that the Dashboard will render to.
+// The default writer is os.Stdout. If the writer literal types can be cast to
+// either a tabwriter.Writer or ansiterm.TabWriter (3rd party lib) then their Flush()
+// methods will be assigned as the loopFunc. see WithLoopFunc for more info.
+// Basically it is set here so the user doesnt have to bother.
+func WithWriter(w io.Writer) Option {
+	return func(d *Dashboard) {
+		d.writer = w
+		switch w := w.(type) {
+		case *tabwriter.Writer:
+			d.loopFunc = func() {
+				_ = w.Flush()
+			}
+		case *ansiterm.TabWriter:
+			d.loopFunc = func() {
+				_ = w.Flush()
+			}
+		}
+	}
+}
+
+// WithLoopFunc adds a function to the dashboard that is executed on each render loop.
+// This is useful when using writers that requires flushing. Such as the build-in tabwriter pkg writer.
+func WithLoopFunc(f func()) Option {
+	return func(d *Dashboard) {
+		d.loopFunc = f
+	}
+}
+
 // ServiceState represents One line in the dashboard
 type ServiceState struct {
 	Name    string
@@ -49,46 +87,31 @@ type ServiceState struct {
 
 // Dashboard holds all services + rendering logic
 type Dashboard struct {
-	mu       sync.Mutex
-	services []*ServiceState
-	// tw        *tabwriter.Writer
-	tw        *ansiterm.TabWriter
+	mu        sync.Mutex
+	services  []*ServiceState
+	writer    io.Writer
 	done      chan struct{}
 	lastLines int
+	loopFunc  func()
 }
 
-// NewDashboard creates the dashboard with one ServiceState per name.
-func NewDashboard(names []string) *Dashboard {
-	svcs := make([]*ServiceState, len(names))
-	for i, n := range names {
-		svcs[i] = &ServiceState{
-			Name:  n,
-			Text:  "starting…",
-			Color: FgYellow,
-		}
-	}
-
-	// tw := tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	tw := ansiterm.NewTabWriter(os.Stdout, 0, 8, 2, ' ', 0)
-
-	return &Dashboard{
-		services: svcs,
-		tw:       tw,
-		done:     make(chan struct{}),
-	}
-}
-
+// Detail represents a line in the details view of a ServiceState.
+// It's pretty much just a key-value pair
 type Detail struct {
 	Key   string
 	Value string
 }
 
+// SetDetails assigns a new slice, overwriting any other Detail sets previously used.
+// If you want to update an existing line then use UpdateDetail()
 func (d *Dashboard) SetDetails(idx int, lines []Detail) {
 	d.Update(idx, func(s *ServiceState) {
 		s.Details = lines
 	})
 }
 
+// UpdateDetails inserts a new line. If a line with same key exists then that line is updated.
+// So two lines with the same key cannot exist in the slice.
 func (d *Dashboard) UpdateDetails(idx int, key, value string) {
 	d.Update(idx, func(s *ServiceState) {
 		for i, d := range s.Details {
@@ -121,7 +144,8 @@ func (d *Dashboard) UpdateText(idx int, text string) {
 // Loop runs the renderer until ctx is done.
 func (d *Dashboard) Loop(ctx context.Context) {
 	defer func() {
-		_ = d.tw.Flush()
+		// _ = d.tw.Flush()
+		d.loopFunc()
 	}()
 
 	defer close(d.done)
@@ -130,9 +154,11 @@ func (d *Dashboard) Loop(ctx context.Context) {
 
 	// Print initial empty lines for each service so we have space to rewrite.
 	for range d.services {
-		_, _ = fmt.Fprintln(d.tw)
+		// _, _ = fmt.Fprintln(d.tw)
+		_, _ = fmt.Fprintln(d.writer)
 	}
-	_ = d.tw.Flush()
+	// _ = d.tw.Flush()
+	d.loopFunc()
 	d.lastLines = len(d.services)
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -149,6 +175,7 @@ func (d *Dashboard) Loop(ctx context.Context) {
 	}
 }
 
+// DoneMsg sets the provided message when the Dashboard is done
 func (d *Dashboard) DoneMsg(idx int, msg string) {
 	d.Update(idx, func(s *ServiceState) {
 		s.Done = true
@@ -157,12 +184,14 @@ func (d *Dashboard) DoneMsg(idx int, msg string) {
 	})
 }
 
+// Done marks the service entry at idx as done
 func (d *Dashboard) Done(idx int) {
 	d.Update(idx, func(s *ServiceState) {
 		s.Done = true
 	})
 }
 
+// FailMsg sets the provided message and marks the service as failed
 func (d *Dashboard) FailMsg(idx int, msg string) {
 	d.Update(idx, func(s *ServiceState) {
 		s.Done = true
@@ -171,6 +200,7 @@ func (d *Dashboard) FailMsg(idx int, msg string) {
 	})
 }
 
+// Fail marks the service as failed
 func (d *Dashboard) Fail(idx int) {
 	d.Update(idx, func(s *ServiceState) {
 		s.Done = true
@@ -178,6 +208,7 @@ func (d *Dashboard) Fail(idx int) {
 	})
 }
 
+// FailAfter marks the service as faild when x amount of time as elapsed
 func (d *Dashboard) FailAfter(idx int, after time.Duration) {
 	go func() {
 		time.Sleep(after)
@@ -185,6 +216,7 @@ func (d *Dashboard) FailAfter(idx int, after time.Duration) {
 	}()
 }
 
+// FailAfterMsg sets the provided message marks the service as faild when x amount of time as elapsed
 func (d *Dashboard) FailAfterMsg(idx int, after time.Duration, msg string) {
 	go func() {
 		time.Sleep(after)
@@ -197,6 +229,7 @@ func (d *Dashboard) Wait() {
 	<-d.done
 }
 
+// WaitAnd blocks until Loop finishes and executes the provided function when done
 func (d *Dashboard) WaitAnd(fn func()) {
 	go func() {
 		for {
@@ -237,9 +270,11 @@ func (d *Dashboard) renderFrame(frames []rune) {
 			s.Color = FgRed
 		}
 
-		_, _ = fmt.Fprint(d.tw, "\033[2K") // clear current line
+		// _, _ = fmt.Fprint(d.tw, "\033[2K") // clear current line
+		_, _ = fmt.Fprint(d.writer, "\033[2K") // clear current line
 		_, _ = fmt.Fprintf(
-			d.tw,
+			// d.tw,
+			d.writer,
 			" %s %s\t%s%s%s\n",
 			spin,
 			s.Name,
@@ -251,9 +286,11 @@ func (d *Dashboard) renderFrame(frames []rune) {
 
 		// detail lines (indented; no spinner)
 		for _, line := range s.Details {
-			_, _ = fmt.Fprint(d.tw, "\033[2K")
+			// _, _ = fmt.Fprint(d.tw, "\033[2K")
+			_, _ = fmt.Fprint(d.writer, "\033[2K")
 			_, _ = fmt.Fprintf(
-				d.tw,
+				// d.tw,
+				d.writer,
 				"   %s%s:\t%s%s\n",
 				FgGrey245,
 				line.Key,
@@ -264,7 +301,8 @@ func (d *Dashboard) renderFrame(frames []rune) {
 		}
 	}
 
-	_ = d.tw.Flush()
+	// _ = d.tw.Flush()
+	d.loopFunc()
 	d.lastLines = linesThisFrame
 }
 
@@ -288,9 +326,11 @@ func (d *Dashboard) renderFinal() {
 			color = FgRed
 			icon = fmt.Sprintf("%s✖%s", color, ColorReset)
 		}
-		_, _ = fmt.Fprint(d.tw, "\033[2K")
+		// _, _ = fmt.Fprint(d.tw, "\033[2K")
+		_, _ = fmt.Fprint(d.writer, "\033[2K")
 		_, _ = fmt.Fprintf(
-			d.tw,
+			// d.tw,
+			d.writer,
 			" %s %s\t%s%s%s\n",
 			icon,
 			s.Name,
@@ -303,9 +343,11 @@ func (d *Dashboard) renderFinal() {
 
 		// detail lines (indented; no spinner)
 		for _, line := range s.Details {
-			_, _ = fmt.Fprint(d.tw, "\033[2K")
+			// _, _ = fmt.Fprint(d.tw, "\033[2K")
+			_, _ = fmt.Fprint(d.writer, "\033[2K")
 			_, _ = fmt.Fprintf(
-				d.tw,
+				// d.tw,
+				d.writer,
 				"   %s%s:\t%s%s\n",
 				FgGrey245,
 				line.Key,
@@ -316,10 +358,12 @@ func (d *Dashboard) renderFinal() {
 		}
 	}
 
-	_ = d.tw.Flush()
+	// _ = d.tw.Flush()
+	d.loopFunc()
 	d.lastLines = linesThisFrame
 }
 
+// IsDone return true if all services in the Dashboard is marked as done
 func (d *Dashboard) IsDone() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -329,4 +373,29 @@ func (d *Dashboard) IsDone() bool {
 		}
 	}
 	return true
+}
+
+// NewDashboard creates the dashboard with one ServiceState per name.
+func NewDashboard(names []string, opts ...Option) *Dashboard {
+	svcs := make([]*ServiceState, len(names))
+	for i, n := range names {
+		svcs[i] = &ServiceState{
+			Name:  n,
+			Text:  "starting…",
+			Color: FgYellow,
+		}
+	}
+
+	d := &Dashboard{
+		services: svcs,
+		done:     make(chan struct{}),
+		writer:   os.Stdout,
+		loopFunc: func() {},
+	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	return d
 }
