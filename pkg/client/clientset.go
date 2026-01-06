@@ -35,7 +35,7 @@ type NewClientOption func(c *ClientSet) error
 
 func WithClientID(id string) NewClientOption {
 	return func(c *ClientSet) error {
-		c.clientId = id
+		c.clientID = id
 		return nil
 	}
 }
@@ -142,7 +142,7 @@ type ClientSet struct {
 	mu                   sync.Mutex
 	grpcOpts             []grpc.DialOption
 	tlsConfig            *tls.Config
-	clientId             string
+	clientID             string
 	logger               logger.Logger
 }
 
@@ -190,7 +190,7 @@ func (c *ClientSet) Close() error {
 }
 
 func (c *ClientSet) ID() string {
-	return c.clientId
+	return c.clientID
 }
 
 func New(server string, opts ...NewClientOption) (*ClientSet, error) {
@@ -226,7 +226,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 		tlsConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},
-		clientId: uuid.New().String(),
+		clientID: uuid.New().String(),
 		logger:   logger.ConsoleLogger{},
 	}
 
@@ -247,12 +247,12 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	}
 
 	c.conn = conn
-	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.clientId, nodev1.WithLogger(c.logger))
-	c.TaskV1Client = taskv1.NewClientV1WithConn(conn, c.clientId)
-	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientId)
-	c.eventV1Client = eventv1.NewClientV1(conn, c.clientId)
+	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.clientID, nodev1.WithLogger(c.logger))
+	c.TaskV1Client = taskv1.NewClientV1WithConn(conn, c.clientID)
+	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientID)
+	c.eventV1Client = eventv1.NewClientV1(conn, c.clientID)
 	c.logV1Client = logv1.NewClientV1(conn)
-	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.clientId)
+	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.clientID)
 
 	return c, nil
 }
