@@ -8,69 +8,45 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
-
-	"github.com/juju/ansiterm"
 )
 
 const (
-	ColorReset Color = "\x1b[0m"
-
-	FgRed     Color = "\x1b[31m"
-	FgGreen   Color = "\x1b[32m"
-	FgYellow  Color = "\x1b[33m"
-	FgCyan    Color = "\x1b[36m"
-	FgGrey245 Color = "\x1b[38;5;245m"
-	FgGrey240 Color = "\x1b[38;5;240m"
-	FgGrey238 Color = "\x1b[38;5;238m"
-	FgGrey237 Color = "\x1b[38;5;237m"
-	FgGrey236 Color = "\x1b[38;5;236m"
-
-	Fg23 Color = "\x1b[38;5;23m"
-	Fg53 Color = "\x1b[38;5;54m"
-	Fg92 Color = "\x1b[38;5;92m"
-
-	BgGrey242 Color = "\x1b[48;5;242m"
-	BgGrey238 Color = "\x1b[48;5;238m"
-	BgGrey236 Color = "\x1b[48;5;236m"
-	BgGrey235 Color = "\x1b[48;5;235m"
-	BgGrey233 Color = "\x1b[48;5;233m"
+	ColorReset Color = "\x1b[0000m"
+	FgRed      Color = "\x1b[38;5;001m"
+	FgGreen    Color = "\x1b[38;5;034m"
+	FgYellow   Color = "\x1b[38;5;011m"
+	FgCyan     Color = "\x1b[38;5;036m"
+	FgGrey245  Color = "\x1b[38;5;245m"
+	FgPurple   Color = "\x1b[38;5;092m"
 )
 
 type Color string
 
 type Option func(*Dashboard)
 
-var (
-	DefaultColoredTabWriter = ansiterm.NewTabWriter(os.Stdout, 0, 8, 2, ' ', 0)
-	DefaultTabWriter        = tabwriter.NewWriter(os.Stdout, 0, 8, 2, ' ', 0)
-)
+var DefaultTabWriter = tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 
 // WithWriter assigns a io.Writer that the Dashboard will render to.
 // The default writer is os.Stdout. If the writer literal types can be cast to
-// either a tabwriter.Writer or ansiterm.TabWriter (3rd party lib) then their Flush()
-// methods will be assigned as the loopFunc. see WithLoopFunc for more info.
-// Basically it is set here so the user doesnt have to bother.
+// a tabwriter.Writer its Flush() methods will be assigned as the loopFunc. see WithLoopFunc for more info.
+// Basically it is set here so the user doesn't have to bother.
 func WithWriter(w io.Writer) Option {
 	return func(d *Dashboard) {
 		d.writer = w
 		switch w := w.(type) {
 		case *tabwriter.Writer:
-			d.loopFunc = func() {
-				_ = w.Flush()
-			}
-		case *ansiterm.TabWriter:
-			d.loopFunc = func() {
+			d.flushFunc = func() {
 				_ = w.Flush()
 			}
 		}
 	}
 }
 
-// WithLoopFunc adds a function to the dashboard that is executed on each render loop.
-// This is useful when using writers that requires flushing. Such as the build-in tabwriter pkg writer.
-func WithLoopFunc(f func()) Option {
+// WithFlushFunc adds a handler to the dashboard that is executed on each render loop.
+// This is useful when for writers that require flushing. Such as the build-in tabwriter pkg writer.
+func WithFlushFunc(f func()) Option {
 	return func(d *Dashboard) {
-		d.loopFunc = f
+		d.flushFunc = f
 	}
 }
 
@@ -92,7 +68,7 @@ type Dashboard struct {
 	writer    io.Writer
 	done      chan struct{}
 	lastLines int
-	loopFunc  func()
+	flushFunc func()
 }
 
 // Detail represents a line in the details view of a ServiceState.
@@ -144,8 +120,7 @@ func (d *Dashboard) UpdateText(idx int, text string) {
 // Loop runs the renderer until ctx is done.
 func (d *Dashboard) Loop(ctx context.Context) {
 	defer func() {
-		// _ = d.tw.Flush()
-		d.loopFunc()
+		d.flushFunc()
 	}()
 
 	defer close(d.done)
@@ -154,11 +129,10 @@ func (d *Dashboard) Loop(ctx context.Context) {
 
 	// Print initial empty lines for each service so we have space to rewrite.
 	for range d.services {
-		// _, _ = fmt.Fprintln(d.tw)
 		_, _ = fmt.Fprintln(d.writer)
 	}
-	// _ = d.tw.Flush()
-	d.loopFunc()
+
+	d.flushFunc()
 	d.lastLines = len(d.services)
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -257,11 +231,11 @@ func (d *Dashboard) renderFrame(frames []rune) {
 	// Clear each line and redraw via tabwriter
 	for _, s := range d.services {
 
-		// advance spinner if not done
-		spin := "✔" // no spinner if done
+		// Advance spinner if not done
+		spin := "✔"
 		if !s.Done {
 			s.spinIdx = (s.spinIdx + 1) % len(frames)
-			spin = fmt.Sprintf("%s%c%s", Fg92, frames[s.spinIdx], ColorReset)
+			spin = fmt.Sprintf("%s%c%s", FgPurple, frames[s.spinIdx], ColorReset)
 		}
 
 		// Update spinner if it is marked as failed
@@ -270,39 +244,34 @@ func (d *Dashboard) renderFrame(frames []rune) {
 			s.Color = FgRed
 		}
 
-		// _, _ = fmt.Fprint(d.tw, "\033[2K") // clear current line
+		text := fmt.Sprintf("%s%s%s", s.Color, s.Text, ColorReset)
 		_, _ = fmt.Fprint(d.writer, "\033[2K") // clear current line
 		_, _ = fmt.Fprintf(
-			// d.tw,
 			d.writer,
-			" %s %s\t%s%s%s\n",
+			"%s %s\t%s\n",
 			spin,
 			s.Name,
-			s.Color,
-			s.Text,
-			ColorReset,
+			text,
 		)
+
 		linesThisFrame++
 
 		// detail lines (indented; no spinner)
 		for _, line := range s.Details {
-			// _, _ = fmt.Fprint(d.tw, "\033[2K")
+			key := fmt.Sprintf("%s%s%s", FgGrey245, line.Key, ColorReset)
+			val := fmt.Sprintf("%s%s%s", FgGrey245, line.Value, ColorReset)
 			_, _ = fmt.Fprint(d.writer, "\033[2K")
 			_, _ = fmt.Fprintf(
-				// d.tw,
 				d.writer,
-				"   %s%s:\t%s%s\n",
-				FgGrey245,
-				line.Key,
-				line.Value,
-				ColorReset,
+				"  %s:\t%s\n",
+				key,
+				val,
 			)
 			linesThisFrame++
 		}
 	}
 
-	// _ = d.tw.Flush()
-	d.loopFunc()
+	d.flushFunc()
 	d.lastLines = linesThisFrame
 }
 
@@ -326,40 +295,35 @@ func (d *Dashboard) renderFinal() {
 			color = FgRed
 			icon = fmt.Sprintf("%s✖%s", color, ColorReset)
 		}
-		// _, _ = fmt.Fprint(d.tw, "\033[2K")
+
+		text := fmt.Sprintf("%s%s%s", color, s.Text, ColorReset)
 		_, _ = fmt.Fprint(d.writer, "\033[2K")
 		_, _ = fmt.Fprintf(
-			// d.tw,
 			d.writer,
-			" %s %s\t%s%s%s\n",
+			"%s %s\t%s\n",
 			icon,
 			s.Name,
-			color,
-			s.Text,
-			ColorReset,
+			text,
 		)
 
 		linesThisFrame++
 
 		// detail lines (indented; no spinner)
 		for _, line := range s.Details {
-			// _, _ = fmt.Fprint(d.tw, "\033[2K")
+			key := fmt.Sprintf("%s%s%s", FgGrey245, line.Key, ColorReset)
+			val := fmt.Sprintf("%s%s%s", FgGrey245, line.Value, ColorReset)
 			_, _ = fmt.Fprint(d.writer, "\033[2K")
 			_, _ = fmt.Fprintf(
-				// d.tw,
 				d.writer,
-				"   %s%s:\t%s%s\n",
-				FgGrey245,
-				line.Key,
-				line.Value,
-				ColorReset,
+				"  %s:\t%s\n",
+				key,
+				val,
 			)
 			linesThisFrame++
 		}
 	}
 
-	// _ = d.tw.Flush()
-	d.loopFunc()
+	d.flushFunc()
 	d.lastLines = linesThisFrame
 }
 
@@ -387,10 +351,10 @@ func NewDashboard(names []string, opts ...Option) *Dashboard {
 	}
 
 	d := &Dashboard{
-		services: svcs,
-		done:     make(chan struct{}),
-		writer:   os.Stdout,
-		loopFunc: func() {},
+		services:  svcs,
+		done:      make(chan struct{}),
+		writer:    os.Stdout,
+		flushFunc: func() {},
 	}
 
 	for _, opt := range opts {

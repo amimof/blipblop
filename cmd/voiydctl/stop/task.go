@@ -70,7 +70,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 
 			// Send stop or kill for each task in args and wait for them all to stop
 			if viper.GetBool("wait") {
-				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultColoredTabWriter))
+				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
 				go dash.Loop(ctx)
 
 				for i, cname := range args {
