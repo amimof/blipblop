@@ -64,7 +64,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 			// Start tasks in parallell and wait until they are running
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args)
+				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultColoredTabWriter))
 				go dash.Loop(ctx)
 
 				for i, cname := range args {

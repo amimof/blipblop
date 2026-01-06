@@ -109,7 +109,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args)
+				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultColoredTabWriter))
 				go dash.Loop(ctx)
 
 				// Fire off start operations concurrently
