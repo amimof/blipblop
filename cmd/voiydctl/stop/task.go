@@ -105,10 +105,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							status := task.GetStatus().GetStatus().GetValue()
 
 							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-
-							if status != "" {
-								dash.UpdateDetails(idx, "Status", status)
-							}
+							dash.UpdateDetails(idx, "Status", status)
 
 							if phase == "stopped" {
 								dash.DoneMsg(idx, "stopped successfully")
@@ -116,7 +113,8 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 
 							if strings.Contains(phase, "Err") {
-								dash.FailMsg(idx, "failed to start")
+								dash.FailMsg(idx, "failed to stop")
+								dash.UpdateDetails(idx, "Error", err.Error())
 								return
 							}
 

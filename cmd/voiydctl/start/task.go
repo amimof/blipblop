@@ -99,9 +99,10 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 							dash.UpdateDetails(idx, "Image", image)
 							dash.UpdateDetails(idx, "Node", node)
 							dash.UpdateDetails(idx, "ID", id)
+							dash.UpdateDetails(idx, "Status", status)
 
-							if status != "" {
-								dash.UpdateDetails(idx, "Status", status)
+							if status == "" {
+								dash.UpdateDetails(idx, "Status", "OK")
 							}
 
 							if phase == "running" {
@@ -111,6 +112,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 
 							if strings.Contains(phase, "Err") {
 								dash.FailMsg(idx, "failed to start")
+								dash.UpdateDetails(idx, "Error", err.Error())
 								return
 							}
 

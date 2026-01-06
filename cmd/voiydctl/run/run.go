@@ -137,9 +137,10 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 						dash.UpdateDetails(idx, "Image", image)
 						dash.UpdateDetails(idx, "Node", node)
 						dash.UpdateDetails(idx, "ID", id)
+						dash.UpdateDetails(idx, "Status", status)
 
-						if status != "" {
-							dash.UpdateDetails(idx, "Status", status)
+						if status == "" {
+							dash.UpdateDetails(idx, "Status", "OK")
 						}
 
 						if phase == "running" {
@@ -149,6 +150,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 
 						if strings.Contains(phase, "Err") {
 							dash.FailMsg(idx, "failed to start")
+							dash.UpdateDetails(idx, "Error", err.Error())
 							return
 						}
 

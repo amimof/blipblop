@@ -1,10 +1,17 @@
 package delete
 
 import (
+	"time"
+
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+)
+
+var (
+	wait        bool
+	waitTimeout time.Duration
 )
 
 func NewCmdDelete() *cobra.Command {
@@ -33,6 +40,21 @@ func NewCmdDelete() *cobra.Command {
 	deleteCmd.AddCommand(NewCmdDeleteNode(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteContainerSet(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteVolume(&cfg))
+
+	deleteCmd.PersistentFlags().BoolVarP(
+		&wait,
+		"wait",
+		"w",
+		true,
+		"Wait for command to finish",
+	)
+	deleteCmd.PersistentFlags().DurationVarP(
+		&waitTimeout,
+		"timeout",
+		"",
+		time.Second*30,
+		"How long in seconds to wait before giving up",
+	)
 
 	return deleteCmd
 }
