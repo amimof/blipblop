@@ -89,13 +89,7 @@ func (d *Dashboard) SetDetails(idx int, lines []Detail) {
 	})
 }
 
-func (d *Dashboard) SetDetail(idx, lidx int, lines []Detail) {
-	d.Update(idx, func(s *ServiceState) {
-		s.Details = lines
-	})
-}
-
-func (d *Dashboard) AddDetails(idx int, key, value string) {
+func (d *Dashboard) UpdateDetails(idx int, key, value string) {
 	d.Update(idx, func(s *ServiceState) {
 		for i, d := range s.Details {
 			if d.Key == key {
@@ -115,6 +109,13 @@ func (d *Dashboard) Update(idx int, fn func(s *ServiceState)) {
 		return
 	}
 	fn(d.services[idx])
+}
+
+// UpdateText lets workers mutate a single service under lock.
+func (d *Dashboard) UpdateText(idx int, text string) {
+	d.Update(idx, func(s *ServiceState) {
+		s.Text = text
+	})
 }
 
 // Loop runs the renderer until ctx is done.

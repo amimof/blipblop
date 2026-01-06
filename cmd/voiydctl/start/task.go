@@ -76,25 +76,33 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 							return
 						}
 
-						dash.Update(idx, func(s *cmdutil.ServiceState) {
-							s.Text = "starting…"
-						})
+						dash.UpdateText(idx, "starting…")
 
 						// Continously check task
 						for {
 
 							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
 
-							ctr, err := c.TaskV1().Get(ctx, taskID)
+							task, err := c.TaskV1().Get(ctx, taskID)
 							if err != nil {
 								dash.FailMsg(idx, err.Error())
 								return
 							}
 
-							phase := ctr.GetStatus().GetPhase().GetValue()
-							dash.Update(idx, func(s *cmdutil.ServiceState) {
-								s.Text = fmt.Sprintf("%s…", phase)
-							})
+							image := task.GetConfig().GetImage()
+							phase := task.GetStatus().GetPhase().GetValue()
+							node := task.GetStatus().GetNode().GetValue()
+							id := task.GetStatus().GetId().GetValue()
+							status := task.GetStatus().GetStatus().GetValue()
+
+							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+							dash.UpdateDetails(idx, "Image", image)
+							dash.UpdateDetails(idx, "Node", node)
+							dash.UpdateDetails(idx, "ID", id)
+
+							if status != "" {
+								dash.UpdateDetails(idx, "Status", status)
+							}
 
 							if phase == "running" {
 								dash.DoneMsg(idx, "started successfully")

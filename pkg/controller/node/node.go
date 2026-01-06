@@ -531,7 +531,15 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
+	_ = c.clientset.TaskV1().Status().Update(
+		ctx,
+		taskID,
+		&tasksv1.Status{
+			Node:   wrapperspb.String(""),
+			Phase:  wrapperspb.String(consts.PHASESTOPPED),
+			Status: wrapperspb.String(""),
+			Id:     wrapperspb.String(""),
+		}, "node", "phase", "status", "id")
 
 	return nil
 }
@@ -644,7 +652,15 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPED), Status: wrapperspb.String("")}, "phase", "status")
+	_ = c.clientset.TaskV1().Status().Update(
+		ctx,
+		taskID,
+		&tasksv1.Status{
+			Node:   wrapperspb.String(""),
+			Phase:  wrapperspb.String(consts.PHASESTOPPED),
+			Status: wrapperspb.String(""),
+			Id:     wrapperspb.String(""),
+		}, "node", "phase", "status", "id")
 
 	return nil
 }

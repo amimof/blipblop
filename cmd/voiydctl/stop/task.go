@@ -88,9 +88,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 						}
 
-						dash.Update(idx, func(s *cmdutil.ServiceState) {
-							s.Text = "stopping…"
-						})
+						dash.UpdateText(idx, "stopping…")
 
 						// Continously check task
 						for {
@@ -104,9 +102,13 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 
 							phase := task.GetStatus().GetPhase().GetValue()
-							dash.Update(idx, func(s *cmdutil.ServiceState) {
-								s.Text = fmt.Sprintf("%s…", phase)
-							})
+							status := task.GetStatus().GetStatus().GetValue()
+
+							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+
+							if status != "" {
+								dash.UpdateDetails(idx, "Status", status)
+							}
 
 							if phase == "stopped" {
 								dash.DoneMsg(idx, "stopped successfully")
