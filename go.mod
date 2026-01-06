@@ -1,6 +1,6 @@
 module github.com/amimof/voiyd
 
-go 1.25.4
+go 1.24.3
 
 require (
 	github.com/containerd/go-cni v1.1.13
