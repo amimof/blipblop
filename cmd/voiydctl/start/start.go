@@ -54,7 +54,7 @@ func NewCmdStart() *cobra.Command {
 		"timeout",
 		"",
 		time.Second*30,
-		"How long in seconds to wait for task to start before giving up",
+		"How long in seconds to wait before giving up",
 	)
 
 	return startCmd

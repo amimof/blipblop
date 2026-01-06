@@ -284,7 +284,7 @@ func (c *Controller) onTaskExitHandler(e *events.TaskExit) {
 		st := &tasksv1.Status{
 			Phase:  wrapperspb.String("stopped"),
 			Status: wrapperspb.String(fmt.Sprintf("exit status %d", e.GetExitStatus())),
-			Id:     wrapperspb.String(containerID),
+			Id:     wrapperspb.String(""),
 		}
 		err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "phase", "status", "id")
 		if err != nil {

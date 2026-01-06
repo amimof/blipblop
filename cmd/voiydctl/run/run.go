@@ -109,30 +109,39 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args)
+				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
 				go dash.Loop(ctx)
 
 				// Fire off start operations concurrently
 				go func(idx int, taskID string) {
-					dash.Update(idx, func(s *cmdutil.ServiceState) {
-						s.Text = "starting…"
-					})
+					dash.UpdateText(idx, "starting…")
 
 					// Continously check task
 					for {
 
 						dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
 
-						ctr, werr := c.TaskV1().Get(ctx, taskID)
+						task, werr := c.TaskV1().Get(ctx, taskID)
 						if werr != nil {
 							dash.FailMsg(idx, werr.Error())
 							return
 						}
 
-						phase := ctr.GetStatus().GetPhase().GetValue()
-						dash.Update(idx, func(s *cmdutil.ServiceState) {
-							s.Text = fmt.Sprintf("%s…", phase)
-						})
+						image := task.GetConfig().GetImage()
+						phase := task.GetStatus().GetPhase().GetValue()
+						node := task.GetStatus().GetNode().GetValue()
+						id := task.GetStatus().GetId().GetValue()
+						status := task.GetStatus().GetStatus().GetValue()
+
+						dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+						dash.UpdateDetails(idx, "Image", image)
+						dash.UpdateDetails(idx, "Node", node)
+						dash.UpdateDetails(idx, "ID", id)
+						dash.UpdateDetails(idx, "Status", status)
+
+						if status == "" {
+							dash.UpdateDetails(idx, "Status", "OK")
+						}
 
 						if phase == "running" {
 							dash.DoneMsg(idx, "started successfully")
@@ -141,6 +150,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 
 						if strings.Contains(phase, "Err") {
 							dash.FailMsg(idx, "failed to start")
+							dash.UpdateDetails(idx, "Error", err.Error())
 							return
 						}
 

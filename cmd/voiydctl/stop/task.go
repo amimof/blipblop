@@ -70,7 +70,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 
 			// Send stop or kill for each task in args and wait for them all to stop
 			if viper.GetBool("wait") {
-				dash := cmdutil.NewDashboard(args)
+				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
 				go dash.Loop(ctx)
 
 				for i, cname := range args {
@@ -88,9 +88,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 						}
 
-						dash.Update(idx, func(s *cmdutil.ServiceState) {
-							s.Text = "stopping…"
-						})
+						dash.UpdateText(idx, "stopping…")
 
 						// Continously check task
 						for {
@@ -104,9 +102,10 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 
 							phase := task.GetStatus().GetPhase().GetValue()
-							dash.Update(idx, func(s *cmdutil.ServiceState) {
-								s.Text = fmt.Sprintf("%s…", phase)
-							})
+							status := task.GetStatus().GetStatus().GetValue()
+
+							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+							dash.UpdateDetails(idx, "Status", status)
 
 							if phase == "stopped" {
 								dash.DoneMsg(idx, "stopped successfully")
@@ -114,7 +113,8 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 
 							if strings.Contains(phase, "Err") {
-								dash.FailMsg(idx, "failed to start")
+								dash.FailMsg(idx, "failed to stop")
+								dash.UpdateDetails(idx, "Error", err.Error())
 								return
 							}
 

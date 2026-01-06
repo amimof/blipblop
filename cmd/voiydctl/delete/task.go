@@ -3,8 +3,11 @@ package delete
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -47,12 +50,71 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			for _, tname := range args {
-				fmt.Printf("Requested to delete task %s\n", tname)
-				err = c.TaskV1().Delete(ctx, tname)
-				if err != nil {
-					logrus.Fatal(err)
+			// Start task one by one without waiting
+			if !viper.GetBool("wait") {
+				for _, tname := range args {
+					err = c.TaskV1().Delete(ctx, tname)
+					if err != nil {
+						logrus.Fatal(err)
+					}
+					fmt.Printf("Requested to delete task %s\n", tname)
 				}
+			}
+
+			// Stop tasks in parallell and wait until they are stopped before deleting them
+			if viper.GetBool("wait") {
+				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
+				go dash.Loop(ctx)
+				for i, cname := range args {
+					// Fire off delete operations concurrently
+					go func(idx int, taskID string) {
+						_, err := c.TaskV1().Stop(ctx, taskID)
+						if err != nil {
+							dash.FailMsg(idx, err.Error())
+							return
+						}
+
+						dash.UpdateText(idx, "stopping…")
+
+						// Continously check task
+						for {
+
+							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to stop in time")
+
+							task, err := c.TaskV1().Get(ctx, taskID)
+							if err != nil {
+								dash.FailMsg(idx, err.Error())
+								return
+							}
+
+							phase := task.GetStatus().GetPhase().GetValue()
+							status := task.GetStatus().GetStatus().GetValue()
+
+							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+							dash.UpdateDetails(idx, "Status", status)
+
+							if phase == "stopped" {
+								err = c.TaskV1().Delete(ctx, taskID)
+								if err != nil {
+									dash.FailMsg(idx, "failed to delete")
+									dash.UpdateDetails(idx, "Error", err.Error())
+									return
+								}
+								dash.DoneMsg(idx, "deleted successfully")
+								return
+							}
+
+							if strings.Contains(phase, "Err") {
+								dash.FailMsg(idx, "failed to start")
+								return
+							}
+
+							// Wait until retry
+							time.Sleep(250 * time.Millisecond)
+						}
+					}(i, cname)
+				}
+				dash.WaitAnd(cancel)
 			}
 		},
 	}
