@@ -44,7 +44,7 @@ func (s *LogService) Register(server *grpc.Server) error {
 }
 
 func (s *LogService) sendStartLogsCommand(ctx context.Context, req *logsv1.TailLogRequest) error {
-	err := s.exchange.Publish(ctx, events.TailLogsStart, events.NewEvent(events.TailLogsStart, req))
+	err := s.exchange.Publish(ctx, events.NewEvent(events.TailLogsStart, req))
 	if err != nil {
 		s.logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetTaskId(), "tail?", req.GetWatch())
 		return err
@@ -53,7 +53,7 @@ func (s *LogService) sendStartLogsCommand(ctx context.Context, req *logsv1.TailL
 }
 
 func (s *LogService) sendStopLogsCommand(ctx context.Context, req *logsv1.TailLogRequest) error {
-	err := s.exchange.Publish(ctx, events.TailLogsStop, events.NewEvent(events.TailLogsStop, req))
+	err := s.exchange.Publish(ctx, events.NewEvent(events.TailLogsStop, req))
 	if err != nil {
 		s.logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetTaskId(), "tail?", req.GetWatch())
 		return err

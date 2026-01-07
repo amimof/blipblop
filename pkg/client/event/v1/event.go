@@ -185,7 +185,7 @@ func (c *ClientV1) handleStream(ctx context.Context, stream eventsv1.EventServic
 				return err
 			}
 			// Send received message to chan
-			if err := c.exchange.Publish(ctx, response.GetType(), response); err != nil {
+			if err := c.exchange.Publish(ctx, response); err != nil {
 				errChan <- err
 			}
 

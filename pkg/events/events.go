@@ -82,11 +82,11 @@ type Subscriber interface {
 }
 
 type Publisher interface {
-	Publish(context.Context, eventsv1.EventType, *eventsv1.Event) error
+	Publish(context.Context, *eventsv1.Event) error
 }
 
 type Forwarder interface {
-	Forward(context.Context, eventsv1.EventType, *eventsv1.Event) error
+	Forward(context.Context, *eventsv1.Event) error
 }
 
 type Object protoreflect.ProtoMessage

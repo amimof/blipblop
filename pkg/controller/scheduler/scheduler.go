@@ -24,10 +24,17 @@ func WithLogger(l logger.Logger) NewOption {
 	}
 }
 
+func WithExchange(e *events.Exchange) NewOption {
+	return func(c *Controller) {
+		c.exchange = e
+	}
+}
+
 type Controller struct {
 	clientset *client.ClientSet
 	scheduler scheduling.Scheduler
 	logger    logger.Logger
+	exchange  *events.Exchange
 }
 
 func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
@@ -77,7 +84,13 @@ func (c *Controller) onTaskCreate(ctx context.Context, e *eventsv1.Event) error 
 
 	ev := &eventsv1.ScheduleRequest{Task: containerProto, Node: nodeProto}
 
-	return c.clientset.EventV1().Publish(ctx, ev, eventsv1.EventType_Schedule)
+	// return c.clientset.EventV1().Publish(ctx, ev, eventsv1.EventType_Schedule)
+	err = c.exchange.Publish(ctx, events.NewEvent(events.Schedule, ev))
+	if err != nil {
+		return err
+	}
+	// return c.exchange.Publish(ctx, ev, eventsv1.EventType_Schedule)
+	return nil
 }
 
 func (c *Controller) Run(ctx context.Context) {

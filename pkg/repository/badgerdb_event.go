@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/dgraph-io/badger/v4"
 	"google.golang.org/protobuf/proto"
@@ -20,15 +21,15 @@ func (c EventID) String() string {
 
 type NewEventBadgerRepositoryOption func(r *eventBadgerRepo)
 
-func WithEventBadgerRepositoryMaxItems(max uint64) NewEventBadgerRepositoryOption {
+func WithEventBadgerRepositoryLimit(limit uint64) NewEventBadgerRepositoryOption {
 	return func(r *eventBadgerRepo) {
-		r.maxItems = max
+		r.limit = limit
 	}
 }
 
 type eventBadgerRepo struct {
-	db       *badger.DB
-	maxItems uint64
+	db    *badger.DB
+	limit uint64
 }
 
 func (r *eventBadgerRepo) Get(ctx context.Context, id string) (*eventsv1.Event, error) {
@@ -58,44 +59,61 @@ func (r *eventBadgerRepo) List(ctx context.Context) ([]*eventsv1.Event, error) {
 
 	var result []*eventsv1.Event
 	err := r.db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = eventPrefix
+		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		for it.Seek(eventPrefix); it.ValidForPrefix(eventPrefix); it.Next() {
+		it.Seek(eventPrefix)
+		for it.ValidForPrefix(eventPrefix) {
+
 			item := it.Item()
-			return item.Value(func(val []byte) error {
-				event := &eventsv1.Event{}
+			event := &eventsv1.Event{}
+			err := item.Value(func(val []byte) error {
 				err := proto.Unmarshal(val, event)
 				if err != nil {
 					return err
 				}
-				result = append(result, event)
 				return nil
 			})
+			if err != nil {
+				return err
+			}
+			result = append(result, event)
+			it.Next()
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return result, nil
+
+	sortByCreated(result)
+
+	// No limit => return everything
+	if r.limit == 0 {
+		return result, nil
+	}
+
+	// If fewer or equal events than limit, return all
+	if uint64(len(result)) <= r.limit {
+		return result, nil
+	}
+
+	// Return the last n events
+	start := len(result) - int(r.limit)
+	return result[start:], nil
+}
+
+func sortByCreated(in []*eventsv1.Event) {
+	sort.Slice(in, func(i, j int) bool {
+		return in[i].GetMeta().GetCreated().AsTime().Before(in[j].GetMeta().GetCreated().AsTime())
+	})
 }
 
 func (r *eventBadgerRepo) Create(ctx context.Context, event *eventsv1.Event) error {
 	_, span := tracer.Start(ctx, "repo.event.Create")
 	defer span.End()
-
-	// Did we hit the limit?
-	res, err := r.List(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Remove first in item
-	if len(res) >= int(r.maxItems) {
-		delId := res[0]
-		_ = r.Delete(ctx, delId.GetMeta().GetName())
-	}
 
 	return r.db.Update(func(txn *badger.Txn) error {
 		key := EventID(event.GetMeta().GetName()).String()
@@ -103,7 +121,6 @@ func (r *eventBadgerRepo) Create(ctx context.Context, event *eventsv1.Event) err
 		if err != nil {
 			return err
 		}
-
 		return txn.Set([]byte(key), b)
 	})
 }
@@ -127,8 +144,8 @@ func (r *eventBadgerRepo) Update(ctx context.Context, event *eventsv1.Event) err
 
 func NewEventBadgerRepository(db *badger.DB, opts ...NewEventBadgerRepositoryOption) *eventBadgerRepo {
 	r := &eventBadgerRepo{
-		db:       db,
-		maxItems: 0,
+		db:    db,
+		limit: 100,
 	}
 
 	for _, opt := range opts {

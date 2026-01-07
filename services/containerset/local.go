@@ -84,7 +84,7 @@ func (l *local) Create(ctx context.Context, req *containersetsv1.CreateRequest, 
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerSet.GetMeta().GetName())
 	}
 
-	err = l.exchange.Publish(ctx, events.ContainerSetCreate, events.NewEvent(events.ContainerSetCreate, containerSet))
+	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetCreate, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerCreate")
 	}
@@ -106,7 +106,7 @@ func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteRequest, 
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.ContainerSetDelete, events.NewEvent(events.ContainerSetDelete, containerSet))
+	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetDelete, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
 	}
@@ -144,7 +144,7 @@ func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateRequest, 
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.ContainerSetUpdate, events.NewEvent(events.ContainerSetUpdate, containerSet))
+	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetUpdate, containerSet))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
 	}

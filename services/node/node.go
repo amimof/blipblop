@@ -127,7 +127,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	n.mu.Unlock()
 
 	// Publish event that node is connected
-	err = n.exchange.Publish(ctx, eventsv1.EventType_NodeConnect, events.NewEvent(eventsv1.EventType_NodeConnect, node))
+	err = n.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_NodeConnect, node))
 	if err != nil {
 		n.logger.Error("error publishing NodeConnect event", "error", err)
 	}
@@ -168,7 +168,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 				return err
 			}
 
-			err = n.exchange.Publish(ctx, msg.GetType(), msg)
+			err = n.exchange.Publish(ctx, msg)
 			if err != nil {
 				return err
 			}

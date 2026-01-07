@@ -248,7 +248,7 @@ func main() {
 
 	// Setup services
 	eventService := event.NewService(
-		repository.NewEventBadgerRepository(db, repository.WithEventBadgerRepositoryMaxItems(5)),
+		repository.NewEventBadgerRepository(db),
 		event.WithLogger(log),
 		event.WithExchange(exchange),
 	)
@@ -367,7 +367,7 @@ func main() {
 
 	// Start scheduler
 	sched := scheduling.NewHorizontalScheduler(cs)
-	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithLogger(log))
+	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Scheduler Controller")
 

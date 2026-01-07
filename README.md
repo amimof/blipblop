@@ -11,9 +11,15 @@
 
 ---
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/amimof/voiyd.svg)](https://pkg.go.dev/github.com/amimof/voiyd) [![Release](https://github.com/amimof/voiyd/actions/workflows/release.yaml/badge.svg)](https://github.com/amimof/voiyd/actions/workflows/release.yaml) [![Go](https://github.com/amimof/voiyd/actions/workflows/go.yaml/badge.svg)](https://github.com/amimof/voiyd/actions/workflows/go.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/amimof/voiyd.svg)](https://pkg.go.dev/github.com/amimof/voiyd)
+[![Release](https://github.com/amimof/voiyd/actions/workflows/release.yaml/badge.svg)](https://github.com/amimof/voiyd/actions/workflows/release.yaml)
+[![Go](https://github.com/amimof/voiyd/actions/workflows/go.yaml/badge.svg)](https://github.com/amimof/voiyd/actions/workflows/go.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/amimof/voiyd)](https://goreportcard.com/report/github.com/amimof/voiyd)
+![License: Apache-2.0](https://img.shields.io/github/license/kyverno/kyverno?color=blue)
 
 Voiyd is a lightweight container orchestration platform with a central server and agent nodes. It lets you schedule and manage containers across many number of arbitrary Linux hosts using a simple CLI. It’s designed to be small, understandable, and easy to run on your own infrastructure.
+
+> **Note**: This project is under active early development and unstable. Features, APIs, and behavior are subject to change at any time and may not be backwards compatible between versions. Expect breaking changes.
 
 ## Features
 
@@ -31,24 +37,23 @@ Voiyd is a lightweight container orchestration platform with a central server an
 
 ## Components
 
-- **Control plane**: `voiyd-server`  
+- `voiyd-server`  
   - Exposes gRPC/HTTP APIs defined in `api/`.  
   - Stores cluster resources via the repository layer.  
   - State replication for redundancy is in development.
-- **Node agent**: `voiyd-node`  
+- `voiyd-node`  
   - Runs on each node.
   - Establishes an outbound connection to the server and subscribes to events.  
   - Manages tasks using a runtime and reports status and metrics back to the server.  
   - Can operate behind NAT/firewalls as long as it can reach the server.
-- **CLI**: `voiyd`  
+- `voiydctl`  
   - Talks only to the server and never connects directly to nodes.
-  - Multi-cluster support with the use of `contexts`
+  - Multi-cluster support with the use of contexts.
 
 ## Prerequisites
 
 voiyd-server and voiydctl can run on pretty much any platform whereas voiyd-node requires Linux with the following requirements:
 
-- Linux
 - [Containerd](https://containerd.io/downloads/) >= 1.6
 - Iptables
 - [CNI plugins](https://github.com/containernetworking/plugins)

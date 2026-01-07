@@ -188,7 +188,7 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 	}
 
 	// Publish event that container is created
-	err = l.exchange.Publish(ctx, eventsv1.EventType_TaskCreate, events.NewEvent(eventsv1.EventType_TaskCreate, container))
+	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_TaskCreate, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "TaskCreate")
 	}
@@ -213,7 +213,7 @@ func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grp
 		return nil, err
 	}
 	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_TaskDelete, container))
-	err = l.exchange.Publish(ctx, eventsv1.EventType_TaskDelete, events.NewEvent(eventsv1.EventType_TaskDelete, container))
+	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_TaskDelete, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "TaskDelete")
 	}
@@ -236,7 +236,7 @@ func (l *local) Kill(ctx context.Context, req *tasksv1.KillRequest, _ ...grpc.Ca
 		ev = eventsv1.EventType_TaskKill
 	}
 
-	err = l.exchange.Publish(ctx, ev, events.NewEvent(ev, container))
+	err = l.exchange.Publish(ctx, events.NewEvent(ev, container))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
 	}
@@ -254,7 +254,7 @@ func (l *local) Start(ctx context.Context, req *tasksv1.StartRequest, _ ...grpc.
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, eventsv1.EventType_TaskStart, events.NewEvent(eventsv1.EventType_TaskStart, container))
+	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_TaskStart, container))
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.
 
 	// Only publish if spec is updated
 	if !proto.Equal(updateTask.Config, ctr.Config) {
-		err = l.exchange.Publish(ctx, eventsv1.EventType_TaskPatch, events.NewEvent(eventsv1.EventType_TaskPatch, ctr))
+		err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_TaskPatch, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing PATCH event", "name", existing.GetMeta().GetName(), "event", "TaskUpdate")
 		}
@@ -445,7 +445,7 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 	if !updVal.Equal(newVal) {
 
 		l.logger.Debug("container was updated, emitting event to listeners", "event", "TaskUpdate", "name", ctr.GetMeta().GetName(), "revision", updateTask.GetMeta().GetRevision())
-		err = l.exchange.Publish(ctx, eventsv1.EventType_TaskUpdate, events.NewEvent(eventsv1.EventType_TaskUpdate, ctr))
+		err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_TaskUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "TaskUpdate")
 		}

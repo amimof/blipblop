@@ -114,7 +114,7 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	}
 
 	// Publish event that volume is created
-	err = l.exchange.Publish(ctx, eventsv1.EventType_VolumeCreate, events.NewEvent(eventsv1.EventType_VolumeCreate, volume))
+	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_VolumeCreate, volume))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", volume.GetMeta().GetName(), "event", "VolumeCreate")
 	}
@@ -137,7 +137,7 @@ func (l *local) Delete(ctx context.Context, req *volumes.DeleteRequest, opts ...
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, eventsv1.EventType_VolumeDelete, events.NewEvent(eventsv1.EventType_VolumeDelete, volume))
+	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_VolumeDelete, volume))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", volume.GetMeta().GetName(), "event", "VolumeDelete")
 	}
@@ -260,7 +260,7 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 	// Only publish if spec is updated
 	if !updVal.Equal(newVal) {
 		l.logger.Debug("volume was updated, emitting event to listeners", "event", "VolumeUpdate", "name", ctr.GetMeta().GetName(), "revision", updateVolume.GetMeta().GetRevision())
-		err = l.exchange.Publish(ctx, eventsv1.EventType_VolumeUpdate, events.NewEvent(eventsv1.EventType_VolumeUpdate, ctr))
+		err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_VolumeUpdate, ctr))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "VolumeUpdate")
 		}

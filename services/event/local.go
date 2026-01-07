@@ -58,6 +58,11 @@ func (n *local) List(ctx context.Context, req *eventsv1.ListRequest, _ ...grpc.C
 	ctx, span := tracer.Start(ctx, "event.List")
 	defer span.End()
 
+	// Default to 100 max results
+	if req.GetLimit() == 0 {
+		req.Limit = 100
+	}
+
 	l, err := n.repo.List(ctx)
 	if err != nil {
 		return nil, err
