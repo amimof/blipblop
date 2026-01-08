@@ -50,7 +50,7 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			// Start task one by one without waiting
+			// Delete task one by one without waiting
 			if !viper.GetBool("wait") {
 				for _, tname := range args {
 					err = c.TaskV1().Delete(ctx, tname)
@@ -68,10 +68,16 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 				for i, cname := range args {
 					// Fire off delete operations concurrently
 					go func(idx int, taskID string) {
-						_, err := c.TaskV1().Stop(ctx, taskID)
-						if err != nil {
-							dash.FailMsg(idx, err.Error())
-							return
+						if viper.GetBool("force") {
+							if _, err = c.TaskV1().Kill(ctx, cname); err != nil {
+								dash.FailMsg(idx, fmt.Sprintf("failed to kill: %v", err))
+								return
+							}
+						} else {
+							if _, err = c.TaskV1().Stop(ctx, cname); err != nil {
+								dash.FailMsg(idx, fmt.Sprintf("failed to stop: %v", err))
+								return
+							}
 						}
 
 						dash.UpdateText(idx, "stopping…")
@@ -105,7 +111,7 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 							}
 
 							if strings.Contains(phase, "Err") {
-								dash.FailMsg(idx, "failed to start")
+								dash.FailMsg(idx, "failed to delete")
 								return
 							}
 

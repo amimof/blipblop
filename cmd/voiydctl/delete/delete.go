@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	force       bool
 	wait        bool
 	waitTimeout time.Duration
 )
@@ -41,6 +42,11 @@ func NewCmdDelete() *cobra.Command {
 	deleteCmd.AddCommand(NewCmdDeleteContainerSet(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteVolume(&cfg))
 
+	deleteCmd.PersistentFlags().BoolVar(&force,
+		"force",
+		false,
+		"Attempt forceful shutdown of the task",
+	)
 	deleteCmd.PersistentFlags().BoolVarP(
 		&wait,
 		"wait",
