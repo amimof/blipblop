@@ -6,11 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/api/services/volumes/v1"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/repository"
+	"buf.build/go/protovalidate"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,7 +18,11 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"buf.build/go/protovalidate"
+	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
 )
 
 var (
@@ -113,8 +113,13 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 		return nil, err
 	}
 
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), volume.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), volume.GetVersion())
+
 	// Publish event that volume is created
-	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_VolumeCreate, volume))
+	err = l.exchange.Forward(ctx, events.NewEvent(events.VolumeCreate, volume, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", volume.GetMeta().GetName(), "event", "VolumeCreate")
 	}
@@ -137,7 +142,13 @@ func (l *local) Delete(ctx context.Context, req *volumes.DeleteRequest, opts ...
 	if err != nil {
 		return nil, err
 	}
-	err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_VolumeDelete, volume))
+
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), volume.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), volume.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.VolumeDelete, volume, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", volume.GetMeta().GetName(), "event", "VolumeDelete")
 	}
@@ -252,22 +263,28 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 	}
 
 	// Retreive the volume again so that we can include it in an event
-	ctr, err := l.Repo().Get(ctx, req.GetId())
+	volume, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
 	// Only publish if spec is updated
 	if !updVal.Equal(newVal) {
-		l.logger.Debug("volume was updated, emitting event to listeners", "event", "VolumeUpdate", "name", ctr.GetMeta().GetName(), "revision", updateVolume.GetMeta().GetRevision())
-		err = l.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_VolumeUpdate, ctr))
+
+		// Decorate label with some labels
+		eventLabels := labels.New()
+		eventLabels.Set(labels.LabelPrefix("object-id").String(), volume.GetMeta().GetName())
+		eventLabels.Set(labels.LabelPrefix("object-version").String(), volume.GetVersion())
+
+		l.logger.Debug("volume was updated, emitting event to listeners", "event", "VolumeUpdate", "name", volume.GetMeta().GetName(), "revision", updateVolume.GetMeta().GetRevision())
+		err = l.exchange.Forward(ctx, events.NewEvent(events.VolumeUpdate, volume, eventLabels))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "VolumeUpdate")
+			return nil, l.handleError(err, "error publishing UPDATE event", "name", volume.GetMeta().GetName(), "event", "VolumeUpdate")
 		}
 	}
 
 	return &volumes.UpdateResponse{
-		Volume: ctr,
+		Volume: volume,
 	}, nil
 }
 
