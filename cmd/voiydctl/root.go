@@ -32,7 +32,7 @@ var (
 		Long:          `voiydctl is a command line tool for interacting with voiyd-server.`,
 	}
 	configFile   string
-	verbosity    string
+	logLevel     string
 	server       string
 	insecure     bool
 	tlsCACert    string
@@ -56,7 +56,7 @@ func SetVersionInfo(version, commit, date, branch, goversion string) {
 
 func NewDefaultCommand() *cobra.Command {
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		lvl, err := logrus.ParseLevel(verbosity)
+		lvl, err := logrus.ParseLevel(logLevel)
 		if err != nil {
 			return err
 		}
@@ -72,14 +72,14 @@ func NewDefaultCommand() *cobra.Command {
 	defaultConfigPath := filepath.Join(home, ".voiyd", "voiydctl.yaml")
 
 	// Setup flags
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "", defaultConfigPath, "config file")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", defaultConfigPath, "config file")
 	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "localhost:5700", "Address of the API Server")
-	rootCmd.PersistentFlags().StringVarP(&tlsCACert, "tls-ca-certificate", "", "", "CA Certificate file path")
-	rootCmd.PersistentFlags().StringVarP(&tlsCert, "tls-certificate", "", "", "Certificate file path")
-	rootCmd.PersistentFlags().StringVarP(&tlsCertKey, "tls-certificate-key", "", "", "Certificate key file path")
-	rootCmd.PersistentFlags().StringVarP(&otelEndpoint, "otel-endpoint", "", "", "Endpoint address of OpenTelemetry collector")
-	rootCmd.PersistentFlags().BoolVarP(&insecure, "insecure", "i", false, "Skip TLS certificate verification")
-	rootCmd.PersistentFlags().StringVarP(&verbosity, "v", "v", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().StringVar(&tlsCACert, "tls-ca-certificate", "", "CA Certificate file path")
+	rootCmd.PersistentFlags().StringVar(&tlsCert, "tls-certificate", "", "Certificate file path")
+	rootCmd.PersistentFlags().StringVar(&tlsCertKey, "tls-certificate-key", "", "Certificate key file path")
+	rootCmd.PersistentFlags().StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
+	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS certificate verification")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "number for the log level verbosity (debug, info, warn, error, fatal, panic)")
 
 	// Setup sub-commands
 	rootCmd.AddCommand(run.NewCmdRun())

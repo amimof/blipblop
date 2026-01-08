@@ -12,8 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	// "github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/errdefs"
 	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/filters"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
@@ -99,6 +101,21 @@ func withEnvVars(envs []*tasksv1.EnvVar) oci.SpecOpts {
 func WithNamespace(ns string) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
 		c.ns = ns
+	}
+}
+
+func withUser(user string) []oci.SpecOpts {
+	var opts []oci.SpecOpts
+	if user != "" {
+		opts = append(opts, oci.WithUser(user), withResetAdditionalGIDs(), oci.WithAdditionalGIDs(user))
+	}
+	return opts
+}
+
+func withResetAdditionalGIDs() oci.SpecOpts {
+	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *oci.Spec) error {
+		s.Process.User.AdditionalGids = nil
+		return nil
 	}
 }
 
@@ -493,10 +510,19 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 		oci.WithDefaultUnixDevices,
 		oci.WithImageConfig(image),
 		oci.WithHostname(t.GetMeta().GetName()),
-		oci.WithImageConfig(image),
+		oci.WithAddedCapabilities(t.GetConfig().GetCapabilities().GetAdd()),
+		oci.WithDroppedCapabilities(t.GetConfig().GetCapabilities().GetDrop()),
 		withEnvVars(t.GetConfig().GetEnvvars()),
 		withMounts(t.GetConfig().GetMounts()),
 	}
+
+	// Add privileged flag
+	if t.GetConfig().GetPrivileged() {
+		opts = append(opts, oci.WithPrivileged)
+	}
+
+	// Add user otps
+	opts = append(opts, withUser(t.GetConfig().GetUser())...)
 
 	// Add args opts
 	if len(t.GetConfig().GetArgs()) > 0 {

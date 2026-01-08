@@ -94,6 +94,14 @@ message Config {
   repeated Mount mounts = 4;
   repeated PortMapping port_mappings = 5;
   map<string, string> node_selector = 6;
+  string user = 7;
+  bool privileged = 8;
+  Capabilities capabilities = 9;
+}
+
+message Capabilities {
+  repeated string add = 1;
+  repeated string drop = 2;
 }
 
 message Mount {

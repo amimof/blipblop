@@ -23,8 +23,13 @@ import (
 var (
 	image       string
 	ports       []string
+	user        string
+	privileged  bool
 	wait        bool
 	waitTimeout time.Duration
+	capAdd      []string
+	capDrop     []string
+	env         []string
 )
 
 func NewCmdRun() *cobra.Command {
@@ -35,7 +40,15 @@ func NewCmdRun() *cobra.Command {
 		Long:  "Run a task. The run command required an image to be provided. The image must be in the format: registry/repo/image:tag",
 		Example: `
 # Run a prometheus task
-voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
+voiydctl run prometheus --image=docker.io/prom/prometheus:latest
+
+# Run a task exposing port to the host
+voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80
+
+# Run a task as user and group
+voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024:1024
+`,
+
 		Args: cobra.ExactArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -97,6 +110,12 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 				Config: &tasksv1.Config{
 					Image:        image,
 					PortMappings: tports,
+					User:         user,
+					Privileged:   privileged,
+					Capabilities: &tasksv1.Capabilities{
+						Add:  capAdd,
+						Drop: capDrop,
+					},
 				},
 			})
 			if err != nil {
@@ -167,7 +186,7 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 	runCmd.Flags().StringVarP(
 		&image,
 		"image",
-		"I",
+		"i",
 		"",
 		"Container image to run, must include the registry host",
 	)
@@ -177,6 +196,38 @@ voiydctl run prometheus --image=docker.io/prom/prometheus:latest`,
 		"p",
 		[]string{},
 		"Forward a local port to the task",
+	)
+	runCmd.Flags().StringVarP(
+		&user,
+		"user",
+		"u",
+		"",
+		"Username or UID (format: <name|uid>[:<group|gid>])",
+	)
+	runCmd.Flags().BoolVar(
+		&privileged,
+		"privileged",
+		false,
+		"Give extended privileges to the task",
+	)
+	runCmd.Flags().StringSliceVar(
+		&capAdd,
+		"cap-add",
+		[]string{},
+		"Add Linux capabilities",
+	)
+	runCmd.Flags().StringSliceVar(
+		&capDrop,
+		"cap-drop",
+		[]string{},
+		"Drop Linux capabilities",
+	)
+	runCmd.Flags().StringArrayVarP(
+		&env,
+		"env",
+		"e",
+		[]string{},
+		"Set environment variables",
 	)
 	runCmd.PersistentFlags().BoolVarP(
 		&wait,
