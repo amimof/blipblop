@@ -61,10 +61,9 @@ voiydctl delete volume data01 --purge`,
 		},
 	}
 
-	runCmd.Flags().BoolVarP(
+	runCmd.Flags().BoolVar(
 		&purge,
 		"purge",
-		"P",
 		false,
 		"Purge all contents of the destination directory on removal",
 	)

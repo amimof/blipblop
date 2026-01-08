@@ -218,6 +218,13 @@ func main() {
 		return
 	}
 
+	// Join node to cluster
+	err = clientSet.NodeV1().Join(ctx, nodeCfg)
+	if err != nil {
+		log.Error("error joining node to server", "error", err)
+		return
+	}
+
 	// Create networking
 	cni, err := networking.NewCNIManager()
 	if err != nil {
@@ -280,13 +287,6 @@ func main() {
 	)
 	go upgradeCtrl.Run(ctx)
 	log.Info("started node upgrade controller")
-
-	// Join node to cluster
-	err = clientSet.NodeV1().Join(ctx, nodeCfg)
-	if err != nil {
-		log.Error("error joining node to server", "error", err)
-		return
-	}
 
 	// Setup signal handler
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
