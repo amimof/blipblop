@@ -6,12 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/api/services/nodes/v1"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/protoutils"
-	"github.com/amimof/voiyd/pkg/repository"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -20,6 +14,13 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/protoutils"
+	"github.com/amimof/voiyd/pkg/repository"
 )
 
 type local struct {
@@ -146,8 +147,12 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.
 		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeID)
 	}
 
-	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
-	err = l.exchange.Publish(ctx, events.NodeCreate, events.NewEvent(eventsv1.EventType_NodeCreate, node))
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), node.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeCreate, node, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeID, "event", "NodeCreate")
 	}
@@ -168,8 +173,13 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
 	}
-	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_NodeCreate, node))
-	err = l.exchange.Publish(ctx, events.NodeDelete, events.NewEvent(eventsv1.EventType_NodeDelete, node))
+
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), node.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeDelete, node, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
@@ -258,14 +268,21 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 	}
 
 	// Retreive the container again so that we can include it in an event
-	ctr, err := l.Repo().Get(ctx, req.GetId())
+	node, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
 	// Only publish if spec is updated
-	if !proto.Equal(updateNode.Config, ctr.Config) {
-		err = l.exchange.Publish(ctx, eventsv1.EventType_NodePatch, events.NewEvent(eventsv1.EventType_NodePatch, ctr))
+	if !proto.Equal(updateNode.Config, node.Config) {
+		l.logger.Debug("node was patched, emitting event to listeners", "event", "NodePatch", "name", node.GetMeta().GetName(), "revision", updateNode.GetMeta().GetRevision())
+
+		// Decorate label with some labels
+		eventLabels := labels.New()
+		eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
+		eventLabels.Set(labels.LabelPrefix("object-version").String(), node.GetVersion())
+
+		err = l.exchange.Forward(ctx, events.NewEvent(events.NodePatch, node, eventLabels))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing PATCH event", "name", existing.GetMeta().GetName(), "event", "NodePatch")
 		}
@@ -302,6 +319,7 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 
 	// Only update metadata fields if spec is updated
 	if !updVal.Equal(newVal) {
+		l.logger.Debug("node wass udpate")
 		updateNode.Meta.Revision++
 		updateNode.Meta.Updated = timestamppb.Now()
 	}
@@ -321,7 +339,13 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 	// Only publish if spec is updated
 	if !updVal.Equal(newVal) {
 		l.logger.Debug("node was updated, emitting event to listeners", "event", "NodeUpdate", "name", node.GetMeta().GetName(), "revision", updateNode.GetMeta().GetRevision())
-		err = l.exchange.Publish(ctx, eventsv1.EventType_NodeUpdate, events.NewEvent(eventsv1.EventType_NodeUpdate, node))
+
+		// Decorate label with some labels
+		eventLabels := labels.New()
+		eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
+		eventLabels.Set(labels.LabelPrefix("object-version").String(), node.GetVersion())
+
+		err = l.exchange.Forward(ctx, events.NewEvent(events.NodeUpdate, node, eventLabels))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", node.GetMeta().GetName(), "event", "NodeUpdate")
 		}
@@ -362,9 +386,21 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	return &nodes.JoinResponse{
+	resp := &nodes.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
-	}, l.exchange.Publish(ctx, eventsv1.EventType_NodeJoin, events.NewEvent(eventsv1.EventType_NodeJoin, node))
+	}
+
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), node.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeJoin, node, eventLabels))
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
@@ -380,7 +416,13 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
-	err = l.exchange.Publish(ctx, events.NodeForget, events.NewEvent(eventsv1.EventType_NodeForget, node))
+
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("target-version").String(), node.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeForget, node, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}
@@ -397,7 +439,12 @@ func (l *local) Upgrade(ctx context.Context, req *nodes.UpgradeRequest, _ ...grp
 	ctx, span := tracer.Start(ctx, "node.Upgrade")
 	defer span.End()
 
-	err := l.exchange.Publish(ctx, events.NodeUpgrade, events.NewEvent(eventsv1.EventType_NodeUpgrade, req))
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), req.GetNodeId())
+	eventLabels.Set(labels.LabelPrefix("target-version").String(), req.GetTargetVersion())
+
+	err := l.exchange.Forward(ctx, events.NewEvent(events.NodeUpgrade, req, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing UPGRADE event", "name", req.GetNodeSelector(), "event", "NodeUpgrade")
 	}

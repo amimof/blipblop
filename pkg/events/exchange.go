@@ -29,7 +29,7 @@ type Exchange struct {
 	errChan            chan error
 	mu                 sync.Mutex
 	logger             logger.Logger
-	publishers         []Publisher
+	forwarders         []Forwarder
 }
 
 func WithExchangeLogger(l logger.Logger) NewExchangeOption {
@@ -38,9 +38,9 @@ func WithExchangeLogger(l logger.Logger) NewExchangeOption {
 	}
 }
 
-// AddPublisher adds a forwarder to this Exchange
-func (e *Exchange) AddPublisher(forwarder Publisher) {
-	e.publishers = append(e.publishers, forwarder)
+// AddForwarder adds a forwarder to this Exchange, forwarding any message on Publish()
+func (e *Exchange) AddForwarder(forwarder Forwarder) {
+	e.forwarders = append(e.forwarders, forwarder)
 }
 
 // On registers a handler func for a certain event type
@@ -64,16 +64,6 @@ func (e *Exchange) Unsubscribe(context.Context, eventsv1.EventType) error {
 	return nil
 }
 
-// Forward publishes the event using the publishers added to this exchange. Implements Forwarder.
-func (e *Exchange) Forward(ctx context.Context, t eventsv1.EventType, ev *eventsv1.Event) error {
-	for _, forwarder := range e.publishers {
-		if err := forwarder.Publish(ctx, t, ev); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Subscribe subscribes to events of a certain event type
 func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) chan *eventsv1.Event {
 	ch := make(chan *eventsv1.Event, 10)
@@ -85,10 +75,22 @@ func (e *Exchange) Subscribe(ctx context.Context, t ...eventsv1.EventType) chan 
 	return ch
 }
 
+// Forward publishes the event using the publishers added to this exchange. Implements Forwarder.
+func (e *Exchange) Forward(ctx context.Context, ev *eventsv1.Event) error {
+	return e.publish(ctx, ev, true)
+}
+
 // Publish publishes an event of a certain type
-func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *eventsv1.Event) error {
+func (e *Exchange) Publish(ctx context.Context, ev *eventsv1.Event) error {
+	return e.publish(ctx, ev, false)
+}
+
+// Publish publishes an event of a certain type
+func (e *Exchange) publish(ctx context.Context, ev *eventsv1.Event, persist bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	t := ev.GetType()
 
 	ctx, span := tracer.Start(ctx, "exchange.Publish")
 	span.SetAttributes(
@@ -125,6 +127,15 @@ func (e *Exchange) Publish(ctx context.Context, t eventsv1.EventType, ev *events
 				e.errChan <- err
 			}
 			handlers = remove(handlers, i)
+		}
+	}
+
+	// Call forwarders if persistent
+	if persist {
+		for _, forwarder := range e.forwarders {
+			if err := forwarder.Forward(ctx, ev); err != nil {
+				return err
+			}
 		}
 	}
 

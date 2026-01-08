@@ -18,11 +18,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
@@ -158,43 +158,48 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 	ctx, span := tracer.Start(ctx, "container.Create")
 	defer span.End()
 
-	container := req.GetTask()
-	container.GetMeta().Created = timestamppb.Now()
-	container.GetMeta().Updated = timestamppb.Now()
-	container.GetMeta().Revision = 1
+	task := req.GetTask()
+	task.GetMeta().Created = timestamppb.Now()
+	task.GetMeta().Updated = timestamppb.Now()
+	task.GetMeta().Revision = 1
 
 	// Initialize status field if empty
-	if container.GetStatus() == nil {
-		container.Status = &tasksv1.Status{}
+	if task.GetStatus() == nil {
+		task.Status = &tasksv1.Status{}
 	}
 
-	containerID := container.GetMeta().GetName()
+	containerID := task.GetMeta().GetName()
 
 	// Check if container already exists
 	if existing, _ := l.Get(ctx, &tasksv1.GetRequest{Id: containerID}); existing != nil {
-		return nil, fmt.Errorf("container %s already exists", container.GetMeta().GetName())
+		return nil, fmt.Errorf("container %s already exists", task.GetMeta().GetName())
 	}
 
 	// Create container in repo
-	err := l.Repo().Create(ctx, container)
+	err := l.Repo().Create(ctx, task)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerID)
 	}
 
 	// Get the created container from repo
-	container, err = l.Repo().Get(ctx, containerID)
+	task, err = l.Repo().Get(ctx, containerID)
 	if err != nil {
 		return nil, err
 	}
 
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
+
 	// Publish event that container is created
-	err = l.exchange.Publish(ctx, eventsv1.EventType_TaskCreate, events.NewEvent(eventsv1.EventType_TaskCreate, container))
+	err = l.exchange.Forward(ctx, events.NewEvent(events.TaskCreate, task, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", container.GetMeta().GetName(), "event", "TaskCreate")
+		return nil, l.handleError(err, "error publishing CREATE event", "name", task.GetMeta().GetName(), "event", "TaskCreate")
 	}
 
 	return &tasksv1.CreateResponse{
-		Task: container,
+		Task: task,
 	}, nil
 }
 
@@ -204,7 +209,7 @@ func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grp
 	ctx, span := tracer.Start(ctx, "container.Delete")
 	defer span.End()
 
-	container, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
 	}
@@ -212,10 +217,15 @@ func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grp
 	if err != nil {
 		return nil, err
 	}
-	// err = l.exchange.Publish(ctx, events.NewRequest(eventsv1.EventType_TaskDelete, container))
-	err = l.exchange.Publish(ctx, eventsv1.EventType_TaskDelete, events.NewEvent(eventsv1.EventType_TaskDelete, container))
+
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.TaskDelete, task, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", container.GetMeta().GetName(), "event", "TaskDelete")
+		return nil, l.handleError(err, "error publishing DELETE event", "name", task.GetMeta().GetName(), "event", "TaskDelete")
 	}
 	return &tasksv1.DeleteResponse{
 		Id: req.GetId(),
@@ -226,17 +236,22 @@ func (l *local) Kill(ctx context.Context, req *tasksv1.KillRequest, _ ...grpc.Ca
 	ctx, span := tracer.Start(ctx, "container.Kill")
 	defer span.End()
 
-	container, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
-	ev := eventsv1.EventType_TaskStop
+	ev := events.TaskStop
 	if req.ForceKill {
-		ev = eventsv1.EventType_TaskKill
+		ev = events.TaskKill
 	}
 
-	err = l.exchange.Publish(ctx, ev, events.NewEvent(ev, container))
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(ev, task, eventLabels))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
 	}
@@ -249,12 +264,17 @@ func (l *local) Start(ctx context.Context, req *tasksv1.StartRequest, _ ...grpc.
 	ctx, span := tracer.Start(ctx, "container.Start")
 	defer span.End()
 
-	container, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, eventsv1.EventType_TaskStart, events.NewEvent(eventsv1.EventType_TaskStart, container))
+	// Decorate label with some labels
+	eventLabels := labels.New()
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
+
+	err = l.exchange.Forward(ctx, events.NewEvent(events.TaskStart, task, eventLabels))
 	if err != nil {
 		return nil, err
 	}
@@ -270,8 +290,6 @@ func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	// Validate request
 
 	updateTask := req.GetTask()
 
@@ -304,14 +322,20 @@ func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.
 	}
 
 	// Retreive the container again so that we can include it in an event
-	ctr, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
 
 	// Only publish if spec is updated
-	if !proto.Equal(updateTask.Config, ctr.Config) {
-		err = l.exchange.Publish(ctx, eventsv1.EventType_TaskPatch, events.NewEvent(eventsv1.EventType_TaskPatch, ctr))
+	if !proto.Equal(updateTask.Config, task.Config) {
+
+		// Decorate label with some labels
+		eventLabels := labels.New()
+		eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
+		eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
+
+		err = l.exchange.Forward(ctx, events.NewEvent(events.TaskPatch, task, eventLabels))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing PATCH event", "name", existing.GetMeta().GetName(), "event", "TaskUpdate")
 		}
@@ -436,7 +460,7 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 	}
 
 	// Retreive the container again so that we can include it in an event
-	ctr, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -444,15 +468,20 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 	// Only publish if spec is updated
 	if !updVal.Equal(newVal) {
 
-		l.logger.Debug("container was updated, emitting event to listeners", "event", "TaskUpdate", "name", ctr.GetMeta().GetName(), "revision", updateTask.GetMeta().GetRevision())
-		err = l.exchange.Publish(ctx, eventsv1.EventType_TaskUpdate, events.NewEvent(eventsv1.EventType_TaskUpdate, ctr))
+		// Decorate label with some labels
+		eventLabels := labels.New()
+		eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
+		eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
+
+		l.logger.Debug("container was updated, emitting event to listeners", "event", "TaskUpdate", "name", task.GetMeta().GetName(), "revision", updateTask.GetMeta().GetRevision())
+		err = l.exchange.Forward(ctx, events.NewEvent(events.TaskUpdate, task, eventLabels))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing UPDATE event", "name", ctr.GetMeta().GetName(), "event", "TaskUpdate")
+			return nil, l.handleError(err, "error publishing UPDATE event", "name", task.GetMeta().GetName(), "event", "TaskUpdate")
 		}
 	}
 
 	return &tasksv1.UpdateResponse{
-		Task: ctr,
+		Task: task,
 	}, nil
 }
 

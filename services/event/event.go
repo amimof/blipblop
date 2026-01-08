@@ -9,10 +9,12 @@ import (
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const Version string = "event/v1"
@@ -30,6 +32,7 @@ func WithLogger(l logger.Logger) NewServiceOption {
 func WithExchange(e *events.Exchange) NewServiceOption {
 	return func(s *EventService) {
 		s.exchange = e
+		s.exchange.AddForwarder(s)
 	}
 }
 
@@ -115,16 +118,46 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 	return nil
 }
 
+func (s *EventService) Forward(ctx context.Context, event *eventsv1.Event) error {
+	ev := event
+
+	if ev.GetMeta().GetName() == "" {
+		ev.GetMeta().Name = uuid.New().String()
+	}
+	ev.GetMeta().Created = timestamppb.Now()
+	ev.GetMeta().Updated = timestamppb.Now()
+	ev.GetMeta().Revision = 1
+
+	_, err := s.local.Create(ctx, &eventsv1.CreateRequest{Event: ev})
+	if err != nil {
+		return err
+	}
+
+	s.logger.Debug("forwarded published event", "event", ev.GetType().String(), "objectID", ev.GetClientId(), "clientID", ev.GetClientId())
+	return nil
+}
+
 func (s *EventService) Publish(ctx context.Context, req *eventsv1.PublishRequest) (*eventsv1.PublishResponse, error) {
-	s.logger.Info("Publishing event")
-	err := s.exchange.Publish(ctx, req.GetEvent().GetType(), req.GetEvent())
+	ev := req.GetEvent()
+
+	if ev.GetMeta().GetName() == "" {
+		ev.GetMeta().Name = uuid.New().String()
+	}
+	ev.GetMeta().Created = timestamppb.Now()
+	ev.GetMeta().Updated = timestamppb.Now()
+	ev.GetMeta().Revision = 1
+
+	err := s.exchange.Publish(ctx, ev)
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.local.Create(ctx, &eventsv1.CreateRequest{Event: req.GetEvent()})
+
+	res, err := s.local.Create(ctx, &eventsv1.CreateRequest{Event: ev})
 	if err != nil {
 		return nil, err
 	}
+
+	s.logger.Debug("published event", "event", ev.GetType().String(), "objectID", ev.GetClientId(), "clientID", ev.GetClientId())
 	return &eventsv1.PublishResponse{Event: res.GetEvent()}, nil
 }
 

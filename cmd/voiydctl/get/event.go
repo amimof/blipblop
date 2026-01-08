@@ -7,12 +7,15 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
+
+	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/cmdutil"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
@@ -51,29 +54,74 @@ func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			// Setup writer
-			wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
-
 			// List all events
-			_, _ = fmt.Fprintf(wr, "%s\t%s\n", "TYPE", "AGE")
-			if len(args) == 1 {
+			if len(args) == 0 {
+
 				events, err := c.EventV1().List(ctx)
 				if err != nil {
 					logrus.Fatal(err)
 				}
+				// Setup writer
+				wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "ID", "RESOURCE", "VERSION", "TYPE", "AGE")
 				for _, event := range events {
-					_, _ = fmt.Fprintf(wr, "%s\t%s\n",
+					ver, _ := extractVersionFromAny(event)
+					objName := event.GetMeta().GetLabels()["voiyd.io/object-id"]
+					_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n",
+						event.GetMeta().GetName(),
+						objName,
+						ver,
 						event.GetType().String(),
 						cmdutil.FormatDuration(time.Since(event.GetMeta().GetCreated().AsTime())),
 					)
 				}
-
+				_ = wr.Flush()
 			}
 
-			_ = wr.Flush()
+			// List one event
+			if len(args) > 0 {
+				ename := args[0]
+				task, err := c.EventV1().Get(ctx, ename)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+
+				codec, err := cmdutil.CodecFor(output)
+				if err != nil {
+					logrus.Fatalf("error creating serializer: %v", err)
+				}
+
+				b, err := codec.Serialize(task)
+				if err != nil {
+					logrus.Fatalf("error serializing: %v", err)
+				}
+
+				fmt.Printf("%s\n", string(b))
+			}
 		},
 	}
 
 	return runCmd
+}
+
+type versioned interface {
+	GetVersion() string
+}
+
+func extractVersionFromAny(o *eventsv1.Event) (string, error) {
+	a := o.GetObject()
+
+	if a == nil {
+		return "", fmt.Errorf("any is nil")
+	}
+	msg, err := a.UnmarshalNew()
+	if err != nil {
+		return "", err
+	}
+	v, ok := msg.(versioned)
+	if !ok {
+		return "", fmt.Errorf("message %T does not have GetVersion", msg)
+	}
+	return v.GetVersion(), nil
 }

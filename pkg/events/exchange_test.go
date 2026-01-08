@@ -52,7 +52,7 @@ func TestExchange_Publish(t *testing.T) {
 
 	// Publish an event
 	event := &eventsv1.Event{Type: eventsv1.EventType_TaskCreate}
-	err := e.Publish(ctx, topic, event)
+	err := e.Publish(ctx, event)
 	if err != nil {
 		t.Fatalf("Publish returned an error: %v", err)
 	}
@@ -88,8 +88,8 @@ func TestExchange_Handler(t *testing.T) {
 	})
 
 	// Publish two events that should call the 2 above handlers
-	_ = e.Publish(ctx, topic, event)
-	_ = e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, event)
+	_ = e.Publish(ctx, event)
 
 	if i != 6 {
 		t.Fatalf("Expected i to be 6, got %d", i)
@@ -111,9 +111,9 @@ func TextExchange_FireOnceHandler(t *testing.T) {
 	})
 
 	// Publish three events, only the first event fires the handler
-	_ = e.Publish(ctx, topic, event)
-	_ = e.Publish(ctx, topic, event)
-	_ = e.Publish(ctx, topic, event)
+	_ = e.Publish(ctx, event)
+	_ = e.Publish(ctx, event)
+	_ = e.Publish(ctx, event)
 
 	if i != 1 {
 		t.Fatalf("Expected i to be 1, got %d", i)
@@ -144,7 +144,7 @@ func TestExchange_ThreadSafety(t *testing.T) {
 
 			// Publish an event
 			event := &eventsv1.Event{Type: eventsv1.EventType_TaskCreate}
-			err := e.Publish(ctx, topic, event)
+			err := e.Publish(ctx, event)
 			if err != nil {
 				t.Errorf("Publish returned an error in goroutine %d: %v", i, err)
 			}

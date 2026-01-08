@@ -5,11 +5,14 @@ import (
 	"context"
 	"maps"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	"github.com/amimof/voiyd/api/types/v1"
+	"github.com/amimof/voiyd/pkg/labels"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 const (
@@ -21,6 +24,7 @@ const (
 	TaskList           = eventsv1.EventType_TaskList
 	TaskKill           = eventsv1.EventType_TaskKill
 	TaskStop           = eventsv1.EventType_TaskStop
+	TaskPatch          = eventsv1.EventType_TaskPatch
 	NodeGet            = eventsv1.EventType_NodeGet
 	NodeCreate         = eventsv1.EventType_NodeCreate
 	NodeDelete         = eventsv1.EventType_NodeDelete
@@ -30,6 +34,7 @@ const (
 	NodeForget         = eventsv1.EventType_NodeForget
 	NodeConnect        = eventsv1.EventType_NodeConnect
 	NodeUpgrade        = eventsv1.EventType_NodeUpgrade
+	NodePatch          = eventsv1.EventType_NodePatch
 	ContainerSetCreate = eventsv1.EventType_ContainerSetCreate
 	ContainerSetDelete = eventsv1.EventType_ContainerSetDelete
 	ContainerSetUpdate = eventsv1.EventType_ContainerSetUpdate
@@ -52,6 +57,7 @@ var ALL = []eventsv1.EventType{
 	TaskList,
 	TaskKill,
 	TaskStop,
+	TaskPatch,
 	NodeGet,
 	NodeCreate,
 	NodeDelete,
@@ -61,6 +67,7 @@ var ALL = []eventsv1.EventType{
 	NodeForget,
 	NodeConnect,
 	NodeUpgrade,
+	NodePatch,
 	ContainerSetCreate,
 	ContainerSetDelete,
 	ContainerSetUpdate,
@@ -82,11 +89,11 @@ type Subscriber interface {
 }
 
 type Publisher interface {
-	Publish(context.Context, eventsv1.EventType, *eventsv1.Event) error
+	Publish(context.Context, *eventsv1.Event) error
 }
 
 type Forwarder interface {
-	Forward(context.Context, eventsv1.EventType, *eventsv1.Event) error
+	Forward(context.Context, *eventsv1.Event) error
 }
 
 type Object protoreflect.ProtoMessage
@@ -97,10 +104,10 @@ func NewRequest(evType eventsv1.EventType, obj Object, labels ...map[string]stri
 	}
 }
 
-func NewEvent(evType eventsv1.EventType, obj Object, labels ...map[string]string) *eventsv1.Event {
+func NewEvent(evType eventsv1.EventType, obj Object, eventLabels ...map[string]string) *eventsv1.Event {
 	// Merge the maps
-	l := map[string]string{}
-	for _, label := range labels {
+	l := labels.New()
+	for _, label := range eventLabels {
 		maps.Copy(l, label)
 	}
 	o, _ := anypb.New(obj)
