@@ -578,6 +578,23 @@
         }
       }
     },
+    "v1Capabilities": {
+      "type": "object",
+      "properties": {
+        "add": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "drop": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "v1Config": {
       "type": "object",
       "properties": {
@@ -616,6 +633,15 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "user": {
+          "type": "string"
+        },
+        "privileged": {
+          "type": "boolean"
+        },
+        "capabilities": {
+          "$ref": "#/definitions/v1Capabilities"
         }
       }
     },
