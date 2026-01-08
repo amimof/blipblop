@@ -64,11 +64,13 @@ func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 				// Setup writer
 				wr := tabwriter.NewWriter(os.Stdout, 8, 8, 8, '\t', tabwriter.AlignRight)
 
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n", "ID", "RESOURCE", "TYPE", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "ID", "RESOURCE", "VERSION", "TYPE", "AGE")
 				for _, event := range events {
 					ver, _ := extractVersionFromAny(event)
-					_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\n",
+					objName := event.GetMeta().GetLabels()["voiyd.io/object-id"]
+					_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n",
 						event.GetMeta().GetName(),
+						objName,
 						ver,
 						event.GetType().String(),
 						cmdutil.FormatDuration(time.Since(event.GetMeta().GetCreated().AsTime())),
