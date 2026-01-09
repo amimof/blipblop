@@ -4,10 +4,12 @@ package nodecontroller
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
 
+	cevents "github.com/containerd/containerd/api/events"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -41,6 +43,7 @@ type Controller struct {
 	logStreamsMu     sync.Mutex
 	node             *nodesv1.Node
 	attacher         volume.Attacher
+	exchange         *events.Exchange
 }
 
 type NewOption func(c *Controller)
@@ -69,8 +72,15 @@ func WithName(s string) NewOption {
 	}
 }
 
+func WithExchange(e *events.Exchange) NewOption {
+	return func(c *Controller) {
+		c.exchange = e
+	}
+}
+
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
+	nodeName := c.node.GetMeta().GetName()
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "node")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
@@ -91,15 +101,21 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TaskStart, c.handleErrors(c.onTaskStart))
 	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
 
-	// Setup log handlers
-	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
-	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
-
-	nodeName := c.node.GetMeta().GetName()
-
 	go func() {
 		for e := range evt {
 			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
+		}
+	}()
+
+	// Handle runtime events
+	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart)
+	c.exchange.On(events.RuntimeTaskExit, c.handleErrors(c.onRuntimeTaskExit))
+	c.exchange.On(events.RuntimeTaskStart, c.handleErrors(c.onRuntimeTaskStart))
+	c.exchange.On(events.RuntimeTaskDelete, c.handleErrors(c.onRuntimeTaskDelete))
+
+	go func() {
+		for e := range runtimeChan {
+			c.logger.Info("node controller received runtime event", "event", e.GetType().String(), "objectID", e.GetObjectId())
 		}
 	}()
 
@@ -174,6 +190,94 @@ func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 		}
 		return err
 	}
+}
+
+func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event) error {
+	var e cevents.TaskStart
+	err := obj.GetObject().UnmarshalTo(&e)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Warn("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+
+	tname, err := c.runtime.Name(ctx, e.GetContainerID())
+	if err != nil {
+		return err
+	}
+
+	nodeName := c.node.GetMeta().GetName()
+
+	return c.clientset.TaskV1().Status().Update(
+		ctx,
+		tname,
+		&tasksv1.Status{
+			Phase:  wrapperspb.String(consts.PHASERUNNING),
+			Status: wrapperspb.String(""),
+			Id:     wrapperspb.String(e.GetContainerID()),
+			Pid:    wrapperspb.UInt32(e.GetPid()),
+			Node:   wrapperspb.String(nodeName),
+		}, "phase", "status", "id", "pid", "node")
+}
+
+func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event) error {
+	var e cevents.TaskExit
+	err := obj.GetObject().UnmarshalTo(&e)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Warn("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
+
+	tname, err := c.runtime.Name(ctx, e.GetContainerID())
+	if err != nil {
+		return err
+	}
+
+	phase := consts.PHASESTOPPED
+	status := ""
+
+	if e.GetExitStatus() > 0 {
+		phase = consts.PHASEEXITED
+		status = fmt.Sprintf("exit status %d", e.GetExitStatus())
+	}
+
+	return c.clientset.TaskV1().Status().Update(
+		ctx,
+		tname,
+		&tasksv1.Status{
+			Phase:  wrapperspb.String(phase),
+			Status: wrapperspb.String(status),
+			Pid:    wrapperspb.UInt32(0),
+			Id:     wrapperspb.String(""),
+			Node:   wrapperspb.String(""),
+		}, "phase", "status", "pid", "id", "node")
+}
+
+func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
+	var e cevents.TaskDelete
+	err := obj.GetObject().UnmarshalTo(&e)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Warn("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+
+	tname, err := c.runtime.Name(ctx, e.GetContainerID())
+	if err != nil {
+		return err
+	}
+
+	return c.clientset.TaskV1().Status().Update(
+		ctx,
+		tname,
+		&tasksv1.Status{
+			Phase:  wrapperspb.String(consts.PHASESTOPPED),
+			Status: wrapperspb.String(""),
+			Id:     wrapperspb.String(""),
+			Pid:    wrapperspb.UInt32(0),
+			Node:   wrapperspb.String(""),
+		}, "phase", "status", "id", "pid", "node")
 }
 
 func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
@@ -337,7 +441,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	return nil
 }
 
-func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onLogStop(_ context.Context, obj *eventsv1.Event) error {
 	s := &logsv1.TailLogRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
 	if err != nil {
@@ -468,14 +572,15 @@ func (c *Controller) onTaskDelete(ctx context.Context, e *eventsv1.Event) error 
 		return err
 	}
 
-	taskID := runtime.ID(task.GetStatus().GetId().GetValue())
+	taskID := task.GetMeta().GetName()
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", task.GetMeta().GetName())
 
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 	err = c.runtime.Delete(ctx, &task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
-			taskID.String(),
+			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
 				Status: wrapperspb.String(err.Error()),
@@ -513,7 +618,7 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 	taskID := task.GetMeta().GetName()
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
 
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 	err = c.runtime.Kill(ctx, &task)
 	if errors.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
@@ -526,20 +631,18 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	err = c.onTaskDelete(ctx, e)
-	if errors.IgnoreNotFound(err) != nil {
+	// Remove any previous tasks ignoring any errors
+	err = c.runtime.Delete(ctx, &task)
+	if err != nil {
+		_ = c.clientset.TaskV1().Status().Update(
+			ctx,
+			taskID,
+			&tasksv1.Status{
+				Phase:  wrapperspb.String(consts.ERRDELETE),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
-
-	_ = c.clientset.TaskV1().Status().Update(
-		ctx,
-		taskID,
-		&tasksv1.Status{
-			Node:   wrapperspb.String(""),
-			Phase:  wrapperspb.String(consts.PHASESTOPPED),
-			Status: wrapperspb.String(""),
-			Id:     wrapperspb.String(""),
-		}, "node", "phase", "status", "id")
 
 	return nil
 }
@@ -562,7 +665,17 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 	_ = c.runtime.Cleanup(ctx, taskID)
 
 	// Remove any previous tasks ignoring any errors
-	_ = c.onTaskDelete(ctx, e)
+	err = c.runtime.Delete(ctx, &task)
+	if err != nil {
+		_ = c.clientset.TaskV1().Status().Update(
+			ctx,
+			taskID,
+			&tasksv1.Status{
+				Phase:  wrapperspb.String(consts.ERRDELETE),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
+		return err
+	}
 
 	// Prepare volumes/mounts
 	if err := c.attacher.PrepareMounts(ctx, c.node, &task); err != nil {
@@ -577,7 +690,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Pull image
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String("pulling")}, "phase")
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASEPULLING)}, "phase")
 	err = c.runtime.Pull(ctx, &task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
@@ -591,6 +704,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Run task
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTARTING)}, "phase")
 	err = c.runtime.Run(ctx, &task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
@@ -603,7 +717,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
+	// _ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
 
 	return nil
 }
@@ -621,12 +735,15 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 	taskID := task.GetMeta().GetName()
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
 
-	// Let everyone know that task is stoping
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String("stopping")}, "phase")
-
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
-	_ = c.runtime.Cleanup(ctx, taskID)
+	err = c.runtime.Cleanup(ctx, taskID)
+	if err != nil {
+		return err
+	}
+
+	// Let everyone know that task is stoping
+	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 
 	// Stop the task
 	err = c.runtime.Stop(ctx, &task)
@@ -641,28 +758,21 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	err = c.onTaskDelete(ctx, e)
-	if errors.IgnoreNotFound(err) != nil {
+	// Remove any previous tasks ignoring any errors
+	err = c.runtime.Delete(ctx, &task)
+	if err != nil {
+		_ = c.clientset.TaskV1().Status().Update(
+			ctx,
+			taskID,
+			&tasksv1.Status{
+				Phase:  wrapperspb.String(consts.ERRDELETE),
+				Status: wrapperspb.String(err.Error()),
+			}, "phase", "status")
 		return err
 	}
 
 	// Detach volumes
-	err = c.attacher.Detach(ctx, c.node, &task)
-	if err != nil {
-		return err
-	}
-
-	_ = c.clientset.TaskV1().Status().Update(
-		ctx,
-		taskID,
-		&tasksv1.Status{
-			Node:   wrapperspb.String(""),
-			Phase:  wrapperspb.String(consts.PHASESTOPPED),
-			Status: wrapperspb.String(""),
-			Id:     wrapperspb.String(""),
-		}, "node", "phase", "status", "id")
-
-	return nil
+	return c.attacher.Detach(ctx, c.node, &task)
 }
 
 // Reconcile ensures that desired tasks matches with tasks

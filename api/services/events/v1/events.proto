@@ -50,6 +50,7 @@ enum EventType {
   TaskList = 6;
   TaskKill = 7;
   TaskStop = 8;
+
   NodeGet = 9;
   NodeCreate = 10;
   NodeDelete = 11;
@@ -60,10 +61,13 @@ enum EventType {
   NodeForget = 16;
   NodeConnect = 17;
   NodeUpgrade = 18;
+
   ContainerSetCreate = 19;
   ContainerSetDelete = 20;
   ContainerSetUpdate = 21;
+
   Schedule = 22;
+
   TailLogsStart = 23;
   TailLogsStop = 24;
 
@@ -73,15 +77,32 @@ enum EventType {
   VolumePatch = 28;
   VolumeGet = 29;
   VolumeList = 30;
-}
 
-enum Operation {
-  Create = 0;
-  Update = 1;
-  Delete = 3;
-  Get = 4;
-  List = 5;
-  Watch = 6;
+  RuntimeTaskExit = 31;
+  RuntimeTaskCreate = 32;
+  RuntimeTaskStart = 33;
+  RuntimeTaskDelete = 34;
+  RuntimeTaskIO = 35;
+  RuntimeTaskOOM = 36;
+  RuntimeTaskExecAdded = 37;
+  RuntimeTaskExecStarted = 38;
+  RuntimeTaskPaused = 39;
+  RuntimeTaskResumed = 40;
+  RuntimeTaskCheckpointed = 41;
+  RuntimeSnapshotPrepare = 42;
+  RuntimeSnapshotCommit = 43;
+  RuntimeSnapshotRemove = 44;
+  RuntimeNamespaceCreate = 45;
+  RuntimeNamespaceUpdate = 46;
+  RuntimeNamespaceDelete = 47;
+  RuntimeImageCreate = 48;
+  RuntimeImageUpdate = 49;
+  RuntimeImageDelete = 50;
+  RuntimeContainerCreate = 51;
+  RuntimeContainerUpdate = 52;
+  RuntimeContainerDelete = 53;
+  RuntimeContentCreate = 54;
+  RuntimeContentDelete = 55;
 }
 
 message GetRequest {

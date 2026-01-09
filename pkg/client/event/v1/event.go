@@ -9,16 +9,18 @@ import (
 	"sync"
 	"time"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/labels"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/util"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/util"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 type ClientV1 struct {

@@ -244,12 +244,10 @@ func TestClearProto(t *testing.T) {
 			name:   "should reset all fields on message",
 			expect: &tasksv1.Status{},
 			message: &tasksv1.Status{
-				Phase: wrapperspb.String("running"),
-				Node:  wrapperspb.String("localhost"),
-				Task: &tasksv1.TaskStatus{
-					Pid:   wrapperspb.UInt32(17778),
-					Error: wrapperspb.String("exit code 0"),
-				},
+				Phase:  wrapperspb.String("running"),
+				Node:   wrapperspb.String("localhost"),
+				Pid:    wrapperspb.UInt32(17778),
+				Status: wrapperspb.String("exit code 0"),
 			},
 		},
 	}
@@ -272,26 +270,20 @@ func TestToFields(t *testing.T) {
 	}{
 		{
 			name:   "should have field paths for wrappers",
-			expect: []string{"phase", "node", "task.pid", "task.error"},
+			expect: []string{"phase", "node", "pid", "status"},
 			message: &tasksv1.Status{
-				Phase: wrapperspb.String("running"),
-				Node:  wrapperspb.String("localhost"),
-				Task: &tasksv1.TaskStatus{
-					Pid:   wrapperspb.UInt32(17778),
-					Error: wrapperspb.String("exit code 0"),
-				},
+				Phase:  wrapperspb.String("running"),
+				Node:   wrapperspb.String("localhost"),
+				Pid:    wrapperspb.UInt32(17778),
+				Status: wrapperspb.String("exit code 0"),
 			},
 		},
 		{
 			name:   "should have field paths for scalars",
-			expect: []string{"node", "ip", "runtime.runtime_version", "runtime.runtime_env"},
+			expect: []string{"node", "ip"},
 			message: &tasksv1.Status{
 				Node: wrapperspb.String("node-01"),
 				Ip:   wrapperspb.String("172.19.1.123"),
-				Runtime: &tasksv1.RuntimeStatus{
-					RuntimeEnv:     "containerd",
-					RuntimeVersion: "v1.7",
-				},
 			},
 		},
 		{

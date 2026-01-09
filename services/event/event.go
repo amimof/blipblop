@@ -5,16 +5,18 @@ import (
 	"context"
 	"errors"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/repository"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 const Version string = "event/v1"

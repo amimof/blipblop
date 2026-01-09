@@ -378,16 +378,11 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 				continue
 			}
 			dst.Status = src.Status
-		case "task.pid":
-			if src.GetTask().Pid == nil {
+		case "pid":
+			if src.Pid == nil {
 				continue
 			}
-			dst.GetTask().Pid = src.GetTask().Pid
-		case "task.error":
-			if src.GetTask().Error == nil {
-				continue
-			}
-			dst.Task.Error = src.Task.Error
+			dst.Pid = src.Pid
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}
@@ -398,6 +393,9 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 
 // UpdateStatus implements containers.TaskServiceClient.
 func (l *local) UpdateStatus(ctx context.Context, req *tasksv1.UpdateStatusRequest, opts ...grpc.CallOption) (*tasksv1.UpdateStatusResponse, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	ctx, span := tracer.Start(ctx, "container.UpdateStatus")
 	defer span.End()
 
