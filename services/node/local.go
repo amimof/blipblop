@@ -45,19 +45,6 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
-func (l *local) Get(ctx context.Context, req *nodes.GetRequest, _ ...grpc.CallOption) (*nodes.GetResponse, error) {
-	ctx, span := tracer.Start(ctx, "node.Get")
-	defer span.End()
-
-	node, err := l.Repo().Get(ctx, req.Id)
-	if err != nil {
-		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
-	}
-	return &nodes.GetResponse{
-		Node: node,
-	}, nil
-}
-
 func merge(base, patch *nodes.Node) *nodes.Node {
 	return protoutils.StrategicMerge(base, patch)
 }
@@ -120,6 +107,19 @@ func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) erro
 	return nil
 }
 
+func (l *local) Get(ctx context.Context, req *nodes.GetRequest, _ ...grpc.CallOption) (*nodes.GetResponse, error) {
+	ctx, span := tracer.Start(ctx, "node.Get")
+	defer span.End()
+
+	node, err := l.Repo().Get(ctx, req.Id)
+	if err != nil {
+		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
+	}
+	return &nodes.GetResponse{
+		Node: node,
+	}, nil
+}
+
 func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.CallOption) (*nodes.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Create")
 	defer span.End()
@@ -165,6 +165,9 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteRequest, _ ...grpc.
 	ctx, span := tracer.Start(ctx, "node.Delete")
 	defer span.End()
 
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	node, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -205,6 +208,9 @@ func (l *local) UpdateStatus(ctx context.Context, req *nodes.UpdateStatusRequest
 	ctx, span := tracer.Start(ctx, "node.UpdateStatus")
 	defer span.End()
 
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	// Get the existing container before updating so we can compare specs
 	existingContainer, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
@@ -234,8 +240,6 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	// Validate request
 
 	updateNode := req.GetNode()
 
@@ -360,6 +364,9 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	ctx, span := tracer.Start(ctx, "node.Join")
 	defer span.End()
 
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	nodeID := req.GetNode().GetMeta().GetName()
 
 	node, err := l.Repo().Get(ctx, nodeID)
@@ -407,6 +414,9 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	ctx, span := tracer.Start(ctx, "node.Forget")
 	defer span.End()
 
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	node, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
 		return nil, err
@@ -438,6 +448,9 @@ func (l *local) Connect(ctx context.Context, opt ...grpc.CallOption) (nodes.Node
 func (l *local) Upgrade(ctx context.Context, req *nodes.UpgradeRequest, _ ...grpc.CallOption) (*nodes.UpgradeResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Upgrade")
 	defer span.End()
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	// Decorate label with some labels
 	eventLabels := labels.New()
