@@ -101,6 +101,10 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TaskStart, c.handleErrors(c.onTaskStart))
 	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
 
+	// Setup log handlers
+	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
+	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
+
 	go func() {
 		for e := range evt {
 			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
