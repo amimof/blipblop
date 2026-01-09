@@ -64,7 +64,7 @@ message Task {
 
 message Status {
   google.protobuf.StringValue phase = 1;
-  google.protobuf.StringValue status = 2;
+  google.protobuf.StringValue reason = 2;
   google.protobuf.StringValue node = 3;
   google.protobuf.StringValue ip = 4;
   google.protobuf.UInt32Value pid = 5;

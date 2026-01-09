@@ -16,9 +16,10 @@ import (
 
 func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "task",
-		Short:   "Delete a task",
-		Long:    "Delete a task",
+		Use:     "tasks NAME [NAME...]",
+		Short:   "Delete one or more tasks",
+		Long:    "Delete one or more tasks",
+		Aliases: []string{"task"},
 		Example: `voiydctl delete task NAME`,
 		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -94,7 +95,7 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 							}
 
 							phase := task.GetStatus().GetPhase().GetValue()
-							status := task.GetStatus().GetStatus().GetValue()
+							status := task.GetStatus().GetReason().GetValue()
 
 							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
 							dash.UpdateDetails(idx, "Status", status)

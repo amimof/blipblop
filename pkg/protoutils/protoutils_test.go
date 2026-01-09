@@ -247,7 +247,7 @@ func TestClearProto(t *testing.T) {
 				Phase:  wrapperspb.String("running"),
 				Node:   wrapperspb.String("localhost"),
 				Pid:    wrapperspb.UInt32(17778),
-				Status: wrapperspb.String("exit code 0"),
+				Reason: wrapperspb.String("exit code 0"),
 			},
 		},
 	}
@@ -275,7 +275,7 @@ func TestToFields(t *testing.T) {
 				Phase:  wrapperspb.String("running"),
 				Node:   wrapperspb.String("localhost"),
 				Pid:    wrapperspb.UInt32(17778),
-				Status: wrapperspb.String("exit code 0"),
+				Reason: wrapperspb.String("exit code 0"),
 			},
 		},
 		{

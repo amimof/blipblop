@@ -15,8 +15,8 @@ import (
 func NewCmdCreateHostLocalVolume(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "host-local NAME",
-		Short: "Create a volume",
-		Long:  "Create a volume",
+		Short: "Create a host-local volume",
+		Long:  "Create a host-local volume",
 		Example: `
 # Create a host-local volume
 voiydctl create volume host-local data01

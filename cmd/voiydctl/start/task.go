@@ -16,10 +16,11 @@ import (
 
 func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "task NAME",
-		Short:   "Start a task",
-		Long:    "Start a task",
+		Use:     "tasks NAME [NAME...]",
+		Short:   "Start one or more tasks",
+		Long:    "Start one or more tasks",
 		Example: `voiydctl start task NAME`,
+		Aliases: []string{"task"},
 		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -93,17 +94,13 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 							phase := task.GetStatus().GetPhase().GetValue()
 							node := task.GetStatus().GetNode().GetValue()
 							id := task.GetStatus().GetId().GetValue()
-							status := task.GetStatus().GetStatus().GetValue()
+							reason := task.GetStatus().GetReason().GetValue()
 
 							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
 							dash.UpdateDetails(idx, "Image", image)
 							dash.UpdateDetails(idx, "Node", node)
 							dash.UpdateDetails(idx, "ID", id)
-							dash.UpdateDetails(idx, "Status", status)
-
-							if status == "" {
-								dash.UpdateDetails(idx, "Status", "OK")
-							}
+							dash.UpdateDetails(idx, "Reason", reason)
 
 							if phase == "running" {
 								dash.DoneMsg(idx, "started successfully")

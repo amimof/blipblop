@@ -20,9 +20,10 @@ import (
 
 func NewCmdGetEvent(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "event",
-		Short:   "Get a events",
-		Long:    "Get a events",
+		Use:     "events NAME [NAME...]",
+		Short:   "Get one or more events",
+		Long:    "Get one or more events",
+		Aliases: []string{"event"},
 		Example: `voiydctl get events`,
 		Args:    cobra.MaximumNArgs(2),
 		PreRunE: func(cmd *cobra.Command, args []string) error {

@@ -217,11 +217,11 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 		tname,
 		&tasksv1.Status{
 			Phase:  wrapperspb.String(consts.PHASERUNNING),
-			Status: wrapperspb.String(""),
+			Reason: wrapperspb.String(""),
 			Id:     wrapperspb.String(e.GetContainerID()),
 			Pid:    wrapperspb.UInt32(e.GetPid()),
 			Node:   wrapperspb.String(nodeName),
-		}, "phase", "status", "id", "pid", "node")
+		}, "phase", "reason", "id", "pid", "node")
 }
 
 func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event) error {
@@ -251,11 +251,11 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		tname,
 		&tasksv1.Status{
 			Phase:  wrapperspb.String(phase),
-			Status: wrapperspb.String(status),
+			Reason: wrapperspb.String(status),
 			Pid:    wrapperspb.UInt32(0),
 			Id:     wrapperspb.String(""),
 			Node:   wrapperspb.String(""),
-		}, "phase", "status", "pid", "id", "node")
+		}, "phase", "reason", "pid", "id", "node")
 }
 
 func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
@@ -277,11 +277,11 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		tname,
 		&tasksv1.Status{
 			Phase:  wrapperspb.String(consts.PHASESTOPPED),
-			Status: wrapperspb.String(""),
+			Reason: wrapperspb.String(""),
 			Id:     wrapperspb.String(""),
 			Pid:    wrapperspb.UInt32(0),
 			Node:   wrapperspb.String(""),
-		}, "phase", "status", "id", "pid", "node")
+		}, "phase", "reason", "id", "pid", "node")
 }
 
 func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
@@ -587,8 +587,8 @@ func (c *Controller) onTaskDelete(ctx context.Context, e *eventsv1.Event) error 
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Status: wrapperspb.String(err.Error()),
-			}, "phase", "status")
+				Reason: wrapperspb.String(err.Error()),
+			}, "phase", "reason")
 		return err
 	}
 	return nil
@@ -630,7 +630,7 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRKILL),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -643,7 +643,7 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -676,7 +676,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -688,7 +688,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERREXEC),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -702,7 +702,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRIMAGEPULL),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -716,7 +716,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERREXEC),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -757,7 +757,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRSTOP),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}
@@ -770,7 +770,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 			taskID,
 			&tasksv1.Status{
 				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Status: wrapperspb.String(err.Error()),
+				Reason: wrapperspb.String(err.Error()),
 			}, "phase", "status")
 		return err
 	}

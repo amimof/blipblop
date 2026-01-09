@@ -238,7 +238,7 @@
             "type": "string"
           },
           {
-            "name": "status.status",
+            "name": "status.reason",
             "in": "query",
             "required": false,
             "type": "string"
@@ -508,7 +508,7 @@
         "phase": {
           "type": "string"
         },
-        "status": {
+        "reason": {
           "type": "string"
         },
         "node": {

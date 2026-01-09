@@ -17,9 +17,10 @@ import (
 
 func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "node",
-		Short:   "Get a nodes",
-		Long:    "Get a nodes",
+		Use:     "nodes NAME [NAME...] ",
+		Short:   "Get one or more nodes",
+		Long:    "Get one or more nodes",
+		Aliases: []string{"node"},
 		Example: `voiydctl get nodes`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -60,13 +61,14 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 				if err != nil {
 					logrus.Fatal(err)
 				}
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "VERSION", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "STATE", "VERSION", "RUNTIME", "AGE")
 				for _, n := range nodes {
-					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\n",
+					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						n.GetMeta().GetName(),
 						n.GetMeta().GetRevision(),
 						n.GetStatus().GetPhase().GetValue(),
 						n.GetStatus().GetVersion().GetValue(),
+						n.GetStatus().GetRuntime().GetValue(),
 						cmdutil.FormatDuration(time.Since(n.GetMeta().GetCreated().AsTime())),
 					)
 				}

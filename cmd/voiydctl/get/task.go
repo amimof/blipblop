@@ -17,10 +17,11 @@ import (
 
 func NewCmdGetTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "task",
-		Short:   "Get a task",
-		Long:    "Get a task",
-		Example: `voiydctl get task`,
+		Use:     "tasks NAME [NAME...]",
+		Short:   "Get one or more tasks",
+		Long:    "Get one or more tasks",
+		Aliases: []string{"task"},
+		Example: `voiydctl get tasks`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -60,17 +61,13 @@ func NewCmdGetTask(cfg *client.Config) *cobra.Command {
 					logrus.Fatal(err)
 				}
 
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "STATUS", "NODE", "AGE")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "REVISION", "PHASE", "REASON", "NODE", "AGE")
 				for _, c := range tasks {
-					status := "OK"
-					if c.GetStatus().GetStatus() != nil && c.GetStatus().GetStatus().GetValue() != "" {
-						status = c.GetStatus().GetStatus().GetValue()
-					}
 					_, _ = fmt.Fprintf(wr, "%s\t%d\t%s\t%s\t%s\t%s\n",
 						c.GetMeta().GetName(),
 						c.GetMeta().GetRevision(),
 						c.GetStatus().GetPhase().GetValue(),
-						status,
+						c.GetStatus().GetReason().GetValue(),
 						c.GetStatus().GetNode().GetValue(),
 						cmdutil.FormatDuration(time.Since(c.GetMeta().GetCreated().AsTime())),
 					)

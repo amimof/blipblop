@@ -377,11 +377,11 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 				continue
 			}
 			dst.Id = src.Id
-		case "status":
-			if src.Status == nil {
+		case "reason":
+			if src.Reason == nil {
 				continue
 			}
-			dst.Status = src.Status
+			dst.Reason = src.Reason
 		case "pid":
 			if src.Pid == nil {
 				continue

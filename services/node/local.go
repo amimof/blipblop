@@ -364,9 +364,6 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	ctx, span := tracer.Start(ctx, "node.Join")
 	defer span.End()
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	nodeID := req.GetNode().GetMeta().GetName()
 
 	node, err := l.Repo().Get(ctx, nodeID)

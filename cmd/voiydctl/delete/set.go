@@ -13,9 +13,10 @@ import (
 
 func NewCmdDeleteContainerSet(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "containerset",
-		Short:   "Delete a containerset",
-		Long:    "Delete a containerset",
+		Use:     "sets NAME [NAME...]",
+		Short:   "Delete one or more containersets",
+		Long:    "Delete one or more containersets",
+		Aliases: []string{"containerset"},
 		Example: `voiydctl delete containerset NAME`,
 		Args:    cobra.MinimumNArgs(1),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
