@@ -270,7 +270,7 @@ func TestToFields(t *testing.T) {
 	}{
 		{
 			name:   "should have field paths for wrappers",
-			expect: []string{"phase", "node", "pid", "status"},
+			expect: []string{"phase", "node", "pid", "reason"},
 			message: &tasksv1.Status{
 				Phase:  wrapperspb.String("running"),
 				Node:   wrapperspb.String("localhost"),
