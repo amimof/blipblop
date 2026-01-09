@@ -46,6 +46,32 @@ const (
 	VolumeUpdate       = eventsv1.EventType_VolumeUpdate
 	VolumeGet          = eventsv1.EventType_VolumeGet
 	VolumeList         = eventsv1.EventType_VolumeList
+
+	RuntimeTaskExit         = eventsv1.EventType_RuntimeTaskExit
+	RuntimeTaskCreate       = eventsv1.EventType_RuntimeTaskCreate
+	RuntimeTaskStart        = eventsv1.EventType_RuntimeTaskStart
+	RuntimeTaskDelete       = eventsv1.EventType_RuntimeTaskDelete
+	RuntimeTaskIO           = eventsv1.EventType_RuntimeTaskIO
+	RuntimeTaskOOM          = eventsv1.EventType_RuntimeTaskOOM
+	RuntimeTaskExecAdded    = eventsv1.EventType_RuntimeTaskExecAdded
+	RuntimeTaskExecStarted  = eventsv1.EventType_RuntimeTaskExecStarted
+	RuntimeTaskPaused       = eventsv1.EventType_RuntimeTaskPaused
+	RuntimeTaskResumed      = eventsv1.EventType_RuntimeTaskResumed
+	RuntimeTaskCheckpointed = eventsv1.EventType_RuntimeTaskCheckpointed
+	RuntimeSnapshotPrepare  = eventsv1.EventType_RuntimeSnapshotPrepare
+	RuntimeSnapshotCommit   = eventsv1.EventType_RuntimeSnapshotCommit
+	RuntimeSnapshotRemove   = eventsv1.EventType_RuntimeSnapshotRemove
+	RuntimeNamespaceCreate  = eventsv1.EventType_RuntimeNamespaceCreate
+	RuntimeNamespaceUpdate  = eventsv1.EventType_RuntimeNamespaceUpdate
+	RuntimeNamespaceDelete  = eventsv1.EventType_RuntimeNamespaceDelete
+	RuntimeImageCreate      = eventsv1.EventType_RuntimeImageCreate
+	RuntimeImageUpdate      = eventsv1.EventType_RuntimeImageUpdate
+	RuntimeImageDelete      = eventsv1.EventType_RuntimeImageDelete
+	RuntimeContainerCreate  = eventsv1.EventType_RuntimeContainerCreate
+	RuntimeContainerUpdate  = eventsv1.EventType_RuntimeContainerUpdate
+	RuntimeContainerDelete  = eventsv1.EventType_RuntimeContainerDelete
+	RuntimeContentCreate    = eventsv1.EventType_RuntimeContentCreate
+	RuntimeContentDelete    = eventsv1.EventType_RuntimeContentDelete
 )
 
 var ALL = []eventsv1.EventType{
@@ -58,6 +84,7 @@ var ALL = []eventsv1.EventType{
 	TaskKill,
 	TaskStop,
 	TaskPatch,
+
 	NodeGet,
 	NodeCreate,
 	NodeDelete,
@@ -68,9 +95,11 @@ var ALL = []eventsv1.EventType{
 	NodeConnect,
 	NodeUpgrade,
 	NodePatch,
+
 	ContainerSetCreate,
 	ContainerSetDelete,
 	ContainerSetUpdate,
+
 	Schedule,
 
 	TailLogsStart,
@@ -81,6 +110,32 @@ var ALL = []eventsv1.EventType{
 	VolumeUpdate,
 	VolumeGet,
 	VolumeList,
+
+	RuntimeTaskExit,
+	RuntimeTaskCreate,
+	RuntimeTaskStart,
+	RuntimeTaskDelete,
+	RuntimeTaskIO,
+	RuntimeTaskOOM,
+	RuntimeTaskExecAdded,
+	RuntimeTaskExecStarted,
+	RuntimeTaskPaused,
+	RuntimeTaskResumed,
+	RuntimeTaskCheckpointed,
+	RuntimeSnapshotPrepare,
+	RuntimeSnapshotCommit,
+	RuntimeSnapshotRemove,
+	RuntimeNamespaceCreate,
+	RuntimeNamespaceUpdate,
+	RuntimeNamespaceDelete,
+	RuntimeImageCreate,
+	RuntimeImageUpdate,
+	RuntimeImageDelete,
+	RuntimeContainerCreate,
+	RuntimeContainerUpdate,
+	RuntimeContainerDelete,
+	RuntimeContentCreate,
+	RuntimeContentDelete,
 }
 
 type Subscriber interface {

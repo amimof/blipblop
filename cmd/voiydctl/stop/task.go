@@ -16,10 +16,11 @@ import (
 
 func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "task NAME",
-		Short:   "Stop a task",
-		Long:    "Stop a task",
+		Use:     "tasks NAME [NAME...]",
+		Short:   "Stop one or more tasks",
+		Long:    "Stop one or more tasks",
 		Example: `voiydctl stop task NAME`,
+		Aliases: []string{"task"},
 		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
@@ -102,10 +103,13 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 							}
 
 							phase := task.GetStatus().GetPhase().GetValue()
-							status := task.GetStatus().GetStatus().GetValue()
+							reason := task.GetStatus().GetReason().GetValue()
 
 							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-							dash.UpdateDetails(idx, "Status", status)
+
+							if reason != "" {
+								dash.UpdateDetails(idx, "Status", reason)
+							}
 
 							if phase == "stopped" {
 								dash.DoneMsg(idx, "stopped successfully")

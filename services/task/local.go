@@ -142,8 +142,6 @@ func (l *local) List(ctx context.Context, req *tasksv1.ListRequest, _ ...grpc.Ca
 	ctx, span := tracer.Start(ctx, "container.List")
 	defer span.End()
 
-	// Validate request
-
 	// Get containers from repo
 	ctrs, err := l.Repo().List(ctx, req.GetSelector())
 	if err != nil {
@@ -157,6 +155,9 @@ func (l *local) List(ctx context.Context, req *tasksv1.ListRequest, _ ...grpc.Ca
 func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grpc.CallOption) (*tasksv1.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Create")
 	defer span.End()
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	task := req.GetTask()
 	task.GetMeta().Created = timestamppb.Now()
@@ -208,6 +209,9 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grpc.CallOption) (*tasksv1.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "container.Delete")
 	defer span.End()
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	task, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
@@ -373,21 +377,16 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 				continue
 			}
 			dst.Id = src.Id
-		case "status":
-			if src.Status == nil {
+		case "reason":
+			if src.Reason == nil {
 				continue
 			}
-			dst.Status = src.Status
-		case "task.pid":
-			if src.GetTask().Pid == nil {
+			dst.Reason = src.Reason
+		case "pid":
+			if src.Pid == nil {
 				continue
 			}
-			dst.GetTask().Pid = src.GetTask().Pid
-		case "task.error":
-			if src.GetTask().Error == nil {
-				continue
-			}
-			dst.Task.Error = src.Task.Error
+			dst.Pid = src.Pid
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}
@@ -398,6 +397,9 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 
 // UpdateStatus implements containers.TaskServiceClient.
 func (l *local) UpdateStatus(ctx context.Context, req *tasksv1.UpdateStatusRequest, opts ...grpc.CallOption) (*tasksv1.UpdateStatusResponse, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	ctx, span := tracer.Start(ctx, "container.UpdateStatus")
 	defer span.End()
 

@@ -3,31 +3,33 @@ package containerdcontroller
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/containerd/containerd/api/events"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	typeurl "github.com/containerd/typeurl/v2"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/amimof/voiyd/pkg/client"
+	voiyd_events "github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/runtime"
-
-	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type Controller struct {
-	client    *containerd.Client
-	clientset *client.ClientSet
-	handlers  *RuntimeHandlerFuncs
-	runtime   runtime.Runtime
-	logger    logger.Logger
+	client   *containerd.Client
+	handlers *RuntimeHandlerFuncs
+	runtime  runtime.Runtime
+	logger   logger.Logger
+	exchange *voiyd_events.Exchange
 }
 
 type NewOption func(*Controller)
+
+func WithExchange(e *voiyd_events.Exchange) NewOption {
+	return func(c *Controller) {
+		c.exchange = e
+	}
+}
 
 func WithLogger(l logger.Logger) NewOption {
 	return func(c *Controller) {
@@ -134,9 +136,6 @@ func (c *Controller) streamEvents(ctx context.Context) error {
 		case <-ctx.Done():
 			if err := c.client.Close(); err != nil {
 				c.logger.Error("error closing runtime client connection", "error", err)
-			}
-			if err := c.clientset.Close(); err != nil {
-				c.logger.Error("error closing clientset connection", "error", err)
 			}
 		}
 	}
@@ -252,233 +251,165 @@ func (c *Controller) HandleEvent(handlers *RuntimeHandlerFuncs, obj any) {
 // onTaskExitHandler is run whenever a container task exits. This is usually a good opportunity to perform
 // cleanup tasks because the task is not yet removed. See deleteHandler for handling deletions.
 func (c *Controller) onTaskExitHandler(e *events.TaskExit) {
-	c.logger.Debug("task exited", "event", "TaskExit", "container", e.GetContainerID(), "execID", e.GetID())
-
-	id := e.GetID()
-	containerID := e.GetContainerID()
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-
-	cName, err := c.runtime.Name(ctx, containerID)
+	ctx := context.Background()
+	c.logger.Debug("runtime task exited", "task", e.GetContainerID(), "status", e.GetExitStatus(), "pid", e.GetPid())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskExit, e))
 	if err != nil {
-		c.logger.Error("error resolving container name", "error", err, "id", containerID)
-		return
-	}
-
-	// TODO: This if-clause is an intermediate fix to prevent receving events for non-init tasks.
-	// For example if a user creates an exec task with tty we would otherwise get that event here.
-	// This isn't bulletproof since in theory the user can give the exec-id the same value as the container id.
-	// rendering this if useless and pontentially dangerous.
-	if id == containerID {
-		ctx := context.Background()
-		ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
-
-		c.logger.Info("tearing down network for container", "id", containerID, "name", cName)
-		err := c.runtime.Cleanup(ctx, cName)
-		if err != nil {
-			c.logger.Error("error running garbage collector in runtime for container", "error", err, "id", containerID, "name", cName)
-		}
-
-		// NOTE: The following update will not work if the task has exited as a result of a container delete event.
-		// In that case the container is already removed from the server, rendering the update method below useless
-		// and will always result in a not found error.
-		st := &tasksv1.Status{
-			Phase:  wrapperspb.String("stopped"),
-			Status: wrapperspb.String(fmt.Sprintf("exit status %d", e.GetExitStatus())),
-			Id:     wrapperspb.String(""),
-		}
-		err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "phase", "status", "id")
-		if err != nil {
-			c.logger.Error("error setting task state", "error", err, "id", containerID, "event", "TaskExit", "name", cName)
-		}
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
 	}
 }
 
 func (c *Controller) onTaskCreateHandler(e *events.TaskCreate) {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-	hostname, _ := os.Hostname()
-
-	containerID := e.GetContainerID()
-
-	cName, err := c.runtime.Name(ctx, containerID)
+	ctx := context.Background()
+	c.logger.Debug("runtime task created", "task", e.GetContainerID(), "pid", e.GetPid())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskCreate, e))
 	if err != nil {
-		c.logger.Error("error resolving container name", "error", err, "id", containerID)
-		return
-	}
-
-	st := &tasksv1.Status{
-		Node:  wrapperspb.String(hostname),
-		Phase: wrapperspb.String("created"),
-		Id:    wrapperspb.String(containerID),
-	}
-
-	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
-	if err != nil {
-		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
 	}
 }
 
 func (c *Controller) onContainerCreateHandler(e *events.ContainerCreate) {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-
-	containerID := e.GetID()
-
-	cName, err := c.runtime.Name(ctx, containerID)
+	ctx := context.Background()
+	c.logger.Debug("runtime container created", "container", e.GetID(), "image", e.GetImage(), "runtime", e.GetRuntime())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeContainerCreate, e))
 	if err != nil {
-		c.logger.Error("error resolving container name", "error", err, "id", containerID)
-		return
-	}
-
-	st := &tasksv1.Status{
-		Phase: wrapperspb.String("creating"),
-		Id:    wrapperspb.String(containerID),
-	}
-
-	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "phase", "id")
-	if err != nil {
-		c.logger.Error("error setting task state", "error", err, "id", e.GetID(), "name", cName, "event", "TaskCreate")
+		c.logger.Error("error emitting event", "error", err, "task", e.GetID(), "eventType", e.String())
 	}
 }
 
 func (c *Controller) onTaskStartHandler(e *events.TaskStart) {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-	containerID := e.GetContainerID()
-
-	cName, err := c.runtime.Name(ctx, containerID)
+	ctx := context.Background()
+	c.logger.Debug("runtime task started", "task", e.GetContainerID(), "pid", e.GetPid())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskStart, e))
 	if err != nil {
-		c.logger.Error("error resolving container name", "error", err, "id", containerID)
-		return
-	}
-
-	hostname, _ := os.Hostname()
-
-	st := &tasksv1.Status{
-		Node:  wrapperspb.String(hostname),
-		Phase: wrapperspb.String("running"),
-		Id:    wrapperspb.String(containerID),
-	}
-
-	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
-	if err != nil {
-		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
 	}
 }
 
 func (c *Controller) onTaskDeleteHandler(e *events.TaskDelete) {
-	c.logger.Debug("task deleted", "event", "TaskDelete", "container", e.GetContainerID(), "pid", e.GetID(), "exitStatus", e.GetExitStatus())
+	ctx := context.Background()
+	c.logger.Debug("runtime task deleted", "task", e.GetContainerID(), "pid", e.GetPid(), "status", e.GetExitStatus())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskDelete, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onTaskIOHandler(e *events.TaskIO) {
-	c.logger.Debug("handler not implemented", "event", "TaskIO")
+	ctx := context.Background()
+	c.logger.Debug("runtime IO in progress", "stdout", e.GetStdout(), "stderr", e.GetStderr(), "stdin", e.GetStdin())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskIO, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "eventType", e.String())
+	}
 }
 
 func (c *Controller) onTaskOOMHandler(e *events.TaskOOM) {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-	containerID := e.GetContainerID()
-
-	cName, err := c.runtime.Name(ctx, containerID)
+	ctx := context.Background()
+	c.logger.Debug("runtime task out-of-memory (OOM)", "task", e.GetContainerID())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskOOM, e))
 	if err != nil {
-		c.logger.Error("error resolving container name", "error", err, "id", containerID)
-		return
-	}
-
-	hostname, _ := os.Hostname()
-
-	st := &tasksv1.Status{
-		Node:  wrapperspb.String(hostname),
-		Phase: wrapperspb.String("oom"),
-		Id:    wrapperspb.String(containerID),
-	}
-
-	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
-	if err != nil {
-		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
 	}
 }
 
 func (c *Controller) onTaskExecAddedHandler(e *events.TaskExecAdded) {
-	c.logger.Debug("task exec added", "event", "TaskExecAdded", "container", e.GetContainerID(), "execID", e.GetExecID())
+	ctx := context.Background()
+	c.logger.Debug("runtime task exec added", "task", e.GetContainerID(), "execID", e.GetExecID())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskExecAdded, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onTaskExecStartedHandler(e *events.TaskExecStarted) {
-	// ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-
-	// st := &containersv1.Status{
-	// 	Phase: wrapperspb.String("running"),
-	// 	Task: &containersv1.TaskStatus{
-	// 		Pid: wrapperspb.UInt32(e.GetPid()),
-	// 	},
-	// }
-	//
-	// err := c.clientset.TaskV1().Status().Update(ctx, e.TaskID, st, "phase", "task.pid")
-	// if err != nil {
-	// 	c.logger.Error("error setting task state", "id", e.TaskID, "event", "TaskExecStarted", "error", err)
-	// }
+	ctx := context.Background()
+	c.logger.Debug("runtime task exec started", "task", e.GetContainerID(), "execID", e.GetExecID(), "pid", e.GetPid())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskExecStarted, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onTaskPausedHandler(e *events.TaskPaused) {
-	ctx := namespaces.WithNamespace(context.Background(), c.runtime.Namespace())
-	containerID := e.GetContainerID()
-
-	cName, err := c.runtime.Name(ctx, containerID)
+	ctx := context.Background()
+	c.logger.Debug("runtime task paused", "task", e.GetContainerID())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskPaused, e))
 	if err != nil {
-		c.logger.Error("error resolving container name", "error", err, "id", containerID)
-		return
-	}
-
-	hostname, _ := os.Hostname()
-
-	st := &tasksv1.Status{
-		Node:  wrapperspb.String(hostname),
-		Phase: wrapperspb.String("paused"),
-		Id:    wrapperspb.String(containerID),
-	}
-
-	err = c.clientset.TaskV1().Status().Update(ctx, cName, st, "node", "phase", "id")
-	if err != nil {
-		c.logger.Error("error setting task state", "error", err, "id", e.GetContainerID(), "name", cName, "event", "TaskCreate")
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
 	}
 }
 
 func (c *Controller) onTaskResumedHandler(e *events.TaskResumed) {
-	c.logger.Debug("handler not implemented", "event", "TaskIO")
+	ctx := context.Background()
+	c.logger.Debug("runtime task resumed", "task", e.GetContainerID())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskResumed, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onTaskCeckpointedHandler(e *events.TaskCheckpointed) {
-	c.logger.Debug("handler not implemented", "event", "TaskIO")
+	ctx := context.Background()
+	c.logger.Debug("runtime task checkpointed", "task", e.GetContainerID(), "checkpoint", e.GetCheckpoint())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeTaskCheckpointed, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "task", e.GetContainerID(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onImageCreateHandler(e *events.ImageCreate) {
-	c.logger.Debug("image created", "event", "ImageCreate", "image", e.GetName(), e.GetLabels)
+	ctx := context.Background()
+	c.logger.Debug("runtime image created", "image", e.GetName())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeImageCreate, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "image", e.GetName(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onSnapshotPrepareHandler(e *events.SnapshotPrepare) {
-	c.logger.Debug("snapshot prepared", "event", "SnapshotPrepare", "snapshotter", e.GetSnapshotter())
+	ctx := context.Background()
+	c.logger.Debug("runtime snapshot prepared", "snapshotter", e.GetSnapshotter())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeSnapshotPrepare, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "snapshotter", e.GetSnapshotter(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onSnapshotCommitHandler(e *events.SnapshotCommit) {
-	c.logger.Debug("snapshot commited", "event", "SnapshotCommit", "snapshotter", e.GetSnapshotter(), "name", e.GetName())
+	ctx := context.Background()
+	c.logger.Debug("runtime snapshot committed", "snapshotter", e.GetSnapshotter())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeSnapshotCommit, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "snapshotter", e.GetSnapshotter(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onSnapshotRemoveHandler(e *events.SnapshotRemove) {
-	c.logger.Debug("snapshot removed", "event", "SnapshotRemove", "snapshotter", e.GetSnapshotter())
+	ctx := context.Background()
+	c.logger.Debug("runtime snapshot removed", "snapshotter", e.GetSnapshotter())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeSnapshotRemove, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "snapshotter", e.GetSnapshotter(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onContentCreateHandler(e *events.ContentCreate) {
-	c.logger.Debug("content created", "event", "ContentCreate", "digest", e.GetDigest(), "size", e.GetSize())
+	ctx := context.Background()
+	c.logger.Debug("runtime snapshot committed", "size", e.GetSize(), "digest", e.GetDigest())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeContentCreate, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "size", e.GetSize(), "digest", e.GetDigest(), "eventType", e.String())
+	}
 }
 
 func (c *Controller) onContentDeleteHandler(e *events.ContentDelete) {
-	c.logger.Debug("content deleted", "event", "ContentDelete", "digest", e.GetDigest())
-}
-
-// Checks to see if c is present in cs
-func contains(cs []*tasksv1.Task, c *tasksv1.Task) bool {
-	for _, container := range cs {
-		if container.GetMeta().GetRevision() == c.GetMeta().GetRevision() && container.GetMeta().GetName() == c.GetMeta().GetName() {
-			return true
-		}
+	ctx := context.Background()
+	c.logger.Debug("runtime content deleted", "digest", e.GetDigest())
+	err := c.exchange.Publish(ctx, voiyd_events.NewEvent(voiyd_events.RuntimeContentDelete, e))
+	if err != nil {
+		c.logger.Error("error emitting event", "error", err, "digest", e.GetDigest(), "eventType", e.String())
 	}
-	return false
 }
 
 // Reconcile ensures that desired containers matches with containers
@@ -486,68 +417,14 @@ func contains(cs []*tasksv1.Task, c *tasksv1.Task) bool {
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
 func (c *Controller) Reconcile(ctx context.Context) error {
-	c.logger.Info("reconciling containers in containerd runtime")
-	// Get containers from the server. Ultimately we want these to match with our runtime
-	clist, err := c.clientset.TaskV1().List(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Get containers from containerd
-	currentTasks, err := c.runtime.List(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Check if there are containers in our runtime that doesn't exist on the server.
-	for _, currentTask := range currentTasks {
-		if !contains(clist, currentTask) {
-
-			containerName := currentTask.GetMeta().GetName()
-
-			c.logger.Info("removing container from runtime since it's not expected to exist", "name", containerName)
-			err := c.runtime.Kill(ctx, currentTask)
-			if err != nil {
-				c.logger.Error("error stopping container", "error", err, "name", containerName)
-			}
-
-			err = c.runtime.Delete(ctx, currentTask)
-			if err != nil {
-				c.logger.Error("error deleting container", "error", err, "name", containerName)
-			}
-		}
-	}
-
-	// Check if  there are containers on the server that doesn't exist in our runtime
-	for _, task := range clist {
-		if !contains(currentTasks, task) {
-
-			containerName := task.GetMeta().GetName()
-
-			c.logger.Info("creating container in runtime since it's expected to exist", "name", containerName)
-
-			err := c.runtime.Pull(ctx, task)
-			if err != nil {
-				c.logger.Error("error pulling image", "error", err, "container", containerName)
-			}
-
-			err = c.runtime.Run(ctx, task)
-			if err != nil {
-				c.logger.Error("error running container", "error", err, "name", containerName)
-			}
-
-		}
-	}
-
 	return nil
 }
 
-func New(cs *client.ClientSet, client *containerd.Client, rt runtime.Runtime, opts ...NewOption) *Controller {
+func New(client *containerd.Client, rt runtime.Runtime, opts ...NewOption) *Controller {
 	eh := &Controller{
-		client:    client,
-		clientset: cs,
-		runtime:   rt,
-		logger:    logger.ConsoleLogger{},
+		client:  client,
+		runtime: rt,
+		logger:  logger.ConsoleLogger{},
 	}
 
 	handlers := &RuntimeHandlerFuncs{

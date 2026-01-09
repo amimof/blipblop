@@ -19,10 +19,11 @@ import (
 
 func NewCmdGetVolume(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "volume",
-		Short:   "Get a volume",
-		Long:    "Get a volume",
-		Example: `voiydctl get volume`,
+		Use:     "volumes NAME [NAME...]",
+		Short:   "Get one or more volumes",
+		Long:    "Get one or more volumes",
+		Aliases: []string{"volume"},
+		Example: `voiydctl get volumes`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {

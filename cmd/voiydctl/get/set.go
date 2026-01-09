@@ -17,9 +17,10 @@ import (
 
 func NewCmdGetContainerSet(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "containerset",
-		Short:   "Get a containerset",
-		Long:    "Get a containerset",
+		Use:     "sets NAME [NAME...]",
+		Short:   "Get one or more containersets",
+		Long:    "Get one or more containersets",
+		Aliases: []string{"set"},
 		Example: `voiydctl get containerset`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {

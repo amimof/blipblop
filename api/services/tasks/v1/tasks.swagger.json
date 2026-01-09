@@ -238,7 +238,7 @@
             "type": "string"
           },
           {
-            "name": "status.status",
+            "name": "status.reason",
             "in": "query",
             "required": false,
             "type": "string"
@@ -256,61 +256,11 @@
             "type": "string"
           },
           {
-            "name": "status.task.pid",
+            "name": "status.pid",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int64"
-          },
-          {
-            "name": "status.task.exitCode",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int64"
-          },
-          {
-            "name": "status.task.exitTime",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
-          },
-          {
-            "name": "status.task.error",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status.runtime.runtimeEnv",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status.runtime.runtimeVersion",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status.runtime.stdoutPath",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status.runtime.stderrPath",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "status.runtime.taskId",
-            "in": "query",
-            "required": false,
-            "type": "string"
           },
           {
             "name": "status.id",
@@ -558,7 +508,7 @@
         "phase": {
           "type": "string"
         },
-        "status": {
+        "reason": {
           "type": "string"
         },
         "node": {
@@ -567,11 +517,9 @@
         "ip": {
           "type": "string"
         },
-        "task": {
-          "$ref": "#/definitions/v1TaskStatus"
-        },
-        "runtime": {
-          "$ref": "#/definitions/v1RuntimeStatus"
+        "pid": {
+          "type": "integer",
+          "format": "int64"
         },
         "id": {
           "type": "string"
@@ -746,26 +694,6 @@
         }
       }
     },
-    "v1RuntimeStatus": {
-      "type": "object",
-      "properties": {
-        "runtimeEnv": {
-          "type": "string"
-        },
-        "runtimeVersion": {
-          "type": "string"
-        },
-        "stdoutPath": {
-          "type": "string"
-        },
-        "stderrPath": {
-          "type": "string"
-        },
-        "taskId": {
-          "type": "string"
-        }
-      }
-    },
     "v1StartResponse": {
       "type": "object",
       "properties": {
@@ -788,26 +716,6 @@
         },
         "status": {
           "$ref": "#/definitions/tasksv1Status"
-        }
-      }
-    },
-    "v1TaskStatus": {
-      "type": "object",
-      "properties": {
-        "pid": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "exitCode": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "exitTime": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "error": {
-          "type": "string"
         }
       }
     },

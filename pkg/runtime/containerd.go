@@ -410,30 +410,20 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, t *tasksv1.Task) error {
 	}
 
 	// Attempt gracefull shutdown
-	if err = task.Kill(ctx, syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to kill task gracefully %w", err)
+	if err := task.Kill(ctx, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("failed to send SIGTERM: %w", err)
 	}
 
-	timeoutChan := make(chan error)
-	timer := time.AfterFunc(time.Second*30, func() {
-		timeoutChan <- task.Kill(ctx, syscall.SIGQUIT)
-	})
-
-	// Wait for task to stop. Stop forcefully if timeout occurs
 	select {
 	case exitStatus := <-waitChan:
-		timer.Stop()
-		err = exitStatus.Error()
-		if err != nil {
-			return fmt.Errorf("failed to get exit status from task %w", err)
+		if err := exitStatus.Error(); err != nil {
+			return fmt.Errorf("failed to get exit status from task: %w", err)
 		}
-	case err = <-timeoutChan:
-		if err != nil {
-			return fmt.Errorf("got error waiting for tsk to finish %w", err)
-		}
+	case <-time.After(30 * time.Second):
+		return fmt.Errorf("timed out waiting for task to stop")
 	}
 
-	// Delete the task
+	// Delete the task after successfull wait-stop
 	if _, err := task.Delete(ctx); err != nil {
 		return err
 	}
@@ -566,13 +556,14 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 
 	// Setup networking
 	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
-	err = c.cni.Attach(ctx, cont.ID(), task.Pid(), attachOpts...)
+
+	// Start the  task
+	err = task.Start(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Start the  task
-	err = task.Start(ctx)
+	err = c.cni.Attach(ctx, cont.ID(), task.Pid(), attachOpts...)
 	if err != nil {
 		return err
 	}
@@ -629,6 +620,7 @@ func (c *ContainerdRuntime) ID(ctx context.Context, id string) (string, error) {
 }
 
 func (c *ContainerdRuntime) Name(ctx context.Context, id string) (string, error) {
+	ctx = namespaces.WithNamespace(ctx, c.Namespace())
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Name")
 	defer span.End()
 

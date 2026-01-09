@@ -64,27 +64,11 @@ message Task {
 
 message Status {
   google.protobuf.StringValue phase = 1;
-  google.protobuf.StringValue status = 2;
+  google.protobuf.StringValue reason = 2;
   google.protobuf.StringValue node = 3;
   google.protobuf.StringValue ip = 4;
-  TaskStatus task = 5;
-  RuntimeStatus runtime = 6;
-  google.protobuf.StringValue id = 7;
-}
-
-message TaskStatus {
-  google.protobuf.UInt32Value pid = 1;
-  google.protobuf.UInt32Value exit_code = 2;
-  google.protobuf.Timestamp exit_time = 3;
-  google.protobuf.StringValue error = 4;
-}
-
-message RuntimeStatus {
-  string runtime_env = 1;
-  string runtime_version = 2;
-  string stdout_path = 3;
-  string stderr_path = 4;
-  string task_id = 5;
+  google.protobuf.UInt32Value pid = 5;
+  google.protobuf.StringValue id = 8;
 }
 
 message Config {

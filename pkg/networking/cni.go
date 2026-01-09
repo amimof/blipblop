@@ -317,7 +317,6 @@ func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
 	// Initialize CNI library
 	cni, err := gocni.New(
 		newOpts...,
-	// m.cniOpts...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing cni: %w", err)

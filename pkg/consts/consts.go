@@ -20,7 +20,12 @@ const (
 	PHASEPROVISIONED = "provisioned"
 	PHASEPDETACHED   = "detached"
 	PHASEATTACHED    = "attached"
+	PHASEEXITED      = "exited"
+	PHASEPULLING     = "pulling"
+	PHASESTARTING    = "starting"
 
 	PHASEUPGRADING   = "upgrading"
 	PHASEDOWNLOADING = "downloading"
+	PHASESTOPPING    = "stopping"
+	PHASEDELETING    = "deleting"
 )

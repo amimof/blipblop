@@ -15,9 +15,10 @@ var purge bool
 
 func NewCmdDeleteVolume(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:   "volume NAME",
-		Short: "Delete a volume",
-		Long:  "Delete a volume",
+		Use:     "volumes NAME [NAME...]",
+		Short:   "Delete one or more volumes",
+		Long:    "Delete one or more volumes",
+		Aliases: []string{"volume"},
 		Example: `
 # Delete the volume data01 and purge all content  
 voiydctl delete volume data01 --purge`,

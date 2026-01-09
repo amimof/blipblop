@@ -2,6 +2,7 @@ package delete
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/sirupsen/logrus"
@@ -11,11 +12,11 @@ import (
 
 func NewCmdDeleteNode(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "node",
-		Short:   "Delete a node",
-		Long:    "Delete a node",
+		Use:     "node NAME [NAME...]",
+		Short:   "Delete one or more nodes",
+		Long:    "Delete one or more nodes",
 		Example: `voiydctl delete node NAME`,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
@@ -41,16 +42,16 @@ func NewCmdDeleteNode(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
-			cname := args[0]
-			ctr, err := c.NodeV1().Get(ctx, cname)
-			if err != nil {
-				logrus.Fatal(err)
+			for _, tname := range args {
+				err = c.NodeV1().Delete(ctx, tname)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				fmt.Printf("Requested to delete node %s\n", tname)
 			}
-			err = c.NodeV1().Delete(context.Background(), ctr.GetMeta().GetName())
-			if err != nil {
-				logrus.Fatal(err)
-			}
-			logrus.Infof("request to delete node %s successful", ctr.GetMeta().GetName())
 		},
 	}
 

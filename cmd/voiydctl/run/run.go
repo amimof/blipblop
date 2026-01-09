@@ -150,17 +150,13 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						phase := task.GetStatus().GetPhase().GetValue()
 						node := task.GetStatus().GetNode().GetValue()
 						id := task.GetStatus().GetId().GetValue()
-						status := task.GetStatus().GetStatus().GetValue()
+						reason := task.GetStatus().GetReason().GetValue()
 
 						dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
 						dash.UpdateDetails(idx, "Image", image)
 						dash.UpdateDetails(idx, "Node", node)
 						dash.UpdateDetails(idx, "ID", id)
-						dash.UpdateDetails(idx, "Status", status)
-
-						if status == "" {
-							dash.UpdateDetails(idx, "Status", "OK")
-						}
+						dash.UpdateDetails(idx, "Reason", reason)
 
 						if phase == "running" {
 							dash.DoneMsg(idx, "started successfully")

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/amimof/voiyd/pkg/events"
 	rt "github.com/amimof/voiyd/pkg/runtime"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
@@ -232,6 +233,9 @@ func main() {
 		return
 	}
 
+	// Setup event exchange bus
+	exchange := events.NewExchange(events.WithExchangeLogger(log))
+
 	// Setup and run controllers
 	runtime := rt.NewContainerdRuntimeClient(
 		cclient,
@@ -244,10 +248,10 @@ func main() {
 
 	// Containerd runtime controller
 	containerdCtrl := containerdctrl.New(
-		clientSet,
 		cclient,
 		runtime,
 		containerdctrl.WithLogger(log),
+		containerdctrl.WithExchange(exchange),
 	)
 	go containerdCtrl.Run(ctx)
 	log.Info("started containerd controller")
@@ -257,6 +261,7 @@ func main() {
 		clientSet,
 		nodeCfg,
 		runtime,
+		nodectrl.WithExchange(exchange),
 		nodectrl.WithLogger(log),
 		nodectrl.WithVolumeAttacher(volume.NewDefaultAttacher(clientSet.VolumeV1())),
 	)

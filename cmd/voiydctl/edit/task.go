@@ -21,9 +21,10 @@ import (
 
 func NewCmdEditContainer(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "task NAME",
+		Use:     "tasks NAME",
 		Short:   "Edit a task",
 		Long:    "Edit a task",
+		Aliases: []string{"task"},
 		Example: `voiydctl edit task NAME`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
