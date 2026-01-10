@@ -1,19 +1,12 @@
-name: Release
+name: Build & Upload
 
 on:
   push:
-    tags:
-      - "v*"
-    branches:
-      - "master"
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    branches: [master]
 
 jobs:
-  releases:
-    if: startsWith(github.ref, 'refs/tags/v')
+  upload:
+    if: github.head_ref == 'master'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +15,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.24.3
+          cache: true
 
       - name: Build Server Binaries
         run: |
@@ -29,6 +23,7 @@ jobs:
           GOOS=linux GOARCH=arm BINARY_NAME=voiyd-server-linux-arm make server
           GOOS=linux GOARCH=arm64 BINARY_NAME=voiyd-server-linux-arm64 make server
           GOOS=windows GOARCH=amd64 BINARY_NAME=voiyd-server-windows-amd64.exe make server
+          GOOS=windows GOARCH=arm64 BINARY_NAME=voiyd-server-windows-arm64.exe make server
           GOOS=darwin GOARCH=amd64 BINARY_NAME=voiyd-server-darwin-amd64 make server
           GOOS=darwin GOARCH=arm64 BINARY_NAME=voiyd-server-darwin-arm64 make server
 
@@ -44,50 +39,48 @@ jobs:
           GOOS=linux GOARCH=arm BINARY_NAME=voiydctl-linux-arm make voiydctl
           GOOS=linux GOARCH=arm64 BINARY_NAME=voiydctl-linux-arm64 make voiydctl
           GOOS=windows GOARCH=amd64 BINARY_NAME=voiydctl-windows-amd64.exe make voiydctl
+          GOOS=windows GOARCH=arm64 BINARY_NAME=voiydctl-windows-arm64.exe make voiydctl
           GOOS=darwin GOARCH=amd64 BINARY_NAME=voiydctl-darwin-amd64 make voiydctl
           GOOS=darwin GOARCH=arm64 BINARY_NAME=voiydctl-darwin-arm64 make voiydctl
 
-      - name: Create Release
-        uses: ncipollo/release-action@v1
+      - name: Upload linux server binaries
+        uses: actions/upload-artifact@v6
         with:
-          draft: true
-          artifacts: "./bin/*"
+          name: voiyd-server-linux-master
+          path: ./bin/voiyd-server-linux-*
 
-  packages:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@326560df218a7ea9cf6ab49bbc88b8b306bb437e
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@6d5347c4025fdf2bb05167a2519cac535a14a408
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Upload windows server binaries
+        uses: actions/upload-artifact@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          name: voiyd-server-windows-master
+          path: ./bin/voiyd-server-windows-*
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      - name: Upload darwin server binaries
+        uses: actions/upload-artifact@v6
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          name: voiyd-server-darwin-master
+          path: ./bin/voiyd-server-darwin-*
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Upload linux node binaries
+        uses: actions/upload-artifact@v6
         with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          name: voiyd-node-linux-master
+          path: ./bin/voiyd-node-linux-*
+
+      - name: Upload linux CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiydctl-linux-master
+          path: ./bin/voiydctl-linux-*
+
+      - name: Upload windows CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiydctl-windows-master
+          path: ./bin/voiydctl-windows-*
+
+      - name: Upload darwin CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiydctl-darwin-master
+          path: ./bin/voiydctl-darwin-*

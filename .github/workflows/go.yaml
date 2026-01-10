@@ -15,7 +15,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.24
+          go-version: 1.24.3
+          cache: true
 
       - name: Pre-download modules
         run: go mod download
@@ -32,7 +33,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.24
+          go-version: 1.24.3
+          cache: true
 
       - name: Lint
         run: make lint
@@ -47,7 +49,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.24
+          go-version: 1.24.3
+          cache: true
 
       - name: Test
         run: make test
@@ -67,15 +70,18 @@ jobs:
         with:
           name: coverage-html
           path: ./test/coverage.html
+
   build:
     runs-on: ubuntu-24.04
+    if: github.head_ref != 'master'
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.24
+          go-version: 1.24.3
+          cache: true
 
       - name: Compile Server
         run: make server
@@ -84,7 +90,8 @@ jobs:
       - name: Compile CLI
         run: make voiydctl
 
-      - uses: actions/upload-artifact@v6
+      - name: Upload binaries
+        uses: actions/upload-artifact@v6
         with:
           name: build-artifacts
           path: ./bin/*
