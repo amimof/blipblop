@@ -1,0 +1,84 @@
+name: Build & Upload
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.3
+
+      - name: Build Server Binaries
+        run: |
+          GOOS=linux GOARCH=amd64 BINARY_NAME=voiyd-server-linux-amd64 make server
+          GOOS=linux GOARCH=arm BINARY_NAME=voiyd-server-linux-arm make server
+          GOOS=linux GOARCH=arm64 BINARY_NAME=voiyd-server-linux-arm64 make server
+          GOOS=windows GOARCH=amd64 BINARY_NAME=voiyd-server-windows-amd64.exe make server
+          GOOS=windows GOARCH=arm64 BINARY_NAME=voiyd-server-windows-arm64.exe make server
+          GOOS=darwin GOARCH=amd64 BINARY_NAME=voiyd-server-darwin-amd64 make server
+          GOOS=darwin GOARCH=arm64 BINARY_NAME=voiyd-server-darwin-arm64 make server
+
+      - name: Build Node Binaries
+        run: |
+          GOOS=linux GOARCH=amd64 BINARY_NAME=voiyd-node-linux-amd64 make node
+          GOOS=linux GOARCH=arm BINARY_NAME=voiyd-node-linux-arm make node
+          GOOS=linux GOARCH=arm64 BINARY_NAME=voiyd-node-linux-arm64 make node
+
+      - name: Build CLI Binaries
+        run: |
+          GOOS=linux GOARCH=amd64 BINARY_NAME=voiydctl-linux-amd64 make voiydctl
+          GOOS=linux GOARCH=arm BINARY_NAME=voiydctl-linux-arm make voiydctl
+          GOOS=linux GOARCH=arm64 BINARY_NAME=voiydctl-linux-arm64 make voiydctl
+          GOOS=windows GOARCH=amd64 BINARY_NAME=voiydctl-windows-amd64.exe make voiydctl
+          GOOS=windows GOARCH=arm64 BINARY_NAME=voiydctl-windows-arm64.exe make voiydctl
+          GOOS=darwin GOARCH=amd64 BINARY_NAME=voiydctl-darwin-amd64 make voiydctl
+          GOOS=darwin GOARCH=arm64 BINARY_NAME=voiydctl-darwin-arm64 make voiydctl
+
+      - name: Upload linux server binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiyd-server-linux-master
+          path: ./bin/voiyd-server-linux-*
+
+      - name: Upload windows server binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiyd-server-windows-master
+          path: ./bin/voiyd-server-windows-*
+
+      - name: Upload darwin server binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiyd-server-darwin-master
+          path: ./bin/voiyd-server-darwin-*
+
+      - name: Upload linux node binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiyd-node-linux-master
+          path: ./bin/voiyd-node-linux-*
+
+      - name: Upload linux CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiydctl-linux-master
+          path: ./bin/voiydctl-linux-*
+
+      - name: Upload windows CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiydctl-windows-master
+          path: ./bin/voiydctl-windows-*
+
+      - name: Upload darwin CLI binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: voiydctl-darwin-master
+          path: ./bin/voiydctl-darwin-*
