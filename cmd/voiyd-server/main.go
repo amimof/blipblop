@@ -37,6 +37,7 @@ import (
 	"github.com/amimof/voiyd/pkg/server"
 	"github.com/amimof/voiyd/services/containerset"
 	"github.com/amimof/voiyd/services/event"
+	"github.com/amimof/voiyd/services/lease"
 	logsvc "github.com/amimof/voiyd/services/log"
 	"github.com/amimof/voiyd/services/node"
 	"github.com/amimof/voiyd/services/task"
@@ -282,6 +283,12 @@ func main() {
 		volume.WithExchange(exchange),
 	)
 
+	leaseService := lease.NewService(
+		repository.NewLeaseBadgerRepository(db),
+		lease.WithLogger(log),
+		lease.WithExchange(exchange),
+	)
+
 	// Context
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -310,7 +317,15 @@ func main() {
 	}
 
 	// Register services to gRPC server
-	err = s.RegisterService(eventService, nodeService, containerSetService, taskService, logService, volumeService)
+	err = s.RegisterService(
+		eventService,
+		nodeService,
+		containerSetService,
+		taskService,
+		logService,
+		volumeService,
+		leaseService,
+	)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)

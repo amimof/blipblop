@@ -9,6 +9,7 @@ import (
 
 	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
@@ -53,4 +54,12 @@ type VolumeRepository interface {
 	Delete(context.Context, string) error
 	List(context.Context, ...labels.Label) ([]*volumesv1.Volume, error)
 	Update(context.Context, *volumesv1.Volume) error
+}
+
+type LeaseRepository interface {
+	Create(context.Context, *leasesv1.Lease) error
+	Get(context.Context, string) (*leasesv1.Lease, error)
+	Delete(context.Context, string) error
+	List(context.Context) ([]*leasesv1.Lease, error)
+	Update(context.Context, *leasesv1.Lease) error
 }
