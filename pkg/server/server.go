@@ -21,8 +21,7 @@ func init() {
 type Server struct {
 	grpcOpts   []grpc.ServerOption
 	grpcServer *grpc.Server
-	// addr       *string
-	logger logger.Logger
+	logger     logger.Logger
 }
 
 type NewServerOption func(*Server)

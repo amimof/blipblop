@@ -21,6 +21,7 @@ import (
 
 	containersetv1 "github.com/amimof/voiyd/pkg/client/containerset/v1"
 	eventv1 "github.com/amimof/voiyd/pkg/client/event/v1"
+	leasev1 "github.com/amimof/voiyd/pkg/client/lease/v1"
 	logv1 "github.com/amimof/voiyd/pkg/client/log/v1"
 	nodev1 "github.com/amimof/voiyd/pkg/client/node/v1"
 	taskv1 "github.com/amimof/voiyd/pkg/client/task/v1"
@@ -139,6 +140,7 @@ type ClientSet struct {
 	eventV1Client        *eventv1.ClientV1
 	logV1Client          *logv1.ClientV1
 	volumeV1Client       volumev1.ClientV1
+	leaseV1Client        leasev1.ClientV1
 	mu                   sync.Mutex
 	grpcOpts             []grpc.DialOption
 	tlsConfig            *tls.Config
@@ -168,6 +170,10 @@ func (c *ClientSet) LogV1() *logv1.ClientV1 {
 
 func (c *ClientSet) VolumeV1() volumev1.ClientV1 {
 	return c.volumeV1Client
+}
+
+func (c *ClientSet) LeaseV1() leasev1.ClientV1 {
+	return c.leaseV1Client
 }
 
 func (c *ClientSet) State() connectivity.State {
@@ -253,6 +259,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientID)
 	c.logV1Client = logv1.NewClientV1(conn)
 	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.clientID)
+	c.leaseV1Client = leasev1.NewClientV1WithConn(conn, c.clientID)
 
 	return c, nil
 }
