@@ -26,8 +26,8 @@ type local struct {
 	exchange *events.Exchange
 	logger   logger.Logger
 
-	gracePeriod    time.Duration // 30s
-	maxReschedules uint32        // 3
+	gracePeriod time.Duration // 30s
+	// maxReschedules uint32        // 3
 }
 
 var (
