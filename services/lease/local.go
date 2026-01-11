@@ -121,7 +121,7 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 		}, nil
 	}
 
-	return nil, nil
+	return nil, status.Error(codes.Aborted, "lease expired beyond grace period")
 }
 
 func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...grpc.CallOption) (*leasesv1.ReleaseResponse, error) {

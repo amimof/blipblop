@@ -72,7 +72,7 @@ func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string) (bool, erro
 
 func (c *clientV1) Release(ctx context.Context, taskID, nodeID string) error {
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.lease.Patch")
+	ctx, span := tracer.Start(ctx, "client.lease.Release")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)

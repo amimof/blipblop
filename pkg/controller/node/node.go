@@ -4,6 +4,7 @@ package nodecontroller
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -21,7 +22,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/consts"
-	"github.com/amimof/voiyd/pkg/errors"
+	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/runtime"
@@ -661,7 +662,7 @@ func (c *Controller) onTaskUpdate(ctx context.Context, e *eventsv1.Event) error 
 	defer span.End()
 
 	err := c.onTaskStop(ctx, e)
-	if errors.IgnoreNotFound(err) != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 	err = c.onTaskStart(ctx, e)
@@ -686,7 +687,7 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 	err = c.runtime.Kill(ctx, &task)
-	if errors.IgnoreNotFound(err) != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
 			taskID,
@@ -736,7 +737,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 
 	if !leaseResp {
 		c.logger.Warn("lease held by another node", "task", taskID)
-		return fmt.Errorf("lease held by another another", "")
+		return errors.New("lease held by another another")
 	}
 
 	c.logger.Info("acquired lease for task", "task", taskID, "node", nodeID)
@@ -828,7 +829,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 
 	// Stop the task
 	err = c.runtime.Stop(ctx, &task)
-	if errors.IgnoreNotFound(err) != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
 			taskID,
