@@ -49,12 +49,12 @@ func (l *local) Get(ctx context.Context, req *leasesv1.GetRequest, _ ...grpc.Cal
 	ctx, span := tracer.Start(ctx, "lease.Get")
 	defer span.End()
 
-	container, err := l.Repo().Get(ctx, req.GetId())
+	lease, err := l.Repo().Get(ctx, req.GetId())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
+		return nil, l.handleError(err, "couldn't GET lease from repo", "name", req.GetId())
 	}
 	return &leasesv1.GetResponse{
-		Lease: container,
+		Lease: lease,
 	}, nil
 }
 
@@ -64,7 +64,7 @@ func (l *local) List(ctx context.Context, req *leasesv1.ListRequest, _ ...grpc.C
 
 	ctrs, err := l.Repo().List(ctx)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't LIST containers from repo")
+		return nil, l.handleError(err, "couldn't LIST leases from repo")
 	}
 	return &leasesv1.ListResponse{
 		Leases: ctrs,
@@ -72,21 +72,24 @@ func (l *local) List(ctx context.Context, req *leasesv1.ListRequest, _ ...grpc.C
 }
 
 func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...grpc.CallOption) (*leasesv1.AcquireResponse, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	// Check if lease already exists
-	existing, err := l.repo.Get(ctx, req.TaskId)
+	existing, err := l.repo.Get(ctx, req.GetTaskId())
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 
 			// Create new lease
 			lease := &leasesv1.Lease{
-				TaskId:          req.TaskId,
-				NodeId:          req.NodeId,
-				AcquiredAt:      timestamppb.Now(),
-				RenewTime:       timestamppb.Now(),
-				ExpiresAt:       timestamppb.New(time.Now().Add(time.Duration(req.TtlSeconds) * time.Second)),
-				TtlSeconds:      req.TtlSeconds,
-				RescheduleCount: existing.RescheduleCount, // Preserve counter
-				OriginalNode:    existing.OriginalNode,
+				TaskId:     req.TaskId,
+				NodeId:     req.NodeId,
+				AcquiredAt: timestamppb.Now(),
+				RenewTime:  timestamppb.Now(),
+				ExpiresAt:  timestamppb.New(time.Now().Add(time.Duration(req.TtlSeconds) * time.Second)),
+				TtlSeconds: req.TtlSeconds,
+				// RescheduleCount: existing.RescheduleCount, // Preserve counter
+				// OriginalNode: existing.OriginalNode,
 			}
 			err = l.repo.Create(ctx, lease)
 			if err != nil {
@@ -140,10 +143,6 @@ func (l *local) Renew(ctx context.Context, req *leasesv1.RenewRequest, _ ...grpc
 	lease, err := l.renew(ctx, req.GetTaskId(), req.GetNodeId())
 	if err != nil {
 		return &leasesv1.RenewResponse{Renewed: false}, err
-	}
-	err = l.repo.Update(ctx, lease)
-	if err != nil {
-		return nil, err
 	}
 	return &leasesv1.RenewResponse{Renewed: true, Lease: lease}, nil
 }

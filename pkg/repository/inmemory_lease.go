@@ -23,9 +23,9 @@ func NewLeaseInMemRepo() LeaseRepository {
 func (i *leaseInMemRepo) List(ctx context.Context) ([]*leasesv1.Lease, error) {
 	var c []*leasesv1.Lease
 	for _, key := range i.cache.ListKeys() {
-		container, _ := i.Get(ctx, key)
-		if container != nil {
-			c = append(c, container)
+		lease, _ := i.Get(ctx, key)
+		if lease != nil {
+			c = append(c, lease)
 		}
 	}
 	return c, nil
@@ -39,8 +39,8 @@ func (i *leaseInMemRepo) Get(ctx context.Context, key string) (*leasesv1.Lease, 
 	return item.Value.(*leasesv1.Lease), nil
 }
 
-func (i *leaseInMemRepo) Create(ctx context.Context, container *leasesv1.Lease) error {
-	i.cache.Set(container.GetMeta().GetName(), container)
+func (i *leaseInMemRepo) Create(ctx context.Context, task *leasesv1.Lease) error {
+	i.cache.Set(task.GetMeta().GetName(), task)
 	return nil
 }
 
@@ -49,7 +49,7 @@ func (i *leaseInMemRepo) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func (i *leaseInMemRepo) Update(ctx context.Context, container *leasesv1.Lease) error {
-	i.cache.Set(container.GetMeta().GetName(), container)
+func (i *leaseInMemRepo) Update(ctx context.Context, lease *leasesv1.Lease) error {
+	i.cache.Set(lease.GetMeta().GetName(), lease)
 	return nil
 }

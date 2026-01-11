@@ -48,6 +48,7 @@ voiydctl get nodes
 	getCmd.AddCommand(NewCmdGetTask(&cfg))
 	getCmd.AddCommand(NewCmdGetContainerSet(&cfg))
 	getCmd.AddCommand(NewCmdGetVolume(&cfg))
+	getCmd.AddCommand(NewCmdGetLease(&cfg))
 
 	return getCmd
 }

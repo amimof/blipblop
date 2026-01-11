@@ -28,8 +28,8 @@ func WithClient(client leasesv1.LeaseServiceClient) CreateOption {
 }
 
 type ClientV1 interface {
-	Acquire(context.Context, string, string, uint32, ...CreateOption) error
-	Renew(context.Context, string, string) error
+	Acquire(context.Context, string, string, uint32, ...CreateOption) (bool, error)
+	Renew(context.Context, string, string) (bool, error)
 	Release(context.Context, string, string) error
 	Get(context.Context, string) (*leasesv1.Lease, error)
 	List(context.Context, ...labels.Label) ([]*leasesv1.Lease, error)
@@ -41,9 +41,9 @@ type clientV1 struct {
 	id         string
 }
 
-func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, ttl uint32, opts ...CreateOption) error {
+func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, ttl uint32, opts ...CreateOption) (bool, error) {
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.lease.Update")
+	ctx, span := tracer.Start(ctx, "client.lease.Acquire")
 	defer span.End()
 
 	for _, opt := range opts {
@@ -52,22 +52,22 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, ttl uint3
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID, TtlSeconds: ttl})
 	if err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
-func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string) error {
+func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string) (bool, error) {
 	tracer := otel.Tracer("client-v1")
-	ctx, span := tracer.Start(ctx, "client.lease.Update")
+	ctx, span := tracer.Start(ctx, "client.lease.Renew")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Renew(ctx, &leasesv1.RenewRequest{TaskId: taskID, NodeId: nodeID})
 	if err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func (c *clientV1) Release(ctx context.Context, taskID, nodeID string) error {

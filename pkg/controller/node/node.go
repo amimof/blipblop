@@ -44,9 +44,24 @@ type Controller struct {
 	node             *nodesv1.Node
 	attacher         volume.Attacher
 	exchange         *events.Exchange
+
+	renewInterval time.Duration // 5s (half of TTL)
+	leaseTTL      uint32        // 10s
 }
 
 type NewOption func(c *Controller)
+
+func WithLeaseRenewalInterval(d time.Duration) NewOption {
+	return func(c *Controller) {
+		c.renewInterval = d
+	}
+}
+
+func WithLeaseTTL(ttl uint32) NewOption {
+	return func(c *Controller) {
+		c.leaseTTL = ttl
+	}
+}
 
 func WithVolumeAttacher(a volume.Attacher) NewOption {
 	return func(c *Controller) {
@@ -160,6 +175,9 @@ func (c *Controller) Run(ctx context.Context) {
 		c.logger.Error("error setting node state", "error", err)
 	}
 
+	// Start lease loop
+	go c.renewLeases(ctx)
+
 	// Handle errors
 	for {
 		select {
@@ -181,6 +199,50 @@ func (c *Controller) Run(ctx context.Context) {
 			if e != nil {
 				c.logger.Error("received error on channel", "error", e)
 			}
+		}
+	}
+}
+
+// renewLeases continuously renews leases for all running tasks
+func (c *Controller) renewLeases(ctx context.Context) {
+	ticker := time.NewTicker(c.renewInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.renewAllLeases(ctx)
+		}
+	}
+}
+
+func (c *Controller) renewAllLeases(ctx context.Context) {
+	nodeName := c.node.GetMeta().GetName()
+
+	// Get all running tasks on this node from runtime
+	tasks, err := c.runtime.List(ctx)
+	if err != nil {
+		c.logger.Error("failed to list runtime tasks", "error", err)
+		return
+	}
+
+	for _, task := range tasks {
+		taskName, err := c.runtime.Name(ctx, task.GetMeta().GetName())
+		if err != nil {
+			continue
+		}
+
+		// Renew lease
+		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskName, nodeName)
+		if err != nil {
+			c.logger.Error("error renewing lease", "error", err, "task", taskName, "node", nodeName)
+			continue
+		}
+
+		if !renewed {
+			c.logger.Warn("failed to renew lease", "task", taskName, "error", err)
 		}
 	}
 }
@@ -662,7 +724,22 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	taskID := task.GetMeta().GetName()
+	nodeID := c.node.GetMeta().GetName()
+
 	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", taskID)
+
+	leaseResp, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID, c.leaseTTL)
+	if err != nil {
+		c.logger.Error("failed to acquire lease", "error", err, "task", taskID, "nodeID", nodeID)
+		return err
+	}
+
+	if !leaseResp {
+		c.logger.Warn("lease held by another node", "task", taskID)
+		return fmt.Errorf("lease held by another another", "")
+	}
+
+	c.logger.Info("acquired lease for task", "task", taskID, "node", nodeID)
 
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
@@ -797,6 +874,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		activeLogStreams: make(map[events.LogKey]context.CancelFunc),
 		node:             n,
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
+		renewInterval:    time.Second * 10,
 	}
 	for _, opt := range opts {
 		opt(m)

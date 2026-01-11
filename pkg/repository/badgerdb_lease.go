@@ -66,9 +66,9 @@ func (r *leaseBadgerRepo) List(ctx context.Context) ([]*leasesv1.Lease, error) {
 		it.Seek(leasePrefix)
 		for it.ValidForPrefix(leasePrefix) {
 			item := it.Item()
-			ctr := &leasesv1.Lease{}
+			lease := &leasesv1.Lease{}
 			err := item.Value(func(val []byte) error {
-				err := proto.Unmarshal(val, ctr)
+				err := proto.Unmarshal(val, lease)
 				if err != nil {
 					return err
 				}
@@ -77,7 +77,7 @@ func (r *leaseBadgerRepo) List(ctx context.Context) ([]*leasesv1.Lease, error) {
 			if err != nil {
 				return err
 			}
-			result = append(result, ctr)
+			result = append(result, lease)
 			it.Next()
 		}
 		return nil
@@ -88,13 +88,13 @@ func (r *leaseBadgerRepo) List(ctx context.Context) ([]*leasesv1.Lease, error) {
 	return result, nil
 }
 
-func (r *leaseBadgerRepo) Create(ctx context.Context, container *leasesv1.Lease) error {
+func (r *leaseBadgerRepo) Create(ctx context.Context, lease *leasesv1.Lease) error {
 	_, span := tracer.Start(ctx, "repo.lease.Create")
 	defer span.End()
 
 	return r.db.Update(func(txn *badger.Txn) error {
-		key := LeaseID(container.GetMeta().GetName()).String()
-		b, err := proto.Marshal(container)
+		key := LeaseID(lease.GetTaskId()).String()
+		b, err := proto.Marshal(lease)
 		if err != nil {
 			return err
 		}
@@ -119,9 +119,9 @@ func (r *leaseBadgerRepo) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func (r *leaseBadgerRepo) Update(ctx context.Context, container *leasesv1.Lease) error {
+func (r *leaseBadgerRepo) Update(ctx context.Context, lease *leasesv1.Lease) error {
 	_, span := tracer.Start(ctx, "repo.lease.Update")
 	defer span.End()
 
-	return r.Create(ctx, container)
+	return r.Create(ctx, lease)
 }
