@@ -92,7 +92,6 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 				RenewTime:  timestamppb.New(now),
 				ExpiresAt:  timestamppb.New(expires),
 				TtlSeconds: uint32(ttl),
-				Valid:      true,
 			}
 			err = l.repo.Create(ctx, lease)
 			if err != nil {
