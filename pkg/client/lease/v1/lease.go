@@ -50,8 +50,11 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, ttl uint3
 		opt(c)
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID, TtlSeconds: ttl})
+	resp, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID, TtlSeconds: ttl})
 	if err != nil {
+		return false, err
+	}
+	if !resp.Acquired {
 		return false, err
 	}
 	return true, nil

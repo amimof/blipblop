@@ -213,7 +213,7 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 	return os.WriteFile(logFile, []byte{}, 0o666)
 }
 
-func (c *ContainerdRuntime) List(ctx context.Context) ([]*tasksv1.Task, error) {
+func (c *ContainerdRuntime) List(ctx context.Context, filter ...string) ([]*tasksv1.Task, error) {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.List")
 	defer span.End()
 
@@ -221,6 +221,7 @@ func (c *ContainerdRuntime) List(ctx context.Context) ([]*tasksv1.Task, error) {
 	filters := []string{
 		`labels."voiyd.io/name"`,
 	}
+	filters = append(filters, filter...)
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 	ctrs, err := c.client.Containers(ctx, filters...)

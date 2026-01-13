@@ -61,15 +61,17 @@ func NewCmdGetLease(cfg *client.Config) *cobra.Command {
 					logrus.Fatal(err)
 				}
 
-				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\n", "TASK", "NODE", "VALID", "EXPIRES", "RENEWS")
+				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "TASK", "NODE", "VALID", "EXPIRES IN", "RENEWS IN", "TTL")
 				for _, c := range leases {
-					expired := time.Now().Before(c.GetExpiresAt().AsTime())
-					_, _ = fmt.Fprintf(wr, "%s\t%s\t%t\t%s\t%s\n",
+					ttl64 := time.Duration(int64(c.GetTtlSeconds())) * time.Second
+					valid := time.Now().Before(c.GetExpiresAt().AsTime())
+					_, _ = fmt.Fprintf(wr, "%s\t%s\t%t\t%s\t%s\t%s\n",
 						c.GetTaskId(),
 						c.GetNodeId(),
-						expired,
+						valid,
 						cmdutil.FormatDuration(time.Since(c.GetExpiresAt().AsTime())),
 						cmdutil.FormatDuration(time.Since(c.GetRenewTime().AsTime())),
+						cmdutil.FormatDuration(ttl64),
 					)
 				}
 			}

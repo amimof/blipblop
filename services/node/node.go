@@ -147,6 +147,10 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 		if err != nil {
 			n.logger.Error("error updating node status", "error", err, "node", nodeName)
 		}
+		err = n.exchange.Publish(ctx, events.NewEvent(events.NodeForget, node))
+		if err != nil {
+			n.logger.Error("error publish node forget event", "error", err)
+		}
 		delete(n.streams, nodeName)
 	}()
 

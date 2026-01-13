@@ -26,7 +26,7 @@ type local struct {
 	exchange *events.Exchange
 	logger   logger.Logger
 
-	gracePeriod time.Duration // 30s
+	// gracePeriod time.Duration // 30s
 	// maxReschedules uint32        // 3
 }
 
@@ -80,48 +80,56 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 
+			ttl := 30
+			now := time.Now()
+			expires := now.Add(time.Duration(ttl) * time.Second)
+
 			// Create new lease
 			lease := &leasesv1.Lease{
 				TaskId:     req.TaskId,
 				NodeId:     req.NodeId,
-				AcquiredAt: timestamppb.Now(),
-				RenewTime:  timestamppb.Now(),
-				ExpiresAt:  timestamppb.New(time.Now().Add(time.Duration(req.TtlSeconds) * time.Second)),
-				TtlSeconds: req.TtlSeconds,
-				// RescheduleCount: existing.RescheduleCount, // Preserve counter
-				// OriginalNode: existing.OriginalNode,
+				AcquiredAt: timestamppb.New(now),
+				RenewTime:  timestamppb.New(now),
+				ExpiresAt:  timestamppb.New(expires),
+				TtlSeconds: uint32(ttl),
+				Valid:      true,
 			}
 			err = l.repo.Create(ctx, lease)
 			if err != nil {
-				return nil, l.handleError(err, "error creating lease", "name", req.TaskId)
+				return nil, l.handleError(err, "error creating lease", "name", req.GetTaskId())
 			}
 			return &leasesv1.AcquireResponse{Acquired: true, Lease: lease}, nil
 		}
 		return nil, l.handleError(err, "error getting lease", "name", req.TaskId)
 	}
 
-	if existing.NodeId == req.NodeId {
-		lease, err := l.renew(ctx, existing.GetTaskId(), existing.GetNodeId())
+	// Node is same as before
+	if existing.GetNodeId() == req.GetNodeId() {
+		lease, err := l.renew(ctx, existing.GetTaskId(), req.GetNodeId())
 		if err != nil {
 			return nil, err
 		}
 		return &leasesv1.AcquireResponse{
 			Lease:    lease,
+			Holder:   existing.GetNodeId(),
 			Acquired: true,
 		}, nil
 	}
 
 	// Different node - check if current lease expired + grace period
-	if time.Now().Before(existing.GetExpiresAt().AsTime().Add(l.gracePeriod)) {
-		// Lease still valid or in grace period
+	if !time.Now().Before(existing.GetExpiresAt().AsTime()) {
+		lease, err := l.renew(ctx, existing.GetTaskId(), req.GetNodeId())
+		if err != nil {
+			return nil, err
+		}
 		return &leasesv1.AcquireResponse{
-			Acquired: false,
-			Holder:   existing.NodeId,
-			Lease:    existing,
+			Lease:    lease,
+			Holder:   req.GetNodeId(),
+			Acquired: true,
 		}, nil
 	}
 
-	return nil, status.Error(codes.Aborted, "lease expired beyond grace period")
+	return nil, nil
 }
 
 func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...grpc.CallOption) (*leasesv1.ReleaseResponse, error) {
@@ -153,13 +161,17 @@ func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lea
 		return nil, err
 	}
 
+	// Renew if lease has a holder which has already expired
 	if existing.NodeId != nodeID {
-		return nil, fmt.Errorf("lease held by %s", existing.NodeId)
+		if time.Now().Before(existing.GetExpiresAt().AsTime()) {
+			return nil, fmt.Errorf("lease held by %s", existing.NodeId)
+		}
 	}
 
 	// Update expiry
 	existing.RenewTime = timestamppb.Now()
 	existing.ExpiresAt = timestamppb.New(time.Now().Add(time.Duration(existing.TtlSeconds) * time.Second))
+	existing.NodeId = nodeID
 
 	err = l.repo.Update(ctx, existing)
 	if err != nil {

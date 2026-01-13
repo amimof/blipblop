@@ -30,7 +30,7 @@ type TaskIO struct {
 }
 
 type Runtime interface {
-	List(context.Context) ([]*taskv1.Task, error)
+	List(context.Context, ...string) ([]*taskv1.Task, error)
 	Get(context.Context, string) (*taskv1.Task, error)
 	Delete(context.Context, *taskv1.Task) error
 	Kill(context.Context, *taskv1.Task) error

@@ -93,13 +93,42 @@ func (c *Controller) onTaskCreate(ctx context.Context, e *eventsv1.Event) error 
 	return nil
 }
 
+func (c *Controller) onNodeForget(ctx context.Context, e *eventsv1.Event) error {
+	// var node nodesv1.Node
+	// err := e.GetObject().UnmarshalTo(&node)
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// // Re-emit start-task events for tasks that the node had
+	// tasks, err := c.clientset.TaskV1().List(ctx)
+	// if err != nil {
+	// 	c.logger.Error("error listing tasks", "error", err)
+	// 	return err
+	// }
+	//
+	// for _, task := range tasks {
+	// 	if task.GetStatus().GetNode().GetValue() == node.GetMeta().GetName() {
+	// 		err = c.clientset.EventV1().Publish(ctx, task, events.TaskStart)
+	// 		if err != nil {
+	// 			c.logger.Error("error emitting start event", "error", err, "task", task.GetMeta().GetName())
+	// 			continue
+	// 		}
+	// 	}
+	// }
+	//
+	// c.logger.Debug("forgetting node", "node", node.GetMeta().GetName())
+	return nil
+}
+
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "scheduler")
-	_, err := c.clientset.EventV1().Subscribe(ctx, events.TaskCreate)
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.TaskCreate, events.NodeForget)
 
 	// Setup Handlers
 	c.clientset.EventV1().On(events.TaskCreate, c.handleErrors(c.onTaskCreate))
+	c.clientset.EventV1().On(events.NodeForget, c.handleErrors(c.onNodeForget))
 
 	// Handle errors
 	for e := range err {
