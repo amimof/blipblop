@@ -36,7 +36,10 @@ service LeaseService {
 message Lease {
   string version = 1;
   types.v1.Meta meta = 2 [(buf.validate.field).required = true];
+  LeaseConfig config = 3 [(buf.validate.field).required = true];
+}
 
+message LeaseConfig {
   string task_id = 3 [(buf.validate.field).string.min_len = 1];
   string node_id = 4 [(buf.validate.field).string.min_len = 1];
   google.protobuf.Timestamp acquired_at = 5;

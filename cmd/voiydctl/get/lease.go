@@ -63,14 +63,14 @@ func NewCmdGetLease(cfg *client.Config) *cobra.Command {
 
 				_, _ = fmt.Fprintf(wr, "%s\t%s\t%s\t%s\t%s\t%s\n", "TASK", "NODE", "VALID", "EXPIRES IN", "RENEWS IN", "TTL")
 				for _, c := range leases {
-					ttl64 := time.Duration(int64(c.GetTtlSeconds())) * time.Second
-					valid := time.Now().Before(c.GetExpiresAt().AsTime())
+					ttl64 := time.Duration(int64(c.GetConfig().GetTtlSeconds())) * time.Second
+					valid := time.Now().Before(c.GetConfig().GetExpiresAt().AsTime())
 					_, _ = fmt.Fprintf(wr, "%s\t%s\t%t\t%s\t%s\t%s\n",
-						c.GetTaskId(),
-						c.GetNodeId(),
+						c.GetConfig().GetTaskId(),
+						c.GetConfig().GetNodeId(),
 						valid,
-						cmdutil.FormatDuration(time.Since(c.GetExpiresAt().AsTime())),
-						cmdutil.FormatDuration(time.Since(c.GetRenewTime().AsTime())),
+						cmdutil.FormatDuration(time.Since(c.GetConfig().GetExpiresAt().AsTime())),
+						cmdutil.FormatDuration(time.Since(c.GetConfig().GetRenewTime().AsTime())),
 						cmdutil.FormatDuration(ttl64),
 					)
 				}

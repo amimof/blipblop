@@ -57,7 +57,7 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...C
 	if !resp.Acquired {
 		return 0, false, err
 	}
-	return resp.GetLease().GetTtlSeconds(), true, nil
+	return resp.GetLease().GetConfig().GetTtlSeconds(), true, nil
 }
 
 func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string) (bool, error) {

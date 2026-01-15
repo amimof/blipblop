@@ -293,7 +293,7 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 	}
 
 	// Only proceed if task is owned by us
-	if lease.GetNodeId() == c.node.GetMeta().GetName() {
+	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
 		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 		return c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -328,7 +328,7 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 	}
 
 	// Only proceed if task is owned by us
-	if lease.GetNodeId() == c.node.GetMeta().GetName() {
+	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
 		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
 		phase := consts.PHASESTOPPED
 		status := ""
@@ -371,7 +371,7 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 	}
 
 	// Only proceed if task is owned by us
-	if lease.GetNodeId() == c.node.GetMeta().GetName() {
+	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
 
 		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 		return c.clientset.TaskV1().Status().Update(

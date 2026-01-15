@@ -44,17 +44,17 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 	for _, lease := range leases {
 
 		// Does a task exist for the lease?
-		task, err := c.clientset.TaskV1().Get(ctx, lease.GetTaskId())
+		task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
 		if errs.IgnoreNotFound(err) != nil {
-			c.logger.Error("error getting task for lease", "error", err, "task", lease.GetTaskId())
+			c.logger.Error("error getting task for lease", "error", err, "task", lease.GetConfig().GetTaskId())
 			return
 		}
 
 		// If lease has expired
-		if time.Now().After(lease.GetExpiresAt().AsTime()) {
+		if time.Now().After(lease.GetConfig().GetExpiresAt().AsTime()) {
 			err = c.exchange.Forward(ctx, events.NewEvent(events.LeaseExpired, task))
 			if err != nil {
-				c.logger.Error("error forwarding LeaseExpired event", "error", err, "task", lease.GetTaskId())
+				c.logger.Error("error forwarding LeaseExpired event", "error", err, "task", lease.GetConfig().GetTaskId())
 				return
 			}
 		}

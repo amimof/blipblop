@@ -16,16 +16,19 @@ import (
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
+	"github.com/google/uuid"
 
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 )
 
 type local struct {
-	repo     repository.LeaseRepository
-	mu       sync.Mutex
-	exchange *events.Exchange
-	logger   logger.Logger
-	leaseTTL uint32
+	repo        repository.LeaseRepository
+	mu          sync.Mutex
+	exchange    *events.Exchange
+	logger      logger.Logger
+	leaseTTL    uint32
+	gracePeriod time.Duration
 }
 
 var (
@@ -47,7 +50,7 @@ func (l *local) Get(ctx context.Context, req *leasesv1.GetRequest, _ ...grpc.Cal
 	ctx, span := tracer.Start(ctx, "lease.Get")
 	defer span.End()
 
-	lease, err := l.Repo().Get(ctx, req.GetId())
+	lease, err := l.repo.Get(ctx, req.GetId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET lease from repo", "name", req.GetId())
 	}
@@ -60,7 +63,7 @@ func (l *local) List(ctx context.Context, req *leasesv1.ListRequest, _ ...grpc.C
 	ctx, span := tracer.Start(ctx, "lease.List")
 	defer span.End()
 
-	ctrs, err := l.Repo().List(ctx)
+	ctrs, err := l.repo.List(ctx)
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST leases from repo")
 	}
@@ -84,12 +87,21 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 
 			// Create new lease
 			lease := &leasesv1.Lease{
-				TaskId:     req.TaskId,
-				NodeId:     req.NodeId,
-				AcquiredAt: timestamppb.New(now),
-				RenewTime:  timestamppb.New(now),
-				ExpiresAt:  timestamppb.New(expires),
-				TtlSeconds: ttl,
+				Version: Version,
+				Meta: &types.Meta{
+					Name:     uuid.New().String(),
+					Created:  timestamppb.Now(),
+					Updated:  timestamppb.Now(),
+					Revision: 1,
+				},
+				Config: &leasesv1.LeaseConfig{
+					TaskId:     req.TaskId,
+					NodeId:     req.NodeId,
+					AcquiredAt: timestamppb.New(now),
+					RenewTime:  timestamppb.New(now),
+					ExpiresAt:  timestamppb.New(expires),
+					TtlSeconds: ttl,
+				},
 			}
 			err = l.repo.Create(ctx, lease)
 			if err != nil {
@@ -101,21 +113,21 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 	}
 
 	// Node is same as before
-	if existing.GetNodeId() == req.GetNodeId() {
-		lease, err := l.renew(ctx, existing.GetTaskId(), req.GetNodeId())
+	if existing.GetConfig().GetNodeId() == req.GetNodeId() {
+		lease, err := l.renew(ctx, existing.GetConfig().GetTaskId(), req.GetNodeId())
 		if err != nil {
 			return nil, err
 		}
 		return &leasesv1.AcquireResponse{
 			Lease:    lease,
-			Holder:   existing.GetNodeId(),
+			Holder:   existing.GetConfig().GetNodeId(),
 			Acquired: true,
 		}, nil
 	}
 
 	// Different node - check if current lease expired + grace period
-	if !time.Now().Before(existing.GetExpiresAt().AsTime()) {
-		lease, err := l.renew(ctx, existing.GetTaskId(), req.GetNodeId())
+	if time.Now().After(existing.GetConfig().GetExpiresAt().AsTime().Add(l.gracePeriod)) {
+		lease, err := l.renew(ctx, existing.GetConfig().GetTaskId(), req.GetNodeId())
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +147,7 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 		return &leasesv1.ReleaseResponse{Released: false}, err
 	}
 
-	if lease.NodeId != req.NodeId {
+	if lease.GetConfig().GetNodeId() != req.GetNodeId() {
 		// Not the lease holder - already released or taken
 		return &leasesv1.ReleaseResponse{Released: false}, nil
 	}
@@ -159,16 +171,16 @@ func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lea
 	}
 
 	// Renew if lease has a holder which has already expired
-	if existing.NodeId != nodeID {
-		if time.Now().Before(existing.GetExpiresAt().AsTime()) {
-			return nil, fmt.Errorf("lease held by %s", existing.NodeId)
+	if existing.GetConfig().GetNodeId() != nodeID {
+		if time.Now().Before(existing.GetConfig().GetExpiresAt().AsTime().Add(l.gracePeriod)) {
+			return nil, fmt.Errorf("lease held by %s", existing.GetConfig().GetNodeId())
 		}
 	}
 
 	// Update expiry
-	existing.RenewTime = timestamppb.Now()
-	existing.ExpiresAt = timestamppb.New(time.Now().Add(time.Duration(existing.TtlSeconds) * time.Second))
-	existing.NodeId = nodeID
+	existing.GetConfig().RenewTime = timestamppb.Now()
+	existing.GetConfig().ExpiresAt = timestamppb.New(time.Now().Add(time.Duration(existing.GetConfig().GetTtlSeconds()) * time.Second))
+	existing.GetConfig().NodeId = nodeID
 
 	err = l.repo.Update(ctx, existing)
 	if err != nil {
@@ -176,13 +188,4 @@ func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lea
 	}
 
 	return existing, nil
-}
-
-func (l *local) Repo() repository.LeaseRepository {
-	if l.repo != nil {
-		return l.repo
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return repository.NewLeaseInMemRepo()
 }

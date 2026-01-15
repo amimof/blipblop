@@ -93,7 +93,7 @@ func (r *leaseBadgerRepo) Create(ctx context.Context, lease *leasesv1.Lease) err
 	defer span.End()
 
 	return r.db.Update(func(txn *badger.Txn) error {
-		key := LeaseID(lease.GetTaskId()).String()
+		key := LeaseID(lease.GetConfig().GetTaskId()).String()
 		b, err := proto.Marshal(lease)
 		if err != nil {
 			return err

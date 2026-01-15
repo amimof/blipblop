@@ -312,6 +312,15 @@
         "meta": {
           "$ref": "#/definitions/v1Meta"
         },
+        "config": {
+          "$ref": "#/definitions/v1LeaseConfig"
+        }
+      },
+      "title": "Lease represents a node's right to run a task"
+    },
+    "v1LeaseConfig": {
+      "type": "object",
+      "properties": {
         "taskId": {
           "type": "string"
         },
@@ -341,8 +350,7 @@
         "originalNode": {
           "type": "string"
         }
-      },
-      "title": "Lease represents a node's right to run a task"
+      }
     },
     "v1Meta": {
       "type": "object",

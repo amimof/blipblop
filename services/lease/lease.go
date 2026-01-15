@@ -2,6 +2,7 @@ package lease
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -78,10 +79,11 @@ func NewService(repo repository.LeaseRepository, opts ...NewServiceOption) *Leas
 	}
 
 	s.local = &local{
-		repo:     repo,
-		exchange: s.exchange,
-		logger:   s.logger,
-		leaseTTL: s.leaseTTL,
+		repo:        repo,
+		exchange:    s.exchange,
+		logger:      s.logger,
+		leaseTTL:    s.leaseTTL,
+		gracePeriod: time.Second * 3,
 	}
 
 	return s

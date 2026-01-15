@@ -115,7 +115,7 @@ func (c *Controller) onNodeJoin(ctx context.Context, e *eventsv1.Event) error {
 		}
 
 		// If lease expired means that task should be rescheduled
-		if !time.Now().Before(l.GetExpiresAt().AsTime().Add(time.Second * 10)) {
+		if !time.Now().Before(l.GetConfig().GetExpiresAt().AsTime().Add(time.Second * 10)) {
 			c.logger.Debug("emitting task start", "task", task.GetMeta().GetName())
 			return c.exchange.Forward(ctx, events.NewEvent(events.TaskStart, task))
 		}

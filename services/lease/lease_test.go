@@ -12,14 +12,16 @@ import (
 
 func Test_Expirty(t *testing.T) {
 	lease := &leasesv1.Lease{
-		TaskId:     "nginx",
-		NodeId:     "node-01",
-		AcquiredAt: timestamppb.Now(),
-		RenewTime:  timestamppb.Now(),
-		ExpiresAt:  timestamppb.New(time.Now().Add(time.Duration(30) * time.Second)),
-		TtlSeconds: 30,
+		Config: &leasesv1.LeaseConfig{
+			TaskId:     "nginx",
+			NodeId:     "node-01",
+			AcquiredAt: timestamppb.Now(),
+			RenewTime:  timestamppb.Now(),
+			ExpiresAt:  timestamppb.New(time.Now().Add(time.Duration(30) * time.Second)),
+			TtlSeconds: 30,
+		},
 	}
 
-	notExpired := time.Now().Before(lease.GetExpiresAt().AsTime())
+	notExpired := time.Now().Before(lease.GetConfig().GetExpiresAt().AsTime())
 	assert.True(t, notExpired, "should be true")
 }
