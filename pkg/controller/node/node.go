@@ -4,6 +4,7 @@ package nodecontroller
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -21,7 +22,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/consts"
-	"github.com/amimof/voiyd/pkg/errors"
+	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/runtime"
@@ -44,9 +45,16 @@ type Controller struct {
 	node             *nodesv1.Node
 	attacher         volume.Attacher
 	exchange         *events.Exchange
+	renewInterval    time.Duration
 }
 
 type NewOption func(c *Controller)
+
+func WithLeaseRenewalInterval(d time.Duration) NewOption {
+	return func(c *Controller) {
+		c.renewInterval = d
+	}
+}
 
 func WithVolumeAttacher(a volume.Attacher) NewOption {
 	return func(c *Controller) {
@@ -105,6 +113,9 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
 	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
 
+	// Setup lease handlers
+	c.clientset.EventV1().On(events.LeaseExpired, c.handleErrors(c.onLeaseExpired))
+
 	go func() {
 		for e := range evt {
 			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
@@ -129,6 +140,13 @@ func (c *Controller) Run(ctx context.Context) {
 		err := c.clientset.NodeV1().Connect(ctx, nodeName, evt, connErr)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
+		}
+	}()
+
+	// Reconcile
+	go func() {
+		if err := c.Reconcile(ctx); err != nil {
+			c.logger.Warn("error reconciling", "error", err, "node", nodeName)
 		}
 	}()
 
@@ -160,6 +178,9 @@ func (c *Controller) Run(ctx context.Context) {
 		c.logger.Error("error setting node state", "error", err)
 	}
 
+	// Start lease loop
+	go c.renewLeases(ctx)
+
 	// Handle errors
 	for {
 		select {
@@ -185,6 +206,52 @@ func (c *Controller) Run(ctx context.Context) {
 	}
 }
 
+// renewLeases continuously renews leases for all running tasks
+func (c *Controller) renewLeases(ctx context.Context) {
+	ticker := time.NewTicker(c.renewInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.renewAllLeases(ctx)
+		}
+	}
+}
+
+func (c *Controller) renewAllLeases(ctx context.Context) {
+	nodeName := c.node.GetMeta().GetName()
+
+	// Get all running tasks on this node from runtime
+	tasks, err := c.runtime.List(ctx)
+	if err != nil {
+		c.logger.Error("failed to list runtime tasks", "error", err)
+		return
+	}
+
+	for _, task := range tasks {
+		taskName, err := c.runtime.Name(ctx, task.GetMeta().GetName())
+		if err != nil {
+			continue
+		}
+
+		// Renew lease
+		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskName, nodeName)
+		if err != nil {
+			c.logger.Error("error renewing lease", "error", err, "task", taskName, "node", nodeName)
+			continue
+		}
+
+		if !renewed {
+			c.logger.Warn("failed to renew lease", "task", taskName, "error", err)
+		}
+
+		c.logger.Debug("renewed lease, reconciling", "task", taskName)
+	}
+}
+
 func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		err := h(ctx, ev)
@@ -196,14 +263,22 @@ func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	}
 }
 
+func (c *Controller) onLeaseExpired(ctx context.Context, obj *eventsv1.Event) error {
+	var task tasksv1.Task
+	err := obj.GetObject().UnmarshalTo(&task)
+	if err != nil {
+		return err
+	}
+
+	return c.startTask(ctx, &task)
+}
+
 func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event) error {
 	var e cevents.TaskStart
 	err := obj.GetObject().UnmarshalTo(&e)
 	if err != nil {
 		return err
 	}
-
-	c.logger.Warn("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
 	tname, err := c.runtime.Name(ctx, e.GetContainerID())
 	if err != nil {
@@ -212,16 +287,27 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 
 	nodeName := c.node.GetMeta().GetName()
 
-	return c.clientset.TaskV1().Status().Update(
-		ctx,
-		tname,
-		&tasksv1.Status{
-			Phase:  wrapperspb.String(consts.PHASERUNNING),
-			Reason: wrapperspb.String(""),
-			Id:     wrapperspb.String(e.GetContainerID()),
-			Pid:    wrapperspb.UInt32(e.GetPid()),
-			Node:   wrapperspb.String(nodeName),
-		}, "phase", "reason", "id", "pid", "node")
+	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	if err != nil {
+		return err
+	}
+
+	// Only proceed if task is owned by us
+	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+		return c.clientset.TaskV1().Status().Update(
+			ctx,
+			tname,
+			&tasksv1.Status{
+				Phase:  wrapperspb.String(consts.PHASERUNNING),
+				Reason: wrapperspb.String(""),
+				Id:     wrapperspb.String(e.GetContainerID()),
+				Pid:    wrapperspb.UInt32(e.GetPid()),
+				Node:   wrapperspb.String(nodeName),
+			}, "phase", "reason", "id", "pid", "node")
+	}
+
+	return nil
 }
 
 func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event) error {
@@ -231,31 +317,40 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		return err
 	}
 
-	c.logger.Warn("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
-
 	tname, err := c.runtime.Name(ctx, e.GetContainerID())
 	if err != nil {
 		return err
 	}
 
-	phase := consts.PHASESTOPPED
-	status := ""
-
-	if e.GetExitStatus() > 0 {
-		phase = consts.PHASEEXITED
-		status = fmt.Sprintf("exit status %d", e.GetExitStatus())
+	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	if err != nil {
+		return err
 	}
 
-	return c.clientset.TaskV1().Status().Update(
-		ctx,
-		tname,
-		&tasksv1.Status{
-			Phase:  wrapperspb.String(phase),
-			Reason: wrapperspb.String(status),
-			Pid:    wrapperspb.UInt32(0),
-			Id:     wrapperspb.String(""),
-			Node:   wrapperspb.String(""),
-		}, "phase", "reason", "pid", "id", "node")
+	// Only proceed if task is owned by us
+	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
+		phase := consts.PHASESTOPPED
+		status := ""
+
+		if e.GetExitStatus() > 0 {
+			phase = consts.PHASEEXITED
+			status = fmt.Sprintf("exit status %d", e.GetExitStatus())
+		}
+
+		return c.clientset.TaskV1().Status().Update(
+			ctx,
+			tname,
+			&tasksv1.Status{
+				Phase:  wrapperspb.String(phase),
+				Reason: wrapperspb.String(status),
+				Pid:    wrapperspb.UInt32(0),
+				Id:     wrapperspb.String(""),
+				Node:   wrapperspb.String(""),
+			}, "phase", "reason", "pid", "id", "node")
+	}
+
+	return nil
 }
 
 func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
@@ -265,23 +360,33 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		return err
 	}
 
-	c.logger.Warn("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
-
 	tname, err := c.runtime.Name(ctx, e.GetContainerID())
 	if err != nil {
 		return err
 	}
 
-	return c.clientset.TaskV1().Status().Update(
-		ctx,
-		tname,
-		&tasksv1.Status{
-			Phase:  wrapperspb.String(consts.PHASESTOPPED),
-			Reason: wrapperspb.String(""),
-			Id:     wrapperspb.String(""),
-			Pid:    wrapperspb.UInt32(0),
-			Node:   wrapperspb.String(""),
-		}, "phase", "reason", "id", "pid", "node")
+	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	if err != nil {
+		return err
+	}
+
+	// Only proceed if task is owned by us
+	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+
+		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+		return c.clientset.TaskV1().Status().Update(
+			ctx,
+			tname,
+			&tasksv1.Status{
+				Phase:  wrapperspb.String(consts.PHASESTOPPED),
+				Reason: wrapperspb.String(""),
+				Id:     wrapperspb.String(""),
+				Pid:    wrapperspb.UInt32(0),
+				Node:   wrapperspb.String(""),
+			}, "phase", "reason", "id", "pid", "node")
+	}
+
+	return nil
 }
 
 func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
@@ -599,7 +704,7 @@ func (c *Controller) onTaskUpdate(ctx context.Context, e *eventsv1.Event) error 
 	defer span.End()
 
 	err := c.onTaskStop(ctx, e)
-	if errors.IgnoreNotFound(err) != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 	err = c.onTaskStart(ctx, e)
@@ -624,7 +729,7 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 	err = c.runtime.Kill(ctx, &task)
-	if errors.IgnoreNotFound(err) != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
 			taskID,
@@ -651,25 +756,39 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 	return nil
 }
 
-func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
-	defer span.End()
+func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
+	taskID := task.GetMeta().GetName()
+	nodeID := c.node.GetMeta().GetName()
 
-	var task tasksv1.Task
-	err := e.GetObject().UnmarshalTo(&task)
+	ttl, expired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
 	if err != nil {
+		c.logger.Error("failed to acquire lease", "error", err, "task", taskID, "nodeID", nodeID)
 		return err
 	}
 
-	taskID := task.GetMeta().GetName()
-	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", taskID)
+	if !expired {
+		c.logger.Warn("lease held by another node", "task", taskID)
+		return errors.New("lease held by another another")
+	}
+
+	c.logger.Info("acquired lease for task", "task", taskID, "node", nodeID, "ttl", ttl)
+
+	// Release if task can't be provisioned
+	defer func() {
+		if err != nil {
+			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+			if err != nil {
+				c.logger.Warn("unable to release lease", "task", taskID, "node", nodeID)
+			}
+		}
+	}()
 
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
 	_ = c.runtime.Cleanup(ctx, taskID)
 
 	// Remove any previous tasks ignoring any errors
-	err = c.runtime.Delete(ctx, &task)
+	err = c.runtime.Delete(ctx, task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -682,7 +801,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Prepare volumes/mounts
-	if err := c.attacher.PrepareMounts(ctx, c.node, &task); err != nil {
+	if err := c.attacher.PrepareMounts(ctx, c.node, task); err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
 			taskID,
@@ -695,7 +814,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 
 	// Pull image
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASEPULLING)}, "phase")
-	err = c.runtime.Pull(ctx, &task)
+	err = c.runtime.Pull(ctx, task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -709,7 +828,7 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 
 	// Run task
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTARTING)}, "phase")
-	err = c.runtime.Run(ctx, &task)
+	err = c.runtime.Run(ctx, task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -721,9 +840,22 @@ func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
 		return err
 	}
 
-	// _ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASERUNNING), Status: wrapperspb.String("")}, "phase", "status")
-
 	return nil
+}
+
+func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
+	defer span.End()
+
+	var task tasksv1.Task
+	err := e.GetObject().UnmarshalTo(&task)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", task.GetMeta().GetName())
+
+	return c.startTask(ctx, &task)
 }
 
 func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
@@ -737,6 +869,16 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	taskID := task.GetMeta().GetName()
+	nodeID := c.node.GetMeta().GetName()
+
+	// Release lease
+	defer func() {
+		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+		if err != nil {
+			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
+		}
+	}()
+
 	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
 
 	// Run cleanup early while netns still exists.
@@ -751,7 +893,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 
 	// Stop the task
 	err = c.runtime.Stop(ctx, &task)
-	if errors.IgnoreNotFound(err) != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
 			taskID,
@@ -784,6 +926,73 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
 func (c *Controller) Reconcile(ctx context.Context) error {
+	nodeID := c.node.GetMeta().GetName()
+
+	// Get running tasks from runtime
+	runtimeTasks, err := c.runtime.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Verify that the containers in the runtime are supposed to run. If a lease
+	// for a running container cannot be acquired, stop it. Otherwise let it run.
+	for _, task := range runtimeTasks {
+		taskID := task.GetMeta().GetName()
+
+		// Only acquire if task is supposed to be running
+		if task.GetStatus().GetPhase().GetValue() != consts.PHASERUNNING {
+			c.logger.Debug("skip lease acquisition because task is not running", "task", taskID)
+			continue
+		}
+
+		// Try to acquire lease for this task
+		ttl, acquired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
+		if err != nil {
+			c.logger.Error("error acquiring lease during reconcile", "task", taskID, "error", err)
+			continue
+		}
+
+		// Successfully acquired lease - we can keep running this task
+		if acquired {
+			c.logger.Info("acquierd lease for task", "task", taskID, "node", nodeID, "ttl", ttl)
+
+			// Update task status to reflect actual state
+			if err = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
+				Node: wrapperspb.String(nodeID),
+			}, "node"); err != nil {
+				c.logger.Warn("unable to update status", "error", err, "task", taskID, "node", nodeID)
+			}
+
+			continue
+		}
+
+		// Lease held by another node, stop running tasks in runtime
+		c.logger.Warn("lease held by another node", "task", taskID, "node", nodeID)
+
+		// Run cleanup early while netns still exists.
+		// This will allow the CNI plugin to remove networks without leaking.
+		err = c.runtime.Cleanup(ctx, taskID)
+		if err != nil {
+			return err
+		}
+
+		// Stop the task
+		err = c.runtime.Stop(ctx, task)
+		if errs.IgnoreNotFound(err) != nil {
+			return err
+		}
+
+		// Remove any previous tasks ignoring any errors
+		err = c.runtime.Delete(ctx, task)
+		if err != nil {
+			return err
+		}
+
+		// Detach volumes
+		return c.attacher.Detach(ctx, c.node, task)
+
+	}
+
 	return nil
 }
 
@@ -797,6 +1006,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		activeLogStreams: make(map[events.LogKey]context.CancelFunc),
 		node:             n,
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
+		renewInterval:    time.Second * 30,
 	}
 	for _, opt := range opts {
 		opt(m)

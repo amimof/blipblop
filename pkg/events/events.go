@@ -72,6 +72,12 @@ const (
 	RuntimeContainerDelete  = eventsv1.EventType_RuntimeContainerDelete
 	RuntimeContentCreate    = eventsv1.EventType_RuntimeContentCreate
 	RuntimeContentDelete    = eventsv1.EventType_RuntimeContentDelete
+
+	LeaseAcquiered = eventsv1.EventType_LeaseAcquired
+	LeaseExpired   = eventsv1.EventType_LeaseExpired
+	LeaseRenewed   = eventsv1.EventType_LeaseRenewed
+	LeaseReleased  = eventsv1.EventType_LeaseReleased
+	LeaseDeleted   = eventsv1.EventType_LeaseDeleted
 )
 
 var ALL = []eventsv1.EventType{
@@ -136,6 +142,12 @@ var ALL = []eventsv1.EventType{
 	RuntimeContainerDelete,
 	RuntimeContentCreate,
 	RuntimeContentDelete,
+
+	LeaseAcquiered,
+	LeaseExpired,
+	LeaseRenewed,
+	LeaseReleased,
+	LeaseDeleted,
 }
 
 type Subscriber interface {

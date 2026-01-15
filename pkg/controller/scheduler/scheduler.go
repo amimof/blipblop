@@ -2,6 +2,7 @@ package schedulercontroller
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -13,6 +14,7 @@ import (
 	"github.com/amimof/voiyd/pkg/scheduling"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
@@ -49,30 +51,30 @@ func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 }
 
 func (c *Controller) onTaskCreate(ctx context.Context, e *eventsv1.Event) error {
-	// Get the container
-	var ctr tasksv1.Task
-	err := e.Object.UnmarshalTo(&ctr)
+	// Get the task
+	var task tasksv1.Task
+	err := e.Object.UnmarshalTo(&task)
 	if err != nil {
 		return err
 	}
 
-	// Find a node fit for the container using a scheduler
-	n, err := c.scheduler.Schedule(ctx, &ctr)
+	// Find a node fit for the task using a scheduler
+	n, err := c.scheduler.Schedule(ctx, &task)
 	if err != nil {
 		return err
 	}
 
-	// Update container status
+	// Update task status
 	_ = c.clientset.TaskV1().Status().Update(
 		ctx,
-		ctr.GetMeta().GetName(),
+		task.GetMeta().GetName(),
 		&tasksv1.Status{
 			Phase: wrapperspb.String("scheduled"),
 			Node:  wrapperspb.String(n.GetMeta().GetName()),
 		},
 		"phase")
 
-	containerProto, err := anypb.New(&ctr)
+	containerProto, err := anypb.New(&task)
 	if err != nil {
 		return err
 	}
@@ -84,22 +86,52 @@ func (c *Controller) onTaskCreate(ctx context.Context, e *eventsv1.Event) error 
 
 	ev := &eventsv1.ScheduleRequest{Task: containerProto, Node: nodeProto}
 
-	// return c.clientset.EventV1().Publish(ctx, ev, eventsv1.EventType_Schedule)
 	err = c.exchange.Publish(ctx, events.NewEvent(events.Schedule, ev))
 	if err != nil {
 		return err
 	}
-	// return c.exchange.Publish(ctx, ev, eventsv1.EventType_Schedule)
+	return nil
+}
+
+func (c *Controller) onNodeJoin(ctx context.Context, e *eventsv1.Event) error {
+	// Get the node§
+	var node nodesv1.Node
+	err := e.Object.UnmarshalTo(&node)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Debug("emitting task start", "task", node.GetMeta().GetName())
+
+	tasks, err := c.clientset.TaskV1().List(ctx)
+	if err != nil {
+		return nil
+	}
+
+	for _, task := range tasks {
+		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+		if err != nil {
+			return err
+		}
+
+		// If lease expired means that task should be rescheduled
+		if !time.Now().Before(l.GetConfig().GetExpiresAt().AsTime().Add(time.Second * 10)) {
+			c.logger.Debug("emitting task start", "task", task.GetMeta().GetName())
+			return c.exchange.Forward(ctx, events.NewEvent(events.TaskStart, task))
+		}
+	}
+
 	return nil
 }
 
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "scheduler")
-	_, err := c.clientset.EventV1().Subscribe(ctx, events.TaskCreate)
+	_, err := c.clientset.EventV1().Subscribe(ctx, events.TaskCreate, events.NodeConnect)
 
 	// Setup Handlers
 	c.clientset.EventV1().On(events.TaskCreate, c.handleErrors(c.onTaskCreate))
+	c.clientset.EventV1().On(events.NodeConnect, c.handleErrors(c.onNodeJoin))
 
 	// Handle errors
 	for e := range err {

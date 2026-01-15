@@ -41,6 +41,7 @@ func NewCmdDelete() *cobra.Command {
 	deleteCmd.AddCommand(NewCmdDeleteNode(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteContainerSet(&cfg))
 	deleteCmd.AddCommand(NewCmdDeleteVolume(&cfg))
+	deleteCmd.AddCommand(NewCmdDeleteLease(&cfg))
 
 	deleteCmd.PersistentFlags().BoolVar(&force,
 		"force",

@@ -103,6 +103,12 @@ enum EventType {
   RuntimeContainerDelete = 53;
   RuntimeContentCreate = 54;
   RuntimeContentDelete = 55;
+
+  LeaseAcquired = 56;
+  LeaseExpired = 57;
+  LeaseRenewed = 58;
+  LeaseReleased = 59;
+  LeaseDeleted = 60;
 }
 
 message GetRequest {

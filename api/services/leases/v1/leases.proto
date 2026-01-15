@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package services.leases.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+import "services/tasks/v1/tasks.proto";
+import "types/v1/meta.proto";
+
+option go_package = "github.com/amimof/voiyd/api/services/leases/v1;leases";
+
+service LeaseService {
+  rpc Get(GetRequest) returns (GetResponse) {
+    option (google.api.http) = {get: "/api/v1/leases/{id}"};
+  }
+  rpc List(ListRequest) returns (ListResponse) {
+    option (google.api.http) = {get: "/api/v1/leases"};
+  }
+  rpc Acquire(AcquireRequest) returns (AcquireResponse) {
+    option (google.api.http) = {post: "/api/v1/leases"};
+  }
+  rpc Release(ReleaseRequest) returns (ReleaseResponse) {
+    option (google.api.http) = {delete: "/api/v1/leases/{id}"};
+  }
+  rpc Renew(RenewRequest) returns (RenewResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/leases/{id}"
+      additional_bindings: {patch: "/api/v1/leases/{id}"}
+    };
+  }
+}
+
+// Lease represents a node's right to run a task
+message Lease {
+  string version = 1;
+  types.v1.Meta meta = 2 [(buf.validate.field).required = true];
+  LeaseConfig config = 3 [(buf.validate.field).required = true];
+}
+
+message LeaseConfig {
+  string task_id = 3 [(buf.validate.field).string.min_len = 1];
+  string node_id = 4 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.Timestamp acquired_at = 5;
+  google.protobuf.Timestamp renew_time = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  uint32 ttl_seconds = 8;
+  uint32 reschedule_count = 9;
+  string original_node = 10;
+}
+
+message AcquireRequest {
+  string task_id = 1;
+  string node_id = 2;
+}
+
+message AcquireResponse {
+  Lease lease = 1;
+  bool acquired = 2;
+  string holder = 3;
+}
+
+message RenewRequest {
+  string id = 1;
+  string task_id = 2;
+  string node_id = 3;
+}
+
+message RenewResponse {
+  Lease lease = 1;
+  bool renewed = 2;
+}
+
+message ReleaseRequest {
+  string id = 1;
+  string task_id = 2;
+  string node_id = 3;
+}
+
+message ReleaseResponse {
+  bool released = 1;
+}
+
+message GetRequest {
+  string id = 1;
+}
+
+message GetResponse {
+  Lease lease = 1;
+}
+
+message ListRequest {
+  map<string, string> selector = 1;
+  bool expired_only = 2;
+}
+
+message ListResponse {
+  repeated Lease leases = 1;
+}

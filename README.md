@@ -73,6 +73,8 @@ You can install voiyd either from source or using pre-built binaries from [relea
    sudo mv voiydctl voiyd-server voiyd-node /usr/local/bin/
     ```
 
+To download untagged `latest` binaries: [nightly.link](https://nightly.link/amimof/voiyd/workflows/upload.yaml/master?preview)  
+
 ### Build From Source
 
 ```bash

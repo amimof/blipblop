@@ -144,7 +144,12 @@
         "RuntimeContainerUpdate",
         "RuntimeContainerDelete",
         "RuntimeContentCreate",
-        "RuntimeContentDelete"
+        "RuntimeContentDelete",
+        "LeaseAcquired",
+        "LeaseExpired",
+        "LeaseRenewed",
+        "LeaseReleased",
+        "LeaseDeleted"
       ],
       "default": "TaskCreate"
     },

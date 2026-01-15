@@ -29,6 +29,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	containersetctrl "github.com/amimof/voiyd/pkg/controller/containerset"
+	leasectrl "github.com/amimof/voiyd/pkg/controller/lease"
 	schedulerctrl "github.com/amimof/voiyd/pkg/controller/scheduler"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/instrumentation"
@@ -37,6 +38,7 @@ import (
 	"github.com/amimof/voiyd/pkg/server"
 	"github.com/amimof/voiyd/services/containerset"
 	"github.com/amimof/voiyd/services/event"
+	"github.com/amimof/voiyd/services/lease"
 	logsvc "github.com/amimof/voiyd/services/log"
 	"github.com/amimof/voiyd/services/node"
 	"github.com/amimof/voiyd/services/task"
@@ -84,8 +86,8 @@ var (
 	tlsCACertificate  string
 	otelEndpoint      string
 	dbPath            string
-
-	log *slog.Logger
+	leaseTTLSeconds   uint32
+	log               *slog.Logger
 )
 
 func init() {
@@ -111,6 +113,7 @@ func init() {
 	pflag.IntVar(&listenLimit, "listen-limit", 0, "limit the number of outstanding requests")
 	pflag.IntVar(&tlsListenLimit, "tls-listen-limit", 0, "limit the number of outstanding requests")
 	pflag.Uint64Var(&maxHeaderSize, "max-header-size", 1000000, "controls the maximum number of bytes the server will read parsing the request header's keys and values, including the request line. It does not limit the size of the request body")
+	pflag.Uint32Var(&leaseTTLSeconds, "lease-ttl-seconds", 60, "how long a lease can live in seconds before it expires")
 
 	pflag.DurationVar(&cleanupTimeout, "cleanup-timeout", 10*time.Second, "grace period for which to wait before shutting down the server")
 	pflag.DurationVar(&keepAlive, "keep-alive", 3*time.Minute, "sets the TCP keep-alive timeouts on accepted connections. It prunes dead TCP connections ( e.g. closing laptop mid-download)")
@@ -282,6 +285,13 @@ func main() {
 		volume.WithExchange(exchange),
 	)
 
+	leaseService := lease.NewService(
+		repository.NewLeaseBadgerRepository(db),
+		lease.WithLogger(log),
+		lease.WithExchange(exchange),
+		lease.WithTTL(leaseTTLSeconds),
+	)
+
 	// Context
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -310,7 +320,15 @@ func main() {
 	}
 
 	// Register services to gRPC server
-	err = s.RegisterService(eventService, nodeService, containerSetService, taskService, logService, volumeService)
+	err = s.RegisterService(
+		eventService,
+		nodeService,
+		containerSetService,
+		taskService,
+		logService,
+		volumeService,
+		leaseService,
+	)
 	if err != nil {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)
@@ -370,6 +388,10 @@ func main() {
 	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Scheduler Controller")
+
+	leaseCtrl := leasectrl.New(cs, leasectrl.WithLogger(log), leasectrl.WithExchange(exchange))
+	go leaseCtrl.Run(ctx)
+	log.Info("Started Lease Controller")
 
 	// Wait for exit signal, begin shutdown process after this point
 	<-exit
