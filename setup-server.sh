@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-# Voiyd Node Installation Script
-# This script installs voiyd-node and its dependencies on Linux systems
-# Usage: curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | sh -
-# Or: curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | sh -s -- [options]
+# Voiyd Server Installation Script
+# This script installs voiyd-server and generates self-signed certificates on Linux systems
+# Usage: curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sh -
+# Or: curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sh -s -- [options]
 
 set -e
 set -o pipefail
@@ -14,36 +14,43 @@ set -o pipefail
 
 # Default values
 VOIYD_VERSION="${VOIYD_VERSION:-latest}"
-CNI_VERSION="${CNI_VERSION:-v1.9.0}"
 USE_NIGHTLY="${USE_NIGHTLY:-false}"
 PREFIX="${PREFIX:-/usr/local}"
-CNI_BIN_DIR="${CNI_BIN_DIR:-/opt/cni/bin}"
-CNI_CONF_DIR="${CNI_CONF_DIR:-/etc/cni/net.d}"
 SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 VOIYD_CONFIG_DIR="${VOIYD_CONFIG_DIR:-/etc/voiyd}"
 VOIYD_TLS_DIR="${VOIYD_TLS_DIR:-/etc/voiyd/tls}"
 VOIYD_DATA_DIR="${VOIYD_DATA_DIR:-/var/lib/voiyd}"
 
 # Server configuration
-SERVER_ADDRESS="${SERVER_ADDRESS:-localhost:5743}"
-INSECURE_SKIP_VERIFY="${INSECURE_SKIP_VERIFY:-true}"
+SERVER_PORT="${SERVER_PORT:-5743}"
+TLS_HOST="${TLS_HOST:-0.0.0.0}"
+TCP_TLS_HOST="${TCP_TLS_HOST:-0.0.0.0}"
 METRICS_HOST="${METRICS_HOST:-0.0.0.0}"
+
+# TLS Certificate configuration
+CERT_COUNTRY="${CERT_COUNTRY:-SE}"
+CERT_STATE="${CERT_STATE:-Halland}"
+CERT_CITY="${CERT_CITY:-Varberg}"
+CERT_ORG="${CERT_ORG:-voiyd}"
+CERT_OU="${CERT_OU:-server}"
+CERT_CN="${CERT_CN:-voiyd-server}"
+CERT_DAYS="${CERT_DAYS:-365}"
+GENERATE_CERTS="${GENERATE_CERTS:-true}"
 
 # Installation options
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-true}"
 START_SERVICE="${START_SERVICE:-true}"
-AUTO_INSTALL_DEPS="${AUTO_INSTALL_DEPS:-true}"
+AUTO_INSTALL_DEPS="${AUTO_INSTALL_DEPS:-false}"
 SKIP_DEPS="${SKIP_DEPS:-false}"
 DRY_RUN="${DRY_RUN:-false}"
 VERBOSE="${VERBOSE:-false}"
 
 # GitHub repository
 GITHUB_REPO="amimof/voiyd"
-CNI_REPO="containernetworking/plugins"
 GITHUB_API_URL="https://api.github.com/repos"
 GITHUB_DOWNLOAD_URL="https://github.com"
 # Nightly builds: single zip containing all architectures (amd64, arm64, arm)
-NIGHTLY_LINK_URL="https://nightly.link/amimof/voiyd/workflows/upload.yaml/master/voiyd-node-linux-master.zip"
+NIGHTLY_LINK_URL="https://nightly.link/amimof/voiyd/workflows/upload.yaml/master/voiyd-server-linux-master.zip"
 
 # Temporary directory for downloads
 TMP_DIR="$(mktemp -d -t voiyd-install.XXXXXXXXXX)"
@@ -123,7 +130,7 @@ detect_platform() {
 
   os="$(uname -s | tr '[:upper:]' '[:lower:]')"
   if [ "$os" != "linux" ]; then
-    fatal "Unsupported operating system: $os. voiyd-node requires Linux."
+    fatal "Unsupported operating system: $os. voiyd-server installation script requires Linux."
   fi
 
   arch="$(uname -m)"
@@ -196,6 +203,19 @@ resolve_version() {
 # Dependency Management
 # ============================================================================
 
+check_openssl() {
+  log "Checking for openssl..."
+  if command_exists openssl; then
+    local version
+    version=$(openssl version 2>&1)
+    log "Found: $version"
+    return 0
+  else
+    warn "openssl not found"
+    return 1
+  fi
+}
+
 check_unzip() {
   log "Checking for unzip..."
   if command_exists unzip; then
@@ -209,46 +229,32 @@ check_unzip() {
   fi
 }
 
-check_iptables() {
-  log "Checking for iptables..."
-  if command_exists iptables; then
-    local version
-    version=$(iptables --version 2>&1 | head -n1)
-    log "Found: $version"
-    return 0
-  else
-    warn "iptables not found"
-    return 1
-  fi
-}
+install_openssl() {
+  local distro
+  distro=$(detect_distro)
 
-check_containerd() {
-  log "Checking for containerd..."
-  if command_exists containerd; then
-    local version
-    version=$(containerd --version 2>&1 | head -n1)
-    log "Found: $version"
+  log "Installing openssl for $distro..."
 
-    # Extract version number and check if >= 1.6
-    local ver_num
-    ver_num=$(echo "$version" | grep -oP 'v?\K[0-9]+\.[0-9]+' | head -n1)
-    if [ -n "$ver_num" ]; then
-      local major minor
-      major=$(echo "$ver_num" | cut -d. -f1)
-      minor=$(echo "$ver_num" | cut -d. -f2)
-
-      if [ "$major" -gt 1 ] || ([ "$major" -eq 1 ] && [ "$minor" -ge 6 ]); then
-        return 0
-      else
-        warn "containerd version $ver_num is less than 1.6"
-        return 1
-      fi
+  case "$distro" in
+  ubuntu | debian)
+    apt-get update -qq
+    apt-get install -y openssl
+    ;;
+  centos | rhel | fedora)
+    if command_exists dnf; then
+      dnf install -y openssl
+    else
+      yum install -y openssl
     fi
-    return 0
-  else
-    warn "containerd not found"
+    ;;
+  arch)
+    pacman -S --noconfirm openssl
+    ;;
+  *)
+    warn "Unknown distro: $distro. Please install openssl manually."
     return 1
-  fi
+    ;;
+  esac
 }
 
 install_unzip() {
@@ -279,69 +285,6 @@ install_unzip() {
   esac
 }
 
-install_iptables() {
-  local distro
-  distro=$(detect_distro)
-
-  log "Installing iptables for $distro..."
-
-  case "$distro" in
-  ubuntu | debian)
-    apt-get update -qq
-    apt-get install -y iptables
-    ;;
-  centos | rhel | fedora)
-    if command_exists dnf; then
-      dnf install -y iptables
-    else
-      yum install -y iptables
-    fi
-    ;;
-  arch)
-    pacman -S --noconfirm iptables
-    ;;
-  *)
-    warn "Unknown distro: $distro. Please install iptables manually."
-    return 1
-    ;;
-  esac
-}
-
-install_containerd() {
-  local distro
-  distro=$(detect_distro)
-
-  log "Installing containerd for $distro..."
-
-  case "$distro" in
-  ubuntu | debian)
-    apt-get update -qq
-    apt-get install -y containerd
-    systemctl enable containerd
-    systemctl start containerd
-    ;;
-  centos | rhel | fedora)
-    if command_exists dnf; then
-      dnf install -y containerd
-    else
-      yum install -y containerd
-    fi
-    systemctl enable containerd
-    systemctl start containerd
-    ;;
-  arch)
-    pacman -S --noconfirm containerd
-    systemctl enable containerd
-    systemctl start containerd
-    ;;
-  *)
-    warn "Unknown distro: $distro. Please install containerd manually."
-    warn "See: https://containerd.io/downloads/"
-    return 1
-    ;;
-  esac
-}
-
 check_and_install_dependencies() {
   if [ "$SKIP_DEPS" = "true" ]; then
     log "Skipping dependency checks (--skip-deps)"
@@ -359,14 +302,11 @@ check_and_install_dependencies() {
     fi
   fi
 
-  # Check iptables
-  if ! check_iptables; then
-    missing_deps+=("iptables")
-  fi
-
-  # Check containerd
-  if ! check_containerd; then
-    missing_deps+=("containerd")
+  # Check openssl (required for certificate generation)
+  if [ "$GENERATE_CERTS" = "true" ]; then
+    if ! check_openssl; then
+      missing_deps+=("openssl")
+    fi
   fi
 
   if [ ${#missing_deps[@]} -eq 0 ]; then
@@ -382,11 +322,8 @@ check_and_install_dependencies() {
       unzip)
         install_unzip || fatal "Failed to install unzip"
         ;;
-      iptables)
-        install_iptables || fatal "Failed to install iptables"
-        ;;
-      containerd)
-        install_containerd || fatal "Failed to install containerd"
+      openssl)
+        install_openssl || fatal "Failed to install openssl"
         ;;
       esac
     done
@@ -422,44 +359,130 @@ download_file() {
   fi
 }
 
-verify_checksum() {
-  local file="$1"
-  local checksum_url="$2"
+# ============================================================================
+# TLS Certificate Generation
+# ============================================================================
 
-  if [ -z "$checksum_url" ]; then
-    log_verbose "No checksum URL provided, skipping verification"
+generate_certificates() {
+  if [ "$GENERATE_CERTS" != "true" ]; then
+    log "Skipping certificate generation (--skip-cert-generation)"
     return 0
   fi
 
-  log "Verifying checksum..."
+  log "Generating self-signed TLS certificates..."
 
-  local checksum_file="${TMP_DIR}/checksum.txt"
-  download_file "$checksum_url" "$checksum_file"
-
-  if command_exists sha256sum; then
-    (cd "$(dirname "$file")" && sha256sum -c "$checksum_file") || fatal "Checksum verification failed"
-  else
-    warn "sha256sum not available, skipping checksum verification"
+  if [ "$DRY_RUN" = "true" ]; then
+    log "[DRY RUN] Would generate certificates in: $VOIYD_TLS_DIR"
+    return 0
   fi
+
+  # Create TLS directory
+  mkdir -p "$VOIYD_TLS_DIR"
+
+  # Get system hostname for certificate
+  local hostname
+  hostname=$(hostname -f 2>/dev/null || hostname)
+
+  log "Generating CA certificate..."
+
+  # Generate CA private key
+  openssl genrsa -out "${VOIYD_TLS_DIR}/ca.key" 4096 2>/dev/null
+
+  # Generate CA certificate
+  openssl req -x509 -new -nodes -sha256 -days "$CERT_DAYS" \
+    -key "${VOIYD_TLS_DIR}/ca.key" \
+    -out "${VOIYD_TLS_DIR}/ca.crt" \
+    -subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORG}/OU=${CERT_OU}/CN=voiyd-ca" \
+    2>/dev/null || fatal "Failed to generate CA certificate"
+
+  success "CA certificate generated"
+
+  log "Generating server certificate..."
+
+  # Generate server private key
+  openssl genrsa -out "${VOIYD_TLS_DIR}/server.key" 2048 2>/dev/null
+
+  # Create OpenSSL config for server certificate with SANs
+  cat >"${TMP_DIR}/server-openssl.conf" <<EOF
+[ req ]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = req_distinguished_name
+req_extensions     = v3_req
+
+[ req_distinguished_name ]
+C  = ${CERT_COUNTRY}
+ST = ${CERT_STATE}
+L  = ${CERT_CITY}
+O  = ${CERT_ORG}
+OU = ${CERT_OU}
+CN = ${CERT_CN}
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+DNS.2 = ${hostname}
+DNS.3 = ${CERT_CN}
+IP.1  = 127.0.0.1
+IP.2  = ::1
+EOF
+
+  # Generate server CSR
+  openssl req -new -sha256 \
+    -key "${VOIYD_TLS_DIR}/server.key" \
+    -out "${TMP_DIR}/server.csr" \
+    -config "${TMP_DIR}/server-openssl.conf" \
+    2>/dev/null || fatal "Failed to generate server CSR"
+
+  # Sign server certificate with CA
+  openssl x509 -req -sha256 -days "$CERT_DAYS" \
+    -in "${TMP_DIR}/server.csr" \
+    -CA "${VOIYD_TLS_DIR}/ca.crt" \
+    -CAkey "${VOIYD_TLS_DIR}/ca.key" \
+    -CAcreateserial \
+    -out "${VOIYD_TLS_DIR}/server.crt" \
+    -extensions v3_req \
+    -extfile "${TMP_DIR}/server-openssl.conf" \
+    2>/dev/null || fatal "Failed to sign server certificate"
+
+  # Set proper permissions
+  chmod 600 "${VOIYD_TLS_DIR}/ca.key" "${VOIYD_TLS_DIR}/server.key"
+  chmod 644 "${VOIYD_TLS_DIR}/ca.crt" "${VOIYD_TLS_DIR}/server.crt"
+
+  success "Server certificate generated"
+  log "Certificates saved to: $VOIYD_TLS_DIR"
+  log "  CA cert:     ${VOIYD_TLS_DIR}/ca.crt"
+  log "  CA key:      ${VOIYD_TLS_DIR}/ca.key"
+  log "  Server cert: ${VOIYD_TLS_DIR}/server.crt"
+  log "  Server key:  ${VOIYD_TLS_DIR}/server.key"
+  echo ""
+  warn "These are self-signed certificates for development/testing only!"
+  warn "For production, use properly signed certificates from a trusted CA."
 }
 
 # ============================================================================
 # Installation Functions
 # ============================================================================
 
-install_voiyd_node() {
+install_voiyd_server() {
   local arch
   arch=$(detect_platform)
 
-  local binary_name="voiyd-node-linux-${arch}"
+  local binary_name="voiyd-server-linux-${arch}"
   local download_url
-  local dest_path="${PREFIX}/bin/voiyd-node"
+  local dest_path="${PREFIX}/bin/voiyd-server"
 
   if [ "$USE_NIGHTLY" = "true" ]; then
-    log "Installing voiyd-node nightly build for linux-${arch}..."
+    log "Installing voiyd-server nightly build for linux-${arch}..."
 
     # Nightly.link provides a single zip file containing all architectures
-    local nightly_zip="${TMP_DIR}/voiyd-node-nightly.zip"
+    local nightly_zip="${TMP_DIR}/voiyd-server-nightly.zip"
     download_url="${NIGHTLY_LINK_URL}"
 
     # Create bin directory if it doesn't exist
@@ -496,13 +519,13 @@ install_voiyd_node() {
     if [ -z "$tmp_binary" ] || [ ! -f "$tmp_binary" ]; then
       error "Binary '${binary_name}' not found in nightly build archive"
       log "Available binaries in archive:"
-      find "${TMP_DIR}/nightly" -type f -name "voiyd-node-*" | sed 's/^/  /'
+      find "${TMP_DIR}/nightly" -type f -name "voiyd-server-*" | sed 's/^/  /'
       fatal "Could not find binary for architecture: ${arch}"
     fi
 
     log_verbose "Found binary: $tmp_binary"
   else
-    log "Installing voiyd-node ${VOIYD_VERSION} for linux-${arch}..."
+    log "Installing voiyd-server ${VOIYD_VERSION} for linux-${arch}..."
     download_url="${GITHUB_DOWNLOAD_URL}/${GITHUB_REPO}/releases/download/${VOIYD_VERSION}/${binary_name}"
 
     # Create bin directory if it doesn't exist
@@ -532,7 +555,7 @@ install_voiyd_node() {
 
   # Verify installation
   if [ -x "$dest_path" ]; then
-    success "voiyd-node installed successfully"
+    success "voiyd-server installed successfully"
     if [ "$USE_NIGHTLY" = "true" ]; then
       log "Version: nightly build from master"
     else
@@ -540,46 +563,6 @@ install_voiyd_node() {
     fi
   else
     fatal "Installation failed: binary not executable"
-  fi
-}
-
-install_cni_plugins() {
-  local arch
-  arch=$(detect_platform)
-
-  local archive_name="cni-plugins-linux-${arch}-${CNI_VERSION}.tgz"
-  local download_url="${GITHUB_DOWNLOAD_URL}/${CNI_REPO}/releases/download/${CNI_VERSION}/${archive_name}"
-  local checksum_url="${download_url}.sha256"
-
-  log "Installing CNI plugins ${CNI_VERSION} for linux-${arch}..."
-
-  # Create CNI directories
-  if [ "$DRY_RUN" = "false" ]; then
-    mkdir -p "$CNI_BIN_DIR"
-    mkdir -p "$CNI_CONF_DIR"
-  fi
-
-  # Download CNI plugins archive
-  local tmp_archive="${TMP_DIR}/${archive_name}"
-  download_file "$download_url" "$tmp_archive"
-
-  # Verify checksum
-  local tmp_checksum="${TMP_DIR}/${archive_name}.sha256"
-  download_file "$checksum_url" "$tmp_checksum"
-
-  if [ "$DRY_RUN" = "false" ]; then
-    log "Verifying checksum..."
-    (cd "$TMP_DIR" && sha256sum -c "${archive_name}.sha256") || fatal "Checksum verification failed"
-
-    # Extract plugins
-    log "Extracting CNI plugins to: $CNI_BIN_DIR"
-    tar -xzf "$tmp_archive" -C "$CNI_BIN_DIR"
-
-    success "CNI plugins installed successfully to $CNI_BIN_DIR"
-    log "Installed plugins:"
-    ls -1 "$CNI_BIN_DIR" | sed 's/^/  - /'
-  else
-    log "[DRY RUN] Would extract CNI plugins to: $CNI_BIN_DIR"
   fi
 }
 
@@ -598,22 +581,12 @@ setup_systemd_service() {
     mkdir -p "$VOIYD_DATA_DIR"
   fi
 
-  # Determine TLS configuration
-  local tls_flag=""
-  if [ "$INSECURE_SKIP_VERIFY" = "true" ]; then
-    tls_flag="--insecure-skip-verify"
-    warn "TLS verification disabled. This is insecure and should only be used for development/testing."
-  else
-    tls_flag=""
-    log "TLS verification enabled (secure mode)"
-  fi
-
   # Create systemd service file
-  local service_file="${SYSTEMD_DIR}/voiyd-node.service"
+  local service_file="${SYSTEMD_DIR}/voiyd-server.service"
 
   if [ "$DRY_RUN" = "true" ]; then
     log "[DRY RUN] Would create systemd service at: $service_file"
-    log "[DRY RUN] Server address: $SERVER_ADDRESS"
+    log "[DRY RUN] Server port: $SERVER_PORT"
     return 0
   fi
 
@@ -621,19 +594,23 @@ setup_systemd_service() {
 
   cat >"$service_file" <<EOF
 [Unit]
-Description=voiyd Node Agent
+Description=voiyd Server
 Documentation=https://github.com/amimof/voiyd
-After=network-online.target containerd.service
-Wants=network-online.target containerd.service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 
-# Node connects to the server over gRPC with TLS
-ExecStart=${PREFIX}/bin/voiyd-node \\
-  --port=${SERVER_ADDRESS##*:} \\
-  --host=${SERVER_ADDRESS%%:*} \\
-  ${tls_flag} \\
+# Server configuration
+ExecStart=${PREFIX}/bin/voiyd-server \\
+  --port=${SERVER_PORT} \\
+  --tls-host=${TLS_HOST} \\
+  --tcp-tls-host=${TCP_TLS_HOST} \\
+  --tls-key=${VOIYD_TLS_DIR}/server.key \\
+  --tls-certificate=${VOIYD_TLS_DIR}/server.crt \\
+  --tls-ca=${VOIYD_TLS_DIR}/ca.crt \\
+  --data-dir=${VOIYD_DATA_DIR} \\
   --metrics-host=${METRICS_HOST}
 
 Restart=on-failure
@@ -652,25 +629,25 @@ EOF
   systemctl daemon-reload
 
   # Enable service
-  log "Enabling voiyd-node service..."
-  systemctl enable voiyd-node.service
+  log "Enabling voiyd-server service..."
+  systemctl enable voiyd-server.service
 
   success "Systemd service configured"
 
   # Start service if requested
   if [ "$START_SERVICE" = "true" ]; then
-    log "Starting voiyd-node service..."
-    systemctl start voiyd-node.service
+    log "Starting voiyd-server service..."
+    systemctl start voiyd-server.service
 
     # Check status
     sleep 2
-    if systemctl is-active --quiet voiyd-node.service; then
-      success "voiyd-node service is running"
+    if systemctl is-active --quiet voiyd-server.service; then
+      success "voiyd-server service is running"
     else
-      error "Service failed to start. Check status with: systemctl status voiyd-node"
+      error "Service failed to start. Check status with: systemctl status voiyd-server"
     fi
   else
-    log "Service not started. Start it with: systemctl start voiyd-node"
+    log "Service not started. Start it with: systemctl start voiyd-server"
   fi
 }
 
@@ -681,7 +658,7 @@ EOF
 verify_installation() {
   log "Verifying installation..."
 
-  local binary_path="${PREFIX}/bin/voiyd-node"
+  local binary_path="${PREFIX}/bin/voiyd-server"
 
   # Check binary
   if [ -x "$binary_path" ]; then
@@ -691,29 +668,25 @@ verify_installation() {
     return 1
   fi
 
-  # Check CNI plugins
-  if [ -d "$CNI_BIN_DIR" ] && [ "$(ls -A "$CNI_BIN_DIR" 2>/dev/null)" ]; then
-    success "CNI plugins installed: $CNI_BIN_DIR"
-  else
-    warn "CNI plugins directory empty or not found: $CNI_BIN_DIR"
+  # Check certificates
+  if [ "$GENERATE_CERTS" = "true" ]; then
+    if [ -f "${VOIYD_TLS_DIR}/ca.crt" ] && [ -f "${VOIYD_TLS_DIR}/server.crt" ] && [ -f "${VOIYD_TLS_DIR}/server.key" ]; then
+      success "TLS certificates generated: $VOIYD_TLS_DIR"
+    else
+      warn "TLS certificates not found in: $VOIYD_TLS_DIR"
+    fi
   fi
 
   # Check systemd service
-  if [ "$INSTALL_SYSTEMD" = "true" ] && [ -f "${SYSTEMD_DIR}/voiyd-node.service" ]; then
-    success "Systemd service configured: voiyd-node.service"
+  if [ "$INSTALL_SYSTEMD" = "true" ] && [ -f "${SYSTEMD_DIR}/voiyd-server.service" ]; then
+    success "Systemd service configured: voiyd-server.service"
   fi
 
   # Check dependencies
-  if command_exists iptables; then
-    success "iptables is available"
+  if command_exists openssl; then
+    success "openssl is available"
   else
-    warn "iptables not found"
-  fi
-
-  if command_exists containerd; then
-    success "containerd is available"
-  else
-    warn "containerd not found"
+    warn "openssl not found"
   fi
 }
 
@@ -723,13 +696,13 @@ verify_installation() {
 
 show_usage() {
   cat <<EOF
-${BOLD}Voiyd Node Installation Script${NC}
+${BOLD}Voiyd Server Installation Script${NC}
 
-Installs voiyd-node and its dependencies on Linux systems.
+Installs voiyd-server and generates self-signed TLS certificates on Linux systems.
 
 ${BOLD}USAGE:${NC}
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | sh -
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | sh -s -- [OPTIONS]
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sh -
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sh -s -- [OPTIONS]
 
 ${BOLD}OPTIONS:${NC}
     ${BOLD}Version Options:${NC}
@@ -737,19 +710,27 @@ ${BOLD}OPTIONS:${NC}
                                 Example: --version v0.0.11
     --nightly                   Install latest nightly build from master branch
                                 (overrides --version)
-    --cni-version <version>     CNI plugins version (default: v1.9.0)
 
     ${BOLD}Installation Paths:${NC}
     --prefix <path>             Installation prefix (default: /usr/local)
-                                Binary will be installed to <prefix>/bin/voiyd-node
-    --cni-bin-dir <path>        CNI plugins directory (default: /opt/cni/bin)
-    --cni-conf-dir <path>       CNI config directory (default: /etc/cni/net.d)
+                                Binary will be installed to <prefix>/bin/voiyd-server
+    --tls-dir <path>            TLS certificate directory (default: /etc/voiyd/tls)
+    --data-dir <path>           Data directory (default: /var/lib/voiyd)
 
     ${BOLD}Server Configuration:${NC}
-    --server-address <addr>     Server address (default: localhost:5743)
-                                Example: --server-address server.example.com:5743
-    --insecure-skip-verify      Skip TLS certificate verification (insecure, dev only)
+    --port <port>               Server port (default: 5743)
+    --tls-host <host>           HTTPS listen address (default: 0.0.0.0)
+    --tcp-tls-host <host>       gRPC TLS listen address (default: 0.0.0.0)
     --metrics-host <host>       Metrics host (default: 0.0.0.0)
+
+    ${BOLD}TLS Certificate Options:${NC}
+    --skip-cert-generation      Skip automatic certificate generation
+    --cert-days <days>          Certificate validity in days (default: 365)
+    --cert-country <code>       Certificate country code (default: US)
+    --cert-state <state>        Certificate state (default: State)
+    --cert-city <city>          Certificate city (default: City)
+    --cert-org <org>            Certificate organization (default: voiyd)
+    --cert-cn <cn>              Certificate common name (default: voiyd-server)
 
     ${BOLD}Systemd Options:${NC}
     --no-systemd                Don't install systemd service
@@ -766,37 +747,45 @@ ${BOLD}OPTIONS:${NC}
 
 ${BOLD}EXAMPLES:${NC}
     # Install latest version with auto-install dependencies
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \\
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \\
       sh -s -- --auto-install-deps
 
     # Install specific version with custom prefix
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \\
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \\
       sh -s -- --version v0.0.11 --prefix /usr
 
     # Install latest nightly build
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \\
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \\
       sh -s -- --nightly --auto-install-deps
 
-    # Install and start service with server configuration
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \\
+    # Install and start service with custom certificate settings
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \\
       sh -s -- \\
-        --server-address voiyd.example.com:5743 \\
-        --insecure-skip-verify \\
+        --cert-org "MyCompany" \\
+        --cert-cn "voiyd.example.com" \\
+        --cert-days 730 \\
         --auto-install-deps \\
         --start
 
     # Dry run to see what would be installed
-    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \\
+    curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \\
       sh -s -- --dry-run --verbose
 
 ${BOLD}REQUIREMENTS:${NC}
     - Linux operating system
     - Root privileges (sudo)
     - curl or wget
-    - tar
+    - openssl (for certificate generation, auto-installed with --auto-install-deps)
     - unzip (for nightly builds, auto-installed with --auto-install-deps)
-    - containerd >= 1.6
-    - iptables
+
+${BOLD}TLS CERTIFICATES:${NC}
+    By default, the script generates self-signed certificates for development/testing.
+    These certificates are placed in ${VOIYD_TLS_DIR}:
+      - ca.crt, ca.key    - Certificate Authority
+      - server.crt, server.key - Server certificate
+
+    ${BOLD}WARNING:${NC} Self-signed certificates are for development only!
+    For production, use certificates from a trusted CA.
 
 ${BOLD}MORE INFO:${NC}
     GitHub: https://github.com/amimof/voiyd
@@ -820,32 +809,60 @@ parse_args() {
       USE_NIGHTLY="true"
       shift
       ;;
-    --cni-version)
-      CNI_VERSION="$2"
-      shift 2
-      ;;
     --prefix)
       PREFIX="$2"
       shift 2
       ;;
-    --cni-bin-dir)
-      CNI_BIN_DIR="$2"
+    --tls-dir)
+      VOIYD_TLS_DIR="$2"
       shift 2
       ;;
-    --cni-conf-dir)
-      CNI_CONF_DIR="$2"
+    --data-dir)
+      VOIYD_DATA_DIR="$2"
       shift 2
       ;;
-    --server-address)
-      SERVER_ADDRESS="$2"
+    --port)
+      SERVER_PORT="$2"
       shift 2
       ;;
-    --insecure-skip-verify)
-      INSECURE_SKIP_VERIFY="true"
-      shift
+    --tls-host)
+      TLS_HOST="$2"
+      shift 2
+      ;;
+    --tcp-tls-host)
+      TCP_TLS_HOST="$2"
+      shift 2
       ;;
     --metrics-host)
       METRICS_HOST="$2"
+      shift 2
+      ;;
+    --skip-cert-generation)
+      GENERATE_CERTS="false"
+      shift
+      ;;
+    --cert-days)
+      CERT_DAYS="$2"
+      shift 2
+      ;;
+    --cert-country)
+      CERT_COUNTRY="$2"
+      shift 2
+      ;;
+    --cert-state)
+      CERT_STATE="$2"
+      shift 2
+      ;;
+    --cert-city)
+      CERT_CITY="$2"
+      shift 2
+      ;;
+    --cert-org)
+      CERT_ORG="$2"
+      shift 2
+      ;;
+    --cert-cn)
+      CERT_CN="$2"
       shift 2
       ;;
     --no-systemd)
@@ -892,7 +909,7 @@ parse_args() {
 main() {
   echo ""
   echo -e "${BOLD}╔═══════════════════════════════════════════════════════════╗${NC}"
-  echo -e "${BOLD}║          Voiyd Node Installation Script                  ║${NC}"
+  echo -e "${BOLD}║          Voiyd Server Installation Script                ║${NC}"
   echo -e "${BOLD}╚═══════════════════════════════════════════════════════════╝${NC}"
   echo ""
 
@@ -916,10 +933,11 @@ main() {
   else
     log "  voiyd version:    ${VOIYD_VERSION}"
   fi
-  log "  CNI version:      ${CNI_VERSION}"
   log "  Install prefix:   ${PREFIX}"
-  log "  CNI bin dir:      ${CNI_BIN_DIR}"
-  log "  Server address:   ${SERVER_ADDRESS}"
+  log "  TLS directory:    ${VOIYD_TLS_DIR}"
+  log "  Data directory:   ${VOIYD_DATA_DIR}"
+  log "  Server port:      ${SERVER_PORT}"
+  log "  Generate certs:   ${GENERATE_CERTS}"
   log "  Auto-install deps: ${AUTO_INSTALL_DEPS}"
   log "  Install systemd:  ${INSTALL_SYSTEMD}"
   echo ""
@@ -928,12 +946,12 @@ main() {
   check_and_install_dependencies
   echo ""
 
-  # Install voiyd-node
-  install_voiyd_node
+  # Install voiyd-server
+  install_voiyd_server
   echo ""
 
-  # Install CNI plugins
-  install_cni_plugins
+  # Generate TLS certificates
+  generate_certificates
   echo ""
 
   # Setup systemd service
@@ -951,24 +969,33 @@ main() {
   echo ""
 
   if [ "$DRY_RUN" = "false" ]; then
-    success "voiyd-node ${VOIYD_VERSION} has been installed successfully!"
+    success "voiyd-server ${VOIYD_VERSION} has been installed successfully!"
     echo ""
-    log "Binary location: ${PREFIX}/bin/voiyd-node"
-    log "CNI plugins: ${CNI_BIN_DIR}"
+    log "Binary location: ${PREFIX}/bin/voiyd-server"
+    log "TLS certificates: ${VOIYD_TLS_DIR}"
+    log "Data directory: ${VOIYD_DATA_DIR}"
 
     if [ "$INSTALL_SYSTEMD" = "true" ]; then
       echo ""
       log "Systemd service commands:"
-      log "  Start:   systemctl start voiyd-node"
-      log "  Stop:    systemctl stop voiyd-node"
-      log "  Status:  systemctl status voiyd-node"
-      log "  Logs:    journalctl -u voiyd-node -f"
+      log "  Start:   systemctl start voiyd-server"
+      log "  Stop:    systemctl stop voiyd-server"
+      log "  Status:  systemctl status voiyd-server"
+      log "  Logs:    journalctl -u voiyd-server -f"
+    fi
 
-      if [ "$INSECURE_SKIP_VERIFY" = "true" ]; then
-        echo ""
-        warn "TLS verification is disabled (--insecure-skip-verify)."
-        warn "This is NOT recommended for production environments."
-      fi
+    if [ "$GENERATE_CERTS" = "true" ]; then
+      echo ""
+      warn "Self-signed certificates were generated for development/testing."
+      warn "Certificate files:"
+      warn "  CA certificate:     ${VOIYD_TLS_DIR}/ca.crt"
+      warn "  Server certificate: ${VOIYD_TLS_DIR}/server.crt"
+      warn "  Server key:         ${VOIYD_TLS_DIR}/server.key"
+      echo ""
+      warn "For production deployments, replace these with certificates from a trusted CA."
+      echo ""
+      log "To use these certificates with voiyd-node, copy ca.crt to the node and use:"
+      log "  voiyd-node --tls-ca ${VOIYD_TLS_DIR}/ca.crt --port ${SERVER_PORT}"
     fi
 
     echo ""

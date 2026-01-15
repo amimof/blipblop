@@ -2,7 +2,7 @@
 
 This directory contains example certificate configuration and helper commands for running voiyd components (server and nodes) over TLS.
 
-The files are intended primarily for **local development and testing**. For any production or internet-facing deployment, you should generate and manage certificates according to your organization’s security policies (for example, using a corporate CA or a certificate management system like HashiCorp Vault, cert-manager, or a hardware security module).
+> The files in this directory are intended primarily for **local development and testing**
 
 ## Contents
 

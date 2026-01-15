@@ -1,21 +1,26 @@
+# Server Installation Guide
+
 This guide explains how to install and run `voiyd-server`
+
 <!--toc:start-->
-- [Dependencies](#dependencies)
-- [Installation](#installation)
-  - [Automated Install](#automated-install)
-    - [Install Specific Version](#install-specific-version)
-    - [Install Nightly Build](#install-nightly-build)
-    - [Dry Run](#dry-run)
-    - [Supported Platforms](#supported-platforms)
-    - [Command-Line Options](#command-line-options)
-  - [Manual Installation](#manual-installation)
-  - [Build From Source](#build-from-source)
-- [Post-Installation](#post-installation)
-  - [Verify Installation](#verify-installation)
-  - [Configure TLS Certificates](#configure-tls-certificates)
-  - [Manage the Service](#manage-the-service)
-- [Uninstall](#uninstall)
-- [Contributing](#contributing)
+- [Server Installation Guide](#server-installation-guide)
+  - [Dependencies](#dependencies)
+  - [Installation](#installation)
+    - [Automated Install](#automated-install)
+      - [Install Specific Version](#install-specific-version)
+      - [Install Nightly Build](#install-nightly-build)
+      - [Certificate Configuration](#certificate-configuration)
+      - [Dry Run](#dry-run)
+      - [Supported Platforms](#supported-platforms)
+      - [Command-Line Options](#command-line-options)
+    - [Manual Installation](#manual-installation)
+    - [Build From Source](#build-from-source)
+  - [Post-Installation](#post-installation)
+    - [Verify Installation](#verify-installation)
+    - [Configure TLS Certificates](#configure-tls-certificates)
+    - [Manage the Service](#manage-the-service)
+  - [Uninstall](#uninstall)
+  - [Contributing](#contributing)
 <!--toc:end-->
 
 ## Dependencies
@@ -31,15 +36,14 @@ This guide explains how to install and run `voiyd-server`
 The automated installation script aims to make server provisioning as simple as possible. Allowing you to bootstrap clusters quickly. It provides command line options so you can customize the installation to fit your needs. By default, the script will install the latest tagged version of `voiyd-server`.
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
-  sudo sh -s -- --host VOIYD_SERVER_HOST:5743
+curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sudo sh 
 ```
 
 #### Install Specific Version
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
-  sudo sh -s -- --version v0.0.11
+curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
+  sudo sh -s -- --version v0.0.11 
 ```
 
 #### Install Nightly Build
@@ -47,8 +51,18 @@ curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | 
 Install the latest development version from the master branch:
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
+curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
   sudo sh -s -- --nightly 
+```
+
+#### Certificate Configuration
+
+```bash
+curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
+  sudo sh -s -- \
+    --cert-org "MyCompany" \
+    --cert-cn "voiyd.example.com" \
+    --cert-days 730 
 ```
 
 #### Dry Run
@@ -56,7 +70,7 @@ curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | 
 Preview what will be installed without making any changes:
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
+curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
   sudo sh -s -- --dry-run --verbose
 ```
 
@@ -74,23 +88,27 @@ Following is the complete set of flags that can be passed in to the installation
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--version <version>` | voiyd version to install | `latest` |
-| `--nightly` | Install latest nightly build from master | - |
-| `--cni-version <version>` | CNI plugins version | `v1.9.0` |
-| `--prefix <path>` | Installation prefix | `/usr/local` |
-| `--cni-bin-dir <path>` | CNI plugins directory | `/opt/cni/bin` |
-| `--cni-conf-dir <path>` | CNI config directory | `/etc/cni/net.d` |
-| `--server-address <addr>` | Server address and port | `localhost:5743` |
-| `--insecure-skip-verify` | Skip TLS certificate verification (dev only) | Disabled |
-| `--metrics-host <host>` | Metrics host address | `0.0.0.0` |
-| `--no-systemd` | Don't install systemd service | Install systemd |
-| `--start` | Start service after installation | Don't start |
-| `--auto-install-deps` | Auto-install missing dependencies | Prompt/fail |
-| `--skip-deps` | Skip dependency checks | Check deps |
-| `--skip-deps` | Skip dependency checks | Check deps |
-| `--dry-run` | Show what would be installed | |
-| `--verbose` `-v` | Enable verbose output | |
-| `--help` `-h` | Show help message | |
+| --version <version> | Install specific version | `latest` |
+| --nightly | Install nightly build | `false` |
+| --prefix <path> | Binary installation prefix | `/usr/local` |
+| --tls-dir <path> | Certificate directory | `/etc/voiyd/tls` |
+| --data-dir <path> | Data directory | `/var/lib/voiyd` |
+| --port <port> | Server port | `5743` |
+| --tls-host <host> | HTTPS listen address |  `0.0.0.0` |
+| --tcp-tls-host <host> | gRPC TLS listen address |  `0.0.0.0` |
+| --metrics-host <host> | Metrics host |  `0.0.0.0` |
+| --skip-cert-generation | Don't generate certificate | `false` |
+| --cert-days <days> | Certificate validity |  `365` |
+| --cert-country <code> | Country code |  `US` |
+| --cert-state <state> | State |  `State` |
+| --cert-city <city> | City |  `City` |
+| --cert-org <org> | Organization |  voiyd |
+| --cert-cn <cn> | Common Name | voiyd-server |
+| --auto-install-deps | Auto-install dependencies | `true` |
+| --no-systemd | Skip systemd service creation | `false` |
+| --start | Start service after installation | `true` |
+| --dry-run | Preview without making changes | |
+| --verbose | Enable debug output | |
 
 ### Manual Installation
 

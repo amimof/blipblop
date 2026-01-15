@@ -97,4 +97,4 @@ See the [`LICENSE`](./LICENSE) file for details.
 
 ## Contributing
 
-You are welcome to contribute to this project by opening PR's. Create an Issue if you have feedback
+See the [Contribution Guide](/CONTRIBUTING.md)

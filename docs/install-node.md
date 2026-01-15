@@ -1,24 +1,25 @@
+# Node Installation Guide
 
 This guide explains how to install `voiyd-node` on Linux.
 
 <!--toc:start-->
-- [Dependencies](#dependencies)
-- [Supported Distributions](#supported-distributions)
-- [Installation](#installation)
-  - [Automated Install](#automated-install)
-    - [Install Specific Version](#install-specific-version)
-    - [Install Nightly Build](#install-nightly-build)
-    - [Dry Run](#dry-run)
-    - [Supported Platforms](#supported-platforms)
-    - [Command-Line Options](#command-line-options)
-  - [Manual Installation](#manual-installation)
-  - [Build From Source](#build-from-source)
-- [Post-Installation](#post-installation)
-  - [Verify Installation](#verify-installation)
-  - [Configure TLS Certificates](#configure-tls-certificates)
-  - [Manage the Service](#manage-the-service)
-- [Uninstall](#uninstall)
-- [Contributing](#contributing)
+- [Node Installation Guide](#node-installation-guide)
+  - [Dependencies](#dependencies)
+  - [Installation](#installation)
+    - [Automated Install](#automated-install)
+      - [Install Specific Version](#install-specific-version)
+      - [Install Nightly Build](#install-nightly-build)
+      - [Dry Run](#dry-run)
+      - [Supported Platforms](#supported-platforms)
+      - [Command-Line Options](#command-line-options)
+    - [Manual Installation](#manual-installation)
+    - [Build From Source](#build-from-source)
+  - [Post-Installation](#post-installation)
+    - [Verify Installation](#verify-installation)
+    - [Configure TLS Certificates](#configure-tls-certificates)
+    - [Manage the Service](#manage-the-service)
+  - [Uninstall](#uninstall)
+  - [Contributing](#contributing)
 <!--toc:end-->
 
 ## Dependencies
@@ -28,12 +29,6 @@ To run `voiyd-node` following dependencies must be installed. This document will
 - [containerd](https://containerd.io/) >= 1.6
 - [CNI plugins](https://www.cni.dev/plugins/current/)
 - Iptables
-
-## Supported Distributions
-
-The script can automatically install dependencies on:
-
-For other distributions, you may need to install dependencies manually.
 
 ## Installation
 
@@ -88,22 +83,21 @@ Following is the complete set of flags that can be passed in to the installation
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--version <version>` | voiyd version to install | `latest` |
-| `--nightly` | Install latest nightly build from master | - |
+| `--nightly` | Install latest nightly build from master | `false` |
 | `--cni-version <version>` | CNI plugins version | `v1.9.0` |
 | `--prefix <path>` | Installation prefix | `/usr/local` |
 | `--cni-bin-dir <path>` | CNI plugins directory | `/opt/cni/bin` |
 | `--cni-conf-dir <path>` | CNI config directory | `/etc/cni/net.d` |
 | `--server-address <addr>` | Server address and port | `localhost:5743` |
-| `--insecure-skip-verify` | Skip TLS certificate verification (dev only) | Disabled |
+| `--insecure-skip-verify` | Skip TLS certificate verification (dev only) | `true` |
 | `--metrics-host <host>` | Metrics host address | `0.0.0.0` |
-| `--no-systemd` | Don't install systemd service | Install systemd |
-| `--start` | Start service after installation | Don't start |
-| `--auto-install-deps` | Auto-install missing dependencies | Prompt/fail |
-| `--skip-deps` | Skip dependency checks | Check deps |
-| `--skip-deps` | Skip dependency checks | Check deps |
-| `--dry-run` | Show what would be installed | |
-| `--verbose` `-v` | Enable verbose output | |
-| `--help` `-h` | Show help message | |
+| `--no-systemd` | Don't install systemd service | `false` |
+| `--start` | Start service after installation | `true` |
+| `--auto-install-deps` | Auto-install missing dependencies | `true` |
+| `--skip-deps` | Skip dependency checks | `false` |
+| `--dry-run` | Show what would be installed |  |
+| `--verbose` `-v` | Enable verbose output |  |
+| `--help` `-h` | Show help message |  |
 
 ### Manual Installation
 
