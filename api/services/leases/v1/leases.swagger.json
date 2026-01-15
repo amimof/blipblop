@@ -80,13 +80,6 @@
             "in": "query",
             "required": false,
             "type": "string"
-          },
-          {
-            "name": "ttlSeconds",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int64"
           }
         ],
         "tags": [

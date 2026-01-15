@@ -86,8 +86,8 @@ var (
 	tlsCACertificate  string
 	otelEndpoint      string
 	dbPath            string
-
-	log *slog.Logger
+	leaseTTLSeconds   uint32
+	log               *slog.Logger
 )
 
 func init() {
@@ -113,6 +113,7 @@ func init() {
 	pflag.IntVar(&listenLimit, "listen-limit", 0, "limit the number of outstanding requests")
 	pflag.IntVar(&tlsListenLimit, "tls-listen-limit", 0, "limit the number of outstanding requests")
 	pflag.Uint64Var(&maxHeaderSize, "max-header-size", 1000000, "controls the maximum number of bytes the server will read parsing the request header's keys and values, including the request line. It does not limit the size of the request body")
+	pflag.Uint32Var(&leaseTTLSeconds, "lease-ttl-seconds", 60, "how long a lease can live in seconds before it expires")
 
 	pflag.DurationVar(&cleanupTimeout, "cleanup-timeout", 10*time.Second, "grace period for which to wait before shutting down the server")
 	pflag.DurationVar(&keepAlive, "keep-alive", 3*time.Minute, "sets the TCP keep-alive timeouts on accepted connections. It prunes dead TCP connections ( e.g. closing laptop mid-download)")
@@ -288,6 +289,7 @@ func main() {
 		repository.NewLeaseBadgerRepository(db),
 		lease.WithLogger(log),
 		lease.WithExchange(exchange),
+		lease.WithTTL(leaseTTLSeconds),
 	)
 
 	// Context

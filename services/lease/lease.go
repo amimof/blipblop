@@ -28,11 +28,18 @@ func WithExchange(e *events.Exchange) NewServiceOption {
 	}
 }
 
+func WithTTL(ttl uint32) NewServiceOption {
+	return func(s *LeaseService) {
+		s.leaseTTL = ttl
+	}
+}
+
 type LeaseService struct {
 	leasesv1.UnimplementedLeaseServiceServer
 	local    leasesv1.LeaseServiceClient
 	logger   logger.Logger
 	exchange *events.Exchange
+	leaseTTL uint32
 }
 
 func (c *LeaseService) Register(server *grpc.Server) error {
@@ -62,7 +69,8 @@ func (c *LeaseService) Renew(ctx context.Context, req *leasesv1.RenewRequest) (*
 
 func NewService(repo repository.LeaseRepository, opts ...NewServiceOption) *LeaseService {
 	s := &LeaseService{
-		logger: logger.ConsoleLogger{},
+		logger:   logger.ConsoleLogger{},
+		leaseTTL: 60,
 	}
 
 	for _, opt := range opts {
@@ -73,7 +81,7 @@ func NewService(repo repository.LeaseRepository, opts ...NewServiceOption) *Leas
 		repo:     repo,
 		exchange: s.exchange,
 		logger:   s.logger,
-		// gracePeriod: 30 * time.Second,
+		leaseTTL: s.leaseTTL,
 	}
 
 	return s

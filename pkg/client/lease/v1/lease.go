@@ -28,7 +28,7 @@ func WithClient(client leasesv1.LeaseServiceClient) CreateOption {
 }
 
 type ClientV1 interface {
-	Acquire(context.Context, string, string, uint32, ...CreateOption) (bool, error)
+	Acquire(context.Context, string, string, ...CreateOption) (uint32, bool, error)
 	Renew(context.Context, string, string) (bool, error)
 	Release(context.Context, string, string) error
 	Get(context.Context, string) (*leasesv1.Lease, error)
@@ -41,7 +41,7 @@ type clientV1 struct {
 	id         string
 }
 
-func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, ttl uint32, opts ...CreateOption) (bool, error) {
+func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...CreateOption) (uint32, bool, error) {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.lease.Acquire")
 	defer span.End()
@@ -50,14 +50,14 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, ttl uint3
 		opt(c)
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	resp, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID, TtlSeconds: ttl})
+	resp, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID})
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 	if !resp.Acquired {
-		return false, err
+		return 0, false, err
 	}
-	return true, nil
+	return resp.GetLease().GetTtlSeconds(), true, nil
 }
 
 func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string) (bool, error) {

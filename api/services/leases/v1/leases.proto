@@ -50,7 +50,6 @@ message Lease {
 message AcquireRequest {
   string task_id = 1;
   string node_id = 2;
-  uint32 ttl_seconds = 3;
 }
 
 message AcquireResponse {

@@ -46,20 +46,21 @@ var (
 	// GOVERSION used to compile. Is set when project is built and should never be set manually
 	GOVERSION string
 
-	insecureSkipVerify bool
-	host               string
-	port               int
-	tlsCertificate     string
-	tlsCertificateKey  string
-	tlsCACertificate   string
-	metricsHost        string
-	metricsPort        int
-	containerdSocket   string
-	logLevel           string
-	nodeFile           string
-	runtimeNamespace   string
-	otelEndpoint       string
-	runtimeLogDir      string
+	insecureSkipVerify   bool
+	host                 string
+	port                 int
+	tlsCertificate       string
+	tlsCertificateKey    string
+	tlsCACertificate     string
+	metricsHost          string
+	metricsPort          int
+	containerdSocket     string
+	logLevel             string
+	nodeFile             string
+	runtimeNamespace     string
+	otelEndpoint         string
+	runtimeLogDir        string
+	leaseRenewalInterval time.Duration
 )
 
 func init() {
@@ -77,6 +78,7 @@ func init() {
 	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
 	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
+	pflag.DurationVar(&leaseRenewalInterval, "lease-renew-interval", time.Second*30, "how often leases are renewed on interval")
 }
 
 func parseSlogLevel(lvl string) (slog.Level, error) {
@@ -264,6 +266,7 @@ func main() {
 		nodectrl.WithExchange(exchange),
 		nodectrl.WithLogger(log),
 		nodectrl.WithVolumeAttacher(volume.NewDefaultAttacher(clientSet.VolumeV1())),
+		nodectrl.WithLeaseRenewalInterval(leaseRenewalInterval),
 	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)

@@ -25,9 +25,7 @@ type local struct {
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
-
-	// gracePeriod time.Duration // 30s
-	// maxReschedules uint32        // 3
+	leaseTTL uint32
 }
 
 var (
@@ -80,7 +78,7 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 
-			ttl := 30
+			ttl := l.leaseTTL
 			now := time.Now()
 			expires := now.Add(time.Duration(ttl) * time.Second)
 
@@ -91,7 +89,7 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 				AcquiredAt: timestamppb.New(now),
 				RenewTime:  timestamppb.New(now),
 				ExpiresAt:  timestamppb.New(expires),
-				TtlSeconds: uint32(ttl),
+				TtlSeconds: ttl,
 			}
 			err = l.repo.Create(ctx, lease)
 			if err != nil {

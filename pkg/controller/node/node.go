@@ -45,9 +45,7 @@ type Controller struct {
 	node             *nodesv1.Node
 	attacher         volume.Attacher
 	exchange         *events.Exchange
-
-	renewInterval time.Duration // 5s (half of TTL)
-	leaseTTL      uint32        // 10s
+	renewInterval    time.Duration
 }
 
 type NewOption func(c *Controller)
@@ -55,12 +53,6 @@ type NewOption func(c *Controller)
 func WithLeaseRenewalInterval(d time.Duration) NewOption {
 	return func(c *Controller) {
 		c.renewInterval = d
-	}
-}
-
-func WithLeaseTTL(ttl uint32) NewOption {
-	return func(c *Controller) {
-		c.leaseTTL = ttl
 	}
 }
 
@@ -768,7 +760,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 	taskID := task.GetMeta().GetName()
 	nodeID := c.node.GetMeta().GetName()
 
-	expired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID, c.leaseTTL)
+	ttl, expired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
 	if err != nil {
 		c.logger.Error("failed to acquire lease", "error", err, "task", taskID, "nodeID", nodeID)
 		return err
@@ -779,7 +771,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		return errors.New("lease held by another another")
 	}
 
-	c.logger.Info("acquired lease for task", "task", taskID, "node", nodeID)
+	c.logger.Info("acquired lease for task", "task", taskID, "node", nodeID, "ttl", ttl)
 
 	// Release if task can't be provisioned
 	defer func() {
@@ -954,7 +946,7 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 		}
 
 		// Try to acquire lease for this task
-		acquired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID, c.leaseTTL)
+		ttl, acquired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
 		if err != nil {
 			c.logger.Error("error acquiring lease during reconcile", "task", taskID, "error", err)
 			continue
@@ -962,7 +954,7 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 
 		// Successfully acquired lease - we can keep running this task
 		if acquired {
-			c.logger.Info("acquierd lease for task", "task", taskID, "node", nodeID, "ttl", c.leaseTTL)
+			c.logger.Info("acquierd lease for task", "task", taskID, "node", nodeID, "ttl", ttl)
 
 			// Update task status to reflect actual state
 			if err = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
@@ -1014,7 +1006,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		activeLogStreams: make(map[events.LogKey]context.CancelFunc),
 		node:             n,
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
-		renewInterval:    time.Second * 10,
+		renewInterval:    time.Second * 30,
 	}
 	for _, opt := range opts {
 		opt(m)
