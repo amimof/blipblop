@@ -29,6 +29,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	containersetctrl "github.com/amimof/voiyd/pkg/controller/containerset"
+	leasectrl "github.com/amimof/voiyd/pkg/controller/lease"
 	schedulerctrl "github.com/amimof/voiyd/pkg/controller/scheduler"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/instrumentation"
@@ -385,6 +386,10 @@ func main() {
 	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Scheduler Controller")
+
+	leaseCtrl := leasectrl.New(cs, leasectrl.WithLogger(log), leasectrl.WithExchange(exchange))
+	go leaseCtrl.Run(ctx)
+	log.Info("Started Lease Controller")
 
 	// Wait for exit signal, begin shutdown process after this point
 	<-exit

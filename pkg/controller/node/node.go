@@ -121,6 +121,9 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
 	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
 
+	// Setup lease handlers
+	c.clientset.EventV1().On(events.LeaseExpired, c.handleErrors(c.onLeaseExpired))
+
 	go func() {
 		for e := range evt {
 			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
@@ -268,6 +271,16 @@ func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
 	}
 }
 
+func (c *Controller) onLeaseExpired(ctx context.Context, obj *eventsv1.Event) error {
+	var task tasksv1.Task
+	err := obj.GetObject().UnmarshalTo(&task)
+	if err != nil {
+		return err
+	}
+
+	return c.startTask(ctx, &task)
+}
+
 func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event) error {
 	var e cevents.TaskStart
 	err := obj.GetObject().UnmarshalTo(&e)
@@ -289,7 +302,7 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 
 	// Only proceed if task is owned by us
 	if lease.GetNodeId() == c.node.GetMeta().GetName() {
-		c.logger.Warn("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 		return c.clientset.TaskV1().Status().Update(
 			ctx,
 			tname,
@@ -324,7 +337,7 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 
 	// Only proceed if task is owned by us
 	if lease.GetNodeId() == c.node.GetMeta().GetName() {
-		c.logger.Warn("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
+		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
 		phase := consts.PHASESTOPPED
 		status := ""
 
@@ -368,7 +381,7 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 	// Only proceed if task is owned by us
 	if lease.GetNodeId() == c.node.GetMeta().GetName() {
 
-		c.logger.Warn("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 		return c.clientset.TaskV1().Status().Update(
 			ctx,
 			tname,
@@ -934,6 +947,12 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 	for _, task := range runtimeTasks {
 		taskID := task.GetMeta().GetName()
 
+		// Only acquire if task is supposed to be running
+		if task.GetStatus().GetPhase().GetValue() != consts.PHASERUNNING {
+			c.logger.Debug("skip lease acquisition because task is not running", "task", taskID)
+			continue
+		}
+
 		// Try to acquire lease for this task
 		acquired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID, c.leaseTTL)
 		if err != nil {
@@ -947,9 +966,8 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 
 			// Update task status to reflect actual state
 			if err = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
-				Phase: wrapperspb.String(consts.PHASERUNNING),
-				Node:  wrapperspb.String(nodeID),
-			}, "phase", "node"); err != nil {
+				Node: wrapperspb.String(nodeID),
+			}, "node"); err != nil {
 				c.logger.Warn("unable to update status", "error", err, "task", taskID, "node", nodeID)
 			}
 
