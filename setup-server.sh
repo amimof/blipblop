@@ -19,7 +19,6 @@ PREFIX="${PREFIX:-/usr/local}"
 SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 VOIYD_CONFIG_DIR="${VOIYD_CONFIG_DIR:-/etc/voiyd}"
 VOIYD_TLS_DIR="${VOIYD_TLS_DIR:-/etc/voiyd/tls}"
-VOIYD_DATA_DIR="${VOIYD_DATA_DIR:-/var/lib/voiyd}"
 
 # Server configuration
 SERVER_PORT="${SERVER_PORT:-5743}"
@@ -578,7 +577,6 @@ setup_systemd_service() {
   if [ "$DRY_RUN" = "false" ]; then
     mkdir -p "$VOIYD_CONFIG_DIR"
     mkdir -p "$VOIYD_TLS_DIR"
-    mkdir -p "$VOIYD_DATA_DIR"
   fi
 
   # Create systemd service file
@@ -610,7 +608,6 @@ ExecStart=${PREFIX}/bin/voiyd-server \\
   --tls-key=${VOIYD_TLS_DIR}/server.key \\
   --tls-certificate=${VOIYD_TLS_DIR}/server.crt \\
   --tls-ca=${VOIYD_TLS_DIR}/ca.crt \\
-  --data-dir=${VOIYD_DATA_DIR} \\
   --metrics-host=${METRICS_HOST}
 
 Restart=on-failure
@@ -817,10 +814,6 @@ parse_args() {
       VOIYD_TLS_DIR="$2"
       shift 2
       ;;
-    --data-dir)
-      VOIYD_DATA_DIR="$2"
-      shift 2
-      ;;
     --port)
       SERVER_PORT="$2"
       shift 2
@@ -935,7 +928,6 @@ main() {
   fi
   log "  Install prefix:   ${PREFIX}"
   log "  TLS directory:    ${VOIYD_TLS_DIR}"
-  log "  Data directory:   ${VOIYD_DATA_DIR}"
   log "  Server port:      ${SERVER_PORT}"
   log "  Generate certs:   ${GENERATE_CERTS}"
   log "  Auto-install deps: ${AUTO_INSTALL_DEPS}"
@@ -973,7 +965,6 @@ main() {
     echo ""
     log "Binary location: ${PREFIX}/bin/voiyd-server"
     log "TLS certificates: ${VOIYD_TLS_DIR}"
-    log "Data directory: ${VOIYD_DATA_DIR}"
 
     if [ "$INSTALL_SYSTEMD" = "true" ]; then
       echo ""

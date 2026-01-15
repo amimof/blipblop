@@ -92,7 +92,6 @@ Following is the complete set of flags that can be passed in to the installation
 | --nightly | Install nightly build | `false` |
 | --prefix <path> | Binary installation prefix | `/usr/local` |
 | --tls-dir <path> | Certificate directory | `/etc/voiyd/tls` |
-| --data-dir <path> | Data directory | `/var/lib/voiyd` |
 | --port <port> | Server port | `5743` |
 | --tls-host <host> | HTTPS listen address |  `0.0.0.0` |
 | --tcp-tls-host <host> | gRPC TLS listen address |  `0.0.0.0` |
