@@ -38,14 +38,14 @@ This guide explains how to install and run `voiyd-server`
 The automated installation script aims to make server provisioning as simple as possible. Allowing you to bootstrap clusters quickly. It provides command line options so you can customize the installation to fit your needs. By default, the script will install the latest tagged version of `voiyd-server`.
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sudo sh 
+curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | sudo bash 
 ```
 
 #### Install Specific Version
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
-  sudo sh -s -- --version v0.0.11 
+  sudo bash -s -- --version v0.0.11 
 ```
 
 #### Install Nightly Build
@@ -54,14 +54,14 @@ Install the latest development version from the master branch:
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
-  sudo sh -s -- --nightly 
+  sudo bash -s -- --nightly 
 ```
 
 #### Certificate Configuration
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
-  sudo sh -s -- \
+  sudo bash -s -- \
     --cert-org "MyCompany" \
     --cert-cn "voiyd.example.com" \
     --cert-days 730 
@@ -73,7 +73,7 @@ Preview what will be installed without making any changes:
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
-  sudo sh -s -- --dry-run --verbose
+  sudo bash -s -- --dry-run --verbose
 ```
 
 #### Supported Platforms

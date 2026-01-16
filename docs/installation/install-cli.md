@@ -42,7 +42,7 @@ brew install voiyd --nightly
 2. Install binary
 
    ```bash
-   sudo install -m 755 voiydctl-linux-amd64 /usr/local/bin/voiyd-server
+   sudo install -m 755 voiydctl-linux-amd64 /usr/local/bin/voiydctl
    ```
 
 3. Verify
@@ -75,7 +75,7 @@ GOOS=windows GOARCH=amd64 BINARY_NAME=voiyd.exe make voiydctl
 
 ### Initialize Configuration
 
-Once `voiydctl` is installed, a client configuration must be initialized and servers added to it. See the [usage guide]() for more information.
+Once `voiydctl` is installed, a client configuration must be initialized and servers added to it. See the [usage guide](/docs/README.md) for more information.
 
 ### Configure TLS Certificates
 

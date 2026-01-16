@@ -42,14 +42,14 @@ The automated installation script aims to make node provisioning as simple as po
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
-  sudo sh -s -- --host VOIYD_SERVER_HOST:5743
+  sudo bash -s -- --server-address VOIYD_SERVER_HOST:5743
 ```
 
 #### Install Specific Version
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
-  sudo sh -s -- --version v0.0.11
+  sudo bash -s -- --version v0.0.11
 ```
 
 #### Install Nightly Build
@@ -58,7 +58,7 @@ Install the latest development version from the master branch:
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
-  sudo sh -s -- --nightly 
+  sudo bash -s -- --nightly 
 ```
 
 #### Dry Run
@@ -67,7 +67,7 @@ Preview what will be installed without making any changes:
 
 ```bash
 curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
-  sudo sh -s -- --dry-run --verbose
+  sudo bash -s -- --dry-run --verbose
 ```
 
 #### Supported Platforms
@@ -84,6 +84,7 @@ Following is the complete set of flags that can be passed in to the installation
 
 | Option | Description | Default |
 |--------|-------------|---------|
+| `--server-address` | Address to voiyd-server | `localhost:5743` |
 | `--version <version>` | voiyd version to install | `latest` |
 | `--nightly` | Install latest nightly build from master | `false` |
 | `--cni-version <version>` | CNI plugins version | `v1.9.0` |
