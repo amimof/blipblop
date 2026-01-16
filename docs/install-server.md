@@ -129,7 +129,7 @@ Users that don't run any of the supported distributions to run an automated inst
    sudo install -m 755 voiyd-server-linux-amd64 /usr/local/bin/voiyd-server
    ```
 
-4. Generate certificates following [this guide](/certs/README.md)
+4. Generate certificates following [this guide](/docs/tls.md)
 
 5. Create systemd unit files (optional)
 
@@ -184,7 +184,7 @@ voiyd-server --version
 
 ### Configure TLS Certificates
 
-For production deployments, ensure proper TLS certificates are configured on the server. See [this guide](/certs/README.md) on how to configure TLS for both server and nodes after installation.
+For production deployments, ensure proper TLS certificates are configured on the server. See [this guide](/docs/tls.md) on how to configure TLS for both server and nodes after installation.
 
 ### Manage the Service
 

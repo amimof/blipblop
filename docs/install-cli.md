@@ -77,7 +77,7 @@ Once `voiydctl` is installed, a client configuration must be initialized and ser
 
 ### Configure TLS Certificates
 
-For production deployments, ensure proper TLS certificates are configured on the server. See [this guide](/certs/README.md) for more infrmation.
+For production deployments, ensure proper TLS certificates are configured on the server. See [this guide](/docs/tls.md) for more infrmation.
 
 ## Contributing
 
