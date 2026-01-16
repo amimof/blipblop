@@ -1,3 +1,5 @@
+[🏠 Home](/docs/README.md)
+
 # Server Installation Guide
 
 This guide explains how to install and run `voiyd-server`
@@ -144,6 +146,8 @@ Users that don't run any of the supported distributions to run an automated inst
    ```bash
    sudo systemctl enable --now voiyd-server.service
    ```
+
+You should now have a running control plane instance. Next step is to add nodes to you cluster. See [Installing Nodes](/docs/install-node.md)
 
 ### Build From Source
 

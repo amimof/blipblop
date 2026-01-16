@@ -1,3 +1,5 @@
+[🏠 Home](/docs/README.md)
+
 # CLI Installation Guide
 
 This guide explains how to install `voiydctl`

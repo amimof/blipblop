@@ -1,3 +1,5 @@
+[🏠 Home](/docs/README.md)
+
 # TLS Certificates for voiyd
 
 This directory contains example certificate configuration and helper commands for running voiyd components (server and nodes) over TLS.

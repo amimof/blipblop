@@ -1,3 +1,5 @@
+[🏠 Home](/docs/README.md)
+
 # Node Installation Guide
 
 This guide explains how to install `voiyd-node` on Linux.
