@@ -183,7 +183,7 @@ voiyd-node --version
 
 ### Configure TLS Certificates
 
-For production deployments, ensure proper TLS certificates are configured on the server. See [this guide](/docs/tls.md) on how to configure TLS for both server and nodes after installation.
+For production deployments, ensure proper TLS certificates are configured on the server. See [this guide](/docs/configuration/tls.md) on how to configure TLS for both server and nodes after installation.
 
 ### Manage the Service
 

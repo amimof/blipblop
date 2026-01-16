@@ -35,7 +35,7 @@ Get your first voiyd cluster up and running in minutes. This guide walks you thr
    If installing on a different machine, specify the server address:
 
    ```bash
-   curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-server.sh | \
+   curl -sfL https://raw.githubusercontent.com/amimof/voiyd/master/setup-node.sh | \
     sudo bash -s -- --server-address YOUR_SERVER_IP:5743
    ```
 
@@ -87,7 +87,7 @@ Now that you have a cluster up and running you can start running `tasks` on it
    # Provision a victoria-metrics task
    voiydctl run victoria-metrics \
     --image docker.io/victoriametrics/victoria-metrics:v1.130.0 \
-    --port 9090:9090
+    --port 8428:8428
    
    # List tasks
    voiydctl get tasks
@@ -97,7 +97,7 @@ Now that you have a cluster up and running you can start running `tasks` on it
 
    # victoria-metrics is available using the IP address 
    # of the node running the task.
-   curl http://YOUR_NODE_IP:9090
+   curl http://YOUR_NODE_IP:8428
    ```
 
 2. **Stop the task**
