@@ -1,3 +1,5 @@
+# Contributing
+
 Thank you for your interest in contributing to voiyd! This document provides guidelines and instructions for contributing to the project.
 
 <!--toc:start-->
