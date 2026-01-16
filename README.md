@@ -88,7 +88,7 @@ Voiyd is a lightweight container orchestration platform with a central server an
 
 ## Getting Started
 
-See the [Installation Guide](/docs/installation/README.md) on how to setup and run voiyd clusters.
+See the [Quick Start Guide](/docs/quick-start.md) on how to setup and run voiyd clusters. See the full [Documentation](/docs/README.md) for more information.
 
 ## License
 

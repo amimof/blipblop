@@ -71,8 +71,8 @@ Get your first voiyd cluster up and running in minutes. This guide walks you thr
    You should see something similar to
 
    ```
-   NAME                                    REVISION        STATE           VERSION         AGE
-   lima-lima-debian-12-secondary           1               ready           v0.0.11         32m
+   NAME                          REVISION        STATE           VERSION         AGE
+   lima-lima-debian-12           1               ready           v0.0.11         32m
    ```
 
 🎉 You have successfully created a voiyd cluster! The next step is to deploy some workload.
@@ -96,7 +96,7 @@ Now that you have a cluster up and running you can start running `tasks` on it
    voiydctl get tasks victoria-metrics
 
    # victoria-metrics is available using the IP address 
-   # of the node running task.
+   # of the node running the task.
    curl http://YOUR_NODE_IP:9090
    ```
 
