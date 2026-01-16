@@ -4,7 +4,7 @@
 
 This directory contains example certificate configuration and helper commands for running voiyd components (server and nodes) over TLS.
 
-> The files in this directory are intended primarily for **local development and testing**
+> The files the `/certs` directory are intended primarily for **local development and testing**
 
 <!--toc:start-->
 - [TLS Certificates for voiyd](#tls-certificates-for-voiyd)
