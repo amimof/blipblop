@@ -24,6 +24,7 @@ import (
 	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/volume"
@@ -102,11 +103,11 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
 
 	// Setup task handlers
-	c.clientset.EventV1().On(events.TaskDelete, c.handleErrors(c.onTaskDelete))
-	c.clientset.EventV1().On(events.TaskUpdate, c.handleErrors(c.onTaskUpdate))
-	c.clientset.EventV1().On(events.TaskStop, c.handleErrors(c.onTaskStop))
-	c.clientset.EventV1().On(events.TaskKill, c.handleErrors(c.onTaskKill))
-	c.clientset.EventV1().On(events.TaskStart, c.handleErrors(c.onTaskStart))
+	c.clientset.EventV1().On(events.TaskDelete, c.handleErrors(c.handleTask(c.onTaskDelete)))
+	c.clientset.EventV1().On(events.TaskUpdate, c.handleErrors(c.handleTask(c.onTaskUpdate)))
+	c.clientset.EventV1().On(events.TaskStop, c.handleErrors(c.handleTask(c.onTaskStop)))
+	c.clientset.EventV1().On(events.TaskKill, c.handleErrors(c.handleTask(c.onTaskKill)))
+	c.clientset.EventV1().On(events.TaskStart, c.handleErrors(c.handleTask(c.onTaskStart)))
 	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
 
 	// Setup log handlers
@@ -247,6 +248,32 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 		}
 
 		c.logger.Debug("renewed lease, reconciling", "task", taskName)
+	}
+}
+
+type TaskHandlerFunc func(context.Context, *tasksv1.Task) error
+
+func (c *Controller) handleTask(h TaskHandlerFunc) events.HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		var task tasksv1.Task
+		err := ev.GetObject().UnmarshalTo(&task)
+		if err != nil {
+			return err
+		}
+
+		nodeID := c.node.GetMeta().GetName()
+
+		if !c.isNodeSelected(ctx, nodeID, &task) {
+			c.logger.Debug("discarded due to label mismatch", "task", task.GetMeta().GetName())
+			return err
+		}
+
+		err = h(ctx, &task)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	}
 }
 
@@ -613,7 +640,8 @@ func (c *Controller) onSchedule(ctx context.Context, obj *eventsv1.Event) error 
 		return err
 	}
 
-	err = c.onTaskStart(ctx, newObj)
+	err = c.startTask(ctx, &task)
+	// err = c.onTaskStart(ctx, newObj)
 	if err != nil {
 		return err
 	}
@@ -669,21 +697,15 @@ func (c *Controller) onNodeForget(ctx context.Context, obj *eventsv1.Event) erro
 	return nil
 }
 
-func (c *Controller) onTaskDelete(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onTaskDelete(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskDelete")
 	defer span.End()
 
-	var task tasksv1.Task
-	err := e.GetObject().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
-
 	taskID := task.GetMeta().GetName()
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", task.GetMeta().GetName())
+	c.logger.Info("controller received task delete", "name", task.GetMeta().GetName())
 
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
-	err = c.runtime.Delete(ctx, &task)
+	err := c.runtime.Delete(ctx, task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -697,36 +719,32 @@ func (c *Controller) onTaskDelete(ctx context.Context, e *eventsv1.Event) error 
 	return nil
 }
 
-func (c *Controller) onTaskUpdate(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onTaskUpdate(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskUpdate")
 	defer span.End()
 
-	err := c.onTaskStop(ctx, e)
+	err := c.stopTask(ctx, task)
 	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
-	err = c.onTaskStart(ctx, e)
+
+	// err = c.onTaskStart(ctx, e)
+	err = c.startTask(ctx, task)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onTaskKill(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
 	defer span.End()
 
-	var task tasksv1.Task
-	err := e.GetObject().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
-
 	taskID := task.GetMeta().GetName()
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
+	c.logger.Info("controller received task kill", "name", taskID)
 
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
-	err = c.runtime.Kill(ctx, &task)
+	err := c.runtime.Kill(ctx, task)
 	if errs.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -739,7 +757,7 @@ func (c *Controller) onTaskKill(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Remove any previous tasks ignoring any errors
-	err = c.runtime.Delete(ctx, &task)
+	err = c.runtime.Delete(ctx, task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -841,47 +859,48 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 	return nil
 }
 
-func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
+// func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) onTaskStart(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
 
-	var task tasksv1.Task
-	err := e.GetObject().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
+	c.logger.Debug("controller received task start", "name", task.GetMeta().GetName())
 
-	c.logger.Debug("controller received task", "event", e.GetType().String(), "name", task.GetMeta().GetName())
-
-	return c.startTask(ctx, &task)
+	return c.startTask(ctx, task)
 }
 
-func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) isNodeSelected(ctx context.Context, nodeID string, task *tasksv1.Task) bool {
+	node, err := c.clientset.NodeV1().Get(ctx, nodeID)
+	if err != nil {
+		return false
+	}
+	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
+}
+
+func (c *Controller) onTaskStop(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStop")
 	defer span.End()
 
-	var task tasksv1.Task
-	err := e.GetObject().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
+	c.logger.Info("controller received task stop", "name", task.GetMeta().GetName())
 
+	return c.stopTask(ctx, task)
+}
+
+func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	taskID := task.GetMeta().GetName()
 	nodeID := c.node.GetMeta().GetName()
 
 	// Release lease
 	defer func() {
-		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+		err := c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
 	}()
 
-	c.logger.Info("controller received task", "event", e.GetType().String(), "name", taskID)
-
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
-	err = c.runtime.Cleanup(ctx, taskID)
+	err := c.runtime.Cleanup(ctx, taskID)
 	if err != nil {
 		return err
 	}
@@ -890,7 +909,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 
 	// Stop the task
-	err = c.runtime.Stop(ctx, &task)
+	err = c.runtime.Stop(ctx, task)
 	if errs.IgnoreNotFound(err) != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -903,7 +922,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Remove any previous tasks ignoring any errors
-	err = c.runtime.Delete(ctx, &task)
+	err = c.runtime.Delete(ctx, task)
 	if err != nil {
 		_ = c.clientset.TaskV1().Status().Update(
 			ctx,
@@ -916,7 +935,7 @@ func (c *Controller) onTaskStop(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Detach volumes
-	return c.attacher.Detach(ctx, c.node, &task)
+	return c.attacher.Detach(ctx, c.node, task)
 }
 
 // Reconcile ensures that desired tasks matches with tasks

@@ -102,6 +102,7 @@ func NewNodeFromEnv() (*nodes.Node, error) {
 	l := labels.New()
 	l.Set(labels.LabelPrefix("arch").String(), arch)
 	l.Set(labels.LabelPrefix("os").String(), oper)
+	l.Set(labels.LabelPrefix("hostname").String(), hostname)
 
 	// Construct node instance
 	n := &nodes.Node{

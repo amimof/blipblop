@@ -44,6 +44,7 @@ func NewCmdEdit() *cobra.Command {
 	editCmd.PersistentFlags().StringToStringVarP(&resourceLabels, "labels", "l", map[string]string{}, "Resource labels as key value pair")
 	editCmd.PersistentFlags().StringVarP(&output, "output", "o", "json", "Output format")
 	editCmd.AddCommand(NewCmdEditContainer(&cfg))
+	editCmd.AddCommand(NewCmdEditNode(&cfg))
 
 	return editCmd
 }
