@@ -209,8 +209,8 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 
 	// Define keepalive parameters
 	keepAliveParams := keepalive.ClientParameters{
-		Time:                10 * time.Minute, // Ping the server if no activity
-		Timeout:             20 * time.Second, // Timeout for server response
+		Time:                15 * time.Second, // Ping the server if no activity
+		Timeout:             10 * time.Second, // Timeout for server response
 		PermitWithoutStream: true,             // Ping even without active streams
 	}
 

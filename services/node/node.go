@@ -127,15 +127,30 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	n.mu.Unlock()
 
 	// Publish event that node is connected
-	err = n.exchange.Publish(ctx, events.NewEvent(eventsv1.EventType_NodeConnect, node))
+	err = n.exchange.Publish(ctx, events.NewEvent(events.NodeConnect, node))
 	if err != nil {
 		n.logger.Error("error publishing NodeConnect event", "error", err)
+	}
+
+	// Mark node as ready once it connects to us
+	fm := &fieldmaskpb.FieldMask{Paths: []string{"phase"}}
+	_, err = n.UpdateStatus(ctx,
+		&nodesv1.UpdateStatusRequest{
+			Id: node.GetMeta().GetName(),
+			Status: &nodesv1.Status{
+				Phase: wrapperspb.String(consts.PHASEREADY),
+			},
+			UpdateMask: fm,
+		},
+	)
+	if err != nil {
+		n.logger.Error("error updating node status", "error", err, "node", nodeName)
 	}
 
 	defer func() {
 		n.logger.Info("removing node stream", "node", nodeName)
 		fm := &fieldmaskpb.FieldMask{Paths: []string{"phase"}}
-		_, err := n.UpdateStatus(ctx,
+		_, err := n.UpdateStatus(context.Background(),
 			&nodesv1.UpdateStatusRequest{
 				Id: node.GetMeta().GetName(),
 				Status: &nodesv1.Status{
@@ -151,7 +166,9 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 		if err != nil {
 			n.logger.Error("error publish node forget event", "error", err)
 		}
+		n.mu.Lock()
 		delete(n.streams, nodeName)
+		n.mu.Unlock()
 	}()
 
 	for {
@@ -210,7 +227,9 @@ func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
 
 	// Find stream beloning to the node
 	nodeName := node.GetMeta().GetName()
+	n.mu.Lock()
 	stream, ok := n.streams[nodeName]
+	n.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("node is not connected as %s", nodeName)
 	}
@@ -243,7 +262,9 @@ func (n *NodeService) onTask(ctx context.Context, e *eventsv1.Event) error {
 	}
 
 	// Get the stream for the specific node
+	n.mu.Lock()
 	stream, ok := n.streams[nodeName]
+	n.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("node is not connected as %s", nodeName)
 	}

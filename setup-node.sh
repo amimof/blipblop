@@ -168,7 +168,7 @@ get_latest_release() {
   local url="${GITHUB_API_URL}/${repo}/releases/latest"
 
   log_verbose "Fetching latest release from: $url"
-
+  set +e
   if command_exists curl; then
     curl -sL "$url" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
   elif command_exists wget; then
@@ -176,6 +176,7 @@ get_latest_release() {
   else
     fatal "Neither curl nor wget is available. Please install one of them."
   fi
+  set -e
 }
 
 resolve_version() {

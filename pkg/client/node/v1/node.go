@@ -8,15 +8,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/api/services/nodes/v1"
-	"github.com/amimof/voiyd/pkg/labels"
-	"github.com/amimof/voiyd/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/logger"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 )
 
 type CreateOption func(c *clientV1)
@@ -27,7 +31,7 @@ func WithLogger(l logger.Logger) CreateOption {
 	}
 }
 
-func WithClient(client nodes.NodeServiceClient) CreateOption {
+func WithClient(client nodesv1.NodeServiceClient) CreateOption {
 	return func(c *clientV1) {
 		c.Client = client
 	}
@@ -35,24 +39,24 @@ func WithClient(client nodes.NodeServiceClient) CreateOption {
 
 type ClientV1 interface {
 	Status() StatusClientV1
-	Create(context.Context, *nodes.Node, ...CreateOption) error
-	Update(context.Context, string, *nodes.Node) error
-	Get(context.Context, string) (*nodes.Node, error)
+	Create(context.Context, *nodesv1.Node, ...CreateOption) error
+	Update(context.Context, string, *nodesv1.Node) error
+	Get(context.Context, string) (*nodesv1.Node, error)
 	Delete(context.Context, string) error
-	List(context.Context, ...labels.Label) ([]*nodes.Node, error)
-	Join(context.Context, *nodes.Node) error
+	List(context.Context, ...labels.Label) ([]*nodesv1.Node, error)
+	Join(context.Context, *nodesv1.Node) error
 	Forget(context.Context, string) error
-	Connect(context.Context, string, chan *events.Event, chan error) error
+	Connect(context.Context, string, chan *eventsv1.Event, chan error) error
 	Upgrade(context.Context, string, string) error
 	UpgradeAll(context.Context, map[string]string, string) error
 }
 
 type StatusClientV1 interface {
-	Update(context.Context, string, *nodes.Status, ...string) error
+	Update(context.Context, string, *nodesv1.Status, ...string) error
 }
 
 type statusClientV1 struct {
-	client nodes.NodeServiceClient
+	client nodesv1.NodeServiceClient
 }
 
 func (c *clientV1) Status() StatusClientV1 {
@@ -62,25 +66,25 @@ func (c *clientV1) Status() StatusClientV1 {
 }
 
 type clientV1 struct {
-	Client nodes.NodeServiceClient
+	Client nodesv1.NodeServiceClient
 	id     string
 	mu     sync.Mutex
-	stream nodes.NodeService_ConnectClient
+	stream nodesv1.NodeService_ConnectClient
 	logger logger.Logger
 }
 
-func (c *clientV1) NodeService() nodes.NodeServiceClient {
+func (c *clientV1) NodeService() nodesv1.NodeServiceClient {
 	return c.Client
 }
 
 // Update implements StatusClientV1.
-func (c *statusClientV1) Update(ctx context.Context, id string, status *nodes.Status, path ...string) error {
+func (c *statusClientV1) Update(ctx context.Context, id string, status *nodesv1.Status, path ...string) error {
 	// Construct field mask
 	mask := &fieldmaskpb.FieldMask{
 		Paths: path,
 	}
 
-	req := &nodes.UpdateStatusRequest{
+	req := &nodesv1.UpdateStatusRequest{
 		Id:         id,
 		UpdateMask: mask,
 		Status:     status,
@@ -96,52 +100,52 @@ func (c *statusClientV1) Update(ctx context.Context, id string, status *nodes.St
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Delete(ctx, &nodes.DeleteRequest{Id: id})
+	_, err := c.Client.Delete(ctx, &nodesv1.DeleteRequest{Id: id})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *clientV1) Get(ctx context.Context, id string) (*nodes.Node, error) {
+func (c *clientV1) Get(ctx context.Context, id string) (*nodesv1.Node, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	n, err := c.Client.Get(ctx, &nodes.GetRequest{Id: id})
+	n, err := c.Client.Get(ctx, &nodesv1.GetRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
 	return n.GetNode(), nil
 }
 
-func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodes.Node, error) {
+func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodesv1.Node, error) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	n, err := c.Client.List(ctx, &nodes.ListRequest{})
+	n, err := c.Client.List(ctx, &nodesv1.ListRequest{})
 	if err != nil {
 		return nil, err
 	}
 	return n.Nodes, nil
 }
 
-func (c *clientV1) Update(ctx context.Context, id string, node *nodes.Node) error {
+func (c *clientV1) Update(ctx context.Context, id string, node *nodesv1.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Update(ctx, &nodes.UpdateRequest{Id: id, Node: node})
+	_, err := c.Client.Update(ctx, &nodesv1.UpdateRequest{Id: id, Node: node})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *clientV1) Create(ctx context.Context, node *nodes.Node, opts ...CreateOption) error {
+func (c *clientV1) Create(ctx context.Context, node *nodesv1.Node, opts ...CreateOption) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Create(ctx, &nodes.CreateRequest{Node: node})
+	_, err := c.Client.Create(ctx, &nodesv1.CreateRequest{Node: node})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *clientV1) Join(ctx context.Context, node *nodes.Node) error {
+func (c *clientV1) Join(ctx context.Context, node *nodesv1.Node) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Join(ctx, &nodes.JoinRequest{Node: node})
+	_, err := c.Client.Join(ctx, &nodesv1.JoinRequest{Node: node})
 	if err != nil {
 		return err
 	}
@@ -150,7 +154,7 @@ func (c *clientV1) Join(ctx context.Context, node *nodes.Node) error {
 
 func (c *clientV1) Forget(ctx context.Context, n string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	req := &nodes.ForgetRequest{
+	req := &nodesv1.ForgetRequest{
 		Id: n,
 	}
 	_, err := c.Client.Forget(ctx, req)
@@ -160,12 +164,12 @@ func (c *clientV1) Forget(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *events.Event, errChan chan error) error {
+func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *eventsv1.Event, errChan chan error) error {
 	for {
 		// Check if the context is already canceled before starting a connection
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		default:
 		}
 
@@ -179,6 +183,18 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 
 		// log.Println("Connected to stream")
 		c.logger.Info("connected to stream", "node", nodeName)
+
+		// Update status once connected
+		err = c.Status().Update(
+			ctx,
+			nodeName, &nodesv1.Status{
+				Phase: wrapperspb.String(consts.PHASEREADY),
+			},
+			"phase",
+		)
+		if err != nil {
+			c.logger.Error("error setting node state", "error", err)
+		}
 
 		// Stream handling
 		streamErr := c.handleStream(ctx, stream, receiveChan, errChan)
@@ -200,7 +216,7 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 }
 
 func (c *clientV1) Upgrade(ctx context.Context, nodeID string, version string) error {
-	_, err := c.Client.Upgrade(ctx, &nodes.UpgradeRequest{
+	_, err := c.Client.Upgrade(ctx, &nodesv1.UpgradeRequest{
 		NodeId:        nodeID,
 		TargetVersion: version,
 	})
@@ -208,14 +224,14 @@ func (c *clientV1) Upgrade(ctx context.Context, nodeID string, version string) e
 }
 
 func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, version string) error {
-	_, err := c.Client.Upgrade(ctx, &nodes.UpgradeRequest{
+	_, err := c.Client.Upgrade(ctx, &nodesv1.UpgradeRequest{
 		NodeSelector:  selector,
 		TargetVersion: version,
 	})
 	return err
 }
 
-func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodes.NodeService_ConnectClient, error) {
+func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodesv1.NodeService_ConnectClient, error) {
 	mdCtx := metadata.AppendToOutgoingContext(ctx, "voiyd_node_name", nodeName)
 	stream, err := c.Client.Connect(mdCtx)
 	if err != nil {
@@ -224,7 +240,7 @@ func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodes.Node
 	return stream, nil
 }
 
-func (c *clientV1) handleStream(ctx context.Context, stream nodes.NodeService_ConnectClient, receiveChan chan<- *events.Event, errChan chan<- error) error {
+func (c *clientV1) handleStream(ctx context.Context, stream nodesv1.NodeService_ConnectClient, receiveChan chan<- *eventsv1.Event, errChan chan<- error) error {
 	// Start receiving messages from the server
 	for {
 		select {
@@ -262,7 +278,7 @@ func isRetryableError(code codes.Code) bool {
 	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
 }
 
-func (c *clientV1) SendMessage(ctx context.Context, msg *events.Event) error {
+func (c *clientV1) SendMessage(ctx context.Context, msg *eventsv1.Event) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -284,7 +300,7 @@ func NewClientV1(opts ...CreateOption) ClientV1 {
 
 func NewClientV1WithConn(conn *grpc.ClientConn, clientID string, opts ...CreateOption) ClientV1 {
 	c := &clientV1{
-		Client: nodes.NewNodeServiceClient(conn),
+		Client: nodesv1.NewNodeServiceClient(conn),
 		id:     clientID,
 		logger: logger.ConsoleLogger{},
 	}

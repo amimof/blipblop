@@ -166,11 +166,9 @@ func (c *Controller) Run(ctx context.Context) {
 	err = c.clientset.NodeV1().Status().Update(
 		ctx,
 		nodeName, &nodesv1.Status{
-			Phase:    wrapperspb.String(consts.PHASEREADY),
 			Hostname: wrapperspb.String(hostname),
 			Runtime:  wrapperspb.String(runtimeVer),
 		},
-		"phase",
 		"hostname",
 		"runtime",
 	)
