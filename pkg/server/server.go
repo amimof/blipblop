@@ -4,6 +4,7 @@ package server
 import (
 	"io"
 	"net"
+	"time"
 
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/services"
@@ -40,7 +41,14 @@ func WithGrpcOption(opts ...grpc.ServerOption) NewServerOption {
 
 func New(opts ...NewServerOption) (*Server, error) {
 	grpcOpts := []grpc.ServerOption{
-		grpc.KeepaliveParams(keepalive.ServerParameters{}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             20 * time.Second, // Min time between pings
+			PermitWithoutStream: true,
+		}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time:    30 * time.Second, // Server pings client every 30s
+			Timeout: 10 * time.Second, // Wait 10s for response
+		}),
 	}
 
 	// Setup server

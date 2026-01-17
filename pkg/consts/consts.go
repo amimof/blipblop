@@ -23,6 +23,7 @@ const (
 	PHASEEXITED      = "exited"
 	PHASEPULLING     = "pulling"
 	PHASESTARTING    = "starting"
+	PHASEAVAILABLE   = "available"
 
 	PHASEUPGRADING   = "upgrading"
 	PHASEDOWNLOADING = "downloading"
