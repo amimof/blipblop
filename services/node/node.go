@@ -138,7 +138,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 		&nodesv1.UpdateStatusRequest{
 			Id: node.GetMeta().GetName(),
 			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(consts.PHASEAVAILABLE),
+				Phase: wrapperspb.String(consts.PHASEREADY),
 			},
 			UpdateMask: fm,
 		},

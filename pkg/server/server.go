@@ -42,12 +42,12 @@ func WithGrpcOption(opts ...grpc.ServerOption) NewServerOption {
 func New(opts ...NewServerOption) (*Server, error) {
 	grpcOpts := []grpc.ServerOption{
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             20 * time.Second, // Min time between pings
+			MinTime:             15 * time.Second, // Min time between pings
 			PermitWithoutStream: true,
 		}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			Time:    30 * time.Second, // Server pings client every 30s
-			Timeout: 10 * time.Second, // Wait 10s for response
+			Time:    15 * time.Second,
+			Timeout: 10 * time.Second,
 		}),
 	}
 
