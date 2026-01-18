@@ -297,7 +297,7 @@ func (c *ContainerdRuntime) get(ctx context.Context, id string) (containerd.Cont
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	cfilters := []string{
-		fmt.Sprintf(`labels."voiyd.io/name"==%s`, id),
+		fmt.Sprintf(`labels."voiyd.io/name"=="%s"`, regexp.QuoteMeta(id)),
 		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(id)),
 	}
 

@@ -45,7 +45,13 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 
 		// Does a task exist for the lease?
 		task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
-		if errs.IgnoreNotFound(err) != nil {
+		if err != nil {
+			if errs.IsNotFound(err) {
+				if err := c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetName(), lease.GetConfig().GetNodeId()); err != nil {
+					c.logger.Error("error releasing lease", "error", err, "task", task.GetMeta().GetName())
+					return
+				}
+			}
 			c.logger.Error("error getting task for lease", "error", err, "task", lease.GetConfig().GetTaskId())
 			return
 		}
