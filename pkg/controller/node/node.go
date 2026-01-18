@@ -240,6 +240,16 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 			continue
 		}
 
+		// Stop task if lease doesn't exist for it
+		if _, err := c.clientset.LeaseV1().Get(ctx, taskName); err != nil {
+			if errs.IsNotFound(err) {
+				if err := c.stopTask(ctx, task); err != nil {
+					c.logger.Error("error stopping task", "error", err, "task", taskName)
+					continue
+				}
+			}
+		}
+
 		// Renew lease
 		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskName, nodeName)
 		if err != nil {
