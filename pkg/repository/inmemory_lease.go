@@ -33,6 +33,9 @@ func (i *leaseInMemRepo) List(ctx context.Context) ([]*leasesv1.Lease, error) {
 
 func (i *leaseInMemRepo) Get(ctx context.Context, key string) (*leasesv1.Lease, error) {
 	item := i.cache.Get(key)
+	if item == nil {
+		return nil, ErrNotFound
+	}
 	if item.Value == nil {
 		return nil, ErrNotFound
 	}

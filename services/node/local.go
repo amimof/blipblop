@@ -277,8 +277,13 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 		return nil, err
 	}
 
+	updateNode.Status = node.Status
+	updateNode.GetMeta().Updated = node.Meta.Updated
+	updateNode.GetMeta().Created = node.Meta.Created
+	updateNode.GetMeta().Revision = node.Meta.Revision
+
 	// Only publish if spec is updated
-	if !proto.Equal(updateNode.Config, node.Config) {
+	if !proto.Equal(updateNode, node) {
 		l.logger.Debug("node was patched, emitting event to listeners", "event", "NodePatch", "name", node.GetMeta().GetName(), "revision", updateNode.GetMeta().GetRevision())
 
 		// Decorate label with some labels
@@ -318,12 +323,11 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 	updateNode.GetMeta().Created = existingNode.Meta.Created
 	updateNode.GetMeta().Revision = existingNode.Meta.Revision
 
-	updVal := protoreflect.ValueOfMessage(updateNode.GetConfig().ProtoReflect())
-	newVal := protoreflect.ValueOfMessage(existingNode.GetConfig().ProtoReflect())
+	updVal := protoreflect.ValueOfMessage(updateNode.ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existingNode.ProtoReflect())
 
 	// Only update metadata fields if spec is updated
 	if !updVal.Equal(newVal) {
-		l.logger.Debug("node wass udpate")
 		updateNode.Meta.Revision++
 		updateNode.Meta.Updated = timestamppb.Now()
 	}
