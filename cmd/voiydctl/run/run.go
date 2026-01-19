@@ -108,7 +108,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 			err = c.TaskV1().Create(ctx, &tasksv1.Task{
 				Meta: &types.Meta{
 					Name:   tname,
-					Labels: cmdutil.ReadKVStringsMapfFromLabel(labels),
+					Labels: cmdutil.ReadKVStringsMapFromLabel(labels),
 				},
 				Config: &tasksv1.Config{
 					Image:        image,
@@ -119,7 +119,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						Add:  capAdd,
 						Drop: capDrop,
 					},
-					NodeSelector: cmdutil.ReadKVStringsMapfFromLabel(nodeSelector),
+					NodeSelector: cmdutil.ReadKVStringsMapFromLabel(nodeSelector),
 				},
 			})
 			if err != nil {
