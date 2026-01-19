@@ -106,18 +106,18 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
 
 	// Setup task handlers
-	c.clientset.EventV1().On(events.TaskDelete, c.handle(c.handleTask(c.onTaskDelete)))
-	c.clientset.EventV1().On(events.TaskUpdate, c.handle(c.handleTask(c.handleNodeSelector(c.onTaskUpdate))))
-	c.clientset.EventV1().On(events.TaskStop, c.handle(c.handleTask(c.onTaskStop)))
-	c.clientset.EventV1().On(events.TaskKill, c.handle(c.handleTask(c.onTaskKill)))
-	c.clientset.EventV1().On(events.TaskStart, c.handle(c.handleTask(c.handleNodeSelector(c.onTaskStart))))
+	c.clientset.EventV1().On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.onTaskDelete)))
+	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.handleNodeSelector(c.onTaskUpdate))))
+	c.clientset.EventV1().On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.onTaskStop)))
+	c.clientset.EventV1().On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.onTaskKill)))
+	c.clientset.EventV1().On(events.TaskStart, events.HandleErrors(c.logger, events.HandleTask(c.handleNodeSelector(c.onTaskStart))))
 
 	// Setup log handlers
-	c.clientset.EventV1().On(events.TailLogsStart, c.handle(c.onLogStart))
-	c.clientset.EventV1().On(events.TailLogsStop, c.handle(c.onLogStop))
+	c.clientset.EventV1().On(events.TailLogsStart, events.HandleErrors(c.logger, c.onLogStart))
+	c.clientset.EventV1().On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
 
 	// Setup lease handlers
-	c.clientset.EventV1().On(events.LeaseExpired, c.handle(c.onLeaseExpired))
+	c.clientset.EventV1().On(events.LeaseExpired, events.Handle(c.onLeaseExpired))
 
 	go func() {
 		for e := range evt {
@@ -127,9 +127,9 @@ func (c *Controller) Run(ctx context.Context) {
 
 	// Handle runtime events
 	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart)
-	c.exchange.On(events.RuntimeTaskExit, c.handle(c.onRuntimeTaskExit))
-	c.exchange.On(events.RuntimeTaskStart, c.handle(c.onRuntimeTaskStart))
-	c.exchange.On(events.RuntimeTaskDelete, c.handle(c.onRuntimeTaskDelete))
+	c.exchange.On(events.RuntimeTaskExit, events.HandleErrors(c.logger, c.onRuntimeTaskExit))
+	c.exchange.On(events.RuntimeTaskStart, events.HandleErrors(c.logger, c.onRuntimeTaskStart))
+	c.exchange.On(events.RuntimeTaskDelete, events.HandleErrors(c.logger, c.onRuntimeTaskDelete))
 
 	go func() {
 		for e := range runtimeChan {
@@ -260,17 +260,6 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 		}
 
 		c.logger.Debug("renewed lease, reconciling", "task", taskName)
-	}
-}
-
-func (c *Controller) handle(h events.HandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		err := h(ctx, ev)
-		if err != nil {
-			c.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
-			return err
-		}
-		return err
 	}
 }
 

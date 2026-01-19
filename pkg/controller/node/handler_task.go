@@ -3,7 +3,6 @@ package nodecontroller
 import (
 	"context"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
@@ -21,23 +20,6 @@ func (c *Controller) handleNodeSelector(h events.TaskHandlerFunc) events.TaskHan
 		}
 
 		err := h(ctx, task)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
-func (c *Controller) handleTask(h events.TaskHandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		var task tasksv1.Task
-		err := ev.GetObject().UnmarshalTo(&task)
-		if err != nil {
-			return err
-		}
-
-		err = h(ctx, &task)
 		if err != nil {
 			return err
 		}

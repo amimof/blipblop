@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/amimof/voiyd/pkg/client"
@@ -66,34 +65,6 @@ func (c *Controller) handleNodeSelector(h events.VolumeHandlerFunc) events.Volum
 			return err
 		}
 
-		return nil
-	}
-}
-
-func (vc *Controller) handleVolume(h events.VolumeHandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		var volume volumesv1.Volume
-		err := ev.GetObject().UnmarshalTo(&volume)
-		if err != nil {
-			return err
-		}
-
-		err = h(ctx, &volume)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
-func (vc *Controller) handle(h events.HandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		err := h(ctx, ev)
-		if err != nil {
-			vc.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
-			return err
-		}
 		return nil
 	}
 }
@@ -170,9 +141,9 @@ func (vc *Controller) Run(ctx context.Context) {
 	)
 
 	// Setup Node Handlers
-	vc.clientset.EventV1().On(events.VolumeCreate, vc.handle(vc.handleVolume(vc.handleNodeSelector(vc.onVolumeCreate))))
-	vc.clientset.EventV1().On(events.VolumeDelete, vc.handle(vc.handleVolume(vc.onVolumeDelete)))
-	vc.clientset.EventV1().On(events.NodeJoin, vc.handle(vc.onNodeJoin))
+	vc.clientset.EventV1().On(events.VolumeCreate, events.HandleErrors(vc.logger, events.HandleVolume(vc.handleNodeSelector(vc.onVolumeCreate))))
+	vc.clientset.EventV1().On(events.VolumeDelete, events.HandleErrors(vc.logger, events.HandleVolume(vc.onVolumeDelete)))
+	vc.clientset.EventV1().On(events.NodeJoin, events.HandleErrors(vc.logger, events.HandleNode(vc.onNodeJoin)))
 
 	go func() {
 		for e := range evt {
@@ -197,13 +168,7 @@ func (vc *Controller) Run(ctx context.Context) {
 	}
 }
 
-func (vc *Controller) onNodeJoin(ctx context.Context, ev *eventsv1.Event) error {
-	nodeSpec := &nodesv1.Node{}
-	err := ev.GetObject().UnmarshalTo(nodeSpec)
-	if err != nil {
-		return err
-	}
-
+func (vc *Controller) onNodeJoin(ctx context.Context, nodeSpec *nodesv1.Node) error {
 	nodeName := vc.node.GetMeta().GetName()
 	joinedNode := nodeSpec.GetMeta().GetName()
 
