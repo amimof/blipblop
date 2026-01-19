@@ -21,15 +21,17 @@ import (
 )
 
 var (
-	image       string
-	ports       []string
-	user        string
-	privileged  bool
-	wait        bool
-	waitTimeout time.Duration
-	capAdd      []string
-	capDrop     []string
-	env         []string
+	image        string
+	ports        []string
+	user         string
+	privileged   bool
+	wait         bool
+	waitTimeout  time.Duration
+	capAdd       []string
+	capDrop      []string
+	env          []string
+	labels       []string
+	nodeSelector []string
 )
 
 func NewCmdRun() *cobra.Command {
@@ -105,7 +107,8 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 
 			err = c.TaskV1().Create(ctx, &tasksv1.Task{
 				Meta: &types.Meta{
-					Name: tname,
+					Name:   tname,
+					Labels: cmdutil.ReadKVStringsMapfFromLabel(labels),
 				},
 				Config: &tasksv1.Config{
 					Image:        image,
@@ -116,6 +119,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						Add:  capAdd,
 						Drop: capDrop,
 					},
+					NodeSelector: cmdutil.ReadKVStringsMapfFromLabel(nodeSelector),
 				},
 			})
 			if err != nil {
@@ -224,6 +228,19 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 		"e",
 		[]string{},
 		"Set environment variables",
+	)
+	runCmd.Flags().StringArrayVarP(
+		&labels,
+		"label",
+		"l",
+		[]string{},
+		"Set task metadata labels",
+	)
+	runCmd.Flags().StringArrayVar(
+		&nodeSelector,
+		"node-selector",
+		[]string{},
+		"Set task node selector",
 	)
 	runCmd.PersistentFlags().BoolVarP(
 		&wait,

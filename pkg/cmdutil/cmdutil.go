@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/containerd/nerdctl/pkg/strutil"
 	"github.com/fatih/color"
 )
 
@@ -160,4 +161,18 @@ func CodecFor(s string) (Codec, error) {
 	default:
 		return NewJSONCodec(), nil
 	}
+}
+
+func ConvertKVStringsToMap(values []string) map[string]string {
+	result := make(map[string]string, len(values))
+	for _, value := range values {
+		k, v, _ := strings.Cut(value, "=")
+		result[k] = v
+	}
+	return result
+}
+
+func ReadKVStringsMapfFromLabel(labels []string) map[string]string {
+	labelsDeduped := strutil.DedupeStrSlice(labels)
+	return ConvertKVStringsToMap(labelsDeduped)
 }

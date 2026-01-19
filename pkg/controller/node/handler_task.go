@@ -11,9 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type TaskHandlerFunc func(context.Context, *tasksv1.Task) error
-
-func (c *Controller) handleTaskNodeSelector(h TaskHandlerFunc) TaskHandlerFunc {
+func (c *Controller) handleNodeSelector(h events.TaskHandlerFunc) events.TaskHandlerFunc {
 	return func(ctx context.Context, task *tasksv1.Task) error {
 		nodeID := c.node.GetMeta().GetName()
 
@@ -31,7 +29,7 @@ func (c *Controller) handleTaskNodeSelector(h TaskHandlerFunc) TaskHandlerFunc {
 	}
 }
 
-func (c *Controller) handleTask(h TaskHandlerFunc) events.HandlerFunc {
+func (c *Controller) handleTask(h events.TaskHandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		var task tasksv1.Task
 		err := ev.GetObject().UnmarshalTo(&task)

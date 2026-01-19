@@ -6,16 +6,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var createCmd *cobra.Command
+var nodeSelector []string
 
 func NewCmdCreateVolume(cfg *client.Config) *cobra.Command {
-	createCmd = &cobra.Command{
+	createCmd := &cobra.Command{
 		Use:     "volume",
 		Short:   "Create a volume",
 		Long:    "Create a volume",
 		Example: `voiydctl create set`,
 		Args:    cobra.ExactArgs(1),
 	}
+
+	createCmd.PersistentFlags().StringArrayVar(
+		&nodeSelector,
+		"node-selector",
+		[]string{},
+		"Set task node selector",
+	)
 
 	createCmd.AddCommand(NewCmdCreateHostLocalVolume(cfg))
 	createCmd.AddCommand(NewCmdCreateTemplateVolume(cfg))

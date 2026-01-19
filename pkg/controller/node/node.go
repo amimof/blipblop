@@ -107,10 +107,10 @@ func (c *Controller) Run(ctx context.Context) {
 
 	// Setup task handlers
 	c.clientset.EventV1().On(events.TaskDelete, c.handle(c.handleTask(c.onTaskDelete)))
-	c.clientset.EventV1().On(events.TaskUpdate, c.handle(c.handleTask(c.handleTaskNodeSelector(c.onTaskUpdate))))
+	c.clientset.EventV1().On(events.TaskUpdate, c.handle(c.handleTask(c.handleNodeSelector(c.onTaskUpdate))))
 	c.clientset.EventV1().On(events.TaskStop, c.handle(c.handleTask(c.onTaskStop)))
 	c.clientset.EventV1().On(events.TaskKill, c.handle(c.handleTask(c.onTaskKill)))
-	c.clientset.EventV1().On(events.TaskStart, c.handle(c.handleTask(c.handleTaskNodeSelector(c.onTaskStart))))
+	c.clientset.EventV1().On(events.TaskStart, c.handle(c.handleTask(c.handleNodeSelector(c.onTaskStart))))
 
 	// Setup log handlers
 	c.clientset.EventV1().On(events.TailLogsStart, c.handle(c.onLogStart))

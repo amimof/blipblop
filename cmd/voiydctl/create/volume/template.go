@@ -8,6 +8,7 @@ import (
 	"github.com/amimof/voiyd/api/services/volumes/v1"
 	metav1 "github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/services/volume"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -74,13 +75,15 @@ voiydctl create volume template app-config config.yaml --file-name prometheus.ya
 				&volumes.Volume{
 					Version: volume.Version,
 					Meta: &metav1.Meta{
-						Name: vname,
+						Name:   vname,
+						Labels: cmdutil.ConvertKVStringsToMap(viper.GetStringSlice("resourceLabels")),
 					},
 					Config: &volumes.Config{
 						Template: &volumes.Template{
 							Name: fname,
 							Data: string(b),
 						},
+						NodeSelector: cmdutil.ConvertKVStringsToMap(nodeSelector),
 					},
 				})
 			if err != nil {

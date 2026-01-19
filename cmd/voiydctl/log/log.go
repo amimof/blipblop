@@ -26,11 +26,12 @@ import (
 func NewCmdLog() *cobra.Command {
 	var cfg client.Config
 	logCmd := &cobra.Command{
-		Use:     "log NAME",
+		Use:     "logs NAME",
 		Short:   "Read task logs",
 		Long:    "Streams task logs from the node to stdout",
 		Example: `voiydctl log TASK_NAME`,
 		Args:    cobra.ExactArgs(1),
+		Aliases: []string{"log"},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
