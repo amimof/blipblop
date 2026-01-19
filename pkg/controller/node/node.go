@@ -2,22 +2,15 @@
 package nodecontroller
 
 import (
-	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"sync"
 	"time"
 
-	cevents "github.com/containerd/containerd/api/events"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -90,32 +83,41 @@ func WithExchange(e *events.Exchange) NewOption {
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
 	nodeName := c.node.GetMeta().GetName()
+
+	topics := []eventsv1.EventType{
+		events.NodeDelete,
+		events.NodeConnect,
+		events.TaskDelete,
+		events.TaskUpdate,
+		events.TaskStop,
+		events.TaskKill,
+		events.TaskStart,
+		events.TailLogsStart,
+		events.TailLogsStop,
+		events.LeaseExpired,
+	}
+
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "node")
-	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.ALL...)
+	evt, errCh := c.clientset.EventV1().Subscribe(ctx, topics...)
 
 	// Setup Node Handlers
-	c.clientset.EventV1().On(events.NodeCreate, c.onNodeCreate)
-	c.clientset.EventV1().On(events.NodeUpdate, c.handleErrors(c.onNodeUpdate))
 	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
-	c.clientset.EventV1().On(events.NodeJoin, c.onNodeJoin)
-	c.clientset.EventV1().On(events.NodeForget, c.onNodeForget)
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
 
 	// Setup task handlers
-	c.clientset.EventV1().On(events.TaskDelete, c.handleErrors(c.handleTask(c.onTaskDelete)))
-	c.clientset.EventV1().On(events.TaskUpdate, c.handleErrors(c.handleTask(c.onTaskUpdate)))
-	c.clientset.EventV1().On(events.TaskStop, c.handleErrors(c.handleTask(c.onTaskStop)))
-	c.clientset.EventV1().On(events.TaskKill, c.handleErrors(c.handleTask(c.onTaskKill)))
-	c.clientset.EventV1().On(events.TaskStart, c.handleErrors(c.handleTask(c.onTaskStart)))
-	c.clientset.EventV1().On(events.Schedule, c.handleErrors(c.onSchedule))
+	c.clientset.EventV1().On(events.TaskDelete, c.handle(c.handleTask(c.onTaskDelete)))
+	c.clientset.EventV1().On(events.TaskUpdate, c.handle(c.handleTask(c.handleTaskNodeSelector(c.onTaskUpdate))))
+	c.clientset.EventV1().On(events.TaskStop, c.handle(c.handleTask(c.onTaskStop)))
+	c.clientset.EventV1().On(events.TaskKill, c.handle(c.handleTask(c.onTaskKill)))
+	c.clientset.EventV1().On(events.TaskStart, c.handle(c.handleTask(c.handleTaskNodeSelector(c.onTaskStart))))
 
 	// Setup log handlers
-	c.clientset.EventV1().On(events.TailLogsStart, c.handleErrors(c.onLogStart))
-	c.clientset.EventV1().On(events.TailLogsStop, c.handleErrors(c.onLogStop))
+	c.clientset.EventV1().On(events.TailLogsStart, c.handle(c.onLogStart))
+	c.clientset.EventV1().On(events.TailLogsStop, c.handle(c.onLogStop))
 
 	// Setup lease handlers
-	c.clientset.EventV1().On(events.LeaseExpired, c.handleErrors(c.onLeaseExpired))
+	c.clientset.EventV1().On(events.LeaseExpired, c.handle(c.onLeaseExpired))
 
 	go func() {
 		for e := range evt {
@@ -125,9 +127,9 @@ func (c *Controller) Run(ctx context.Context) {
 
 	// Handle runtime events
 	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart)
-	c.exchange.On(events.RuntimeTaskExit, c.handleErrors(c.onRuntimeTaskExit))
-	c.exchange.On(events.RuntimeTaskStart, c.handleErrors(c.onRuntimeTaskStart))
-	c.exchange.On(events.RuntimeTaskDelete, c.handleErrors(c.onRuntimeTaskDelete))
+	c.exchange.On(events.RuntimeTaskExit, c.handle(c.onRuntimeTaskExit))
+	c.exchange.On(events.RuntimeTaskStart, c.handle(c.onRuntimeTaskStart))
+	c.exchange.On(events.RuntimeTaskDelete, c.handle(c.onRuntimeTaskDelete))
 
 	go func() {
 		for e := range runtimeChan {
@@ -236,6 +238,16 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 			continue
 		}
 
+		// Stop task if lease doesn't exist for it
+		if _, err := c.clientset.LeaseV1().Get(ctx, taskName); err != nil {
+			if errs.IsNotFound(err) {
+				if err := c.stopTask(ctx, task); err != nil {
+					c.logger.Error("error stopping task", "error", err, "task", taskName)
+					continue
+				}
+			}
+		}
+
 		// Renew lease
 		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskName, nodeName)
 		if err != nil {
@@ -251,33 +263,7 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 	}
 }
 
-type TaskHandlerFunc func(context.Context, *tasksv1.Task) error
-
-func (c *Controller) handleTask(h TaskHandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		var task tasksv1.Task
-		err := ev.GetObject().UnmarshalTo(&task)
-		if err != nil {
-			return err
-		}
-
-		nodeID := c.node.GetMeta().GetName()
-
-		if !c.isNodeSelected(ctx, nodeID, &task) {
-			c.logger.Debug("discarded due to label mismatch", "task", task.GetMeta().GetName())
-			return err
-		}
-
-		err = h(ctx, &task)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
-func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
+func (c *Controller) handle(h events.HandlerFunc) events.HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		err := h(ctx, ev)
 		if err != nil {
@@ -296,480 +282,6 @@ func (c *Controller) onLeaseExpired(ctx context.Context, obj *eventsv1.Event) er
 	}
 
 	return c.startTask(ctx, &task)
-}
-
-func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event) error {
-	var e cevents.TaskStart
-	err := obj.GetObject().UnmarshalTo(&e)
-	if err != nil {
-		return err
-	}
-
-	tname, err := c.runtime.Name(ctx, e.GetContainerID())
-	if err != nil {
-		return err
-	}
-
-	nodeName := c.node.GetMeta().GetName()
-
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
-	if err != nil {
-		return err
-	}
-
-	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
-		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
-		return c.clientset.TaskV1().Status().Update(
-			ctx,
-			tname,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.PHASERUNNING),
-				Reason: wrapperspb.String(""),
-				Id:     wrapperspb.String(e.GetContainerID()),
-				Pid:    wrapperspb.UInt32(e.GetPid()),
-				Node:   wrapperspb.String(nodeName),
-			}, "phase", "reason", "id", "pid", "node")
-	}
-
-	return nil
-}
-
-func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event) error {
-	var e cevents.TaskExit
-	err := obj.GetObject().UnmarshalTo(&e)
-	if err != nil {
-		return err
-	}
-
-	tname, err := c.runtime.Name(ctx, e.GetContainerID())
-	if err != nil {
-		return err
-	}
-
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
-	if err != nil {
-		return err
-	}
-
-	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
-		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
-		phase := consts.PHASESTOPPED
-		status := ""
-
-		if e.GetExitStatus() > 0 {
-			phase = consts.PHASEEXITED
-			status = fmt.Sprintf("exit status %d", e.GetExitStatus())
-		}
-
-		return c.clientset.TaskV1().Status().Update(
-			ctx,
-			tname,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(phase),
-				Reason: wrapperspb.String(status),
-				Pid:    wrapperspb.UInt32(0),
-				Id:     wrapperspb.String(""),
-				Node:   wrapperspb.String(""),
-			}, "phase", "reason", "pid", "id", "node")
-	}
-
-	return nil
-}
-
-func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
-	var e cevents.TaskDelete
-	err := obj.GetObject().UnmarshalTo(&e)
-	if err != nil {
-		return err
-	}
-
-	tname, err := c.runtime.Name(ctx, e.GetContainerID())
-	if err != nil {
-		return err
-	}
-
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
-	if err != nil {
-		return err
-	}
-
-	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
-
-		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
-		return c.clientset.TaskV1().Status().Update(
-			ctx,
-			tname,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.PHASESTOPPED),
-				Reason: wrapperspb.String(""),
-				Id:     wrapperspb.String(""),
-				Pid:    wrapperspb.UInt32(0),
-				Node:   wrapperspb.String(""),
-			}, "phase", "reason", "id", "pid", "node")
-	}
-
-	return nil
-}
-
-func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
-	s := &logsv1.TailLogRequest{}
-	err := obj.GetObject().UnmarshalTo(s)
-	if err != nil {
-		return err
-	}
-	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
-
-	if s.GetNodeId() != c.node.GetMeta().GetName() {
-		return nil
-	}
-
-	streamKey := events.LogKey{
-		NodeID:    s.GetNodeId(),
-		TaskID:    s.GetTaskId(),
-		SessionID: s.GetSessionId(),
-	}
-
-	c.logStreamsMu.Lock()
-	if _, exists := c.activeLogStreams[streamKey]; exists {
-		c.logStreamsMu.Unlock()
-		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
-		return nil
-	}
-	c.logStreamsMu.Unlock()
-
-	taskIO, err := c.runtime.IO(ctx, s.GetTaskId())
-	if err != nil {
-		c.logger.Error("error getting task logs", "error", err)
-		return err
-	}
-
-	logStream, err := c.clientset.LogV1().Stream(ctx)
-	if err != nil {
-		c.logger.Error("error setting up pushlogs", "error", err)
-		return err
-	}
-
-	streamCtx, cancel := context.WithCancel(ctx)
-
-	c.logStreamsMu.Lock()
-	c.activeLogStreams[streamKey] = cancel
-	c.logStreamsMu.Unlock()
-
-	go func() {
-		c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-
-		defer func() {
-			c.logStreamsMu.Lock()
-			delete(c.activeLogStreams, streamKey)
-			c.logStreamsMu.Unlock()
-			cancel()
-			_ = logStream.Close()
-			if taskIO.Stdout != nil {
-				_ = taskIO.Stdout.Close()
-			}
-		}()
-
-		// Setup scanner. We use a channel to send each line through
-		lines := make(chan string)
-		scanner := bufio.NewScanner(taskIO.Stdout)
-
-		// Goroutine that scans the log file and sends each line on the channel
-		go func() {
-			defer close(lines)
-
-			for {
-
-				// Exit early on cancel even when at EOF
-				select {
-				case <-streamCtx.Done():
-					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-					return
-				default:
-				}
-
-				// Scan log file and send each line through the channel
-				if scanner.Scan() {
-					line := scanner.Text()
-					select {
-					case <-streamCtx.Done():
-						c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-						return
-					case lines <- line: // Send line through
-					}
-					continue
-				}
-
-				// Scanner returned false. Check for errors and exit out if any
-				if err := scanner.Err(); err != nil {
-					c.logger.Error(
-						"error reading from stdout",
-						"error", err,
-						"nodeID", s.GetNodeId(),
-						"taskID", s.GetTaskId(),
-					)
-					return
-				}
-
-				// No errors, maybe EOF?
-				select {
-				case <-streamCtx.Done():
-					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-					return
-				case <-time.After(300 * time.Millisecond): // Wait a bit before iterating again
-				}
-
-				// EOF reached, ovewrite the scanner to start reading again
-				scanner = bufio.NewScanner(taskIO.Stdout)
-			}
-		}()
-
-		// Count the number of lines read
-		var seq uint64
-
-		// Send log entry for each line that comes in from the line channel. After x amount of time anf if no lines are
-		// received, exit out. This is a blocking operation.
-		for {
-			select {
-			case <-streamCtx.Done():
-				c.logger.Debug("log stream cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-				return
-			case <-time.After(5 * time.Minute):
-				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-				return
-			case line, ok := <-lines:
-
-				if !ok {
-					c.logger.Debug("log stream completed", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-					return
-				}
-
-				// Send the line as log entry to the server
-				if err := logStream.Send(&logsv1.LogEntry{
-					TaskId:    s.GetTaskId(),
-					NodeId:    s.GetNodeId(),
-					SessionId: s.GetSessionId(),
-					Timestamp: timestamppb.Now(),
-					Line:      line,
-					Seq:       seq,
-				}); err != nil {
-					c.logger.Error(
-						"error pushing log entry",
-						"error", err,
-						"taskID", s.GetTaskId(),
-						"nodeID", s.GetNodeId(),
-						"sessionID", s.GetSessionId(),
-						"seq", seq,
-					)
-					return
-				}
-
-				// Increase counter
-				seq += 1
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (c *Controller) onLogStop(_ context.Context, obj *eventsv1.Event) error {
-	s := &logsv1.TailLogRequest{}
-	err := obj.GetObject().UnmarshalTo(s)
-	if err != nil {
-		return err
-	}
-	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-
-	if s.GetNodeId() != c.node.GetMeta().GetName() {
-		return nil
-	}
-
-	streamKey := events.LogKey{
-		NodeID:    s.GetNodeId(),
-		TaskID:    s.GetTaskId(),
-		SessionID: s.GetSessionId(),
-	}
-
-	c.logStreamsMu.Lock()
-	cancel, exists := c.activeLogStreams[streamKey]
-	c.logStreamsMu.Unlock()
-
-	if exists {
-		cancel()
-		c.logger.Debug("cancelled log stream", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-	}
-
-	return nil
-}
-
-func (c *Controller) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnSchedule")
-	defer span.End()
-
-	// Unwrap schedule type from the event
-	s := &eventsv1.ScheduleRequest{}
-	err := obj.GetObject().UnmarshalTo(s)
-	if err != nil {
-		return err
-	}
-
-	// Unwrap the node from the event object
-	n := &nodesv1.Node{}
-	err = s.GetNode().UnmarshalTo(n)
-	if err != nil {
-		return err
-	}
-
-	// We only care if the event is for us
-	if n.GetMeta().GetName() != c.node.GetMeta().GetName() {
-		return nil
-	}
-
-	var task tasksv1.Task
-	err = s.GetTask().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
-
-	newObj := proto.Clone(obj).(*eventsv1.Event)
-	newObj.Object, err = anypb.New(&task)
-	if err != nil {
-		return err
-	}
-
-	err = c.startTask(ctx, &task)
-	// err = c.onTaskStart(ctx, newObj)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Controller) onNodeConnect(ctx context.Context, e *eventsv1.Event) error {
-	_, span := c.tracer.Start(ctx, "controller.node.OnNodeConnect")
-	defer span.End()
-
-	var n nodesv1.Node
-	err := e.GetObject().UnmarshalTo(&n)
-	if err != nil {
-		return err
-	}
-
-	span.SetAttributes(
-		attribute.String("client.id", e.GetClientId()),
-		attribute.String("object.id", e.GetObjectId()),
-		attribute.String("node.id", n.GetMeta().GetName()),
-	)
-
-	return nil
-}
-
-func (c *Controller) onNodeCreate(ctx context.Context, _ *eventsv1.Event) error {
-	return nil
-}
-
-func (c *Controller) onNodeUpdate(ctx context.Context, obj *eventsv1.Event) error {
-	return nil
-}
-
-func (c *Controller) onNodeDelete(ctx context.Context, obj *eventsv1.Event) error {
-	if obj.GetMeta().GetName() != c.node.GetMeta().GetName() {
-		return nil
-	}
-	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
-	if err != nil {
-		c.logger.Error("error unjoining node", "node", obj.GetMeta().GetName(), "error", err)
-		return err
-	}
-	c.logger.Debug("successfully unjoined node", "node", obj.GetMeta().GetName())
-	return nil
-}
-
-func (c *Controller) onNodeJoin(ctx context.Context, obj *eventsv1.Event) error {
-	return nil
-}
-
-func (c *Controller) onNodeForget(ctx context.Context, obj *eventsv1.Event) error {
-	return nil
-}
-
-func (c *Controller) onTaskDelete(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskDelete")
-	defer span.End()
-
-	taskID := task.GetMeta().GetName()
-	c.logger.Info("controller received task delete", "name", task.GetMeta().GetName())
-
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
-	err := c.runtime.Delete(ctx, task)
-	if err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "reason")
-		return err
-	}
-	return nil
-}
-
-func (c *Controller) onTaskUpdate(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskUpdate")
-	defer span.End()
-
-	err := c.stopTask(ctx, task)
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	// err = c.onTaskStart(ctx, e)
-	err = c.startTask(ctx, task)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Controller) onTaskKill(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
-	defer span.End()
-
-	taskID := task.GetMeta().GetName()
-	c.logger.Info("controller received task kill", "name", taskID)
-
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
-	err := c.runtime.Kill(ctx, task)
-	if errs.IgnoreNotFound(err) != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRKILL),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	// Remove any previous tasks ignoring any errors
-	err = c.runtime.Delete(ctx, task)
-	if err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	return nil
 }
 
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
@@ -859,31 +371,12 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 	return nil
 }
 
-// func (c *Controller) onTaskStart(ctx context.Context, e *eventsv1.Event) error {
-func (c *Controller) onTaskStart(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
-	defer span.End()
-
-	c.logger.Debug("controller received task start", "name", task.GetMeta().GetName())
-
-	return c.startTask(ctx, task)
-}
-
 func (c *Controller) isNodeSelected(ctx context.Context, nodeID string, task *tasksv1.Task) bool {
 	node, err := c.clientset.NodeV1().Get(ctx, nodeID)
 	if err != nil {
 		return false
 	}
 	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
-}
-
-func (c *Controller) onTaskStop(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStop")
-	defer span.End()
-
-	c.logger.Info("controller received task stop", "name", task.GetMeta().GetName())
-
-	return c.stopTask(ctx, task)
 }
 
 func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
@@ -905,7 +398,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
-	// Let everyone know that task is stoping
+	// Let everyone know that task is stopping
 	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
 
 	// Stop the task

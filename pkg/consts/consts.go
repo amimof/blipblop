@@ -3,7 +3,7 @@ package consts
 
 const (
 	ERRIMAGEPULL    = "ErrPulling"
-	ERREESCHEDULING = "ErrScheduling"
+	ERRSCHEDULING   = "ErrScheduling"
 	ERREXEC         = "ErrExec"
 	ERRDELETE       = "ErrDeleting"
 	ERRSTOP         = "ErrStopping"
@@ -13,7 +13,7 @@ const (
 
 	PHASERUNNING     = "running"
 	PHASESTOPPED     = "stopped"
-	PHASESCHEDULED   = "scheduled"
+	PHASESCHEDULING  = "scheduled"
 	PHASEREADY       = "ready"
 	PHASEMISSING     = "missing"
 	PHASEUNKNOWN     = "unknown"

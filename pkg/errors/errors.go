@@ -2,6 +2,9 @@
 package errors
 
 import (
+	"errors"
+
+	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/containerd/containerd/errdefs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,6 +24,12 @@ func IsNotFound(err error) bool {
 	if errdefs.IsNotFound(err) {
 		b = true
 	}
+
+	// repo errors
+	if errors.Is(err, repository.ErrNotFound) {
+		b = true
+	}
+
 	return b
 }
 
