@@ -161,3 +161,31 @@ func CodecFor(s string) (Codec, error) {
 		return NewJSONCodec(), nil
 	}
 }
+
+func dedupeStrSlice(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	result := make([]string, 0, len(values))
+	for _, v := range values {
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+// ConvertKVStringsToMap converts a slice of "key=value" strings into a map.
+func ConvertKVStringsToMap(values []string) map[string]string {
+	result := make(map[string]string, len(values))
+	for _, value := range values {
+		k, v, _ := strings.Cut(value, "=")
+		result[k] = v
+	}
+	return result
+}
+
+// ReadKVStringsMapFromLabel convers string slice into map
+func ReadKVStringsMapFromLabel(labels []string) map[string]string {
+	labelsDeduped := dedupeStrSlice(labels)
+	return ConvertKVStringsToMap(labelsDeduped)
+}

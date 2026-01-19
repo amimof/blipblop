@@ -3,7 +3,6 @@ package nodecontroller
 import (
 	"context"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
@@ -11,9 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type TaskHandlerFunc func(context.Context, *tasksv1.Task) error
-
-func (c *Controller) handleTaskNodeSelector(h TaskHandlerFunc) TaskHandlerFunc {
+func (c *Controller) handleNodeSelector(h events.TaskHandlerFunc) events.TaskHandlerFunc {
 	return func(ctx context.Context, task *tasksv1.Task) error {
 		nodeID := c.node.GetMeta().GetName()
 
@@ -23,23 +20,6 @@ func (c *Controller) handleTaskNodeSelector(h TaskHandlerFunc) TaskHandlerFunc {
 		}
 
 		err := h(ctx, task)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
-
-func (c *Controller) handleTask(h TaskHandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		var task tasksv1.Task
-		err := ev.GetObject().UnmarshalTo(&task)
-		if err != nil {
-			return err
-		}
-
-		err = h(ctx, &task)
 		if err != nil {
 			return err
 		}

@@ -4,10 +4,12 @@ import (
 	"context"
 	"sync"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	"github.com/amimof/voiyd/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/amimof/voiyd/pkg/logger"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 )
 
 var (
@@ -18,7 +20,6 @@ var (
 )
 
 type (
-	HandlerFunc       func(context.Context, *eventsv1.Event) error
 	NewExchangeOption func(*Exchange)
 )
 

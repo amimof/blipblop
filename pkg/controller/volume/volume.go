@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/consts"
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/volume"
 	"google.golang.org/grpc/metadata"
@@ -51,15 +51,30 @@ type Controller struct {
 	volDrivers map[volume.DriverType]volume.Driver
 }
 
-func (vc *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		err := h(ctx, ev)
+func (c *Controller) handleNodeSelector(h events.VolumeHandlerFunc) events.VolumeHandlerFunc {
+	return func(ctx context.Context, volume *volumesv1.Volume) error {
+		nodeID := c.node.GetMeta().GetName()
+
+		if !c.isNodeSelected(ctx, nodeID, volume) {
+			c.logger.Debug("discarded due to label mismatch", "task", volume.GetMeta().GetName())
+			return nil
+		}
+
+		err := h(ctx, volume)
 		if err != nil {
-			vc.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
 			return err
 		}
+
 		return nil
 	}
+}
+
+func (vc *Controller) isNodeSelected(ctx context.Context, nodeID string, volume *volumesv1.Volume) bool {
+	node, err := vc.clientset.NodeV1().Get(ctx, nodeID)
+	if err != nil {
+		return false
+	}
+	return labels.NewCompositeSelectorFromMap(volume.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
 }
 
 // Helper that sets the status on the volume and passes through the error
@@ -123,16 +138,12 @@ func (vc *Controller) Run(ctx context.Context) {
 		events.VolumeDelete,
 		events.VolumeUpdate,
 		events.NodeJoin,
-		events.NodeConnect,
-		events.NodeForget,
 	)
 
 	// Setup Node Handlers
-	vc.clientset.EventV1().On(events.VolumeCreate, vc.handleErrors(vc.onVolumeCreate))
-	vc.clientset.EventV1().On(events.VolumeDelete, vc.handleErrors(vc.onVolumeDelete))
-	vc.clientset.EventV1().On(events.NodeJoin, vc.handleErrors(vc.onNodeJoin))
-	// vc.clientset.EventV1().On(events.NodeConnect, vc.handleErrors(vc.onNodeConnect))
-	// vc.clientset.EventV1().On(events.NodeForget, vc.handleErrors(vc.onNodeForget))
+	vc.clientset.EventV1().On(events.VolumeCreate, events.HandleErrors(vc.logger, events.HandleVolume(vc.handleNodeSelector(vc.onVolumeCreate))))
+	vc.clientset.EventV1().On(events.VolumeDelete, events.HandleErrors(vc.logger, events.HandleVolume(vc.onVolumeDelete)))
+	vc.clientset.EventV1().On(events.NodeJoin, events.HandleErrors(vc.logger, events.HandleNode(vc.onNodeJoin)))
 
 	go func() {
 		for e := range evt {
@@ -157,13 +168,7 @@ func (vc *Controller) Run(ctx context.Context) {
 	}
 }
 
-func (vc *Controller) onNodeJoin(ctx context.Context, ev *eventsv1.Event) error {
-	nodeSpec := &nodesv1.Node{}
-	err := ev.GetObject().UnmarshalTo(nodeSpec)
-	if err != nil {
-		return err
-	}
-
+func (vc *Controller) onNodeJoin(ctx context.Context, nodeSpec *nodesv1.Node) error {
 	nodeName := vc.node.GetMeta().GetName()
 	joinedNode := nodeSpec.GetMeta().GetName()
 
@@ -192,18 +197,12 @@ func (vc *Controller) onNodeJoin(ctx context.Context, ev *eventsv1.Event) error 
 	return nil
 }
 
-func (vc *Controller) onVolumeCreate(ctx context.Context, ev *eventsv1.Event) error {
-	volSpec := &volumesv1.Volume{}
-	err := ev.GetObject().UnmarshalTo(volSpec)
-	if err != nil {
-		return err
-	}
-
-	id := volSpec.GetMeta().GetName()
+func (vc *Controller) onVolumeCreate(ctx context.Context, volume *volumesv1.Volume) error {
+	id := volume.GetMeta().GetName()
 	nodeName := vc.node.GetMeta().GetName()
 
 	// Get the driver the spec asks for from the controller
-	volDriver, err := vc.getVolumeDriver(volSpec)
+	volDriver, err := vc.getVolumeDriver(volume)
 	if err != nil {
 		return vc.setControllerStatus(ctx, id, consts.ERRPROVISIONING, err)
 	}
@@ -231,23 +230,17 @@ func (vc *Controller) onVolumeCreate(ctx context.Context, ev *eventsv1.Event) er
 	)
 }
 
-func (vc *Controller) onVolumeDelete(ctx context.Context, ev *eventsv1.Event) error {
-	volSpec := &volumesv1.Volume{}
-	err := ev.GetObject().UnmarshalTo(volSpec)
-	if err != nil {
-		return err
-	}
-
-	id := volSpec.GetMeta().GetName()
+func (vc *Controller) onVolumeDelete(ctx context.Context, volume *volumesv1.Volume) error {
+	id := volume.GetMeta().GetName()
 	nodeName := vc.node.GetMeta().GetName()
 
 	// Get the driver the spec asks for from the controller
-	volDriver, err := vc.getVolumeDriver(volSpec)
+	volDriver, err := vc.getVolumeDriver(volume)
 	if err != nil {
 		return vc.setControllerStatus(ctx, id, consts.ERRDELETE, err)
 	}
 
-	localVol, err := volDriver.Get(ctx, volSpec.GetMeta().GetName())
+	localVol, err := volDriver.Get(ctx, volume.GetMeta().GetName())
 	if err != nil {
 		return vc.setControllerStatus(ctx, id, consts.ERRDELETE, err)
 	}
