@@ -11,8 +11,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -284,50 +282,6 @@ func (c *Controller) onLeaseExpired(ctx context.Context, obj *eventsv1.Event) er
 	}
 
 	return c.startTask(ctx, &task)
-}
-
-func (c *Controller) onSchedule(ctx context.Context, obj *eventsv1.Event) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnSchedule")
-	defer span.End()
-
-	// Unwrap schedule type from the event
-	s := &eventsv1.ScheduleRequest{}
-	err := obj.GetObject().UnmarshalTo(s)
-	if err != nil {
-		return err
-	}
-
-	// Unwrap the node from the event object
-	n := &nodesv1.Node{}
-	err = s.GetNode().UnmarshalTo(n)
-	if err != nil {
-		return err
-	}
-
-	// We only care if the event is for us
-	if n.GetMeta().GetName() != c.node.GetMeta().GetName() {
-		return nil
-	}
-
-	var task tasksv1.Task
-	err = s.GetTask().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
-
-	newObj := proto.Clone(obj).(*eventsv1.Event)
-	newObj.Object, err = anypb.New(&task)
-	if err != nil {
-		return err
-	}
-
-	err = c.startTask(ctx, &task)
-	// err = c.onTaskStart(ctx, newObj)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {

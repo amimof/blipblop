@@ -71,7 +71,7 @@ func (c *Controller) onTaskUpdate(ctx context.Context, e *eventsv1.Event) error 
 
 	currentNodeID := lease.GetConfig().GetNodeId()
 
-	match, err := c.handleUnschedulableTask(ctx, &task)
+	match, err := c.hasMatchingNodes(ctx, &task)
 	if err != nil {
 		c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
 		return err
@@ -106,7 +106,7 @@ func (c *Controller) onTaskCreate(ctx context.Context, e *eventsv1.Event) error 
 
 	taskID := task.GetMeta().GetName()
 
-	match, err := c.handleUnschedulableTask(ctx, &task)
+	match, err := c.hasMatchingNodes(ctx, &task)
 	if err != nil {
 		c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
 		return err
@@ -179,9 +179,10 @@ func (c *Controller) onNodeJoin(ctx context.Context, e *eventsv1.Event) error {
 	return nil
 }
 
-// Check if task's node selector results in an empty list of nodes.
-// If so then release lease for the task and update task status with scheduling error.
-func (c *Controller) handleUnschedulableTask(ctx context.Context, task *tasksv1.Task) (bool, error) {
+// Checks if there are nodes that matches the task's nodeSelector.
+// Returns true if at least one node has matching labels.
+// Returns false if no nodes has matching labels.
+func (c *Controller) hasMatchingNodes(ctx context.Context, task *tasksv1.Task) (bool, error) {
 	nodes, err := c.clientset.NodeV1().List(ctx)
 	if err != nil {
 		return false, err
@@ -191,7 +192,7 @@ func (c *Controller) handleUnschedulableTask(ctx context.Context, task *tasksv1.
 	selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
 	for _, node := range nodes {
 		if selector.Matches(node.GetMeta().GetLabels()) {
-			return true, err
+			return true, nil
 		}
 	}
 
@@ -228,7 +229,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, e *eventsv1.Event) 
 
 		currentNodeID := lease.GetConfig().GetNodeId()
 
-		match, err := c.handleUnschedulableTask(ctx, task)
+		match, err := c.hasMatchingNodes(ctx, task)
 		if err != nil {
 			c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
 			return err
@@ -278,26 +279,6 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, e *eventsv1.Event) 
 		}
 	}
 	return nil
-}
-
-// Checks if there are nodes that matches the task's nodeSelector.
-// Returns true if at least one node has matching labels.
-// Returns false if no nodes has matching labels.
-func (c *Controller) hasMatchingNodes(ctx context.Context, task *tasksv1.Task) (bool, error) {
-	nodes, err := c.clientset.NodeV1().List(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if any node matches the task's nodeSelector
-	selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
-	for _, node := range nodes {
-		if selector.Matches(node.GetMeta().GetLabels()) {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 func (c *Controller) Run(ctx context.Context) {
