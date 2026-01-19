@@ -16,7 +16,6 @@ require (
 	github.com/containerd/containerd v1.7.29
 	github.com/containerd/containerd/api v1.10.0
 	github.com/containerd/containerd/v2 v2.2.1
-	github.com/containerd/nerdctl v1.7.7
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/dgraph-io/badger/v4 v4.3.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
@@ -108,7 +107,6 @@ require (
 	golang.org/x/term v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250811230008-5f3141c8851a // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gotest.tools/v3 v3.5.2 // indirect
 )
 
 require (

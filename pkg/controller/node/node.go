@@ -117,7 +117,7 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
 
 	// Setup lease handlers
-	c.clientset.EventV1().On(events.LeaseExpired, events.Handle(c.onLeaseExpired))
+	c.clientset.EventV1().On(events.LeaseExpired, events.Handle(events.HandleTask(c.onTaskStart)))
 
 	go func() {
 		for e := range evt {
@@ -261,16 +261,6 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 
 		c.logger.Debug("renewed lease, reconciling", "task", taskName)
 	}
-}
-
-func (c *Controller) onLeaseExpired(ctx context.Context, obj *eventsv1.Event) error {
-	var task tasksv1.Task
-	err := obj.GetObject().UnmarshalTo(&task)
-	if err != nil {
-		return err
-	}
-
-	return c.startTask(ctx, &task)
 }
 
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
