@@ -10,15 +10,21 @@ import (
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type (
-	HandlerFunc       func(context.Context, *eventsv1.Event) error
-	TaskHandlerFunc   func(context.Context, *tasksv1.Task) error
-	VolumeHandlerFunc func(context.Context, *volumesv1.Volume) error
-	NodeHandlerFunc   func(context.Context, *nodesv1.Node) error
-	LeaseHandlerFunc  func(context.Context, *leasesv1.Lease) error
+	HandlerFunc          func(context.Context, *eventsv1.Event) error
+	TaskHandlerFunc      func(context.Context, *tasksv1.Task) error
+	VolumeHandlerFunc    func(context.Context, *volumesv1.Volume) error
+	NodeHandlerFunc      func(context.Context, *nodesv1.Node) error
+	LeaseHandlerFunc     func(context.Context, *leasesv1.Lease) error
+	ConditionHandlerFunc func(context.Context, *typesv1.ConditionReport) error
 )
+
+type Handler interface {
+	Handle(context.Context, *eventsv1.Event) error
+}
 
 func HandleErrors(log logger.Logger, h HandlerFunc) HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
@@ -45,6 +51,22 @@ func HandleTask(h TaskHandlerFunc) HandlerFunc {
 			return err
 		}
 		return h(ctx, &task)
+	}
+}
+
+func HandleTasks(h ...TaskHandlerFunc) HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		for _, ih := range h {
+			var task tasksv1.Task
+			err := ev.GetObject().UnmarshalTo(&task)
+			if err != nil {
+				return err
+			}
+			if err := ih(ctx, &task); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 }
 
@@ -78,5 +100,22 @@ func HandleLease(h LeaseHandlerFunc) HandlerFunc {
 			return err
 		}
 		return h(ctx, &lease)
+	}
+}
+
+func HandleConditionReport(h ConditionHandlerFunc) HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		var report typesv1.ConditionReport
+		err := ev.GetObject().UnmarshalTo(&report)
+		if err != nil {
+			return err
+		}
+		return h(ctx, &report)
+	}
+}
+
+func HandleEach(f ...func()) TaskHandlerFunc {
+	return func(ctx context.Context, t *tasksv1.Task) error {
+		return nil
 	}
 }

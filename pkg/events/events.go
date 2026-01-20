@@ -9,10 +9,10 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/labels"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 const (
@@ -78,6 +78,8 @@ const (
 	LeaseRenewed   = eventsv1.EventType_LeaseRenewed
 	LeaseReleased  = eventsv1.EventType_LeaseReleased
 	LeaseDeleted   = eventsv1.EventType_LeaseDeleted
+
+	ConditionReported = eventsv1.EventType_ConditionReported
 )
 
 var ALL = []eventsv1.EventType{
@@ -148,6 +150,8 @@ var ALL = []eventsv1.EventType{
 	LeaseRenewed,
 	LeaseReleased,
 	LeaseDeleted,
+
+	ConditionReported,
 }
 
 type Subscriber interface {
@@ -180,7 +184,7 @@ func NewEvent(evType eventsv1.EventType, obj Object, eventLabels ...map[string]s
 	o, _ := anypb.New(obj)
 	return &eventsv1.Event{
 		Version: "event/v1",
-		Meta: &types.Meta{
+		Meta: &typesv1.Meta{
 			Name:   uuid.New().String(),
 			Labels: l,
 		},
@@ -188,3 +192,38 @@ func NewEvent(evType eventsv1.EventType, obj Object, eventLabels ...map[string]s
 		Object: o,
 	}
 }
+
+// func NewTrueAssertion(assertType, reason, message string) *typesv1.ConditionAssertion {
+// 	return NewAssertion(assertType, typesv1.ConditionStatus_CONDITION_STATUS_TRUE, reason, message)
+// }
+//
+// func NewFalseAssertion(assertType, reason, message string) *typesv1.ConditionAssertion {
+// 	return NewAssertion(assertType, typesv1.ConditionStatus_CONDITION_STATUS_FALSE, reason, message)
+// }
+//
+// func NewUnknownAssertion(assertType, reason, message string) *typesv1.ConditionAssertion {
+// 	return NewAssertion(assertType, typesv1.ConditionStatus_CONDITION_STATUS_UNKNOWN, reason, message)
+// }
+//
+// func NewUnspecifiedAssertion(assertType, reason, message string) *typesv1.ConditionAssertion {
+// 	return NewAssertion(assertType, typesv1.ConditionStatus_CONDITION_STATUS_UNSPECIFIED, reason, message)
+// }
+//
+// func NewAssertion(assertType string, status typesv1.ConditionStatus, reason, message string) *typesv1.ConditionAssertion {
+// 	return &typesv1.ConditionAssertion{
+// 		Type:   assertType,
+// 		Status: status,
+// 		Reason: reason,
+// 		Msg:    message,
+// 	}
+// }
+//
+// func ReportCondition(resourceID string, observedGen int64, reporter string, assertions ...*typesv1.ConditionAssertion) typesv1.ConditionReport {
+// 	return &typesv1.ConditionReport{
+// 		ResourceId:         resourceID,
+// 		ObservedGeneration: observedGen,
+// 		ObservedAt:         timestamppb.Now(),
+// 		Reporter:           reporter,
+// 		Assertions:         assertions,
+// 	}
+// }

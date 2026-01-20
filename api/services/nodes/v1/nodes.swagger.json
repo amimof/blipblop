@@ -576,7 +576,8 @@
         "LeaseExpired",
         "LeaseRenewed",
         "LeaseReleased",
-        "LeaseDeleted"
+        "LeaseDeleted",
+        "ConditionReported"
       ],
       "default": "TaskCreate"
     },

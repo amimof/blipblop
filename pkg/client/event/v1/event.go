@@ -21,6 +21,7 @@ import (
 	"github.com/amimof/voiyd/pkg/util"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type ClientV1 struct {
@@ -33,6 +34,10 @@ type ClientV1 struct {
 
 func (c *ClientV1) EventService() eventsv1.EventServiceClient {
 	return c.eventService
+}
+
+func (c *ClientV1) Report(ctx context.Context, report *typesv1.ConditionReport) error {
+	return c.Publish(ctx, report, events.ConditionReported)
 }
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*eventsv1.Event, error) {

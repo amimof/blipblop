@@ -8,6 +8,7 @@ import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
+import "types/v1/conditions.proto";
 import "types/v1/meta.proto";
 
 option go_package = "github.com/amimof/voiyd/api/services/tasks/v1;tasks";
@@ -69,6 +70,7 @@ message Status {
   google.protobuf.StringValue ip = 4;
   google.protobuf.UInt32Value pid = 5;
   google.protobuf.StringValue id = 8;
+  repeated types.v1.Condition conditions = 9;
 }
 
 message Config {

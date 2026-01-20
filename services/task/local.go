@@ -387,6 +387,11 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 				continue
 			}
 			dst.Pid = src.Pid
+		case "conditions":
+			if src.Conditions == nil {
+				continue
+			}
+			dst.Conditions = src.Conditions
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}
