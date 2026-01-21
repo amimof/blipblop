@@ -30,22 +30,6 @@ func (c *Controller) handleNodeSelector(h events.TaskHandlerFunc) events.TaskHan
 	}
 }
 
-func (c *Controller) updateTask(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskUpdate")
-	defer span.End()
-
-	err := c.stopTask(ctx, task)
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	err = c.startTask(ctx, task)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
 	defer span.End()

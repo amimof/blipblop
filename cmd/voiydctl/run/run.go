@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 
-	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/pkg/condition"
@@ -108,7 +107,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 			}
 
 			err = c.TaskV1().Create(ctx, &tasksv1.Task{
-				Meta: &types.Meta{
+				Meta: &typesv1.Meta{
 					Name:   tname,
 					Labels: cmdutil.ReadKVStringsMapFromLabel(labels),
 				},
