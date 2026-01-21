@@ -160,11 +160,11 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						dash.UpdateText(idx, fmt.Sprintf("%s…", "starting"))
 
 						for _, cond := range task.GetStatus().GetConditions() {
-							dash.UpdateDetails(idx, cond.GetType(), fmt.Sprintf("%t", cond.GetStatus().GetValue()))
+							dash.UpdateDetails(idx, cond.GetType().GetValue(), fmt.Sprintf("%t", cond.GetStatus().GetValue()))
 							// dash.UpdateDetails(idx, "Node", node)
 							// dash.UpdateDetails(idx, "ID", id)
 							// dash.UpdateDetails(idx, "Reason", reason)
-							if condition.Type(cond.GetType()) == condition.TaskReady && cond.GetStatus() == wrapperspb.Bool(true) {
+							if condition.Type(cond.GetType().GetValue()) == condition.TaskReady && cond.GetStatus() == wrapperspb.Bool(true) {
 								dash.DoneMsg(idx, "started successfully")
 								return
 							}

@@ -2,7 +2,6 @@ package conditioncontroller
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"google.golang.org/grpc/metadata"
@@ -54,23 +53,21 @@ func (c *Controller) Run(ctx context.Context) {
 }
 
 func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.ConditionReport) error {
-	c.logger.Debug("condition controller received a report", "reporter", report.GetReporter(), "resource", report.GetResourceId(), "observedGeneration", report.GetObservedGeneration())
+	c.logger.Debug("condition controller received a report", "resource", report.GetResourceId(), "observedGeneration", report.GetObservedGeneration())
 
-	// 1. Validate the report
 	resourceID := report.GetResourceId()
 	observedGen := report.GetObservedGeneration()
 
-	// 2. Get the current Task
 	task, err := c.clientset.TaskV1().Get(ctx, resourceID)
 	if err != nil {
 		if errs.IsNotFound(err) {
 			c.logger.Warn("condition report for non-existent task", "task", resourceID)
-			return nil // Don't fail on deleted resources
+			return nil
 		}
 		return err
 	}
 
-	// 3. Validate generation (prevent stale updates)
+	// Validate generation (prevent stale updates)
 	currentGen := int64(task.GetMeta().GetRevision())
 	if observedGen != 0 && observedGen < currentGen {
 		c.logger.Warn("skipping stale condition report",
@@ -80,21 +77,18 @@ func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.Co
 		return nil
 	}
 
-	// 4. Convert ConditionReport to Condition
+	// Convert ConditionReport to Condition
 	newCondition := reportToCondition(report, task)
 
-	fmt.Printf("%+v\n", newCondition)
-
-	// Get node id from report
+	// Get stuff from metadata
 	nodeID := getNodeFromReport(report)
-
-	// Get pid from report
 	pid := getPidFromReport(report)
 	id := getIDFromReport(report)
 
-	// 5. Merge with existing conditions
+	// Merge with existing conditions
 	updatedConditions := mergeCondition(task.GetStatus().GetConditions(), newCondition)
 
+	// Derive phase from conditions
 	phase := getPhaseFromConditions(updatedConditions)
 
 	// 6. Update Task status
@@ -115,8 +109,9 @@ func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.Co
 func getNodeFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
 	if condition.Type(report.GetType()) == condition.Type(condition.TaskScheduled) {
 		if v, ok := report.GetMetadata()["node"]; ok {
-			return wrapperspb.String(v)
+			return v
 		}
+		return wrapperspb.String("")
 	}
 	return nil
 }
@@ -124,8 +119,9 @@ func getNodeFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue 
 func getIDFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
 	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
 		if v, ok := report.GetMetadata()["id"]; ok {
-			return wrapperspb.String(v)
+			return v
 		}
+		return wrapperspb.String("")
 	}
 	return nil
 }
@@ -133,10 +129,11 @@ func getIDFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
 func getPidFromReport(report *typesv1.ConditionReport) *wrapperspb.UInt32Value {
 	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
 		if v, ok := report.GetMetadata()["pid"]; ok {
-			if i, err := strconv.Atoi(v); err == nil {
+			if i, err := strconv.Atoi(v.GetValue()); err == nil {
 				return wrapperspb.UInt32(uint32(i))
 			}
 		}
+		return wrapperspb.UInt32(0)
 	}
 	return nil
 }
@@ -160,7 +157,7 @@ func getPhaseFromConditions(conds []*typesv1.Condition) string {
 }
 
 func phaseFromCondition(c *typesv1.Condition) string {
-	reason := condition.Reason(c.GetReason())
+	reason := condition.Reason(c.GetReason().GetValue())
 
 	// Map condition reason to phase
 	reasonToPhase := map[condition.Reason]string{
@@ -194,7 +191,7 @@ func reportToCondition(report *typesv1.ConditionReport, task *tasksv1.Task) *typ
 	// Find existing condition with same type to preserve last_transition_time if needed
 	var existingCondition *typesv1.Condition
 	for _, cond := range task.GetStatus().GetConditions() {
-		if cond.GetType() == report.GetType() {
+		if cond.GetType().GetValue() == report.GetType() {
 			existingCondition = cond
 			break
 		}
@@ -202,7 +199,7 @@ func reportToCondition(report *typesv1.ConditionReport, task *tasksv1.Task) *typ
 
 	// Determine if status changed
 	statusChanged := existingCondition == nil ||
-		existingCondition.GetStatus() != conditionStatusToBoolValue(report.GetStatus())
+		existingCondition.GetStatus() != wrapperspb.Bool(conditionStatusToBoolValue(report.GetStatus()))
 
 	// Use existing timestamp if status hasn't changed, otherwise use now
 	transitionTime := report.GetObservedAt()
@@ -211,20 +208,20 @@ func reportToCondition(report *typesv1.ConditionReport, task *tasksv1.Task) *typ
 	}
 
 	return &typesv1.Condition{
-		Type:               report.GetType(),
-		Status:             conditionStatusToBoolValue(report.GetStatus()),
-		Reason:             report.GetReason(),
-		Msg:                report.GetMsg(),
+		Type:               wrapperspb.String(report.GetType()),
+		Status:             wrapperspb.Bool(conditionStatusToBoolValue(report.GetStatus())),
+		Reason:             wrapperspb.String(report.GetReason()),
+		Msg:                wrapperspb.String(report.GetMsg()),
 		LastTransitionTime: transitionTime,
 	}
 }
 
-func conditionStatusToBoolValue(status typesv1.ConditionStatus) *wrapperspb.BoolValue {
+func conditionStatusToBoolValue(status typesv1.ConditionStatus) bool {
 	switch status {
 	case typesv1.ConditionStatus_CONDITION_STATUS_TRUE:
-		return wrapperspb.Bool(true)
+		return true
 	default:
-		return wrapperspb.Bool(false)
+		return false
 	}
 }
 
@@ -234,7 +231,7 @@ func mergeCondition(existing []*typesv1.Condition, new *typesv1.Condition) []*ty
 
 	found := false
 	for _, cond := range existing {
-		if cond.GetType() == new.GetType() {
+		if cond.GetType().GetValue() == new.GetType().GetValue() {
 			// Replace with new condition
 			result = append(result, new)
 			found = true

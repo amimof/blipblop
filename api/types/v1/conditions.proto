@@ -9,28 +9,23 @@ import "google/protobuf/wrappers.proto";
 option go_package = "github.com/amimof/voiyd/api/types/v1;types";
 
 message Condition {
-  string type = 1 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.StringValue type = 1 [(buf.validate.field).string.min_len = 1];
   google.protobuf.BoolValue status = 2 [(buf.validate.field).required = true];
-  string reason = 3 [(buf.validate.field).string.min_len = 1];
-  string msg = 4;
+  google.protobuf.StringValue reason = 3 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.StringValue msg = 4;
   google.protobuf.Timestamp last_transition_time = 5 [(buf.validate.field).required = true];
 }
 
 message ConditionReport {
   string resource_id = 1 [(buf.validate.field).string.min_len = 1];
-  string reporter = 2 [(buf.validate.field).string.min_len = 1];
-  // repeated ConditionAssertion assertions = 5 [(buf.validate.field).required = true];
   string type = 3 [(buf.validate.field).string.min_len = 1];
   ConditionStatus status = 4 [(buf.validate.field).required = true];
   string reason = 5 [(buf.validate.field).string.min_len = 1];
   string msg = 6;
   int64 observed_generation = 7;
   google.protobuf.Timestamp observed_at = 8 [(buf.validate.field).required = true];
-  map<string, string> metadata = 9;
+  map<string, google.protobuf.StringValue> metadata = 9;
 }
-
-// message ConditionAssertion {
-// }
 
 enum ConditionStatus {
   CONDITION_STATUS_UNSPECIFIED = 0;

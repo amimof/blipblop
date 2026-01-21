@@ -36,8 +36,13 @@ func (c *ClientV1) EventService() eventsv1.EventServiceClient {
 	return c.eventService
 }
 
-func (c *ClientV1) Report(ctx context.Context, report *typesv1.ConditionReport) error {
-	return c.Publish(ctx, report, events.ConditionReported)
+func (c *ClientV1) Report(ctx context.Context, report ...*typesv1.ConditionReport) error {
+	for _, r := range report {
+		if err := c.Publish(ctx, r, events.ConditionReported); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*eventsv1.Event, error) {

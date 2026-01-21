@@ -61,7 +61,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 		exists = false
 	}
 
-	reporter := condition.NewReportFor(task, "scheduler")
+	reporter := condition.NewReportFor(task)
 
 	if exists {
 		currentNodeID := lease.GetConfig().GetNodeId()
@@ -204,7 +204,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 				return err
 			}
 
-			reporter := condition.NewReportFor(task, "scheduler")
+			reporter := condition.NewReportFor(task)
 			return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
 		}
 
@@ -247,7 +247,7 @@ func (c *Controller) Run(ctx context.Context) {
 	)
 
 	// Setup Handlers
-	// c.clientset.EventV1().On(events.TaskCreate, events.HandleErrors(c.logger, events.HandleTask(c.onTaskCreate)))
+	c.clientset.EventV1().On(events.TaskCreate, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
 	c.clientset.EventV1().On(events.TaskStart, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
 	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
 
@@ -257,9 +257,7 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodePatch, events.HandleErrors(c.logger, events.HandleNode(c.onNodeLabelsChange)))
 
 	// Setup lease handlers
-	// c.clientset.EventV1().On(events.LeaseAcquiered, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseAcquired)))
 	c.clientset.EventV1().On(events.LeaseExpired, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseExpired)))
-	// c.clientset.EventV1().On(events.LeaseReleased, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseReleased)))
 
 	// Handle errors
 	for e := range err {

@@ -36,12 +36,27 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
 		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-		nodeID := c.node.GetMeta().GetName()
-		taskID := task.GetMeta().GetName()
-		taskGen := task.GetMeta().GetRevision()
-		reporter := condition.NewReport(taskID, nodeID, int64(taskGen))
+		report := condition.NewForResource(task)
 
-		return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).WithMetadata(map[string]string{"pid": strconv.Itoa(int(e.GetPid())), "id": e.GetContainerID()}).True(condition.ReasonRunning, ""))
+		md := map[string]string{
+			"pid":  strconv.Itoa(int(e.GetPid())),
+			"id":   e.GetContainerID(),
+			"node": lease.GetConfig().GetNodeId(),
+		}
+
+		report.
+			Type(condition.TaskScheduled).
+			WithMetadata(md).
+			True(condition.ReasonScheduled)
+
+		_ = c.clientset.EventV1().Report(ctx, report.Report())
+
+		report.
+			Type(condition.TaskReady).
+			WithMetadata(md).
+			True(condition.ReasonRunning)
+
+		return c.clientset.EventV1().Report(ctx, report.Report())
 	}
 
 	return nil
@@ -67,17 +82,21 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 	// Only proceed if task is owned by us
 	c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
 
-	nodeID := c.node.GetMeta().GetName()
-	taskID := task.GetMeta().GetName()
-	taskGen := task.GetMeta().GetRevision()
-	reporter := condition.NewReport(taskID, nodeID, int64(taskGen))
-	status := ""
+	report := condition.NewForResource(task)
 
+	exitStatus := ""
 	if e.GetExitStatus() > 0 {
-		status = fmt.Sprintf("exit status %d", e.GetExitStatus())
+		exitStatus = fmt.Sprintf("exit status %d", e.GetExitStatus())
 	}
 
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).WithMetadata(map[string]string{"exit_status": status}).False(condition.ReasonStopped, status))
+	md := map[string]string{"exit_status": exitStatus}
+
+	taskReport := report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		False(condition.ReasonStopped, exitStatus)
+
+	return c.clientset.EventV1().Report(ctx, taskReport)
 }
 
 func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
@@ -100,10 +119,15 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 	// Only proceed if task is owned by us
 	c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-	nodeID := c.node.GetMeta().GetName()
-	taskID := task.GetMeta().GetName()
-	taskGen := task.GetMeta().GetRevision()
-	reporter := condition.NewReport(taskID, nodeID, int64(taskGen))
+	report := condition.NewForResource(task)
+	md := map[string]string{
+		"id":  "",
+		"pid": "",
+	}
+	taskReport := report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		False(condition.ReasonStopped)
 
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopped, "Task is stopped"))
+	return c.clientset.EventV1().Report(ctx, taskReport)
 }

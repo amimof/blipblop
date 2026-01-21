@@ -141,64 +141,114 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task) error {
 	defer span.End()
 
 	taskID := task.GetMeta().GetName()
-	nodeID := c.node.GetMeta().GetName()
-	reporter := condition.NewReportFor(task, nodeID)
+	report := condition.NewForResource(task)
 
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
 	_ = c.runtime.Cleanup(ctx, taskID)
 
 	// Remove any previous tasks ignoring any errors
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonDeleting, ""))
+
+	report.
+		Type(condition.TaskReady).
+		False(condition.ReasonDeleting)
+
+	_ = c.clientset.EventV1().Report(ctx, report.Report())
 	err := c.runtime.Delete(ctx, task)
 	if err != nil {
-		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonDeleteFailed, err.Error()))
+		report.
+			Type(condition.TaskReady).
+			False(condition.ReasonDeleteFailed, err.Error())
+		_ = c.clientset.EventV1().Report(ctx, report.Report())
 		return err
 	}
 
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).WithMetadata(map[string]string{"node": ""}).False(condition.ReasonStopped, ""))
+	report.
+		Type(condition.TaskScheduled).
+		WithMetadata(map[string]string{"node": ""}).
+		False(condition.ReasonStopped)
+
+	_ = c.clientset.EventV1().Report(ctx, report.Report())
+
+	report.
+		Type(condition.TaskReady).
+		WithMetadata(map[string]string{"pid": "", "id": ""}).
+		False(condition.ReasonStopped)
+
+	return c.clientset.EventV1().Report(ctx, report.Report())
 }
 
 func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task) error {
-	nodeID := c.node.GetMeta().GetName()
-	reporter := condition.NewReportFor(task, nodeID)
+	report := condition.NewForResource(task)
 
 	// Prepare volumes/mounts
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonAttaching, ""))
+	report.
+		Type(condition.VolumeReady).
+		False(condition.ReasonAttaching)
+	_ = c.clientset.EventV1().Report(ctx, report.Report())
+
 	if err := c.attacher.PrepareMounts(ctx, c.node, task); err != nil {
-		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonAttachFailed, err.Error()))
+		report.
+			Type(condition.VolumeReady).
+			False(condition.ReasonAttachFailed, err.Error())
+		_ = c.clientset.EventV1().Report(ctx, report.Report())
 		return err
 	}
 
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).True(condition.ReasonAttached, ""))
+	report.
+		Type(condition.VolumeReady).
+		True(condition.ReasonAttached)
+
+	return c.clientset.EventV1().Report(ctx, report.Report())
 }
 
 func (c *Controller) detachMounts(ctx context.Context, task *tasksv1.Task) error {
-	nodeID := c.node.GetMeta().GetName()
-	reporter := condition.NewReportFor(task, nodeID)
+	report := condition.NewForResource(task)
 
 	// Prepare volumes/mounts
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonDetaching, ""))
+	report.
+		Type(condition.VolumeReady).
+		False(condition.ReasonDetaching)
+	_ = c.clientset.EventV1().Report(ctx, report.Report())
+
 	if err := c.attacher.Detach(ctx, c.node, task); err != nil {
-		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonDetachFailed, err.Error()))
+		report.
+			Type(condition.ImageReady).
+			False(condition.ReasonPullFailed)
+		_ = c.clientset.EventV1().Report(ctx, report.Report())
 		return err
 	}
 
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonDetached, ""))
+	report.
+		Type(condition.VolumeReady).
+		False(condition.ReasonDetached)
+	return c.clientset.EventV1().Report(ctx, report.Report())
 }
 
 func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
-	nodeID := c.node.GetMeta().GetName()
-	reporter := condition.NewReportFor(task, nodeID)
+	report := condition.NewForResource(task)
 
 	// Pull image
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).False(condition.ReasonPulling, ""))
+	report.
+		Type(condition.ImageReady).
+		False(condition.ReasonPulling)
+
+	_ = c.clientset.EventV1().Report(ctx, report.Report())
+
 	err := c.runtime.Pull(ctx, task)
 	if err != nil {
-		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).False(condition.ReasonPullFailed, err.Error()))
+		report.
+			Type(condition.ImageReady).
+			False(condition.ReasonPullFailed, err.Error())
+		_ = c.clientset.EventV1().Report(ctx, report.Report())
 		return err
 	}
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).True(condition.ReasonPulled, ""))
+
+	report.
+		Type(condition.ImageReady).
+		True(condition.ReasonPulled)
+
+	return c.clientset.EventV1().Report(ctx, report.Report())
 }
 
 func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *nodesv1.Node) error {
