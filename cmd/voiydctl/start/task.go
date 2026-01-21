@@ -8,10 +8,13 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
+
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 func NewCmdStartTask(cfg *client.Config) *cobra.Command {
@@ -94,18 +97,17 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 							phase := task.GetStatus().GetPhase().GetValue()
 							node := task.GetStatus().GetNode().GetValue()
 							id := task.GetStatus().GetId().GetValue()
-							reason := task.GetStatus().GetReason().GetValue()
 
 							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+							dash.UpdateDetails(idx, "Ready", fmt.Sprintf("%t", isReady(task.GetStatus().GetConditions())))
 							dash.UpdateDetails(idx, "Image", image)
 							dash.UpdateDetails(idx, "Node", node)
 							dash.UpdateDetails(idx, "ID", id)
-							dash.UpdateDetails(idx, "Reason", reason)
 
-							// if phase == "running" {
-							// 	dash.DoneMsg(idx, "started successfully")
-							// 	return
-							// }
+							if phase == "running" {
+								dash.DoneMsg(idx, "started successfully")
+								return
+							}
 
 							if strings.Contains(phase, "Err") {
 								dash.FailMsg(idx, "failed to start")
@@ -125,4 +127,15 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 		},
 	}
 	return runCmd
+}
+
+func isReady(t []*typesv1.Condition) bool {
+	for _, cond := range t {
+		if condition.Type(cond.GetType().GetValue()) == condition.TaskReady {
+			if cond.GetStatus().GetValue() {
+				return true
+			}
+		}
+	}
+	return false
 }
