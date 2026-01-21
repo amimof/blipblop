@@ -2,11 +2,15 @@ package conditioncontroller
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/condition"
+	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -79,8 +83,19 @@ func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.Co
 	// 4. Convert ConditionReport to Condition
 	newCondition := reportToCondition(report, task)
 
+	fmt.Printf("%+v\n", newCondition)
+
+	// Get node id from report
+	nodeID := getNodeFromReport(report)
+
+	// Get pid from report
+	pid := getPidFromReport(report)
+	id := getIDFromReport(report)
+
 	// 5. Merge with existing conditions
 	updatedConditions := mergeCondition(task.GetStatus().GetConditions(), newCondition)
+
+	phase := getPhaseFromConditions(updatedConditions)
 
 	// 6. Update Task status
 	return c.clientset.TaskV1().Status().Update(
@@ -88,9 +103,91 @@ func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.Co
 		resourceID,
 		&tasksv1.Status{
 			Conditions: updatedConditions,
+			Phase:      wrapperspb.String(phase),
+			Node:       nodeID,
+			Id:         id,
+			Pid:        pid,
 		},
-		"conditions",
+		"conditions", "phase", "node", "id", "pid",
 	)
+}
+
+func getNodeFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
+	if condition.Type(report.GetType()) == condition.Type(condition.TaskScheduled) {
+		if v, ok := report.GetMetadata()["node"]; ok {
+			return wrapperspb.String(v)
+		}
+	}
+	return nil
+}
+
+func getIDFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
+	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
+		if v, ok := report.GetMetadata()["id"]; ok {
+			return wrapperspb.String(v)
+		}
+	}
+	return nil
+}
+
+func getPidFromReport(report *typesv1.ConditionReport) *wrapperspb.UInt32Value {
+	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
+		if v, ok := report.GetMetadata()["pid"]; ok {
+			if i, err := strconv.Atoi(v); err == nil {
+				return wrapperspb.UInt32(uint32(i))
+			}
+		}
+	}
+	return nil
+}
+
+func getPhaseFromConditions(conds []*typesv1.Condition) string {
+	if len(conds) == 0 {
+		return consts.PHASEUNKNOWN
+	}
+
+	// Find most recently transitioned condition
+	var mostRecent *typesv1.Condition
+	for _, c := range conds {
+		if mostRecent == nil ||
+			c.GetLastTransitionTime().AsTime().After(mostRecent.GetLastTransitionTime().AsTime()) {
+			mostRecent = c
+		}
+	}
+
+	// Derive phase from most recent condition
+	return phaseFromCondition(mostRecent)
+}
+
+func phaseFromCondition(c *typesv1.Condition) string {
+	reason := condition.Reason(c.GetReason())
+
+	// Map condition reason to phase
+	reasonToPhase := map[condition.Reason]string{
+		condition.ReasonScheduled:   consts.PHASESCHEDULING,
+		condition.ReasonPulling:     consts.PHASEPULLING,
+		condition.ReasonStarting:    consts.PHASESTARTING,
+		condition.ReasonRunning:     consts.PHASERUNNING,
+		condition.ReasonStopping:    consts.PHASESTOPPING,
+		condition.ReasonStopped:     consts.PHASESTOPPED,
+		condition.ReasonDeleting:    consts.PHASEDELETING,
+		condition.ReasonPullFailed:  consts.ERRIMAGEPULL,
+		condition.ReasonStartFailed: consts.ERREXEC,
+
+		condition.ReasonDetached:  "detached",
+		condition.ReasonDetaching: "detaching",
+
+		condition.ReasonDetachFailed: "ErrDetaching",
+		condition.ReasonAttached:     "attached",
+		condition.ReasonAttaching:    "attaching",
+		condition.ReasonAttachFailed: "ErrAttaching",
+	}
+
+	if phase, ok := reasonToPhase[reason]; ok {
+		return phase
+	}
+
+	return consts.PHASEUNKNOWN
 }
 
 func reportToCondition(report *typesv1.ConditionReport, task *tasksv1.Task) *typesv1.Condition {

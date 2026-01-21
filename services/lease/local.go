@@ -107,6 +107,12 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 			if err != nil {
 				return nil, l.handleError(err, "error creating lease", "name", req.GetTaskId())
 			}
+
+			err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseAcquiered, lease))
+			if err != nil {
+				return nil, l.handleError(err, "error publishing lease acquire event", "leaseID", lease.GetMeta().GetName(), "task", lease.GetConfig().GetTaskId(), "node", lease.GetConfig().GetNodeId())
+			}
+
 			return &leasesv1.AcquireResponse{Acquired: true, Lease: lease}, nil
 		}
 		return nil, l.handleError(err, "error getting lease", "name", req.TaskId)
@@ -144,7 +150,7 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...grpc.CallOption) (*leasesv1.ReleaseResponse, error) {
 	lease, err := l.repo.Get(ctx, req.TaskId)
 	if err != nil {
-		return &leasesv1.ReleaseResponse{Released: false}, err
+		return &leasesv1.ReleaseResponse{Released: false}, l.handleError(err, "error getting lease")
 	}
 
 	if lease.GetConfig().GetNodeId() != req.GetNodeId() {
@@ -153,6 +159,15 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 	}
 
 	err = l.repo.Delete(ctx, req.TaskId)
+	if err != nil {
+		return nil, l.handleError(err, "error releasing lease", "lease", lease.GetMeta().GetName())
+	}
+
+	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseReleased, lease))
+	if err != nil {
+		return nil, l.handleError(err, "error publishing lease released event", "error", err, "leaseID", lease.GetMeta().GetName(), "task", lease.GetConfig().GetTaskId(), "node", lease.GetConfig().GetNodeId())
+	}
+
 	return &leasesv1.ReleaseResponse{Released: true}, err
 }
 
@@ -161,6 +176,12 @@ func (l *local) Renew(ctx context.Context, req *leasesv1.RenewRequest, _ ...grpc
 	if err != nil {
 		return &leasesv1.RenewResponse{Renewed: false}, err
 	}
+
+	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseReleased, lease))
+	if err != nil {
+		return nil, l.handleError(err, "error publishing lease released event", "error", err, "leaseID", lease.GetMeta().GetName(), "task", lease.GetConfig().GetTaskId(), "node", lease.GetConfig().GetNodeId())
+	}
+
 	return &leasesv1.RenewResponse{Renewed: true, Lease: lease}, nil
 }
 

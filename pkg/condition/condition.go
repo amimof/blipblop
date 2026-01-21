@@ -8,11 +8,12 @@ import (
 )
 
 const (
-	RuntimeReady Type = "RuntimeReady"
-	ImageReady   Type = "ImageReady"
-	VolumeReady  Type = "VolumeReady"
-	NetworkReady Type = "NetworkReady"
-	TaskReady    Type = "TaskReady"
+	RuntimeReady  Type = "RuntimeReady"
+	ImageReady    Type = "ImageReady"
+	VolumeReady   Type = "VolumeReady"
+	NetworkReady  Type = "NetworkReady"
+	TaskReady     Type = "TaskReady"
+	TaskScheduled Type = "TaskScheduled"
 
 	ReasonPulling    Reason = "Pulling"
 	ReasonPulled     Reason = "Pulled"
@@ -34,6 +35,9 @@ const (
 	ReasonStarted     Reason = "Started"
 	ReasonStartFailed Reason = "StartFailed"
 
+	ReasonRunning   Reason = "Running"
+	ReasonRunFailed Reason = "RunFailed"
+
 	ReasonStopping   Reason = "Stopping"
 	ReasonStopped    Reason = "Stopped"
 	ReasonStopFailed Reason = "StopFailed"
@@ -41,6 +45,10 @@ const (
 	ReasonDeleting     Reason = "Deleting"
 	ReasonDeleted      Reason = "Deleted"
 	ReasonDeleteFailed Reason = "FailedFailed"
+
+	ReasonScheduling       Reason = "Scheduling"
+	ReasonScheduled        Reason = "Scheduled"
+	ReasonSchedulingFailed Reason = "SchedulingFailed"
 )
 
 type (
@@ -69,6 +77,11 @@ func NewReportFor(task *tasksv1.Task, reporter string) *Report {
 func (r *Report) Type(t Type) *Report {
 	r.report.Type = string(t)
 	r.report.ObservedAt = timestamppb.Now()
+	return r
+}
+
+func (r *Report) WithMetadata(m map[string]string) *Report {
+	r.report.Metadata = m
 	return r
 }
 

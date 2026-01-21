@@ -4,17 +4,18 @@ package run
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/networking"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -150,28 +151,30 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 							return
 						}
 
-						image := task.GetConfig().GetImage()
-						phase := task.GetStatus().GetPhase().GetValue()
-						node := task.GetStatus().GetNode().GetValue()
-						id := task.GetStatus().GetId().GetValue()
-						reason := task.GetStatus().GetReason().GetValue()
+						// image := task.GetConfig().GetImage()
+						// phase := task.GetStatus().GetPhase().GetValue()
+						// node := task.GetStatus().GetNode().GetValue()
+						// id := task.GetStatus().GetId().GetValue()
+						// reason := task.GetStatus().GetReason().GetValue()
 
-						dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-						dash.UpdateDetails(idx, "Image", image)
-						dash.UpdateDetails(idx, "Node", node)
-						dash.UpdateDetails(idx, "ID", id)
-						dash.UpdateDetails(idx, "Reason", reason)
+						dash.UpdateText(idx, fmt.Sprintf("%s…", "starting"))
 
-						if phase == "running" {
-							dash.DoneMsg(idx, "started successfully")
-							return
+						for _, cond := range task.GetStatus().GetConditions() {
+							dash.UpdateDetails(idx, cond.GetType(), fmt.Sprintf("%t", cond.GetStatus().GetValue()))
+							// dash.UpdateDetails(idx, "Node", node)
+							// dash.UpdateDetails(idx, "ID", id)
+							// dash.UpdateDetails(idx, "Reason", reason)
+							if condition.Type(cond.GetType()) == condition.TaskReady && cond.GetStatus() == wrapperspb.Bool(true) {
+								dash.DoneMsg(idx, "started successfully")
+								return
+							}
 						}
 
-						if strings.Contains(phase, "Err") {
-							dash.FailMsg(idx, "failed to start")
-							dash.UpdateDetails(idx, "Error", err.Error())
-							return
-						}
+						// if strings.Contains(phase, "Err") {
+						// 	dash.FailMsg(idx, "failed to start")
+						// 	dash.UpdateDetails(idx, "Error", err.Error())
+						// 	return
+						// }
 
 						// Wait until retry
 						time.Sleep(250 * time.Millisecond)

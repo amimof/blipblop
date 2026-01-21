@@ -86,14 +86,12 @@ func (c *Controller) Run(ctx context.Context) {
 	topics := []eventsv1.EventType{
 		events.NodeDelete,
 		events.NodeConnect,
+		events.Schedule,
 		events.TaskDelete,
-		events.TaskUpdate,
 		events.TaskStop,
 		events.TaskKill,
-		events.TaskStart,
 		events.TailLogsStart,
 		events.TailLogsStop,
-		events.LeaseExpired,
 	}
 
 	// Subscribe to events
@@ -103,20 +101,12 @@ func (c *Controller) Run(ctx context.Context) {
 	// Setup Node Handlers
 	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
-
-	// Setup task handlers
+	c.clientset.EventV1().On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.onSchedule)))
 	c.clientset.EventV1().On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.deleteTask)))
-	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.handleNodeSelector(c.updateTask))))
 	c.clientset.EventV1().On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
 	c.clientset.EventV1().On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.killTask)))
-	c.clientset.EventV1().On(events.TaskStart, events.HandleErrors(c.logger, events.HandleTask(c.handleNodeSelector(c.startTask))))
-
-	// Setup log handlers
 	c.clientset.EventV1().On(events.TailLogsStart, events.HandleErrors(c.logger, c.onLogStart))
 	c.clientset.EventV1().On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
-
-	// Setup lease handlers
-	c.clientset.EventV1().On(events.LeaseExpired, events.Handle(events.HandleTask(c.startTask)))
 
 	go func() {
 		for e := range evt {
@@ -125,7 +115,7 @@ func (c *Controller) Run(ctx context.Context) {
 	}()
 
 	// Handle runtime events
-	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart)
+	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart, events.RuntimeTaskDelete)
 	c.exchange.On(events.RuntimeTaskExit, events.HandleErrors(c.logger, c.onRuntimeTaskExit))
 	c.exchange.On(events.RuntimeTaskStart, events.HandleErrors(c.logger, c.onRuntimeTaskStart))
 	c.exchange.On(events.RuntimeTaskDelete, events.HandleErrors(c.logger, c.onRuntimeTaskDelete))

@@ -14,12 +14,13 @@ import (
 )
 
 type (
-	HandlerFunc          func(context.Context, *eventsv1.Event) error
-	TaskHandlerFunc      func(context.Context, *tasksv1.Task) error
-	VolumeHandlerFunc    func(context.Context, *volumesv1.Volume) error
-	NodeHandlerFunc      func(context.Context, *nodesv1.Node) error
-	LeaseHandlerFunc     func(context.Context, *leasesv1.Lease) error
-	ConditionHandlerFunc func(context.Context, *typesv1.ConditionReport) error
+	HandlerFunc           func(context.Context, *eventsv1.Event) error
+	TaskHandlerFunc       func(context.Context, *tasksv1.Task) error
+	VolumeHandlerFunc     func(context.Context, *volumesv1.Volume) error
+	NodeHandlerFunc       func(context.Context, *nodesv1.Node) error
+	LeaseHandlerFunc      func(context.Context, *leasesv1.Lease) error
+	ConditionHandlerFunc  func(context.Context, *typesv1.ConditionReport) error
+	SchedulingHandlerFunc func(context.Context, *tasksv1.Task, *nodesv1.Node) error
 )
 
 type Handler interface {
@@ -100,6 +101,30 @@ func HandleLease(h LeaseHandlerFunc) HandlerFunc {
 			return err
 		}
 		return h(ctx, &lease)
+	}
+}
+
+func HandleScheduling(h SchedulingHandlerFunc) HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		var req eventsv1.ScheduleRequest
+		err := ev.GetObject().UnmarshalTo(&req)
+		if err != nil {
+			return err
+		}
+
+		var task tasksv1.Task
+		err = req.GetTask().UnmarshalTo(&task)
+		if err != nil {
+			return err
+		}
+
+		var node nodesv1.Node
+		err = req.GetNode().UnmarshalTo(&node)
+		if err != nil {
+			return err
+		}
+
+		return h(ctx, &task, &node)
 	}
 }
 

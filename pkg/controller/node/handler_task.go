@@ -3,7 +3,9 @@ package nodecontroller
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
@@ -59,27 +61,19 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
-	// Run cleanup early while netns still exists.
-	// This will allow the CNI plugin to remove networks without leaking.
-	err := c.cleanup(ctx, task)
+	// Remove any previous tasks
+	err := c.runtime.Kill(ctx, task)
 	if err != nil {
 		return err
 	}
 
-	// Stop the task
-	err = c.stopTask(ctx, task)
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
-	// Remove any previous tasks
-	err = c.runtime.Kill(ctx, task)
+	err = c.detachMounts(ctx, task)
 	if err != nil {
 		return err
 	}
 
 	// Detach volumes
-	return c.detachMounts(ctx, task)
+	return c.deleteTask(ctx, task)
 }
 
 func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
@@ -97,9 +91,8 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
-	// Run cleanup early while netns still exists.
-	// This will allow the CNI plugin to remove networks without leaking.
-	err := c.cleanup(ctx, task)
+	// Detach volumes
+	err := c.detachMounts(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -107,17 +100,11 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	// Stop the task
 	err = c.runtime.Stop(ctx, task)
 	if errs.IgnoreNotFound(err) != nil {
-		return err
+		return fmt.Errorf("error stopping task AMIRMIR: %v", err)
 	}
 
 	// Remove any previous tasks
-	err = c.deleteTask(ctx, task)
-	if err != nil {
-		return err
-	}
-
-	// Detach volumes
-	return c.detachMounts(ctx, task)
+	return c.deleteTask(ctx, task)
 }
 
 func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error {
@@ -149,7 +136,10 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	return nil
 }
 
-func (c *Controller) cleanup(ctx context.Context, task *tasksv1.Task) error {
+func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task) error {
+	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskDelete")
+	defer span.End()
+
 	taskID := task.GetMeta().GetName()
 	nodeID := c.node.GetMeta().GetName()
 	reporter := condition.NewReportFor(task, nodeID)
@@ -159,31 +149,14 @@ func (c *Controller) cleanup(ctx context.Context, task *tasksv1.Task) error {
 	_ = c.runtime.Cleanup(ctx, taskID)
 
 	// Remove any previous tasks ignoring any errors
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).InProgress(condition.ReasonDeleting, ""))
-	err := c.runtime.Delete(ctx, task)
-	if err != nil {
-		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonDeleteFailed, err.Error()))
-		return err
-	}
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).InProgress(condition.ReasonDeleted, ""))
-}
-
-func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task) error {
-	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskDelete")
-	defer span.End()
-
-	nodeID := c.node.GetMeta().GetName()
-	reporter := condition.NewReportFor(task, nodeID)
-
-	// Remove any previous tasks ignoring any errors
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).InProgress(condition.ReasonDeleting, ""))
+	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonDeleting, ""))
 	err := c.runtime.Delete(ctx, task)
 	if err != nil {
 		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonDeleteFailed, err.Error()))
 		return err
 	}
 
-	return nil
+	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskReady).WithMetadata(map[string]string{"node": ""}).False(condition.ReasonStopped, ""))
 }
 
 func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task) error {
@@ -191,7 +164,7 @@ func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task) error
 	reporter := condition.NewReportFor(task, nodeID)
 
 	// Prepare volumes/mounts
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).InProgress(condition.ReasonAttaching, ""))
+	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonAttaching, ""))
 	if err := c.attacher.PrepareMounts(ctx, c.node, task); err != nil {
 		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonAttachFailed, err.Error()))
 		return err
@@ -205,13 +178,13 @@ func (c *Controller) detachMounts(ctx context.Context, task *tasksv1.Task) error
 	reporter := condition.NewReportFor(task, nodeID)
 
 	// Prepare volumes/mounts
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).InProgress(condition.ReasonDetaching, ""))
+	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonDetaching, ""))
 	if err := c.attacher.Detach(ctx, c.node, task); err != nil {
 		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonDetachFailed, err.Error()))
 		return err
 	}
 
-	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).True(condition.ReasonDetached, ""))
+	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.VolumeReady).False(condition.ReasonDetached, ""))
 }
 
 func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
@@ -219,7 +192,7 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
 	reporter := condition.NewReportFor(task, nodeID)
 
 	// Pull image
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).InProgress(condition.ReasonPulling, ""))
+	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).False(condition.ReasonPulling, ""))
 	err := c.runtime.Pull(ctx, task)
 	if err != nil {
 		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).False(condition.ReasonPullFailed, err.Error()))
@@ -228,18 +201,15 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
 	return c.clientset.EventV1().Report(ctx, reporter.Type(condition.ImageReady).True(condition.ReasonPulled, ""))
 }
 
+func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *nodesv1.Node) error {
+	return c.handleNodeSelector(c.startTask)(ctx, task)
+}
+
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
 
 	err := c.acquireLease(ctx, task)
-	if err != nil {
-		return err
-	}
-
-	// Run cleanup early while netns still exists.
-	// This will allow the CNI plugin to remove networks without leaking.
-	err = c.cleanup(ctx, task)
 	if err != nil {
 		return err
 	}

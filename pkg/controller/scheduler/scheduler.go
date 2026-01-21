@@ -5,16 +5,18 @@ import (
 	"time"
 
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/wrapperspb"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/scheduling"
 
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
@@ -40,62 +42,52 @@ type Controller struct {
 	exchange  *events.Exchange
 }
 
-func (c *Controller) onTaskUpdate(ctx context.Context, task *tasksv1.Task) error {
+func (c *Controller) onLeaseExpired(ctx context.Context, lease *leasesv1.Lease) error {
+	task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
+	return c.scheduleTask(ctx, task)
+}
+
+func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error {
 	taskID := task.GetMeta().GetName()
+	exists := true
 
 	// Get current lease
 	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
-	if errs.IgnoreNotFound(err) != nil {
+	if err != nil {
 		c.logger.Error("error getting lease", "error", "task", taskID)
-		return err
+		exists = false
 	}
 
-	currentNodeID := lease.GetConfig().GetNodeId()
+	reporter := condition.NewReportFor(task, "scheduler")
 
-	match, err := c.hasMatchingNodes(ctx, task)
-	if err != nil {
-		c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
-		return err
-	}
-
-	// Task has no where to go, release lock and updates status
-	if !match {
-		c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
-		if err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID); err != nil {
-			c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
+	if exists {
+		currentNodeID := lease.GetConfig().GetNodeId()
+		match, err := c.hasMatchingNodes(ctx, task)
+		if err != nil {
+			c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
 			return err
 		}
-		if err := c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
-			Phase:  wrapperspb.String(consts.ERRSCHEDULING),
-			Reason: wrapperspb.String("no nodes matches node selector"),
-		}, "phase", "reason"); err != nil {
-			c.logger.Error("error setting task status", "error", err, "task", taskID)
-			return err
+		// Task has no where to go, release lock and updates status
+		if !match {
+			c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
+			err = c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID)
+			if errs.IgnoreNotFound(err) != nil {
+				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
+				return err
+			}
+			return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
 		}
-	}
 
-	return nil
-}
-
-func (c *Controller) onTaskCreate(ctx context.Context, task *tasksv1.Task) error {
-	taskID := task.GetMeta().GetName()
-
-	match, err := c.hasMatchingNodes(ctx, task)
-	if err != nil {
-		c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
-		return err
-	}
-
-	// Task has no where to go, release lock and updates status
-	if !match {
-		c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
-		if err := c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
-			Phase:  wrapperspb.String(consts.ERRSCHEDULING),
-			Reason: wrapperspb.String("no nodes matches node selector"),
-		}, "phase", "reason"); err != nil {
-			c.logger.Error("error setting task status", "error", err, "task", taskID)
-			return err
+		md := map[string]string{
+			"node": currentNodeID,
 		}
+
+		// Update task status
+		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+
 	}
 
 	// Find a node fit for the task using a scheduler
@@ -104,22 +96,25 @@ func (c *Controller) onTaskCreate(ctx context.Context, task *tasksv1.Task) error
 		return err
 	}
 
-	// Update task status
-	_ = c.clientset.TaskV1().Status().Update(
-		ctx,
-		task.GetMeta().GetName(),
-		&tasksv1.Status{
-			Phase: wrapperspb.String("scheduled"),
-			Node:  wrapperspb.String(n.GetMeta().GetName()),
-		},
-		"phase", "node")
+	md := map[string]string{
+		"node": n.GetMeta().GetName(),
+	}
 
-	// Publish start event
-	err = c.exchange.Publish(ctx, events.NewEvent(events.TaskStart, task))
+	taskpb, err := anypb.New(task)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	nodepb, err := anypb.New(n)
+	if err != nil {
+		return err
+	}
+
+	// Update task status
+	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+
+	// Publish start event
+	return c.exchange.Forward(ctx, events.NewEvent(events.Schedule, &eventsv1.ScheduleRequest{Task: taskpb, Node: nodepb}))
 }
 
 func (c *Controller) onNodeJoin(ctx context.Context, node *nodesv1.Node) error {
@@ -132,14 +127,16 @@ func (c *Controller) onNodeJoin(ctx context.Context, node *nodesv1.Node) error {
 
 	for _, task := range tasks {
 		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
-		if err != nil {
-			return err
+		if errs.IgnoreNotFound(err) != nil {
+			c.logger.Error("error getting lease", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
+			continue
 		}
 
 		// If lease expired means that task should be rescheduled
 		if !time.Now().Before(l.GetConfig().GetExpiresAt().AsTime().Add(time.Second * 10)) {
 			c.logger.Debug("emitting task start", "task", task.GetMeta().GetName())
-			return c.exchange.Forward(ctx, events.NewEvent(events.TaskStart, task))
+
+			return c.scheduleTask(ctx, task)
 		}
 	}
 
@@ -200,17 +197,15 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		// Task has no where to go, release lock and updates status
 		if !match {
 			c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
-			if err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID); err != nil {
+
+			err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID)
+			if errs.IgnoreNotFound(err) != nil {
 				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
 				return err
 			}
-			if err := c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRSCHEDULING),
-				Reason: wrapperspb.String("no nodes matches node selector"),
-			}, "phase", "reason"); err != nil {
-				c.logger.Error("error setting task status", "error", err, "task", taskID)
-				return err
-			}
+
+			reporter := condition.NewReportFor(task, "scheduler")
+			return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
 		}
 
 		// Skip if task is running on another node
@@ -223,18 +218,13 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		if !selector.Matches(node.GetMeta().GetLabels()) {
 
 			// Task no longer matches - reorganize!
-			if err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID); err != nil {
+			err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID)
+			if errs.IgnoreNotFound(err) != nil {
 				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
 				return err
 			}
 
-			if err := c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
-				Phase: wrapperspb.String(consts.PHASESCHEDULING),
-			}, "phase"); err != nil {
-				c.logger.Error("error setting task status", "error", err, "task", taskID)
-			}
-
-			if err := c.exchange.Forward(ctx, events.NewEvent(events.TaskStart, task)); err != nil {
+			if err := c.scheduleTask(ctx, task); err != nil {
 				c.logger.Error("error forwarding task start event", "error", err, "task", taskID)
 				return err
 			}
@@ -251,16 +241,25 @@ func (c *Controller) Run(ctx context.Context) {
 		events.TaskUpdate,
 		events.NodeConnect,
 		events.NodeUpdate,
-		events.NodePatch)
+		events.NodePatch,
+		events.LeaseExpired,
+		events.LeaseReleased,
+	)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(events.TaskCreate, events.HandleErrors(c.logger, events.HandleTask(c.onTaskCreate)))
-	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.onTaskUpdate)))
-	c.clientset.EventV1().On(events.NodeConnect, events.HandleErrors(c.logger, events.HandleNode(c.onNodeJoin)))
+	// c.clientset.EventV1().On(events.TaskCreate, events.HandleErrors(c.logger, events.HandleTask(c.onTaskCreate)))
+	c.clientset.EventV1().On(events.TaskStart, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
+	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
 
 	// NEW handlers
+	c.clientset.EventV1().On(events.NodeConnect, events.HandleErrors(c.logger, events.HandleNode(c.onNodeJoin)))
 	c.clientset.EventV1().On(events.NodeUpdate, events.HandleErrors(c.logger, events.HandleNode(c.onNodeLabelsChange)))
 	c.clientset.EventV1().On(events.NodePatch, events.HandleErrors(c.logger, events.HandleNode(c.onNodeLabelsChange)))
+
+	// Setup lease handlers
+	// c.clientset.EventV1().On(events.LeaseAcquiered, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseAcquired)))
+	c.clientset.EventV1().On(events.LeaseExpired, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseExpired)))
+	// c.clientset.EventV1().On(events.LeaseReleased, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseReleased)))
 
 	// Handle errors
 	for e := range err {
