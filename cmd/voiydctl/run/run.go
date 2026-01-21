@@ -12,12 +12,13 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
 
-	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/networking"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 var (
@@ -106,7 +107,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 			}
 
 			err = c.TaskV1().Create(ctx, &tasksv1.Task{
-				Meta: &types.Meta{
+				Meta: &typesv1.Meta{
 					Name:   tname,
 					Labels: cmdutil.ReadKVStringsMapFromLabel(labels),
 				},
@@ -154,13 +155,12 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						phase := task.GetStatus().GetPhase().GetValue()
 						node := task.GetStatus().GetNode().GetValue()
 						id := task.GetStatus().GetId().GetValue()
-						reason := task.GetStatus().GetReason().GetValue()
 
-						dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+						dash.UpdateText(idx, fmt.Sprintf("%s…", "starting"))
+						dash.UpdateDetails(idx, "Ready", fmt.Sprintf("%t", isReady(task.GetStatus().GetConditions())))
 						dash.UpdateDetails(idx, "Image", image)
 						dash.UpdateDetails(idx, "Node", node)
 						dash.UpdateDetails(idx, "ID", id)
-						dash.UpdateDetails(idx, "Reason", reason)
 
 						if phase == "running" {
 							dash.DoneMsg(idx, "started successfully")
@@ -260,4 +260,15 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 		logrus.Fatal(err)
 	}
 	return runCmd
+}
+
+func isReady(t []*typesv1.Condition) bool {
+	for _, cond := range t {
+		if condition.Type(cond.GetType().GetValue()) == condition.TaskReady {
+			if cond.GetStatus().GetValue() {
+				return true
+			}
+		}
+	}
+	return false
 }

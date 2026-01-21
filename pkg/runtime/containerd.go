@@ -376,6 +376,12 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 	}
 	c.mu.Unlock()
 
+	// Delete the task
+	_, err = task.Delete(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Delete the container
 	err = container.Delete(ctx, containerd.WithSnapshotCleanup)
 	if err != nil {
@@ -416,20 +422,16 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, t *tasksv1.Task) error {
 	}
 
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case exitStatus := <-waitChan:
 		if err := exitStatus.Error(); err != nil {
 			return fmt.Errorf("failed to get exit status from task: %w", err)
 		}
+		return nil
 	case <-time.After(30 * time.Second):
 		return fmt.Errorf("timed out waiting for task to stop")
 	}
-
-	// Delete the task after successfull wait-stop
-	if _, err := task.Delete(ctx); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Kill forcefully stops the container and tasks within by sending SIGKILL to the process.
@@ -470,17 +472,20 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, t *tasksv1.Task) error {
 	}
 
 	// Handle exit status
-	select {
-	case exitStatus := <-exitChan:
-		c.logger.Info("task exited with status", "container", cont.ID(), "task", task.ID(), "exitStatus", exitStatus.ExitCode())
-	case <-time.After(10 * time.Second):
-		c.logger.Info("deadline exceeded waiting for task to exit", "container", cont.ID(), "task", task.ID())
-		return os.ErrDeadlineExceeded
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case exitStatus := <-exitChan:
+			if err := exitStatus.Error(); err != nil {
+				return fmt.Errorf("failed to get exit status from task: %w", err)
+			}
+			return nil
+		case <-time.After(10 * time.Second):
+			c.logger.Info("deadline exceeded waiting for task to exit", "container", cont.ID(), "task", task.ID())
+			return os.ErrDeadlineExceeded
+		}
 	}
-
-	// Delete the task
-	_, err = task.Delete(ctx)
-	return err
 }
 
 func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {

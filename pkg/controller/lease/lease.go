@@ -58,7 +58,7 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 
 		// If lease has expired
 		if time.Now().After(lease.GetConfig().GetExpiresAt().AsTime()) {
-			err = c.exchange.Forward(ctx, events.NewEvent(events.LeaseExpired, task))
+			err = c.exchange.Forward(ctx, events.NewEvent(events.LeaseExpired, lease))
 			if err != nil {
 				c.logger.Error("error forwarding LeaseExpired event", "error", err, "task", lease.GetConfig().GetTaskId())
 				return

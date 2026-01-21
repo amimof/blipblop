@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
@@ -37,7 +38,7 @@ func (r *leaseBadgerRepo) Get(ctx context.Context, id string) (*leasesv1.Lease, 
 		key := LeaseID(id).String()
 		item, err := txn.Get([]byte(key))
 		if err != nil {
-			if err == badger.ErrKeyNotFound {
+			if errors.Is(err, badger.ErrKeyNotFound) {
 				return ErrNotFound
 			}
 			return err

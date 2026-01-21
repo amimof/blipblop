@@ -3,7 +3,6 @@ package nodecontroller
 
 import (
 	"context"
-	"errors"
 	"os"
 	"sync"
 	"time"
@@ -87,14 +86,12 @@ func (c *Controller) Run(ctx context.Context) {
 	topics := []eventsv1.EventType{
 		events.NodeDelete,
 		events.NodeConnect,
+		events.Schedule,
 		events.TaskDelete,
-		events.TaskUpdate,
 		events.TaskStop,
 		events.TaskKill,
-		events.TaskStart,
 		events.TailLogsStart,
 		events.TailLogsStop,
-		events.LeaseExpired,
 	}
 
 	// Subscribe to events
@@ -104,20 +101,12 @@ func (c *Controller) Run(ctx context.Context) {
 	// Setup Node Handlers
 	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
 	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
-
-	// Setup task handlers
-	c.clientset.EventV1().On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.onTaskDelete)))
-	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.handleNodeSelector(c.onTaskUpdate))))
-	c.clientset.EventV1().On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.onTaskStop)))
-	c.clientset.EventV1().On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.onTaskKill)))
-	c.clientset.EventV1().On(events.TaskStart, events.HandleErrors(c.logger, events.HandleTask(c.handleNodeSelector(c.onTaskStart))))
-
-	// Setup log handlers
+	c.clientset.EventV1().On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.onSchedule)))
+	c.clientset.EventV1().On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.deleteTask)))
+	c.clientset.EventV1().On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
+	c.clientset.EventV1().On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.killTask)))
 	c.clientset.EventV1().On(events.TailLogsStart, events.HandleErrors(c.logger, c.onLogStart))
 	c.clientset.EventV1().On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
-
-	// Setup lease handlers
-	c.clientset.EventV1().On(events.LeaseExpired, events.Handle(events.HandleTask(c.onTaskStart)))
 
 	go func() {
 		for e := range evt {
@@ -126,7 +115,7 @@ func (c *Controller) Run(ctx context.Context) {
 	}()
 
 	// Handle runtime events
-	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart)
+	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart, events.RuntimeTaskDelete)
 	c.exchange.On(events.RuntimeTaskExit, events.HandleErrors(c.logger, c.onRuntimeTaskExit))
 	c.exchange.On(events.RuntimeTaskStart, events.HandleErrors(c.logger, c.onRuntimeTaskStart))
 	c.exchange.On(events.RuntimeTaskDelete, events.HandleErrors(c.logger, c.onRuntimeTaskDelete))
@@ -263,151 +252,12 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 	}
 }
 
-func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
-	taskID := task.GetMeta().GetName()
-	nodeID := c.node.GetMeta().GetName()
-
-	ttl, expired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
-	if err != nil {
-		c.logger.Error("failed to acquire lease", "error", err, "task", taskID, "nodeID", nodeID)
-		return err
-	}
-
-	if !expired {
-		c.logger.Warn("lease held by another node", "task", taskID)
-		return errors.New("lease held by another another")
-	}
-
-	c.logger.Info("acquired lease for task", "task", taskID, "node", nodeID, "ttl", ttl)
-
-	// Release if task can't be provisioned
-	defer func() {
-		if err != nil {
-			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
-			if err != nil {
-				c.logger.Warn("unable to release lease", "task", taskID, "node", nodeID)
-			}
-		}
-	}()
-
-	// Run cleanup early while netns still exists.
-	// This will allow the CNI plugin to remove networks without leaking.
-	_ = c.runtime.Cleanup(ctx, taskID)
-
-	// Remove any previous tasks ignoring any errors
-	err = c.runtime.Delete(ctx, task)
-	if err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	// Prepare volumes/mounts
-	if err := c.attacher.PrepareMounts(ctx, c.node, task); err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERREXEC),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	// Pull image
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASEPULLING)}, "phase")
-	err = c.runtime.Pull(ctx, task)
-	if err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRIMAGEPULL),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	// Run task
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTARTING)}, "phase")
-	err = c.runtime.Run(ctx, task)
-	if err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERREXEC),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	return nil
-}
-
 func (c *Controller) isNodeSelected(ctx context.Context, nodeID string, task *tasksv1.Task) bool {
 	node, err := c.clientset.NodeV1().Get(ctx, nodeID)
 	if err != nil {
 		return false
 	}
 	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
-}
-
-func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
-	taskID := task.GetMeta().GetName()
-	nodeID := c.node.GetMeta().GetName()
-
-	// Release lease
-	defer func() {
-		err := c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
-		if err != nil {
-			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
-		}
-	}()
-
-	// Run cleanup early while netns still exists.
-	// This will allow the CNI plugin to remove networks without leaking.
-	err := c.runtime.Cleanup(ctx, taskID)
-	if err != nil {
-		return err
-	}
-
-	// Let everyone know that task is stopping
-	_ = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{Phase: wrapperspb.String(consts.PHASESTOPPING)}, "phase")
-
-	// Stop the task
-	err = c.runtime.Stop(ctx, task)
-	if errs.IgnoreNotFound(err) != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRSTOP),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	// Remove any previous tasks ignoring any errors
-	err = c.runtime.Delete(ctx, task)
-	if err != nil {
-		_ = c.clientset.TaskV1().Status().Update(
-			ctx,
-			taskID,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.ERRDELETE),
-				Reason: wrapperspb.String(err.Error()),
-			}, "phase", "status")
-		return err
-	}
-
-	// Detach volumes
-	return c.attacher.Detach(ctx, c.node, task)
 }
 
 // Reconcile ensures that desired tasks matches with tasks

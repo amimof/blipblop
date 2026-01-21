@@ -109,6 +109,8 @@ enum EventType {
   LeaseRenewed = 58;
   LeaseReleased = 59;
   LeaseDeleted = 60;
+
+  ConditionReported = 71;
 }
 
 message GetRequest {

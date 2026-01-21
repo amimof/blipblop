@@ -3,12 +3,11 @@ package nodecontroller
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	cevents "github.com/containerd/containerd/api/events"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event) error {
@@ -23,9 +22,12 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 		return err
 	}
 
-	nodeName := c.node.GetMeta().GetName()
-
 	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	if err != nil {
+		return err
+	}
+
+	task, err := c.clientset.TaskV1().Get(ctx, tname)
 	if err != nil {
 		return err
 	}
@@ -33,16 +35,28 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 	// Only proceed if task is owned by us
 	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
 		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
-		return c.clientset.TaskV1().Status().Update(
-			ctx,
-			tname,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.PHASERUNNING),
-				Reason: wrapperspb.String(""),
-				Id:     wrapperspb.String(e.GetContainerID()),
-				Pid:    wrapperspb.UInt32(e.GetPid()),
-				Node:   wrapperspb.String(nodeName),
-			}, "phase", "reason", "id", "pid", "node")
+
+		report := condition.NewForResource(task)
+
+		md := map[string]string{
+			"pid":  strconv.Itoa(int(e.GetPid())),
+			"id":   e.GetContainerID(),
+			"node": lease.GetConfig().GetNodeId(),
+		}
+
+		report.
+			Type(condition.TaskScheduled).
+			WithMetadata(md).
+			True(condition.ReasonScheduled)
+
+		_ = c.clientset.EventV1().Report(ctx, report.Report())
+
+		report.
+			Type(condition.TaskReady).
+			WithMetadata(md).
+			True(condition.ReasonRunning)
+
+		return c.clientset.EventV1().Report(ctx, report.Report())
 	}
 
 	return nil
@@ -60,35 +74,29 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		return err
 	}
 
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	task, err := c.clientset.TaskV1().Get(ctx, tname)
 	if err != nil {
 		return err
 	}
 
 	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
-		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
-		phase := consts.PHASESTOPPED
-		status := ""
+	c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
 
-		if e.GetExitStatus() > 0 {
-			phase = consts.PHASEEXITED
-			status = fmt.Sprintf("exit status %d", e.GetExitStatus())
-		}
+	report := condition.NewForResource(task)
 
-		return c.clientset.TaskV1().Status().Update(
-			ctx,
-			tname,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(phase),
-				Reason: wrapperspb.String(status),
-				Pid:    wrapperspb.UInt32(0),
-				Id:     wrapperspb.String(""),
-				Node:   wrapperspb.String(""),
-			}, "phase", "reason", "pid", "id", "node")
+	exitStatus := ""
+	if e.GetExitStatus() > 0 {
+		exitStatus = fmt.Sprintf("exit status %d", e.GetExitStatus())
 	}
 
-	return nil
+	md := map[string]string{"exit_status": exitStatus}
+
+	taskReport := report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		False(condition.ReasonStopped, exitStatus)
+
+	return c.clientset.EventV1().Report(ctx, taskReport)
 }
 
 func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
@@ -103,26 +111,23 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		return err
 	}
 
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	task, err := c.clientset.TaskV1().Get(ctx, tname)
 	if err != nil {
 		return err
 	}
 
 	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+	c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
-		return c.clientset.TaskV1().Status().Update(
-			ctx,
-			tname,
-			&tasksv1.Status{
-				Phase:  wrapperspb.String(consts.PHASESTOPPED),
-				Reason: wrapperspb.String(""),
-				Id:     wrapperspb.String(""),
-				Pid:    wrapperspb.UInt32(0),
-				Node:   wrapperspb.String(""),
-			}, "phase", "reason", "id", "pid", "node")
+	report := condition.NewForResource(task)
+	md := map[string]string{
+		"id":  "",
+		"pid": "",
 	}
+	taskReport := report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		False(condition.ReasonStopped)
 
-	return nil
+	return c.clientset.EventV1().Report(ctx, taskReport)
 }
