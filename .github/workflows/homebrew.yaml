@@ -10,7 +10,7 @@ on:
         type: string
 
 env:
-  VERSION: "${{ inputs.version }}"
+  VERSION: "v0.0.12"
 
 jobs:
   homebrew:
