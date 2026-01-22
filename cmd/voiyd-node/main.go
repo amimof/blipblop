@@ -203,16 +203,16 @@ func main() {
 	}()
 
 	// Create containerd client
-	cclient, err := reconnectWithBackoff(containerdSocket, log)
-	if err != nil {
-		log.Error("could not establish connection to containerd: %v", "error", err)
-		return
-	}
-	defer func() {
-		if err := cclient.Close(); err != nil {
-			log.Error("error closing containerd connection", "error", err)
-		}
-	}()
+	// cclient, err := reconnectWithBackoff(ctx, containerdSocket, log)
+	// if err != nil {
+	// 	log.Error("could not establish connection to containerd: %v", "error", err)
+	// 	return
+	// }
+	// defer func() {
+	// 	if err := cclient.Close(); err != nil {
+	// 		log.Error("error closing containerd connection", "error", err)
+	// 	}
+	// }()
 
 	// Join node
 	nodeCfg, err := node.LoadNodeFromEnv(nodeFile)
@@ -237,6 +237,11 @@ func main() {
 
 	// Setup event exchange bus
 	exchange := events.NewExchange(events.WithExchangeLogger(log))
+
+	cclient, err := containerd.New(containerdSocket)
+	if err != nil {
+		log.Error("failed to connect to containerd", "error", err)
+	}
 
 	// Setup and run controllers
 	runtime := rt.NewContainerdRuntimeClient(
@@ -302,34 +307,6 @@ func main() {
 	cancel()
 
 	log.Info("shutting down")
-}
-
-func connectContainerd(address string) (*containerd.Client, error) {
-	client, err := containerd.New(address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
-	}
-	return client, nil
-}
-
-func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, error) {
-	var (
-		client *containerd.Client
-		err    error
-	)
-
-	// TODO: Parameterize the backoff time
-	backoff := 2 * time.Second
-	for {
-		client, err = connectContainerd(address)
-		if err == nil {
-			return client, nil
-		}
-
-		l.Error("reconnection to containerd failed", "error", err, "retry_in", backoff)
-		time.Sleep(backoff)
-
-	}
 }
 
 func serveMetrics(h http.Handler, l *slog.Logger) {

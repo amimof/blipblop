@@ -93,7 +93,7 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 			select {
 			case n := <-eventChan:
 
-				s.logger.Info("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId, "controller", md.Get("voiyd_controller_name"))
+				s.logger.Debug("forwarding event from client", "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId, "controller", md.Get("voiyd_controller_name"))
 				err := stream.Send(n)
 				if err != nil {
 					s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)

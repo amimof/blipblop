@@ -12,7 +12,7 @@ import (
 
 func NewCmdDeleteNode(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "node NAME [NAME...]",
+		Use:     "nodes NAME [NAME...]",
 		Short:   "Delete one or more nodes",
 		Long:    "Delete one or more nodes",
 		Example: `voiydctl delete node NAME`,

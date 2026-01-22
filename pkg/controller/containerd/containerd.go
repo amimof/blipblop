@@ -2,6 +2,7 @@ package containerdcontroller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,11 +17,12 @@ import (
 )
 
 type Controller struct {
-	client   *containerd.Client
-	handlers *RuntimeHandlerFuncs
-	runtime  runtime.Runtime
-	logger   logger.Logger
-	exchange *voiyd_events.Exchange
+	client     *containerd.Client
+	handlers   *RuntimeHandlerFuncs
+	runtime    runtime.Runtime
+	logger     logger.Logger
+	exchange   *voiyd_events.Exchange
+	socketPath string
 }
 
 type NewOption func(*Controller)
@@ -73,35 +75,6 @@ func (c *Controller) AddHandler(h *RuntimeHandlerFuncs) {
 	c.handlers = h
 }
 
-func connectTaskd(address string) (*containerd.Client, error) {
-	client, err := containerd.New(address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
-	}
-	return client, nil
-}
-
-func reconnectWithBackoff(address string, l logger.Logger) (*containerd.Client, error) {
-	var (
-		client *containerd.Client
-		err    error
-	)
-
-	// Exponential backoff
-	// TODO: Parameterize the backoff so it's not hardcoded
-	backoff := 2 * time.Second
-	for {
-		client, err = connectTaskd(address)
-		if err == nil {
-			l.Info("successfully connected to containerd", "address", address)
-			return client, nil
-		}
-
-		l.Error("error reconnecting to containerd", "error", err, "retry_in", backoff)
-		time.Sleep(backoff)
-	}
-}
-
 func (c *Controller) Run(ctx context.Context) {
 	ctx = namespaces.WithNamespace(ctx, c.runtime.Namespace())
 
@@ -110,13 +83,24 @@ func (c *Controller) Run(ctx context.Context) {
 		c.logger.Error("error reconciling state", "error", err)
 		return
 	}
-	err = c.streamEvents(ctx)
-	if err != nil {
-		c.logger.Info("Reconnecting stream")
-		c.client, err = reconnectWithBackoff("/run/containerd/containerd.sock", c.logger)
-		if err != nil {
-			c.logger.Error("error reconnection to stream", "error", err)
+
+	for {
+
+		if err := c.streamEvents(ctx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			c.logger.Error("stream error, attempting to reconnect", "error", err)
+			// TODO: Mark node as NotReady here!
 		}
+
+		c.client, err = reconnectWithBackoff(ctx, c.socketPath, c.logger)
+		if err != nil {
+			c.logger.Error("error connecting to containerd", "error", err)
+			return
+		}
+
+		// TODO: Mark node as Ready again here!
 	}
 }
 
@@ -125,18 +109,72 @@ func (c *Controller) streamEvents(ctx context.Context) error {
 	eventCh, errCh := c.client.Subscribe(ctx, filters...)
 	for {
 		select {
-		case event := <-eventCh:
+		case event, ok := <-eventCh:
+			if !ok {
+				return fmt.Errorf("runtime event channel closed")
+			}
+			if event == nil {
+				continue
+			}
 			ev, err := typeurl.UnmarshalAny(event.Event)
 			if err != nil {
 				c.logger.Error("error unmarshaling event received from stream", "error", err)
+				continue
 			}
 			c.HandleEvent(c.handlers, ev)
-		case err := <-errCh:
+		case err, ok := <-errCh:
+			if !ok {
+				return fmt.Errorf("runtime error channel closed")
+			}
+			if err == nil {
+				return fmt.Errorf("stream ended without error")
+			}
 			return err
 		case <-ctx.Done():
-			if err := c.client.Close(); err != nil {
-				c.logger.Error("error closing runtime client connection", "error", err)
-			}
+			return ctx.Err()
+		}
+	}
+}
+
+func connectContainerd(ctx context.Context, address string) (*containerd.Client, error) {
+	client, err := containerd.New(address)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*2)
+	defer cancel()
+
+	isServing, err := client.IsServing(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isServing {
+		return nil, fmt.Errorf("containerd not serving")
+	}
+
+	return client, nil
+}
+
+func reconnectWithBackoff(ctx context.Context, address string, l logger.Logger) (*containerd.Client, error) {
+	// Exponential backoff
+	// TODO: Parameterize the backoff so it's not hardcoded
+	backoff := 2 * time.Second
+
+	for {
+		client, err := connectContainerd(ctx, address)
+		if err == nil {
+			l.Info("successfully connected to containerd", "address", address, "error", err, "client", client)
+			return client, err
+		}
+
+		l.Error("error reconnecting to containerd", "error", err, "retry_in", backoff)
+
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }
@@ -422,9 +460,10 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 
 func New(client *containerd.Client, rt runtime.Runtime, opts ...NewOption) *Controller {
 	eh := &Controller{
-		client:  client,
-		runtime: rt,
-		logger:  logger.ConsoleLogger{},
+		client:     client,
+		runtime:    rt,
+		logger:     logger.ConsoleLogger{},
+		socketPath: "/var/run/containerd/containerd.sock",
 	}
 
 	handlers := &RuntimeHandlerFuncs{
