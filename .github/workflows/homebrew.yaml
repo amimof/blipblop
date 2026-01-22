@@ -1,16 +1,11 @@
 name: Homebrew
 
 on:
-  push:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "App version"
-        required: true
-        type: string
+  release:
+    types: [published]
 
 env:
-  VERSION: "v0.0.12"
+  VERSION: "${{ github.event.release.tag_name }}"
 
 jobs:
   homebrew:
