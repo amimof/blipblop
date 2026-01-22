@@ -1,0 +1,93 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: voiyd-node
+  name: voiyd-node
+  namespace: voiyd
+spec:
+  ports:
+    - name: metrics
+      port: 8889
+      protocol: TCP
+      targetPort: 8889
+  selector:
+    app: voiyd-node
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: voiyd-node
+  name: voiyd-node
+  namespace: voiyd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voiyd-node
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: voiyd-node
+    spec:
+      shareProcessNamespace: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: containerd-storage
+          emptyDir: {}
+        - name: docker-storage
+          emptyDir: {}
+        - name: containerd-sock
+          emptyDir: {}
+      containers:
+        - name: containerd
+          image: docker:29-dind
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          volumeMounts:
+            - name: containerd-storage
+              mountPath: /var/lib/containerd
+            - name: docker-storage
+              mountPath: /var/lib/docker
+            - name: containerd-sock
+              mountPath: /var/run/docker/containerd
+        - name: node
+          image: ghcr.io/amimof/voiyd:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_ADMIN
+          args:
+            - "voiyd-node"
+            - "--port=5743"
+            - "--host=voiyd-server"
+            - "--log-level=debug"
+            - "--insecure-skip-verify"
+            - "--metrics-host=0.0.0.0"
+          ports:
+            - name: grpc
+              containerPort: 5743
+            - name: gateway
+              containerPort: 8443
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/voiyd
+            - name: containerd-sock
+              mountPath: /run/containerd
+            - name: containerd-storage
+              mountPath: /var/lib/containerd
+            - name: docker-storage
+              mountPath: /var/lib/docker
+          resources: {}
