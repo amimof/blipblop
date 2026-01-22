@@ -6,6 +6,9 @@ import (
 	"net"
 	"time"
 
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/services"
 
@@ -88,5 +91,8 @@ func (s *Server) RegisterService(svcs ...services.Service) error {
 			return err
 		}
 	}
+
+	s.grpcServer.RegisterService(&grpc_health_v1.Health_ServiceDesc, health.NewServer())
+
 	return nil
 }

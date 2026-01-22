@@ -182,8 +182,7 @@ func main() {
 
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	clientSet, err := client.New(
-		serverAddr,
+	clientSet, err := connectToServer(serverAddr,
 		client.WithGrpcDialOption(
 			metricsOpts,
 			grpc.WithStatsHandler(
@@ -196,6 +195,7 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
+
 	defer func() {
 		if err := clientSet.Close(); err != nil {
 			log.Error("error closing clientset connection", "error", err)
@@ -203,16 +203,16 @@ func main() {
 	}()
 
 	// Create containerd client
-	cclient, err := reconnectWithBackoff(containerdSocket, log)
-	if err != nil {
-		log.Error("could not establish connection to containerd: %v", "error", err)
-		return
-	}
-	defer func() {
-		if err := cclient.Close(); err != nil {
-			log.Error("error closing containerd connection", "error", err)
-		}
-	}()
+	// cclient, err := reconnectWithBackoff(ctx, containerdSocket, log)
+	// if err != nil {
+	// 	log.Error("could not establish connection to containerd: %v", "error", err)
+	// 	return
+	// }
+	// defer func() {
+	// 	if err := cclient.Close(); err != nil {
+	// 		log.Error("error closing containerd connection", "error", err)
+	// 	}
+	// }()
 
 	// Join node
 	nodeCfg, err := node.LoadNodeFromEnv(nodeFile)
@@ -237,6 +237,11 @@ func main() {
 
 	// Setup event exchange bus
 	exchange := events.NewExchange(events.WithExchangeLogger(log))
+
+	cclient, err := containerd.New(containerdSocket)
+	if err != nil {
+		log.Error("failed to connect to containerd", "error", err)
+	}
 
 	// Setup and run controllers
 	runtime := rt.NewContainerdRuntimeClient(
@@ -304,31 +309,33 @@ func main() {
 	log.Info("shutting down")
 }
 
-func connectContainerd(address string) (*containerd.Client, error) {
-	client, err := containerd.New(address)
+func reconnectWithBackoff(addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
+	clientSet, err := client.New(
+		addr,
+		opts...,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to containerd: %w", err)
+		return nil, err
 	}
-	return client, nil
+
+	resp, err := clientSet.HealthV1().Check(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("error connecting, check didn't pass %v: %v", err, resp)
+	}
+	return clientSet, nil
 }
 
-func reconnectWithBackoff(address string, l *slog.Logger) (*containerd.Client, error) {
-	var (
-		client *containerd.Client
-		err    error
-	)
-
-	// TODO: Parameterize the backoff time
-	backoff := 2 * time.Second
+func connectToServer(addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
+	interval := time.Second * 2
 	for {
-		client, err = connectContainerd(address)
+		cs, err := reconnectWithBackoff(addr, opts...)
 		if err == nil {
-			return client, nil
+			return cs, nil
 		}
 
-		l.Error("reconnection to containerd failed", "error", err, "retry_in", backoff)
-		time.Sleep(backoff)
+		fmt.Printf("error connecting to server, retrying: %v", err)
 
+		time.Sleep(interval)
 	}
 }
 

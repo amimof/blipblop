@@ -20,9 +20,7 @@ import (
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 const Version string = "node/v1"
@@ -197,88 +195,6 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	}
 }
 
-func (n *NodeService) setupHandlers() {
-	n.exchange.On(events.TaskDelete, n.onTask)
-	n.exchange.On(events.TaskUpdate, n.onTask)
-	n.exchange.On(events.TaskStart, n.onTask)
-	n.exchange.On(events.TaskKill, n.onTask)
-	n.exchange.On(events.TaskStop, n.onTask)
-	n.exchange.On(events.Schedule, n.onSchedule)
-}
-
-func (n *NodeService) onSchedule(ctx context.Context, e *eventsv1.Event) error {
-	// Extract ScheduleRequest embedded in the event
-	var req eventsv1.ScheduleRequest
-	if err := e.GetObject().UnmarshalTo(&req); err != nil {
-		return err
-	}
-
-	// Get the container from the request
-	var ctr tasksv1.Task
-	if err := req.GetTask().UnmarshalTo(&ctr); err != nil {
-		return err
-	}
-
-	// Get the node from the request
-	var node nodesv1.Node
-	if err := req.GetNode().UnmarshalTo(&node); err != nil {
-		return err
-	}
-
-	// Find stream beloning to the node
-	nodeName := node.GetMeta().GetName()
-	n.mu.Lock()
-	stream, ok := n.streams[nodeName]
-	n.mu.Unlock()
-	if !ok {
-		return fmt.Errorf("node is not connected as %s", nodeName)
-	}
-
-	// Construct event that is to be forwarded to the node
-	newEvent := events.NewRequest(eventsv1.EventType_TaskCreate, &ctr)
-
-	// Schedule container on node
-	n.logger.Info("scheduling container", "node", node.GetMeta().GetName(), "container", ctr.GetMeta().GetName())
-	err := stream.Send(newEvent.GetEvent())
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (n *NodeService) onTask(ctx context.Context, e *eventsv1.Event) error {
-	// Unmarshal Task from event
-	var ctr tasksv1.Task
-	err := e.GetObject().UnmarshalTo(&ctr)
-	if err != nil {
-		return err
-	}
-
-	// Figure out which node the container is running on
-	nodeName := ctr.GetStatus().GetNode().String()
-	if nodeName == "" {
-		return fmt.Errorf("container is missing node in status")
-	}
-
-	// Get the stream for the specific node
-	n.mu.Lock()
-	stream, ok := n.streams[nodeName]
-	n.mu.Unlock()
-	if !ok {
-		return fmt.Errorf("node is not connected as %s", nodeName)
-	}
-
-	// Forward event to node
-	n.logger.Info("forwarding event to node", "node", nodeName, "container", ctr.GetMeta().GetName(), "event", e.GetType().String())
-	err = stream.Send(e)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {
 	s := &NodeService{
 		logger:      logger.ConsoleLogger{},
@@ -295,8 +211,6 @@ func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeS
 		exchange: s.exchange,
 		logger:   s.logger,
 	}
-
-	s.setupHandlers()
 
 	return s
 }

@@ -177,7 +177,7 @@ func (l *local) Renew(ctx context.Context, req *leasesv1.RenewRequest, _ ...grpc
 		return &leasesv1.RenewResponse{Renewed: false}, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseReleased, lease))
+	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseRenewed, lease))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing lease released event", "error", err, "leaseID", lease.GetMeta().GetName(), "task", lease.GetConfig().GetTaskId(), "node", lease.GetConfig().GetNodeId())
 	}

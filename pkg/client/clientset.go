@@ -21,6 +21,7 @@ import (
 
 	containersetv1 "github.com/amimof/voiyd/pkg/client/containerset/v1"
 	eventv1 "github.com/amimof/voiyd/pkg/client/event/v1"
+	healthv1 "github.com/amimof/voiyd/pkg/client/health/v1"
 	leasev1 "github.com/amimof/voiyd/pkg/client/lease/v1"
 	logv1 "github.com/amimof/voiyd/pkg/client/log/v1"
 	nodev1 "github.com/amimof/voiyd/pkg/client/node/v1"
@@ -134,6 +135,7 @@ func getTLSConfig(cert, key, ca string, insecure bool) (*tls.Config, error) {
 
 type ClientSet struct {
 	conn                 *grpc.ClientConn
+	healthV1Client       *healthv1.ClientV1
 	NodeV1Client         nodev1.ClientV1
 	TaskV1Client         taskv1.ClientV1
 	containerSetV1Client *containersetv1.ClientV1
@@ -174,6 +176,10 @@ func (c *ClientSet) VolumeV1() volumev1.ClientV1 {
 
 func (c *ClientSet) LeaseV1() leasev1.ClientV1 {
 	return c.leaseV1Client
+}
+
+func (c *ClientSet) HealthV1() *healthv1.ClientV1 {
+	return c.healthV1Client
 }
 
 func (c *ClientSet) State() connectivity.State {
@@ -260,6 +266,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	c.logV1Client = logv1.NewClientV1(conn)
 	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.clientID)
 	c.leaseV1Client = leasev1.NewClientV1WithConn(conn, c.clientID)
+	c.healthV1Client = healthv1.NewClientV1WithConn(conn)
 
 	return c, nil
 }

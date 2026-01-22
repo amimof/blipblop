@@ -195,38 +195,53 @@ func main() {
 	// Setup TLS configuration based on flags
 	var serverOpts []server.NewServerOption
 	var gatewayOpts []server.NewGatewayOption
-	if tlsCertificate != "" && tlsCertificateKey != "" {
 
-		creds, err := credentials.NewServerTLSFromFile(tlsCertificate, tlsCertificateKey)
-		if err != nil {
-			log.Error("error loading tls certificate pair", "error", err)
-			os.Exit(1)
-		}
-		serverOpts = append(serverOpts, server.WithGrpcOption(grpc.Creds(creds), grpc.StatsHandler(otelgrpc.NewServerHandler())))
+	if tlsCertificate != "" && tlsCertificateKey != "" {
 
 		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
 		if err != nil {
 			log.Error("error loading x509 cert key pair", "error", err)
 			os.Exit(1)
 		}
-		// TODO: This effectively forces user to provide CA certificate. Need to implement
-		// so that ca cert pool is added to the grpc dial option contitionally
-		caCert, err := os.ReadFile(tlsCACertificate)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
-			return
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
 		}
-		certPool := x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(caCert) {
-			fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
+
+		// Enable mTLS for gRPC server, if CA cert provided
+		if tlsCACertificate != "" {
+			caCert, err := os.ReadFile(tlsCACertificate)
+			if err != nil {
+				log.Error("error reading CA certificate file", "error", err)
+				os.Exit(1)
+			}
+			certPool := x509.NewCertPool()
+			if !certPool.AppendCertsFromPEM(caCert) {
+				log.Error("error appending CA certificate to pool")
+				os.Exit(1)
+			}
+
+			tlsConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+				ClientAuth:   tls.RequireAndVerifyClientCert, // ← mTLS
+				ClientCAs:    certPool,
+			}
+			log.Info("mutual TLS enabled for gRPC server")
+		}
+
+		creds := credentials.NewTLS(tlsConfig)
+		serverOpts = append(serverOpts,
+			server.WithGrpcOption(grpc.Creds(creds),
+				grpc.StatsHandler(otelgrpc.NewServerHandler()),
+			),
+		)
+
+		tlsConfigGw := &tls.Config{
+			InsecureSkipVerify: true,
 		}
 		gatewayOpts = append(gatewayOpts,
-			server.WithGrpcDialOption(
-				grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: certPool, Certificates: []tls.Certificate{cert}})),
-			),
-			server.WithTLSConfig(&tls.Config{
-				Certificates: []tls.Certificate{cert},
-			}),
+			server.WithTLSConfig(tlsConfig),
+			server.WithGrpcDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfigGw))),
 		)
 	}
 
