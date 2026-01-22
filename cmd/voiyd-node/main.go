@@ -182,8 +182,7 @@ func main() {
 
 	// Setup a clientset for this node
 	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	clientSet, err := client.New(
-		serverAddr,
+	clientSet, err := connectToServer(serverAddr,
 		client.WithGrpcDialOption(
 			metricsOpts,
 			grpc.WithStatsHandler(
@@ -196,6 +195,7 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err.Error())
 	}
+
 	defer func() {
 		if err := clientSet.Close(); err != nil {
 			log.Error("error closing clientset connection", "error", err)
@@ -307,6 +307,36 @@ func main() {
 	cancel()
 
 	log.Info("shutting down")
+}
+
+func reconnectWithBackoff(addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
+	clientSet, err := client.New(
+		addr,
+		opts...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := clientSet.HealthV1().Check(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("error connecting, check didn't pass %v: %v", err, resp)
+	}
+	return clientSet, nil
+}
+
+func connectToServer(addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
+	interval := time.Second * 2
+	for {
+		cs, err := reconnectWithBackoff(addr, opts...)
+		if err == nil {
+			return cs, nil
+		}
+
+		fmt.Printf("error connecting to server, retrying: %v", err)
+
+		time.Sleep(interval)
+	}
 }
 
 func serveMetrics(h http.Handler, l *slog.Logger) {
