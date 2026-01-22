@@ -1,4 +1,4 @@
-name: Publish
+name: Homebrew
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
           FORMULA="class Voiydctl < Formula
             desc \"Lightweight, event-driven orchestration for container workloads\"
             homepage \"https://voiyd.io\"
-            version \\"${VERSION}\\"
+            version \"${VERSION}\"
             on_macos do
               if Hardware::CPU.intel?
                 url \"${DARWIN_AMD64_URL}\"
