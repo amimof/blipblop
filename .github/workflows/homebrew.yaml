@@ -1,0 +1,59 @@
+name: Homebrew
+
+on:
+  release:
+    types: [published]
+
+env:
+  VERSION: "${{ github.event.release.tag_name }}"
+
+jobs:
+  homebrew:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Create Homebrew formula
+        run: |
+          VERSION="${{ env.VERSION }}"
+          RELEASE_JSON=$(curl -L -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/amimof/voiyd/releases/tags/${VERSION}" | jq '.assets[]')
+          DARWIN_AMD64_URL=$(echo "$RELEASE_JSON" | jq -r 'select(.name == "voiydctl-darwin-amd64") | .browser_download_url')
+          DARWIN_AMD64_SHA=$(echo "$RELEASE_JSON" | jq -r 'select(.name == "voiydctl-darwin-amd64") | .digest | ltrimstr("sha256:")')
+          DARWIN_ARM64_URL=$(echo "$RELEASE_JSON" | jq -r 'select(.name == "voiydctl-darwin-arm64") | .browser_download_url')
+          DARWIN_ARM64_SHA=$(echo "$RELEASE_JSON" | jq -r 'select(.name == "voiydctl-darwin-arm64") | .digest | ltrimstr("sha256:")')
+
+          FORMULA="class Voiydctl < Formula
+            desc \"Lightweight, event-driven orchestration for container workloads\"
+            homepage \"https://voiyd.io\"
+            version \"${VERSION}\"
+            on_macos do
+              if Hardware::CPU.intel?
+                url \"${DARWIN_AMD64_URL}\"
+                sha256 \"${DARWIN_AMD64_SHA}\"
+              else
+                url \"${DARWIN_ARM64_URL}\"
+                sha256 \"${DARWIN_ARM64_SHA}\"
+              end
+            end
+            def install
+              bin.install \"voiydctl-darwin-#{Hardware::CPU.arch}\" => \"voiydctl\"
+            end
+            test do
+              system \"#{bin}/voiydctl\", \"--version\"
+            end
+          end
+          "
+          echo "$FORMULA" > voiydctl.rb
+
+      - name: Push formula to Homebrew tap
+        run: |
+          VERSION="${{ env.VERSION }}"
+
+          git clone https://github.com/amimof/homebrew-voiyd.git
+          cd homebrew-voiyd
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          mv ../voiydctl.rb ./Formula/voiydctl.rb
+          git add ./Formula/voiydctl.rb
+          git commit -m "Bump voiydctl formula to ${VERSION}"
+          git push https://x-access-token:${{ secrets.HOMEBREW_TAP_PAT }}@github.com/amimof/homebrew-voiyd.git HEAD:main
