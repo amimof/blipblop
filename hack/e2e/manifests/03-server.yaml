@@ -41,9 +41,6 @@ spec:
         - name: certs
           secret:
             secretName: voiyd-server-tls
-        - name: ca-cert
-          secret:
-            secretName: voiyd-ca-cert
         - name: data
           emptyDir: {}
       containers:
@@ -55,7 +52,6 @@ spec:
             - "--log-level=debug"
             - "--tls-certificate=/etc/voiyd/tls/tls.crt"
             - "--tls-key=/etc/voiyd/tls/tls.key"
-            - "--tls-ca=/etc/voiyd/ca/ca.crt"
             - "--tls-host=0.0.0.0"
             - "--tcp-tls-host=0.0.0.0"
             - "--metrics-host=0.0.0.0"
@@ -67,8 +63,6 @@ spec:
           volumeMounts:
             - name: certs
               mountPath: /etc/voiyd/tls
-            - name: ca-cert
-              mountPath: /etc/voiyd/ca
             - name: data
               mountPath: /var/lib/voiyd
           resources:
