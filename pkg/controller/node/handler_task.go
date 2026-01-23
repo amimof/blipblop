@@ -137,13 +137,13 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task) error {
 		Type(condition.TaskReady).
 		False(condition.ReasonDeleting)
 
-	_ = c.clientset.EventV1().Report(ctx, report.Report())
+	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 	err := c.runtime.Delete(ctx, task)
 	if err != nil {
 		report.
 			Type(condition.TaskReady).
 			False(condition.ReasonDeleteFailed, err.Error())
-		_ = c.clientset.EventV1().Report(ctx, report.Report())
+		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 		return err
 	}
 
@@ -152,14 +152,14 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task) error {
 		WithMetadata(map[string]string{"node": ""}).
 		False(condition.ReasonStopped)
 
-	_ = c.clientset.EventV1().Report(ctx, report.Report())
+	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 
 	report.
 		Type(condition.TaskReady).
 		WithMetadata(map[string]string{"pid": "", "id": ""}).
 		False(condition.ReasonStopped)
 
-	return c.clientset.EventV1().Report(ctx, report.Report())
+	return c.clientset.TaskV1().Condition(ctx, report.Report())
 }
 
 func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task) error {
@@ -169,13 +169,13 @@ func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task) error
 	report.
 		Type(condition.VolumeReady).
 		False(condition.ReasonAttaching)
-	_ = c.clientset.EventV1().Report(ctx, report.Report())
+	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 
 	if err := c.attacher.PrepareMounts(ctx, c.node, task); err != nil {
 		report.
 			Type(condition.VolumeReady).
 			False(condition.ReasonAttachFailed, err.Error())
-		_ = c.clientset.EventV1().Report(ctx, report.Report())
+		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 		return err
 	}
 
@@ -183,7 +183,7 @@ func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task) error
 		Type(condition.VolumeReady).
 		True(condition.ReasonAttached)
 
-	return c.clientset.EventV1().Report(ctx, report.Report())
+	return c.clientset.TaskV1().Condition(ctx, report.Report())
 }
 
 func (c *Controller) detachMounts(ctx context.Context, task *tasksv1.Task) error {
@@ -193,20 +193,20 @@ func (c *Controller) detachMounts(ctx context.Context, task *tasksv1.Task) error
 	report.
 		Type(condition.VolumeReady).
 		False(condition.ReasonDetaching)
-	_ = c.clientset.EventV1().Report(ctx, report.Report())
+	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 
 	if err := c.attacher.Detach(ctx, c.node, task); err != nil {
 		report.
 			Type(condition.ImageReady).
 			False(condition.ReasonPullFailed)
-		_ = c.clientset.EventV1().Report(ctx, report.Report())
+		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 		return err
 	}
 
 	report.
 		Type(condition.VolumeReady).
 		False(condition.ReasonDetached)
-	return c.clientset.EventV1().Report(ctx, report.Report())
+	return c.clientset.TaskV1().Condition(ctx, report.Report())
 }
 
 func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
@@ -217,14 +217,14 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
 		Type(condition.ImageReady).
 		False(condition.ReasonPulling)
 
-	_ = c.clientset.EventV1().Report(ctx, report.Report())
+	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 
 	err := c.runtime.Pull(ctx, task)
 	if err != nil {
 		report.
 			Type(condition.ImageReady).
 			False(condition.ReasonPullFailed, err.Error())
-		_ = c.clientset.EventV1().Report(ctx, report.Report())
+		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 		return err
 	}
 
@@ -232,7 +232,7 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
 		Type(condition.ImageReady).
 		True(condition.ReasonPulled)
 
-	return c.clientset.EventV1().Report(ctx, report.Report())
+	return c.clientset.TaskV1().Condition(ctx, report.Report())
 }
 
 func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *nodesv1.Node) error {

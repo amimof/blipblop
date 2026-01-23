@@ -528,8 +528,29 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/v1Condition"
+            "$ref": "#/definitions/typesv1Condition"
           }
+        }
+      }
+    },
+    "typesv1Condition": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "status": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "lastTransitionTime": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -550,14 +571,17 @@
         }
       }
     },
-    "v1Condition": {
+    "v1ConditionReport": {
       "type": "object",
       "properties": {
+        "resourceId": {
+          "type": "string"
+        },
         "type": {
           "type": "string"
         },
         "status": {
-          "type": "boolean"
+          "$ref": "#/definitions/v1ConditionStatus"
         },
         "reason": {
           "type": "string"
@@ -565,11 +589,31 @@
         "msg": {
           "type": "string"
         },
-        "lastTransitionTime": {
+        "observedGeneration": {
+          "type": "string",
+          "format": "int64"
+        },
+        "observedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
+    },
+    "v1ConditionStatus": {
+      "type": "string",
+      "enum": [
+        "CONDITION_STATUS_UNSPECIFIED",
+        "CONDITION_STATUS_TRUE",
+        "CONDITION_STATUS_FALSE",
+        "CONDITION_STATUS_UNKNOWN"
+      ],
+      "default": "CONDITION_STATUS_UNSPECIFIED"
     },
     "v1Config": {
       "type": "object",

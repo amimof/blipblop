@@ -12,16 +12,18 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
+
+var _ nodesv1.NodeServiceServer = &NodeService{}
 
 const Version string = "node/v1"
 
@@ -94,6 +96,10 @@ func (n *NodeService) Upgrade(ctx context.Context, req *nodesv1.UpgradeRequest) 
 	return n.local.Upgrade(ctx, req)
 }
 
+func (n *NodeService) Condition(ctx context.Context, req *typesv1.ConditionRequest) (*emptypb.Empty, error) {
+	return n.local.Condition(ctx, req)
+}
+
 func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	ctx := stream.Context()
 
@@ -130,36 +136,15 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 		n.logger.Error("error publishing NodeConnect event", "error", err)
 	}
 
-	// Mark node as ready once it connects to us
-	fm := &fieldmaskpb.FieldMask{Paths: []string{"phase"}}
-	_, err = n.UpdateStatus(ctx,
-		&nodesv1.UpdateStatusRequest{
-			Id: node.GetMeta().GetName(),
-			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(consts.PHASEREADY),
-			},
-			UpdateMask: fm,
-		},
-	)
-	if err != nil {
-		n.logger.Error("error updating node status", "error", err, "node", nodeName)
-	}
-
 	defer func() {
+		reporter := condition.NewForResource(node)
+
 		n.logger.Info("removing node stream", "node", nodeName)
-		fm := &fieldmaskpb.FieldMask{Paths: []string{"phase"}}
-		_, err := n.UpdateStatus(context.Background(),
-			&nodesv1.UpdateStatusRequest{
-				Id: node.GetMeta().GetName(),
-				Status: &nodesv1.Status{
-					Phase: wrapperspb.String(consts.PHASEMISSING),
-				},
-				UpdateMask: fm,
-			},
-		)
-		if err != nil {
-			n.logger.Error("error updating node status", "error", err, "node", nodeName)
+
+		if _, err = n.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: Version, Report: reporter.Type(condition.NodeReady).False(condition.ReasonDisconnected)}); err != nil {
+			n.logger.Warn("unable to report node condition", "error", err, "node", nodeName)
 		}
+
 		err = n.exchange.Publish(ctx, events.NewEvent(events.NodeForget, node))
 		if err != nil {
 			n.logger.Error("error publish node forget event", "error", err)

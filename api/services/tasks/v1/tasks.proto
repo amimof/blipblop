@@ -4,6 +4,7 @@ package services.tasks.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
@@ -50,6 +51,7 @@ service TaskService {
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
     option (google.api.http) = {put: "/api/v1/tasks/{id}/status"};
   }
+  rpc Condition(types.v1.ConditionRequest) returns (google.protobuf.Empty) {}
 }
 
 message Task {

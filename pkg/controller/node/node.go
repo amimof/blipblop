@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
@@ -154,18 +155,10 @@ func (c *Controller) Run(ctx context.Context) {
 		c.logger.Error("error retrieving version from runtime", "error", err)
 	}
 
-	// Update status once connected
-	err = c.clientset.NodeV1().Status().Update(
-		ctx,
-		nodeName, &nodesv1.Status{
-			Hostname: wrapperspb.String(hostname),
-			Runtime:  wrapperspb.String(runtimeVer),
-		},
-		"hostname",
-		"runtime",
-	)
-	if err != nil {
-		c.logger.Error("error setting node state", "error", err)
+	// Report node status with metadata
+	if node, err := c.clientset.NodeV1().Get(ctx, nodeName); err == nil {
+		reporter := condition.NewForResource(node)
+		_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).WithMetadata(map[string]string{"hostname": hostname, "runtime_version": runtimeVer}).True(condition.ReasonConnected))
 	}
 
 	// Start lease loop

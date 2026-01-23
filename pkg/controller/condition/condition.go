@@ -13,7 +13,10 @@ import (
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/services/node"
+	"github.com/amimof/voiyd/services/task"
 
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
@@ -52,46 +55,85 @@ func (c *Controller) Run(ctx context.Context) {
 	}
 }
 
-func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.ConditionReport) error {
-	c.logger.Debug("condition controller received a report", "resource", report.GetResourceId(), "observedGeneration", report.GetObservedGeneration())
+func (c *Controller) validateGeneration(observedGen, currentGen uint64) bool {
+	if observedGen != 0 && observedGen < currentGen {
+		return false
+	}
+	return true
+}
 
+func (c *Controller) onNodeCondition(ctx context.Context, report *typesv1.ConditionReport, n *nodesv1.Node) error {
 	resourceID := report.GetResourceId()
 	observedGen := report.GetObservedGeneration()
-
-	task, err := c.clientset.TaskV1().Get(ctx, resourceID)
-	if err != nil {
-		if errs.IsNotFound(err) {
-			c.logger.Warn("condition report for non-existent task", "task", resourceID)
-			return nil
-		}
-		return err
-	}
+	expectedGen := n.GetMeta().GetRevision()
 
 	// Validate generation (prevent stale updates)
-	currentGen := int64(task.GetMeta().GetRevision())
-	if observedGen != 0 && observedGen < currentGen {
+	if !c.validateGeneration(uint64(observedGen), expectedGen) {
 		c.logger.Warn("skipping stale condition report",
-			"task", resourceID,
+			"node", resourceID,
 			"observedGen", observedGen,
-			"currentGen", currentGen)
+			"currentGen", expectedGen)
 		return nil
 	}
 
 	// Convert ConditionReport to Condition
-	newCondition := reportToCondition(report, task)
-
-	// Get stuff from metadata
-	nodeID := getNodeFromReport(report)
-	pid := getPidFromReport(report)
-	id := getIDFromReport(report)
+	newCondition := reportToCondition(report, n.GetStatus().GetConditions())
 
 	// Merge with existing conditions
-	updatedConditions := mergeCondition(task.GetStatus().GetConditions(), newCondition)
+	updatedConditions := mergeCondition(n.GetStatus().GetConditions(), newCondition)
+
+	// Derive fields from metadata
+	hostname := getMetadataField(report, condition.NodeReady, "hostname")       // hostname
+	runtime := getMetadataField(report, condition.NodeReady, "runtime_version") // runtime_version
+	nodever := getMetadataField(report, condition.NodeReady, "node_version")    // node_version / upgraded_to
 
 	// Derive phase from conditions
 	phase := getPhaseFromConditions(updatedConditions)
 
-	// 6. Update Task status
+	// Update Node status
+	return c.clientset.NodeV1().Status().Update(
+		ctx,
+		resourceID,
+		&nodesv1.Status{
+			Conditions: updatedConditions,
+			Phase:      wrapperspb.String(phase),
+			Hostname:   hostname,
+			Runtime:    runtime,
+			Version:    nodever,
+		},
+		"conditions", "phase", "hostname", "runtime", "version",
+	)
+}
+
+func (c *Controller) onTaskCondition(ctx context.Context, report *typesv1.ConditionReport, t *tasksv1.Task) error {
+	resourceID := report.GetResourceId()
+	observedGen := report.GetObservedGeneration()
+	expectedGen := t.GetMeta().GetRevision()
+
+	// Validate generation (prevent stale updates)
+	if !c.validateGeneration(uint64(observedGen), expectedGen) {
+		c.logger.Warn("skipping stale condition report",
+			"task", resourceID,
+			"observedGen", observedGen,
+			"currentGen", expectedGen)
+		return nil
+	}
+
+	// Convert ConditionReport to Condition
+	newCondition := reportToCondition(report, t.GetStatus().GetConditions())
+
+	// Merge with existing conditions
+	updatedConditions := mergeCondition(t.GetStatus().GetConditions(), newCondition)
+
+	// Derive fields from metadata
+	nodeID := getNodeFromReport(report)
+	pid := getPidFromReport(report)
+	id := getIDFromReport(report)
+
+	// Derive phase from conditions
+	phase := getPhaseFromConditions(updatedConditions)
+
+	// Update Task status
 	return c.clientset.TaskV1().Status().Update(
 		ctx,
 		resourceID,
@@ -104,6 +146,47 @@ func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.Co
 		},
 		"conditions", "phase", "node", "id", "pid",
 	)
+}
+
+func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.ConditionReport, resourceVersion string) error {
+	c.logger.Debug("condition controller received a report", "resource_version", resourceVersion, "resource", report.GetResourceId(), "observedGeneration", report.GetObservedGeneration())
+
+	resourceID := report.GetResourceId()
+
+	switch resourceVersion {
+	case node.Version:
+		node, err := c.clientset.NodeV1().Get(ctx, resourceID)
+		if err != nil {
+			if errs.IsNotFound(err) {
+				c.logger.Warn("condition report for non-existent node", "node", resourceID)
+				return nil
+			}
+			return err
+		}
+		return c.onNodeCondition(ctx, report, node)
+	case task.Version:
+		task, err := c.clientset.TaskV1().Get(ctx, resourceID)
+		if err != nil {
+			if errs.IsNotFound(err) {
+				c.logger.Warn("condition report for non-existent task", "task", resourceID)
+				return nil
+			}
+			return err
+		}
+		return c.onTaskCondition(ctx, report, task)
+	}
+
+	return nil
+}
+
+func getMetadataField(report *typesv1.ConditionReport, t condition.Type, key string) *wrapperspb.StringValue {
+	if condition.Type(report.GetType()) == condition.Type(t) {
+		if v, ok := report.GetMetadata()[key]; ok {
+			return v
+		}
+		return wrapperspb.String("")
+	}
+	return nil
 }
 
 func getNodeFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
@@ -153,44 +236,13 @@ func getPhaseFromConditions(conds []*typesv1.Condition) string {
 	}
 
 	// Derive phase from most recent condition
-	return phaseFromCondition(mostRecent)
+	return string(condition.Reason(mostRecent.GetReason().GetValue()))
 }
 
-func phaseFromCondition(c *typesv1.Condition) string {
-	reason := condition.Reason(c.GetReason().GetValue())
-
-	// Map condition reason to phase
-	reasonToPhase := map[condition.Reason]string{
-		condition.ReasonScheduled:   consts.PHASESCHEDULING,
-		condition.ReasonPulling:     consts.PHASEPULLING,
-		condition.ReasonStarting:    consts.PHASESTARTING,
-		condition.ReasonRunning:     consts.PHASERUNNING,
-		condition.ReasonStopping:    consts.PHASESTOPPING,
-		condition.ReasonStopped:     consts.PHASESTOPPED,
-		condition.ReasonDeleting:    consts.PHASEDELETING,
-		condition.ReasonPullFailed:  consts.ERRIMAGEPULL,
-		condition.ReasonStartFailed: consts.ERREXEC,
-
-		condition.ReasonDetached:  "detached",
-		condition.ReasonDetaching: "detaching",
-
-		condition.ReasonDetachFailed: "ErrDetaching",
-		condition.ReasonAttached:     "attached",
-		condition.ReasonAttaching:    "attaching",
-		condition.ReasonAttachFailed: "ErrAttaching",
-	}
-
-	if phase, ok := reasonToPhase[reason]; ok {
-		return phase
-	}
-
-	return consts.PHASEUNKNOWN
-}
-
-func reportToCondition(report *typesv1.ConditionReport, task *tasksv1.Task) *typesv1.Condition {
+func reportToCondition(report *typesv1.ConditionReport, conditions []*typesv1.Condition) *typesv1.Condition {
 	// Find existing condition with same type to preserve last_transition_time if needed
 	var existingCondition *typesv1.Condition
-	for _, cond := range task.GetStatus().GetConditions() {
+	for _, cond := range conditions {
 		if cond.GetType().GetValue() == report.GetType() {
 			existingCondition = cond
 			break

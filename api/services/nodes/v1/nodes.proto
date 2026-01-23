@@ -4,13 +4,12 @@ package services.nodes.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/api/client.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/wrappers.proto";
 import "services/events/v1/events.proto";
-import "services/logs/v1/logs.proto";
 import "services/volumes/v1/volumes.proto";
+import "types/v1/conditions.proto";
 import "types/v1/meta.proto";
 
 option go_package = "github.com/amimof/voiyd/api/services/nodes/v1;nodes";
@@ -50,6 +49,7 @@ service NodeService {
     option (google.api.http) = {put: "/api/v1/nodes/{id}/status"};
   }
   rpc Upgrade(UpgradeRequest) returns (UpgradeResponse) {}
+  rpc Condition(types.v1.ConditionRequest) returns (google.protobuf.Empty) {}
 }
 
 message Node {
@@ -79,6 +79,7 @@ message Status {
   google.protobuf.StringValue hostname = 4;
   google.protobuf.StringValue runtime = 5;
   google.protobuf.StringValue version = 6;
+  repeated types.v1.Condition conditions = 7;
 }
 
 message IPStatus {

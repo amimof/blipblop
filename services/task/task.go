@@ -5,12 +5,14 @@ import (
 	"context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 const Version string = "task/v1"
@@ -76,6 +78,10 @@ func (c *TaskService) Patch(ctx context.Context, req *tasksv1.PatchRequest) (*ta
 
 func (c *TaskService) UpdateStatus(ctx context.Context, req *tasksv1.UpdateStatusRequest) (*tasksv1.UpdateStatusResponse, error) {
 	return c.local.UpdateStatus(ctx, req)
+}
+
+func (c *TaskService) Condition(ctx context.Context, req *typesv1.ConditionRequest) (*emptypb.Empty, error) {
+	return c.local.Condition(ctx, req)
 }
 
 func NewService(repo repository.TaskRepository, opts ...NewServiceOption) *TaskService {

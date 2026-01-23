@@ -9,9 +9,13 @@ import (
 
 	"github.com/jarcoal/httpmock"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/services/node"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
@@ -75,14 +79,51 @@ func TestDownloadBinary_Success(t *testing.T) {
 	nodeMockClient := nodesclientv1.NewMockNodeServiceClient(ctrl)
 	nodesV1 := nodesclientv1.NewClientV1(nodesclientv1.WithClient(nodeMockClient))
 
-	// Expect the status update to DOWNLOADING on the mock client
+	// Mock the Get() call that retrieves the node before reporting conditions
 	nodeMockClient.
 		EXPECT().
-		UpdateStatus(
+		Get(
 			gomock.Any(), // context
-			gomock.Any(), // grpc request, see exact type in generated code
+			gomock.Eq(&nodesv1.GetRequest{Id: "test-node"}),
 		).
-		Return(&nodesv1.UpdateStatusResponse{}, nil).
+		Return(&nodesv1.GetResponse{
+			Node: &nodesv1.Node{
+				Meta: &typesv1.Meta{
+					Name:     "test-node",
+					Revision: 1,
+				},
+			},
+		}, nil).
+		Times(1)
+
+	// Expect condition report for NodeReady=False with ReasonUpgrading
+	nodeMockClient.
+		EXPECT().
+		Condition(
+			gomock.Any(), // context
+			gomock.Any(), // ConditionRequest - we validate it in DoAndReturn
+			gomock.Any(), // grpc.CallOption
+		).
+		DoAndReturn(func(ctx context.Context, req *typesv1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+			// Validate the condition request
+			if req.GetResourceVersion() != node.Version {
+				t.Errorf("expected resource_version=%s, got %s", node.Version, req.GetResourceVersion())
+			}
+			report := req.GetReport()
+			if report.GetResourceId() != "test-node" {
+				t.Errorf("expected resource_id=test-node, got %s", report.GetResourceId())
+			}
+			if report.GetType() != string(condition.NodeReady) {
+				t.Errorf("expected condition type=%s, got %s", condition.NodeReady, report.GetType())
+			}
+			if report.GetStatus() != typesv1.ConditionStatus_CONDITION_STATUS_FALSE {
+				t.Errorf("expected status=FALSE, got %v", report.GetStatus())
+			}
+			if report.GetReason() != string(condition.ReasonUpgrading) {
+				t.Errorf("expected reason=%s, got %s", condition.ReasonUpgrading, report.GetReason())
+			}
+			return &emptypb.Empty{}, nil
+		}).
 		Times(1)
 
 	// Setup http client and activate httpmock on it

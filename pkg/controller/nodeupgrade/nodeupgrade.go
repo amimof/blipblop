@@ -13,13 +13,12 @@ import (
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type NewOption func(c *Controller)
@@ -47,7 +46,7 @@ func WithDownloadPath(p string) NewOption {
 	}
 }
 
-func WithHttpClient(cl *http.Client) NewOption {
+func WithHTTPClient(cl *http.Client) NewOption {
 	return func(c *Controller) {
 		c.httpClient = cl
 	}
@@ -101,22 +100,21 @@ func (c *Controller) Run(ctx context.Context) {
 
 	c.logger.Debug("node has version", "version", c.nodeVersion.version, "commit", c.nodeVersion.commit, "branch", c.nodeVersion.branch, "goversion", c.nodeVersion.goversion)
 
-	// Update status once connected
-	err := c.clientset.NodeV1().Status().Update(
-		ctx,
-		nodeName, &nodesv1.Status{
-			Version: wrapperspb.String(c.nodeVersion.version),
-		},
-		"version",
-	)
-	if err != nil {
-		c.logger.Error("error setting node state", "error", err)
+	// Report node status with metadata
+	if node, err := c.clientset.NodeV1().Get(ctx, nodeName); err == nil {
+		_ = c.clientset.NodeV1().Condition(
+			ctx,
+			condition.NewForResource(node).
+				Type(condition.NodeReady).
+				WithMetadata(map[string]string{"node_version": c.nodeVersion.version}).
+				True(condition.ReasonConnected))
 	}
 
-	c.binPath, err = os.Executable()
+	binPath, err := os.Executable()
 	if err != nil {
 		c.logger.Error("error getting executable name from environment", "error", err)
 	}
+	c.binPath = binPath
 
 	// Handle errors
 	for {
@@ -230,16 +228,16 @@ func (c *Controller) downloadBinary(ctx context.Context, ver, arch string) (stri
 		return "", err
 	}
 
-	err = c.clientset.NodeV1().Status().Update(
-		ctx,
-		nodeName, &nodesv1.Status{
-			Phase: wrapperspb.String(consts.PHASEDOWNLOADING),
-		},
-		"phase", "status",
-	)
+	node, err := c.clientset.NodeV1().Get(ctx, nodeName)
 	if err != nil {
 		c.failUpgrade(ctx, err)
 		return "", err
+	}
+
+	reporter := condition.NewForResource(node)
+
+	if err := c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).False(condition.ReasonUpgrading)); err != nil {
+		c.logger.Error("error setting condition", "error", err)
 	}
 
 	binResp, err := c.httpClient.Get(assetURL)
@@ -330,18 +328,15 @@ func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error
 	c.logger.Debug("received node upgrade request", "target_version", req.GetTargetVersion(), "current_version", c.nodeVersion.version)
 
 	nodeName := c.node.GetMeta().GetName()
-
-	// Update status as soon as upgrade begins
-	err = c.clientset.NodeV1().Status().Update(
-		ctx,
-		nodeName, &nodesv1.Status{
-			Phase: wrapperspb.String(consts.PHASEUPGRADING),
-		},
-		"phase",
-	)
+	node, err := c.clientset.NodeV1().Get(ctx, nodeName)
 	if err != nil {
-		c.logger.Error("error setting node state", "error", err)
+		c.failUpgrade(ctx, err)
+		return err
 	}
+
+	// Update with upgrade success
+	reporter := condition.NewForResource(node)
+	_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).False(condition.ReasonUpgrading))
 
 	// Parse the version from flag
 	ver, err := cmdutil.ParseVersion(req.GetTargetVersion())
@@ -363,18 +358,8 @@ func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error
 		return err
 	}
 
-	// Update status once connected
-	err = c.clientset.NodeV1().Status().Update(
-		ctx,
-		nodeName, &nodesv1.Status{
-			Phase:  wrapperspb.String(consts.PHASEREADY),
-			Status: wrapperspb.String(""),
-		},
-		"phase", "status",
-	)
-	if err != nil {
-		return err
-	}
+	// Update with upgrade success
+	_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).WithMetadata(map[string]string{"upgraded_to": ver}).True(condition.ReasonUpgraded))
 
 	// Terminate program
 	os.Exit(0)
@@ -382,16 +367,17 @@ func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error
 	return nil
 }
 
-func (c *Controller) failUpgrade(ctx context.Context, err error) {
+func (c *Controller) failUpgrade(ctx context.Context, upgradeErr error) {
 	nodeName := c.node.GetMeta().GetName()
-	_ = c.clientset.NodeV1().Status().Update(
-		ctx,
-		nodeName, &nodesv1.Status{
-			Phase:  wrapperspb.String(consts.ERRUPGRADING),
-			Status: wrapperspb.String(err.Error()),
-		},
-		"phase", "status",
-	)
+	c.logger.Error("upgrade failed with error", "error", upgradeErr, "node", nodeName)
+
+	node, err := c.clientset.NodeV1().Get(ctx, nodeName)
+	if err != nil {
+		c.logger.Error("error setting node condition after upgrade failed", "error", err, "node", nodeName)
+		return
+	}
+	reporter := condition.NewForResource(node)
+	_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).False(condition.ReasonUpgradeFailed, upgradeErr.Error()))
 }
 
 func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) *Controller {
