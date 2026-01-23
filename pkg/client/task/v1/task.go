@@ -13,6 +13,7 @@ import (
 	"github.com/amimof/voiyd/services/task"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 const (
@@ -45,6 +46,7 @@ type ClientV1 interface {
 	Get(context.Context, string) (*tasksv1.Task, error)
 	Delete(context.Context, string) error
 	List(context.Context, ...labels.Label) ([]*tasksv1.Task, error)
+	Condition(context.Context, ...*typesv1.ConditionReport) error
 }
 
 type StatusClientV1 interface {
@@ -217,6 +219,15 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (c *clientV1) Condition(ctx context.Context, reports ...*typesv1.ConditionReport) error {
+	for _, r := range reports {
+		if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: task.Version, Report: r}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func NewClientV1(opts ...CreateOption) ClientV1 {
 	c := &clientV1{}
 	for _, opt := range opts {
@@ -225,10 +236,10 @@ func NewClientV1(opts ...CreateOption) ClientV1 {
 	return c
 }
 
-func NewClientV1WithConn(conn *grpc.ClientConn, clientId string, opts ...CreateOption) ClientV1 {
+func NewClientV1WithConn(conn *grpc.ClientConn, clientID string, opts ...CreateOption) ClientV1 {
 	c := &clientV1{
 		Client: tasksv1.NewTaskServiceClient(conn),
-		id:     clientId,
+		id:     clientID,
 	}
 
 	for _, opt := range opts {

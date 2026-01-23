@@ -78,7 +78,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
 				return err
 			}
-			return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
+			return c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
 		}
 
 		md := map[string]string{
@@ -86,7 +86,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 		}
 
 		// Update task status
-		_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
 
 	}
 
@@ -111,7 +111,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 	}
 
 	// Update task status
-	_ = c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+	_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
 
 	// Publish start event
 	return c.exchange.Forward(ctx, events.NewEvent(events.Schedule, &eventsv1.ScheduleRequest{Task: taskpb, Node: nodepb}))
@@ -205,7 +205,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 			}
 
 			reporter := condition.NewReportFor(task)
-			return c.clientset.EventV1().Report(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
+			return c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
 		}
 
 		// Skip if task is running on another node

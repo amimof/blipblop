@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/amimof/voiyd/pkg/repository"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 )
 
 type local struct {
@@ -31,6 +33,15 @@ type local struct {
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
+}
+
+// Condition implements [tasks.TaskServiceClient].
+func (l *local) Condition(ctx context.Context, req *types.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	err := l.exchange.Publish(ctx, events.NewEvent(events.ConditionReported, req))
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 var (

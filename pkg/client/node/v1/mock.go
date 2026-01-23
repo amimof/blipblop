@@ -14,8 +14,10 @@ import (
 	reflect "reflect"
 
 	nodes "github.com/amimof/voiyd/api/services/nodes/v1"
+	types "github.com/amimof/voiyd/api/types/v1"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // MockNodeServiceClient is a mock of NodeServiceClient interface.
@@ -40,6 +42,26 @@ func NewMockNodeServiceClient(ctrl *gomock.Controller) *MockNodeServiceClient {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNodeServiceClient) EXPECT() *MockNodeServiceClientMockRecorder {
 	return m.recorder
+}
+
+// Condition mocks base method.
+func (m *MockNodeServiceClient) Condition(ctx context.Context, in *types.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Condition", varargs...)
+	ret0, _ := ret[0].(*emptypb.Empty)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Condition indicates an expected call of Condition.
+func (mr *MockNodeServiceClientMockRecorder) Condition(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Condition", reflect.TypeOf((*MockNodeServiceClient)(nil).Condition), varargs...)
 }
 
 // Connect mocks base method.

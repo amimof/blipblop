@@ -49,14 +49,14 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 			WithMetadata(md).
 			True(condition.ReasonScheduled)
 
-		_ = c.clientset.EventV1().Report(ctx, report.Report())
+		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
 
 		report.
 			Type(condition.TaskReady).
 			WithMetadata(md).
 			True(condition.ReasonRunning)
 
-		return c.clientset.EventV1().Report(ctx, report.Report())
+		return c.clientset.TaskV1().Condition(ctx, report.Report())
 	}
 
 	return nil
@@ -96,7 +96,7 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		WithMetadata(md).
 		False(condition.ReasonStopped, exitStatus)
 
-	return c.clientset.EventV1().Report(ctx, taskReport)
+	return c.clientset.TaskV1().Condition(ctx, taskReport)
 }
 
 func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Event) error {
@@ -129,5 +129,5 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		WithMetadata(md).
 		False(condition.ReasonStopped)
 
-	return c.clientset.EventV1().Report(ctx, taskReport)
+	return c.clientset.TaskV1().Condition(ctx, taskReport)
 }

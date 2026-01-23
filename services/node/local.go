@@ -12,15 +12,18 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/amimof/voiyd/api/services/nodes/v1"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
+
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type local struct {
@@ -31,8 +34,8 @@ type local struct {
 }
 
 var (
-	_      nodes.NodeServiceClient = &local{}
-	tracer                         = otel.GetTracerProvider().Tracer("voiyd-server")
+	_      nodesv1.NodeServiceClient = &local{}
+	tracer                           = otel.GetTracerProvider().Tracer("voiyd-server")
 )
 
 func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
@@ -45,11 +48,11 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
-func merge(base, patch *nodes.Node) *nodes.Node {
+func merge(base, patch *nodesv1.Node) *nodesv1.Node {
 	return protoutils.StrategicMerge(base, patch)
 }
 
-func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) error {
+func applyMaskedUpdate(dst, src *nodesv1.Status, mask *fieldmaskpb.FieldMask) error {
 	if mask == nil || len(mask.Paths) == 0 {
 		return status.Error(codes.InvalidArgument, "update_mask is required")
 	}
@@ -84,6 +87,11 @@ func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) erro
 				continue
 			}
 			dst.Version = src.Version
+		case "conditions":
+			if src.Conditions == nil {
+				continue
+			}
+			dst.Conditions = src.Conditions
 		case "ip.dns":
 			if src.Ip.Dns == nil {
 				continue
@@ -107,7 +115,7 @@ func applyMaskedUpdate(dst, src *nodes.Status, mask *fieldmaskpb.FieldMask) erro
 	return nil
 }
 
-func (l *local) Get(ctx context.Context, req *nodes.GetRequest, _ ...grpc.CallOption) (*nodes.GetResponse, error) {
+func (l *local) Get(ctx context.Context, req *nodesv1.GetRequest, _ ...grpc.CallOption) (*nodesv1.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Get")
 	defer span.End()
 
@@ -115,12 +123,12 @@ func (l *local) Get(ctx context.Context, req *nodes.GetRequest, _ ...grpc.CallOp
 	if err != nil {
 		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
 	}
-	return &nodes.GetResponse{
+	return &nodesv1.GetResponse{
 		Node: node,
 	}, nil
 }
 
-func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.CallOption) (*nodes.CreateResponse, error) {
+func (l *local) Create(ctx context.Context, req *nodesv1.CreateRequest, _ ...grpc.CallOption) (*nodesv1.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Create")
 	defer span.End()
 
@@ -139,7 +147,7 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.
 
 	// Initialize status field if empty
 	if node.GetStatus() == nil {
-		node.Status = &nodes.Status{}
+		node.Status = &nodesv1.Status{}
 	}
 
 	err := l.Repo().Create(ctx, node)
@@ -156,12 +164,12 @@ func (l *local) Create(ctx context.Context, req *nodes.CreateRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeID, "event", "NodeCreate")
 	}
-	return &nodes.CreateResponse{
+	return &nodesv1.CreateResponse{
 		Node: node,
 	}, nil
 }
 
-func (l *local) Delete(ctx context.Context, req *nodes.DeleteRequest, _ ...grpc.CallOption) (*nodes.DeleteResponse, error) {
+func (l *local) Delete(ctx context.Context, req *nodesv1.DeleteRequest, _ ...grpc.CallOption) (*nodesv1.DeleteResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Delete")
 	defer span.End()
 
@@ -186,12 +194,12 @@ func (l *local) Delete(ctx context.Context, req *nodes.DeleteRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "ContainerDelete")
 	}
-	return &nodes.DeleteResponse{
+	return &nodesv1.DeleteResponse{
 		Id: req.Id,
 	}, nil
 }
 
-func (l *local) List(ctx context.Context, req *nodes.ListRequest, _ ...grpc.CallOption) (*nodes.ListResponse, error) {
+func (l *local) List(ctx context.Context, req *nodesv1.ListRequest, _ ...grpc.CallOption) (*nodesv1.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.List")
 	defer span.End()
 
@@ -199,12 +207,12 @@ func (l *local) List(ctx context.Context, req *nodes.ListRequest, _ ...grpc.Call
 	if err != nil {
 		return nil, err
 	}
-	return &nodes.ListResponse{
+	return &nodesv1.ListResponse{
 		Nodes: nodeList,
 	}, nil
 }
 
-func (l *local) UpdateStatus(ctx context.Context, req *nodes.UpdateStatusRequest, opts ...grpc.CallOption) (*nodes.UpdateStatusResponse, error) {
+func (l *local) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatusRequest, opts ...grpc.CallOption) (*nodesv1.UpdateStatusResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.UpdateStatus")
 	defer span.End()
 
@@ -218,7 +226,7 @@ func (l *local) UpdateStatus(ctx context.Context, req *nodes.UpdateStatusRequest
 	}
 
 	// Apply mask safely
-	base := proto.Clone(existingContainer.Status).(*nodes.Status)
+	base := proto.Clone(existingContainer.Status).(*nodesv1.Status)
 	if err := applyMaskedUpdate(base, req.Status, req.UpdateMask); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
 	}
@@ -228,13 +236,13 @@ func (l *local) UpdateStatus(ctx context.Context, req *nodes.UpdateStatusRequest
 		return nil, err
 	}
 
-	return &nodes.UpdateStatusResponse{
+	return &nodesv1.UpdateStatusResponse{
 		Id: existingContainer.GetMeta().GetName(),
 	}, nil
 }
 
 // Patch implements nodes.NodeServiceClient.
-func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc.CallOption) (*nodes.PatchResponse, error) {
+func (l *local) Patch(ctx context.Context, req *nodesv1.PatchRequest, opts ...grpc.CallOption) (*nodesv1.PatchResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Patch")
 	defer span.End()
 
@@ -262,7 +270,7 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 	}
 
 	// TODO: Handle errors
-	updated := maskedUpdate.(*nodes.Node)
+	updated := maskedUpdate.(*nodesv1.Node)
 	existing = merge(existing, updated)
 
 	// Update the container
@@ -297,12 +305,12 @@ func (l *local) Patch(ctx context.Context, req *nodes.PatchRequest, opts ...grpc
 		}
 	}
 
-	return &nodes.PatchResponse{
+	return &nodesv1.PatchResponse{
 		Node: existing,
 	}, nil
 }
 
-func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.CallOption) (*nodes.UpdateResponse, error) {
+func (l *local) Update(ctx context.Context, req *nodesv1.UpdateRequest, _ ...grpc.CallOption) (*nodesv1.UpdateResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Update")
 	defer span.End()
 
@@ -359,12 +367,12 @@ func (l *local) Update(ctx context.Context, req *nodes.UpdateRequest, _ ...grpc.
 		}
 	}
 
-	return &nodes.UpdateResponse{
+	return &nodesv1.UpdateResponse{
 		Node: node,
 	}, nil
 }
 
-func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.CallOption) (*nodes.JoinResponse, error) {
+func (l *local) Join(ctx context.Context, req *nodesv1.JoinRequest, _ ...grpc.CallOption) (*nodesv1.JoinResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Join")
 	defer span.End()
 
@@ -374,7 +382,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			l.logger.Debug("creating node that jonied", "nodeID", nodeID)
-			if _, err := l.Create(ctx, &nodes.CreateRequest{Node: req.GetNode()}); err != nil {
+			if _, err := l.Create(ctx, &nodesv1.CreateRequest{Node: req.GetNode()}); err != nil {
 				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeID)
 			}
 		} else {
@@ -385,7 +393,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	// Perform update if node exists
 	if err == nil {
 		l.logger.Debug("updating node that jonied", "nodeID", nodeID)
-		res, err := l.Update(ctx, &nodes.UpdateRequest{Id: nodeID, Node: req.GetNode()})
+		res, err := l.Update(ctx, &nodesv1.UpdateRequest{Id: nodeID, Node: req.GetNode()})
 		if err != nil {
 			return nil, err
 		}
@@ -394,7 +402,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 		}
 	}
 
-	resp := &nodes.JoinResponse{
+	resp := &nodesv1.JoinResponse{
 		Id: req.GetNode().GetMeta().GetName(),
 	}
 
@@ -411,7 +419,7 @@ func (l *local) Join(ctx context.Context, req *nodes.JoinRequest, _ ...grpc.Call
 	return resp, nil
 }
 
-func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.CallOption) (*nodes.ForgetResponse, error) {
+func (l *local) Forget(ctx context.Context, req *nodesv1.ForgetRequest, _ ...grpc.CallOption) (*nodesv1.ForgetResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Forget")
 	defer span.End()
 
@@ -423,7 +431,7 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 		return nil, err
 	}
 
-	_, err = l.Delete(ctx, &nodes.DeleteRequest{Id: req.GetId()})
+	_, err = l.Delete(ctx, &nodesv1.DeleteRequest{Id: req.GetId()})
 	if err != nil {
 		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
 	}
@@ -437,16 +445,16 @@ func (l *local) Forget(ctx context.Context, req *nodes.ForgetRequest, _ ...grpc.
 	if err != nil {
 		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
 	}
-	return &nodes.ForgetResponse{
+	return &nodesv1.ForgetResponse{
 		Id: req.Id,
 	}, nil
 }
 
-func (l *local) Connect(ctx context.Context, opt ...grpc.CallOption) (nodes.NodeService_ConnectClient, error) {
+func (l *local) Connect(ctx context.Context, opt ...grpc.CallOption) (nodesv1.NodeService_ConnectClient, error) {
 	return nil, nil
 }
 
-func (l *local) Upgrade(ctx context.Context, req *nodes.UpgradeRequest, _ ...grpc.CallOption) (*nodes.UpgradeResponse, error) {
+func (l *local) Upgrade(ctx context.Context, req *nodesv1.UpgradeRequest, _ ...grpc.CallOption) (*nodesv1.UpgradeResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.Upgrade")
 	defer span.End()
 
@@ -463,7 +471,15 @@ func (l *local) Upgrade(ctx context.Context, req *nodes.UpgradeRequest, _ ...grp
 		return nil, l.handleError(err, "error publishing UPGRADE event", "name", req.GetNodeSelector(), "event", "NodeUpgrade")
 	}
 
-	return &nodes.UpgradeResponse{}, nil
+	return &nodesv1.UpgradeResponse{}, nil
+}
+
+func (l *local) Condition(ctx context.Context, req *typesv1.ConditionRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
+	err := l.exchange.Publish(ctx, events.NewEvent(events.ConditionReported, req))
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (l *local) Repo() repository.NodeRepository {

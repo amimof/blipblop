@@ -33,3 +33,8 @@ enum ConditionStatus {
   CONDITION_STATUS_FALSE = 2;
   CONDITION_STATUS_UNKNOWN = 3;
 }
+
+message ConditionRequest {
+  string resource_version = 1 [(buf.validate.field).string.min_len = 1];
+  types.v1.ConditionReport report = 2;
+}

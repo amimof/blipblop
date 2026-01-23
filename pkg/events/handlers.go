@@ -2,6 +2,8 @@ package events
 
 import (
 	"context"
+	"runtime"
+	"strings"
 
 	"github.com/amimof/voiyd/pkg/logger"
 
@@ -19,7 +21,7 @@ type (
 	VolumeHandlerFunc     func(context.Context, *volumesv1.Volume) error
 	NodeHandlerFunc       func(context.Context, *nodesv1.Node) error
 	LeaseHandlerFunc      func(context.Context, *leasesv1.Lease) error
-	ConditionHandlerFunc  func(context.Context, *typesv1.ConditionReport) error
+	ConditionHandlerFunc  func(context.Context, *typesv1.ConditionReport, string) error
 	SchedulingHandlerFunc func(context.Context, *tasksv1.Task, *nodesv1.Node) error
 )
 
@@ -27,11 +29,35 @@ type Handler interface {
 	Handle(context.Context, *eventsv1.Event) error
 }
 
+// getCallerInfo gets the file, line, and function name of the caller
+func getCallerInfo(skip int) (string, int, string) {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return "unknown_file", 0, "unknown_func"
+	}
+
+	// Get function name
+	funcName := runtime.FuncForPC(pc).Name()
+	funcName = trimFunctionName(funcName)
+
+	// Trim the file path to only the base name
+	fileParts := strings.Split(file, "/")
+	file = fileParts[len(fileParts)-1]
+
+	return file, line, funcName
+}
+
+func trimFunctionName(funcName string) string {
+	funcParts := strings.Split(funcName, "/")
+	return funcParts[len(funcParts)-1]
+}
+
 func HandleErrors(log logger.Logger, h HandlerFunc) HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		err := h(ctx, ev)
 		if err != nil {
-			log.Error("handler returned error", "error", err, "event", ev.GetType().String())
+			_, _, funcName := getCallerInfo(2)
+			log.Error("handler returned error", "error", err, "event", ev.GetType().String(), "handler", funcName)
 			return err
 		}
 		return nil
@@ -130,12 +156,13 @@ func HandleScheduling(h SchedulingHandlerFunc) HandlerFunc {
 
 func HandleConditionReport(h ConditionHandlerFunc) HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
-		var report typesv1.ConditionReport
-		err := ev.GetObject().UnmarshalTo(&report)
+		var req typesv1.ConditionRequest
+		err := ev.GetObject().UnmarshalTo(&req)
 		if err != nil {
 			return err
 		}
-		return h(ctx, &report)
+
+		return h(ctx, req.GetReport(), req.GetResourceVersion())
 	}
 }
 

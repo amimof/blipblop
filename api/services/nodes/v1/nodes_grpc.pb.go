@@ -8,10 +8,12 @@ package nodes
 
 import (
 	context "context"
-	v1 "github.com/amimof/voiyd/api/services/events/v1"
+	v11 "github.com/amimof/voiyd/api/services/events/v1"
+	v1 "github.com/amimof/voiyd/api/types/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -34,6 +36,7 @@ type NodeServiceClient interface {
 	Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 	Upgrade(ctx context.Context, in *UpgradeRequest, opts ...grpc.CallOption) (*UpgradeResponse, error)
+	Condition(ctx context.Context, in *v1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type nodeServiceClient struct {
@@ -126,8 +129,8 @@ func (c *nodeServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption
 }
 
 type NodeService_ConnectClient interface {
-	Send(*v1.Event) error
-	Recv() (*v1.Event, error)
+	Send(*v11.Event) error
+	Recv() (*v11.Event, error)
 	grpc.ClientStream
 }
 
@@ -135,12 +138,12 @@ type nodeServiceConnectClient struct {
 	grpc.ClientStream
 }
 
-func (x *nodeServiceConnectClient) Send(m *v1.Event) error {
+func (x *nodeServiceConnectClient) Send(m *v11.Event) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *nodeServiceConnectClient) Recv() (*v1.Event, error) {
-	m := new(v1.Event)
+func (x *nodeServiceConnectClient) Recv() (*v11.Event, error) {
+	m := new(v11.Event)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -165,6 +168,15 @@ func (c *nodeServiceClient) Upgrade(ctx context.Context, in *UpgradeRequest, opt
 	return out, nil
 }
 
+func (c *nodeServiceClient) Condition(ctx context.Context, in *v1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Condition", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NodeServiceServer is the server API for NodeService service.
 // All implementations must embed UnimplementedNodeServiceServer
 // for forward compatibility
@@ -180,6 +192,7 @@ type NodeServiceServer interface {
 	Connect(NodeService_ConnectServer) error
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	Upgrade(context.Context, *UpgradeRequest) (*UpgradeResponse, error)
+	Condition(context.Context, *v1.ConditionRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedNodeServiceServer()
 }
 
@@ -219,6 +232,9 @@ func (UnimplementedNodeServiceServer) UpdateStatus(context.Context, *UpdateStatu
 }
 func (UnimplementedNodeServiceServer) Upgrade(context.Context, *UpgradeRequest) (*UpgradeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Upgrade not implemented")
+}
+func (UnimplementedNodeServiceServer) Condition(context.Context, *v1.ConditionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Condition not implemented")
 }
 func (UnimplementedNodeServiceServer) mustEmbedUnimplementedNodeServiceServer() {}
 
@@ -382,8 +398,8 @@ func _NodeService_Connect_Handler(srv interface{}, stream grpc.ServerStream) err
 }
 
 type NodeService_ConnectServer interface {
-	Send(*v1.Event) error
-	Recv() (*v1.Event, error)
+	Send(*v11.Event) error
+	Recv() (*v11.Event, error)
 	grpc.ServerStream
 }
 
@@ -391,12 +407,12 @@ type nodeServiceConnectServer struct {
 	grpc.ServerStream
 }
 
-func (x *nodeServiceConnectServer) Send(m *v1.Event) error {
+func (x *nodeServiceConnectServer) Send(m *v11.Event) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *nodeServiceConnectServer) Recv() (*v1.Event, error) {
-	m := new(v1.Event)
+func (x *nodeServiceConnectServer) Recv() (*v11.Event, error) {
+	m := new(v11.Event)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -435,6 +451,24 @@ func _NodeService_Upgrade_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeServiceServer).Upgrade(ctx, req.(*UpgradeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeService_Condition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(v1.ConditionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServiceServer).Condition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.nodes.v1.NodeService/Condition",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServiceServer).Condition(ctx, req.(*v1.ConditionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -485,6 +519,10 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Upgrade",
 			Handler:    _NodeService_Upgrade_Handler,
+		},
+		{
+			MethodName: "Condition",
+			Handler:    _NodeService_Condition_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

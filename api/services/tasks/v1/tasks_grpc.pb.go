@@ -8,9 +8,11 @@ package tasks
 
 import (
 	context "context"
+	v1 "github.com/amimof/voiyd/api/types/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -31,6 +33,7 @@ type TaskServiceClient interface {
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
 	Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*KillResponse, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
+	Condition(ctx context.Context, in *v1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type taskServiceClient struct {
@@ -122,6 +125,15 @@ func (c *taskServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRe
 	return out, nil
 }
 
+func (c *taskServiceClient) Condition(ctx context.Context, in *v1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/services.tasks.v1.TaskService/Condition", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TaskServiceServer is the server API for TaskService service.
 // All implementations must embed UnimplementedTaskServiceServer
 // for forward compatibility
@@ -135,6 +147,7 @@ type TaskServiceServer interface {
 	Start(context.Context, *StartRequest) (*StartResponse, error)
 	Kill(context.Context, *KillRequest) (*KillResponse, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
+	Condition(context.Context, *v1.ConditionRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedTaskServiceServer()
 }
 
@@ -168,6 +181,9 @@ func (UnimplementedTaskServiceServer) Kill(context.Context, *KillRequest) (*Kill
 }
 func (UnimplementedTaskServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
+}
+func (UnimplementedTaskServiceServer) Condition(context.Context, *v1.ConditionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Condition not implemented")
 }
 func (UnimplementedTaskServiceServer) mustEmbedUnimplementedTaskServiceServer() {}
 
@@ -344,6 +360,24 @@ func _TaskService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TaskService_Condition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(v1.ConditionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskServiceServer).Condition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.tasks.v1.TaskService/Condition",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskServiceServer).Condition(ctx, req.(*v1.ConditionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TaskService_ServiceDesc is the grpc.ServiceDesc for TaskService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -386,6 +420,10 @@ var TaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateStatus",
 			Handler:    _TaskService_UpdateStatus_Handler,
+		},
+		{
+			MethodName: "Condition",
+			Handler:    _TaskService_Condition_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -15,6 +15,7 @@ const (
 	NetworkReady  Type = "NetworkReady"
 	TaskReady     Type = "TaskReady"
 	TaskScheduled Type = "TaskScheduled"
+	NodeReady     Type = "NodeReady"
 
 	ReasonPulling    Reason = "Pulling"
 	ReasonPulled     Reason = "Pulled"
@@ -50,6 +51,18 @@ const (
 	ReasonScheduling       Reason = "Scheduling"
 	ReasonScheduled        Reason = "Scheduled"
 	ReasonSchedulingFailed Reason = "SchedulingFailed"
+
+	ReasonConnecting       Reason = "Connecting"
+	ReasonConnected        Reason = "Connected"
+	ReasonConnectionFailed Reason = "ConnectionFailed"
+
+	ReasonDisconnecting  Reason = "Disconnecting"
+	ReasonDisconnected   Reason = "Disconnected"
+	ReasonDisconntFailed Reason = "DisconnectFailed"
+
+	ReasonUpgrading     Reason = "Upgrading"
+	ReasonUpgraded      Reason = "Upgraded"
+	ReasonUpgradeFailed Reason = "UpgradeFailed"
 )
 
 type (
@@ -59,7 +72,6 @@ type (
 
 type Report struct {
 	report *typesv1.ConditionReport
-	// assertions []*Assertion
 }
 
 type Resource interface {

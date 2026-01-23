@@ -13,14 +13,15 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/services/node"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type CreateOption func(c *clientV1)
@@ -49,6 +50,7 @@ type ClientV1 interface {
 	Connect(context.Context, string, chan *eventsv1.Event, chan error) error
 	Upgrade(context.Context, string, string) error
 	UpgradeAll(context.Context, map[string]string, string) error
+	Condition(context.Context, ...*typesv1.ConditionReport) error
 }
 
 type StatusClientV1 interface {
@@ -181,19 +183,18 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 			continue
 		}
 
-		// log.Println("Connected to stream")
-		c.logger.Info("connected to stream", "node", nodeName)
+		c.logger.Info("connected to server stream")
 
 		// Update status once connected
-		err = c.Status().Update(
-			ctx,
-			nodeName, &nodesv1.Status{
-				Phase: wrapperspb.String(consts.PHASEREADY),
-			},
-			"phase",
-		)
+		node, err := c.Get(ctx, nodeName)
 		if err != nil {
-			c.logger.Error("error setting node state", "error", err)
+			return err
+		}
+
+		reporter := condition.NewForResource(node)
+		err = c.Condition(ctx, reporter.Type(condition.NodeReady).True(condition.ReasonConnected))
+		if err != nil {
+			return err
 		}
 
 		// Stream handling
@@ -229,6 +230,15 @@ func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, v
 		TargetVersion: version,
 	})
 	return err
+}
+
+func (c *clientV1) Condition(ctx context.Context, reports ...*typesv1.ConditionReport) error {
+	for _, r := range reports {
+		if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: node.Version, Report: r}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodesv1.NodeService_ConnectClient, error) {
