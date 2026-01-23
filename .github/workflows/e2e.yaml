@@ -1,0 +1,121 @@
+name: E2E Kubernetes
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.3
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          # Install jq for JSON processing
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Build voiyd binaries
+        run: |
+          make all
+
+      - name: Build container image
+        run: |
+          docker build -t ghcr.io/amimof/voiyd:e2e-test .
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: voiyd-e2e
+          config: hack/e2e/kind-config.yaml
+          wait: 5m
+
+      - name: Load images into Kind
+        run: |
+          kind load docker-image ghcr.io/amimof/voiyd:e2e-test --name voiyd-e2e
+
+      - name: Deploy voiyd components
+        run: |
+          bash hack/e2e/scripts/deploy-voiyd.sh
+
+      - name: Wait for components to be ready
+        run: |
+          bash hack/e2e/scripts/wait-for-ready.sh
+
+      - name: Display cluster info
+        run: |
+          echo "=== Kubernetes Nodes ==="
+          kubectl get nodes -o wide
+          echo ""
+          echo "=== Voiyd Pods ==="
+          kubectl get pods -n voiyd -o wide
+          echo ""
+          echo "=== Voiyd Nodes ==="
+          kubectl exec -n voiyd voiydctl -- voiydctl get nodes || true
+
+      - name: Run e2e tests
+        run: |
+          bash hack/e2e/scripts/run-all-tests.sh
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Collecting diagnostic information ==="
+
+          echo "=== Pods Status ==="
+          kubectl get pods -n voiyd -o wide
+
+          echo ""
+          echo "=== Voiyd Server Logs ==="
+          kubectl logs -n voiyd -l app=voiyd-server --tail=500
+
+          echo ""
+          echo "=== Voiyd Node Logs ==="
+          kubectl logs -n voiyd -l app=voiyd-node -c node --tail=500 --prefix=true
+
+          echo ""
+          echo "=== Containerd Logs ==="
+          kubectl logs -n voiyd -l app=voiyd-node -c containerd --tail=200 --prefix=true || true
+
+          echo ""
+          echo "=== Pod Descriptions ==="
+          kubectl describe pods -n voiyd
+
+          echo ""
+          echo "=== Voiyd Nodes ==="
+          kubectl exec -n voiyd voiydctl -- voiydctl get nodes || true
+
+          echo ""
+          echo "=== Voiyd Tasks ==="
+          kubectl exec -n voiyd voiydctl -- voiydctl get tasks || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: hack/e2e/results/
+          retention-days: 30
+
+      - name: Cleanup
+        if: always()
+        run: |
+          bash hack/e2e/scripts/teardown-cluster.sh || true
