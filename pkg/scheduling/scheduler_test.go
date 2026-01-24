@@ -300,7 +300,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			n, err := scheduler.Schedule(ctx, c.input)
 			assert.NoError(t, err)
-
+			t.Logf("got %+v", n)
 			var match bool
 			for _, e := range c.expectOneOf {
 				if proto.Equal(n, e) {

@@ -110,18 +110,8 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 
 	}
 
-	var res *nodesv1.Node
-
-	// Schedule on random node as a last resort
-	if len(filteredNodes) < 1 {
-		n := pickRandomNode(allNodes)
-		filteredNodes = append(filteredNodes, n)
-	}
-
 	// Choose a node by random out of the filtered list of nodes
-	res = pickRandomNode(filteredNodes)
-
-	return res, nil
+	return pickRandomNode(filteredNodes), nil
 }
 
 func NewHorizontalScheduler(c *client.ClientSet) Scheduler {
