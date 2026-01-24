@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -137,18 +138,29 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	}
 
 	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
 		reporter := condition.NewForResource(node)
 
 		n.logger.Info("removing node stream", "node", nodeName)
 
-		if _, err = n.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: Version, Report: reporter.Type(condition.NodeReady).False(condition.ReasonDisconnected)}); err != nil {
-			n.logger.Warn("unable to report node condition", "error", err, "node", nodeName)
+		// Report disconnected status with fresh context
+		if _, err = n.Condition(cleanupCtx, &typesv1.ConditionRequest{
+			ResourceVersion: Version,
+			Report:          reporter.Type(condition.NodeReady).False(condition.ReasonDisconnected),
+		}); err != nil {
+			n.logger.Error("failed to report node disconnection", "error", err, "node", nodeName)
+		} else {
+			n.logger.Info("successfully reported node disconnection", "node", nodeName)
 		}
 
-		err = n.exchange.Publish(ctx, events.NewEvent(events.NodeForget, node))
-		if err != nil {
-			n.logger.Error("error publish node forget event", "error", err)
+		// Publish disconnect event
+		if err = n.exchange.Publish(cleanupCtx, events.NewEvent(events.NodeForget, node)); err != nil {
+			n.logger.Error("error publishing node forget event", "error", err)
 		}
+
+		// Remove stream from map
 		n.mu.Lock()
 		delete(n.streams, nodeName)
 		n.mu.Unlock()
@@ -157,18 +169,17 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	for {
 		select {
 		case <-ctx.Done():
-			n.logger.Error("node disconnected", "node", nodeName)
-
+			n.logger.Info("node stream context cancelled", "node", nodeName, "reason", ctx.Err())
 			return ctx.Err()
 		default:
 			msg, err := stream.Recv()
 			if err == io.EOF {
-				n.logger.Error("error receving from stream, stream probably closed", "node", nodeName)
+				n.logger.Info("node stream closed (EOF)", "node", nodeName)
 				return nil
 			}
 
 			if err != nil {
-				n.logger.Error("error receving data from stream", "error", err, "node", nodeName)
+				n.logger.Error("node stream error", "error", err, "node", nodeName)
 				return err
 			}
 
