@@ -257,7 +257,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 				},
 				{
 					Meta: &types.Meta{
-						Name: "node-c",
+						Name: "node-d",
 					},
 					Status: &nodesv1.Status{
 						Phase: wrapperspb.String(string(condition.ReasonConnected)),
@@ -300,7 +300,6 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			n, err := scheduler.Schedule(ctx, c.input)
 			assert.NoError(t, err)
-			t.Logf("got %+v", n)
 			var match bool
 			for _, e := range c.expectOneOf {
 				if proto.Equal(n, e) {
