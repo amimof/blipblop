@@ -1,6 +1,9 @@
 package labels
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 const DefaultLabelPrefix = "voiyd.io"
 
@@ -60,10 +63,8 @@ func (s SetSelector) Matches(labels Label) bool {
 	if !exists {
 		return false
 	}
-	for _, v := range s.Values {
-		if value == v {
-			return s.In
-		}
+	if slices.Contains(s.Values, value) {
+		return s.In
 	}
 	return !s.In
 }

@@ -2,13 +2,14 @@ package scheduling
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
 
@@ -45,14 +46,15 @@ func filterByNodeSelector(original []*nodesv1.Node, l labels.Label) []*nodesv1.N
 	return result
 }
 
-func excludeByState(original []*nodesv1.Node, state string) []*nodesv1.Node {
+func filterByState(original []*nodesv1.Node, state string) []*nodesv1.Node {
 	var result []*nodesv1.Node
 	for _, node := range original {
-		if state != node.GetStatus().GetPhase().GetValue() {
-			newItem := proto.Clone(node).(*nodesv1.Node)
-			result = append(result, newItem)
+		if state == node.GetStatus().GetPhase().GetValue() {
+			fmt.Println("STATE", state, "NODE", node.GetStatus().GetPhase().GetValue())
+			result = append(result, node)
 		}
 	}
+	fmt.Println(result)
 	return result
 }
 
@@ -96,10 +98,10 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 	}
 
 	// Don't attempt to schedule on a Unready node
-	filteredNodes := excludeByState(allNodes, consts.PHASEMISSING)
+	filteredNodes := filterByState(allNodes, string(condition.ReasonConnected))
 
 	// Make sure we have at least 1 node in the cluster
-	if len(allNodes) < 1 {
+	if len(filteredNodes) < 1 {
 		return nil, ErrSchedulingNoNode
 	}
 

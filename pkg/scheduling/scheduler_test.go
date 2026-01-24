@@ -10,6 +10,7 @@ import (
 
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/consts"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ var testNodes = &nodesv1.ListResponse{
 				Name: "node-c",
 			},
 			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(consts.PHASEREADY),
+				Phase: wrapperspb.String(string(condition.ReasonConnected)),
 			},
 		},
 		{
@@ -53,7 +54,7 @@ var testNodes = &nodesv1.ListResponse{
 				Name: "node-d",
 			},
 			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(consts.PHASEMISSING),
+				Phase: wrapperspb.String(string(condition.ReasonConnected)),
 			},
 		},
 	},
@@ -163,7 +164,7 @@ var testTasks = []*tasksv1.Task{
 func TestHoriontalSchedulerFilters(t *testing.T) {
 	in := testNodes.GetNodes()
 
-	in = excludeByState(in, consts.PHASEMISSING)
+	in = filterByState(in, string(condition.ReasonConnected))
 	assert.Len(t, in, 3, "Number of nodes should be 3")
 	for _, n := range in {
 		assert.NotEqual(t, n.GetMeta().GetName(), "node-d", "Nodes with MISSING status should not exist in result")

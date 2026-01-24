@@ -153,11 +153,6 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 		return &leasesv1.ReleaseResponse{Released: false}, l.handleError(err, "error getting lease")
 	}
 
-	if lease.GetConfig().GetNodeId() != req.GetNodeId() {
-		// Not the lease holder - already released or taken
-		return &leasesv1.ReleaseResponse{Released: false}, nil
-	}
-
 	err = l.repo.Delete(ctx, req.TaskId)
 	if err != nil {
 		return nil, l.handleError(err, "error releasing lease", "lease", lease.GetMeta().GetName())

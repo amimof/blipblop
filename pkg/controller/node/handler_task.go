@@ -39,7 +39,7 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Release lease
 	defer func() {
-		err := c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+		err := c.clientset.LeaseV1().Release(ctx, taskID)
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
@@ -69,7 +69,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Release lease
 	defer func() {
-		err := c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+		err := c.clientset.LeaseV1().Release(ctx, taskID)
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
@@ -104,7 +104,7 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	// Release if task can't be provisioned
 	defer func() {
 		if err != nil {
-			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+			err = c.clientset.LeaseV1().Release(ctx, taskID)
 			if err != nil {
 				c.logger.Warn("unable to release lease", "task", taskID, "node", nodeID)
 			}
@@ -236,7 +236,7 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
 }
 
 func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *nodesv1.Node) error {
-	return c.handleNodeSelector(c.startTask)(ctx, task)
+	return c.startTask(ctx, task)
 }
 
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
@@ -246,6 +246,17 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 	err := c.acquireLease(ctx, task)
 	if err != nil {
 		return err
+	}
+
+	t, err := c.runtime.Get(ctx, task.GetMeta().GetName())
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	if t != nil {
+		if t.GetMeta().GetRevision() == task.GetMeta().GetRevision() {
+			return nil
+		}
 	}
 
 	err = c.deleteTask(ctx, task)
