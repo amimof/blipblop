@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
 
@@ -45,12 +45,11 @@ func filterByNodeSelector(original []*nodesv1.Node, l labels.Label) []*nodesv1.N
 	return result
 }
 
-func excludeByState(original []*nodesv1.Node, state string) []*nodesv1.Node {
+func filterByState(original []*nodesv1.Node, state string) []*nodesv1.Node {
 	var result []*nodesv1.Node
 	for _, node := range original {
-		if state != node.GetStatus().GetPhase().GetValue() {
-			newItem := proto.Clone(node).(*nodesv1.Node)
-			result = append(result, newItem)
+		if state == node.GetStatus().GetPhase().GetValue() {
+			result = append(result, node)
 		}
 	}
 	return result
@@ -62,27 +61,6 @@ func pickRandomNode(original []*nodesv1.Node) *nodesv1.Node {
 	i := r.Intn(len(original))
 	return original[i]
 }
-
-// func filterByTaskSet(original []*nodes.Node, cs *v1.ClientV1, setName string) *nodes.Node {
-//
-// 	setLabelKey := labels.LabelPrefix("container-set").String()
-// 	if setName, ok := c.GetMeta().GetLabels()[setLabelKey]; ok {
-//
-// 		filter := labels.New()
-// 		filter.Set(setLabelKey, setName)
-//
-// 		// Get all containers in set
-// 		ctrs, err := s.clientset.TaskV1().List(ctx, filter)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-//
-// 		// Remove nodes that already have containers from the same set
-// 		for _, ctr := range ctrs {
-// 			filteredNodes = excludeByName(filteredNodes, ctr.GetStatus().GetNode())
-// 		}
-//   }
-// }
 
 func (s *horizontal) Score(ctx context.Context, c *tasksv1.Task) (map[string]float64, error) {
 	return nil, nil
@@ -96,10 +74,10 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 	}
 
 	// Don't attempt to schedule on a Unready node
-	filteredNodes := excludeByState(allNodes, consts.PHASEMISSING)
+	filteredNodes := filterByState(allNodes, string(condition.ReasonConnected))
 
 	// Make sure we have at least 1 node in the cluster
-	if len(allNodes) < 1 {
+	if len(filteredNodes) < 1 {
 		return nil, ErrSchedulingNoNode
 	}
 
@@ -120,9 +98,10 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 		}
 
 		// Remove nodes that already have containers from the same set
-		var containersInSet []*nodesv1.Node
+
+		containersInSet := filteredNodes
 		for _, task := range tasks {
-			containersInSet = excludeByName(filteredNodes, task.GetStatus().GetNode().String())
+			containersInSet = excludeByName(containersInSet, task.GetStatus().GetNode().GetValue())
 		}
 
 		// If no nodes are available, then schedule on a node that has containers from same set
@@ -132,18 +111,8 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 
 	}
 
-	var res *nodesv1.Node
-
-	// Schedule on random node as a last resort
-	if len(filteredNodes) < 1 {
-		n := pickRandomNode(allNodes)
-		filteredNodes = append(filteredNodes, n)
-	}
-
 	// Choose a node by random out of the filtered list of nodes
-	res = pickRandomNode(filteredNodes)
-
-	return res, nil
+	return pickRandomNode(filteredNodes), nil
 }
 
 func NewHorizontalScheduler(c *client.ClientSet) Scheduler {

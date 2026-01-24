@@ -52,53 +52,48 @@ func (c *Controller) onLeaseExpired(ctx context.Context, lease *leasesv1.Lease) 
 
 func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error {
 	taskID := task.GetMeta().GetName()
-	exists := true
-
-	// Get current lease
-	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
-	if err != nil {
-		c.logger.Error("error getting lease", "error", "task", taskID)
-		exists = false
-	}
-
 	reporter := condition.NewReportFor(task)
 
-	if exists {
-		currentNodeID := lease.GetConfig().GetNodeId()
-		match, err := c.hasMatchingNodes(ctx, task)
-		if err != nil {
-			c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
+	// Check if task has any nodes available for scheduling based on the tasks' selector
+	match, err := c.hasMatchingNodes(ctx, task)
+	if err != nil {
+		c.logger.Debug("error matching selector with nodes", "error", err, "task", taskID, "selector", task.GetConfig().GetNodeSelector())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
+		return err
+	}
+
+	// If no nodes matches selector, set status and exit
+	if !match {
+		c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
+		err = c.clientset.LeaseV1().Release(ctx, taskID)
+		if errs.IgnoreNotFound(err) != nil {
+			c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
+			_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
 			return err
 		}
-		// Task has no where to go, release lock and updates status
-		if !match {
-			c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
-			err = c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID)
-			if errs.IgnoreNotFound(err) != nil {
-				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
-				return err
-			}
-			return c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
-		}
-
-		md := map[string]string{
-			"node": currentNodeID,
-		}
-
-		// Update task status
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
-
+		return c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
 	}
+
+	// At this point the task can be scheduled
+	// lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+	// if err != nil {
+	// 	c.logger.Error("error getting lease", "error", "task", taskID)
+	// 	exists = false
+	// }
 
 	// Find a node fit for the task using a scheduler
 	n, err := c.scheduler.Schedule(ctx, task)
 	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).True(condition.ReasonSchedulingFailed, err.Error()))
 		return err
 	}
 
 	md := map[string]string{
 		"node": n.GetMeta().GetName(),
 	}
+
+	// Update task status
+	_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
 
 	taskpb, err := anypb.New(task)
 	if err != nil {
@@ -182,7 +177,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		// Get current lease
 		lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
 		if errs.IgnoreNotFound(err) != nil {
-			c.logger.Error("error getting lease", "error", "task", taskID)
+			c.logger.Error("error getting lease", "error", err, "task", taskID)
 			continue
 		}
 
@@ -198,7 +193,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		if !match {
 			c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
 
-			err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID)
+			err := c.clientset.LeaseV1().Release(ctx, taskID)
 			if errs.IgnoreNotFound(err) != nil {
 				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
 				return err
@@ -218,7 +213,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		if !selector.Matches(node.GetMeta().GetLabels()) {
 
 			// Task no longer matches - reorganize!
-			err := c.clientset.LeaseV1().Release(ctx, taskID, currentNodeID)
+			err := c.clientset.LeaseV1().Release(ctx, taskID)
 			if errs.IgnoreNotFound(err) != nil {
 				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
 				return err
@@ -243,7 +238,6 @@ func (c *Controller) Run(ctx context.Context) {
 		events.NodeUpdate,
 		events.NodePatch,
 		events.LeaseExpired,
-		events.LeaseReleased,
 	)
 
 	// Setup Handlers

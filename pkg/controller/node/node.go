@@ -17,7 +17,6 @@ import (
 	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
-	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/volume"
@@ -243,14 +242,6 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 
 		c.logger.Debug("renewed lease, reconciling", "task", taskName)
 	}
-}
-
-func (c *Controller) isNodeSelected(ctx context.Context, nodeID string, task *tasksv1.Task) bool {
-	node, err := c.clientset.NodeV1().Get(ctx, nodeID)
-	if err != nil {
-		return false
-	}
-	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
 }
 
 // Reconcile ensures that desired tasks matches with tasks
