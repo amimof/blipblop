@@ -9,26 +9,7 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
-	"github.com/amimof/voiyd/pkg/events"
 )
-
-func (c *Controller) handleNodeSelector(h events.TaskHandlerFunc) events.TaskHandlerFunc {
-	return func(ctx context.Context, task *tasksv1.Task) error {
-		nodeID := c.node.GetMeta().GetName()
-
-		if !c.isNodeSelected(ctx, nodeID, task) {
-			c.logger.Debug("discarded due to label mismatch", "task", task.GetMeta().GetName())
-			return nil
-		}
-
-		err := h(ctx, task)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-}
 
 func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
