@@ -176,53 +176,24 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 
 		// Get current lease
 		lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
-		if errs.IgnoreNotFound(err) != nil {
+		if err != nil {
+			if errs.IsNotFound(err) {
+				return c.scheduleTask(ctx, task)
+			}
 			c.logger.Error("error getting lease", "error", err, "task", taskID)
 			continue
 		}
 
 		currentNodeID := lease.GetConfig().GetNodeId()
 
-		match, err := c.hasMatchingNodes(ctx, task)
-		if err != nil {
-			c.logger.Debug("error handling unschedulable task", "error", err, "task", taskID)
-			return err
-		}
-
-		// Task has no where to go, release lock and updates status
-		if !match {
-			c.logger.Debug("no nodes matches task's nodeSelector", "task", taskID, "selector", task.GetConfig().GetNodeSelector())
-
-			err := c.clientset.LeaseV1().Release(ctx, taskID)
-			if errs.IgnoreNotFound(err) != nil {
-				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
-				return err
-			}
-
-			reporter := condition.NewReportFor(task)
-			return c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes matches node selector"))
-		}
-
 		// Skip if task is running on another node
 		if currentNodeID != node.GetMeta().GetName() {
 			continue
 		}
 
-		// Check if task still matches THIS node
-		selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
-		if !selector.Matches(node.GetMeta().GetLabels()) {
-
-			// Task no longer matches - reorganize!
-			err := c.clientset.LeaseV1().Release(ctx, taskID)
-			if errs.IgnoreNotFound(err) != nil {
-				c.logger.Error("error releasing lease for task", "error", err, "task", taskID)
-				return err
-			}
-
-			if err := c.scheduleTask(ctx, task); err != nil {
-				c.logger.Error("error forwarding task start event", "error", err, "task", taskID)
-				return err
-			}
+		if err := c.scheduleTask(ctx, task); err != nil {
+			c.logger.Error("error forwarding task start event", "error", err, "task", taskID)
+			return err
 		}
 	}
 	return nil
