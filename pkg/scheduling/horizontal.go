@@ -2,7 +2,6 @@ package scheduling
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -50,11 +49,9 @@ func filterByState(original []*nodesv1.Node, state string) []*nodesv1.Node {
 	var result []*nodesv1.Node
 	for _, node := range original {
 		if state == node.GetStatus().GetPhase().GetValue() {
-			fmt.Println("STATE", state, "NODE", node.GetStatus().GetPhase().GetValue())
 			result = append(result, node)
 		}
 	}
-	fmt.Println(result)
 	return result
 }
 
@@ -64,27 +61,6 @@ func pickRandomNode(original []*nodesv1.Node) *nodesv1.Node {
 	i := r.Intn(len(original))
 	return original[i]
 }
-
-// func filterByTaskSet(original []*nodes.Node, cs *v1.ClientV1, setName string) *nodes.Node {
-//
-// 	setLabelKey := labels.LabelPrefix("container-set").String()
-// 	if setName, ok := c.GetMeta().GetLabels()[setLabelKey]; ok {
-//
-// 		filter := labels.New()
-// 		filter.Set(setLabelKey, setName)
-//
-// 		// Get all containers in set
-// 		ctrs, err := s.clientset.TaskV1().List(ctx, filter)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-//
-// 		// Remove nodes that already have containers from the same set
-// 		for _, ctr := range ctrs {
-// 			filteredNodes = excludeByName(filteredNodes, ctr.GetStatus().GetNode())
-// 		}
-//   }
-// }
 
 func (s *horizontal) Score(ctx context.Context, c *tasksv1.Task) (map[string]float64, error) {
 	return nil, nil

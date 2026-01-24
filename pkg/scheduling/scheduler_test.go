@@ -11,7 +11,6 @@ import (
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
-	"github.com/amimof/voiyd/pkg/consts"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/stretchr/testify/assert"
 
@@ -34,6 +33,9 @@ var testNodes = &nodesv1.ListResponse{
 				Labels: map[string]string{
 					labels.LabelPrefix("plattform").String(): "linux/amd64",
 				},
+			},
+			Status: &nodesv1.Status{
+				Phase: wrapperspb.String(string(condition.ReasonConnected)),
 			},
 		},
 		{
@@ -167,7 +169,7 @@ func TestHoriontalSchedulerFilters(t *testing.T) {
 	in = filterByState(in, string(condition.ReasonConnected))
 	assert.Len(t, in, 3, "Number of nodes should be 3")
 	for _, n := range in {
-		assert.NotEqual(t, n.GetMeta().GetName(), "node-d", "Nodes with MISSING status should not exist in result")
+		assert.NotEqual(t, n.GetMeta().GetName(), "node-b", "Unready nodes should should not exist in result")
 	}
 
 	in = testNodes.GetNodes()
@@ -244,6 +246,9 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 							labels.LabelPrefix("plattform").String(): "linux/amd64",
 						},
 					},
+					Status: &nodesv1.Status{
+						Phase: wrapperspb.String(string(condition.ReasonConnected)),
+					},
 				},
 				{
 					Meta: &types.Meta{
@@ -255,7 +260,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						Name: "node-c",
 					},
 					Status: &nodesv1.Status{
-						Phase: wrapperspb.String(consts.PHASEREADY),
+						Phase: wrapperspb.String(string(condition.ReasonConnected)),
 					},
 				},
 			},
@@ -282,6 +287,9 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						Labels: map[string]string{
 							labels.LabelPrefix("plattform").String(): "linux/amd64",
 						},
+					},
+					Status: &nodesv1.Status{
+						Phase: wrapperspb.String(string(condition.ReasonConnected)),
 					},
 				},
 			},
