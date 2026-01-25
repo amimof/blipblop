@@ -496,6 +496,10 @@ func generateCertificates() (tls.Certificate, error) {
 		return cert, err
 	}
 
+	// Valid for 1 year
+	notBefore := time.Now()
+	notAfter := notBefore.Add(365 * 24 * time.Hour) // Valid for 1 year
+
 	parent := &x509.Certificate{
 		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage: []x509.ExtKeyUsage{
@@ -517,6 +521,8 @@ func generateCertificates() (tls.Certificate, error) {
 			OrganizationalUnit: []string{"voiyd"},
 		},
 		SerialNumber: serial,
+		NotAfter:     notAfter,
+		NotBefore:    notBefore,
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
