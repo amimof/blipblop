@@ -184,7 +184,6 @@ func getMetadataField(report *typesv1.ConditionReport, t condition.Type, key str
 		if v, ok := report.GetMetadata()[key]; ok {
 			return v
 		}
-		return wrapperspb.String("")
 	}
 	return nil
 }
@@ -194,7 +193,6 @@ func getNodeFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue 
 		if v, ok := report.GetMetadata()["node"]; ok {
 			return v
 		}
-		return wrapperspb.String("")
 	}
 	return nil
 }
@@ -204,7 +202,6 @@ func getIDFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
 		if v, ok := report.GetMetadata()["id"]; ok {
 			return v
 		}
-		return wrapperspb.String("")
 	}
 	return nil
 }
@@ -216,7 +213,6 @@ func getPidFromReport(report *typesv1.ConditionReport) *wrapperspb.UInt32Value {
 				return wrapperspb.UInt32(uint32(i))
 			}
 		}
-		return wrapperspb.UInt32(0)
 	}
 	return nil
 }
