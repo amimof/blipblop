@@ -112,9 +112,40 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 	return c.exchange.Forward(ctx, events.NewEvent(events.Schedule, &eventsv1.ScheduleRequest{Task: taskpb, Node: nodepb}))
 }
 
-func (c *Controller) onNodeJoin(ctx context.Context, node *nodesv1.Node) error {
-	c.logger.Debug("emitting task start", "task", node.GetMeta().GetName())
+func (c *Controller) onNodeDelete(ctx context.Context, node *nodesv1.Node) error {
+	tasks, err := c.clientset.TaskV1().List(ctx)
+	if err != nil {
+		return nil
+	}
 
+	for _, task := range tasks {
+
+		reporter := condition.NewReportFor(task)
+		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+
+		if errs.IgnoreNotFound(err) != nil {
+			c.logger.Error("error getting lease", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
+			continue
+		}
+
+		// If lease is held by the deleted node, release
+		if l.GetConfig().GetNodeId() == node.GetMeta().GetName() {
+
+			err = c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetName())
+			if errs.IgnoreNotFound(err) != nil {
+				c.logger.Error("error releasing lease for task", "error", err, "task", task.GetMeta().GetName())
+				_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
+				return err
+			}
+			return c.scheduleTask(ctx, task)
+		}
+
+	}
+
+	return nil
+}
+
+func (c *Controller) onNodeJoin(ctx context.Context, node *nodesv1.Node) error {
 	tasks, err := c.clientset.TaskV1().List(ctx)
 	if err != nil {
 		return nil
@@ -199,6 +230,10 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 	return nil
 }
 
+func (c *Controller) Reconcile(ctx context.Context) error {
+	return nil
+}
+
 func (c *Controller) Run(ctx context.Context) {
 	// Subscribe to events
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "scheduler")
@@ -220,6 +255,7 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.NodeConnect, events.HandleErrors(c.logger, events.HandleNode(c.onNodeJoin)))
 	c.clientset.EventV1().On(events.NodeUpdate, events.HandleErrors(c.logger, events.HandleNode(c.onNodeLabelsChange)))
 	c.clientset.EventV1().On(events.NodePatch, events.HandleErrors(c.logger, events.HandleNode(c.onNodeLabelsChange)))
+	c.clientset.EventV1().On(events.NodeDelete, events.HandleErrors(c.logger, events.HandleNode(c.onNodeDelete)))
 
 	// Setup lease handlers
 	c.clientset.EventV1().On(events.LeaseExpired, events.HandleErrors(c.logger, events.HandleLease(c.onLeaseExpired)))

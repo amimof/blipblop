@@ -14,7 +14,6 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
-	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -251,6 +250,9 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 func (c *Controller) Reconcile(ctx context.Context) error {
 	nodeID := c.node.GetMeta().GetName()
 
+	// Renew leases on boot
+	c.renewAllLeases(ctx)
+
 	// Get running tasks from runtime
 	runtimeTasks, err := c.runtime.List(ctx)
 	if err != nil {
@@ -263,7 +265,7 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 		taskID := task.GetMeta().GetName()
 
 		// Only acquire if task is supposed to be running
-		if task.GetStatus().GetPhase().GetValue() != consts.PHASERUNNING {
+		if task.GetStatus().GetPhase().GetValue() != string(condition.ReasonRunning) {
 			c.logger.Debug("skip lease acquisition because task is not running", "task", taskID)
 			continue
 		}

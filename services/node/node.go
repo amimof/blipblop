@@ -66,6 +66,7 @@ func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateRequest) (*
 }
 
 func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteRequest) (*nodesv1.DeleteResponse, error) {
+	n.closeNodeStream(req.GetId())
 	return n.local.Delete(ctx, req)
 }
 
@@ -86,6 +87,7 @@ func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*node
 }
 
 func (n *NodeService) Forget(ctx context.Context, req *nodesv1.ForgetRequest) (*nodesv1.ForgetResponse, error) {
+	n.closeNodeStream(req.GetId())
 	return n.local.Forget(ctx, req)
 }
 
@@ -189,6 +191,26 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 			}
 		}
 	}
+}
+
+func (n *NodeService) closeNodeStream(nodeName string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	_, exists := n.streams[nodeName]
+	if !exists {
+		return
+	}
+
+	n.logger.Info("closing stream for deleted node", "node", nodeName)
+
+	// Note: We don't need to explicitly close the stream or call stream.Context().Cancel()
+	// The defer in Connect() will handle cleanup when the stream ends.
+	// We just remove it from our map to prevent future sends.
+	delete(n.streams, nodeName)
+
+	// The stream will naturally close when the client's context is done
+	// or when the next Recv()/Send() operation fails
 }
 
 func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {
