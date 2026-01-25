@@ -26,6 +26,10 @@ spec:
       port: 8443
       protocol: TCP
       targetPort: 8443
+    - name: metrics
+      port: 8888
+      protocol: TCP
+      targetPort: 8888
   selector:
     app: voiyd-server
   type: ClusterIP
@@ -63,14 +67,17 @@ spec:
             - "--tls-certificate=/etc/voiyd/tls/tls.crt"
             - "--tls-key=/etc/voiyd/tls/tls.key"
             - "--tls-host=0.0.0.0"
-            - "--tcp-tls-host=0.0.0.0"
-            - "--metrics-host=0.0.0.0"
+            - "--server-address=0.0.0.0:5743"
+            - "--gateway-server=0.0.0.0:8443"
+            - "--metrics-server=0.0.0.0:8888"
           name: server
           ports:
             - name: grpc
               containerPort: 5743
             - name: gateway
               containerPort: 8443
+            - name: metrics
+              containerPort: 8888
           volumeMounts:
             - name: certs
               mountPath: /etc/voiyd/tls
