@@ -54,6 +54,8 @@ spec:
             - name: DOCKER_TLS_CERTDIR
               value: ""
           volumeMounts:
+            - name: data
+              mountPath: /var/lib/voiyd
             - name: containerd-storage
               mountPath: /var/lib/containerd
             - name: docker-storage
