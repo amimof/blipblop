@@ -90,21 +90,20 @@ Following is the complete set of flags that can be passed in to the installation
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| --version <version> | Install specific version | `latest` |
+| --version | Install specific version | `latest` |
 | --nightly | Install nightly build | `false` |
-| --prefix <path> | Binary installation prefix | `/usr/local` |
-| --tls-dir <path> | Certificate directory | `/etc/voiyd/tls` |
-| --port <port> | Server port | `5743` |
-| --tls-host <host> | HTTPS listen address |  `0.0.0.0` |
-| --tcp-tls-host <host> | gRPC TLS listen address |  `0.0.0.0` |
-| --metrics-host <host> | Metrics host |  `0.0.0.0` |
+| --prefix  | Binary installation prefix | `/usr/local` |
+| --tls-dir  | Certificate directory | `/etc/voiyd/tls` |
+| --server-address  | Server listen address |  `0.0.0.0:5743` |
+| --gateway-address  | HTTP gateway listen address |  `0.0.0.0:8443` |
+| --metrics-address  | Metrics server listen address  |  `0.0.0.0:8888` |
 | --skip-cert-generation | Don't generate certificate | `false` |
-| --cert-days <days> | Certificate validity |  `365` |
-| --cert-country <code> | Country code |  `US` |
-| --cert-state <state> | State |  `State` |
-| --cert-city <city> | City |  `City` |
-| --cert-org <org> | Organization |  voiyd |
-| --cert-cn <cn> | Common Name | voiyd-server |
+| --cert-days  | Certificate validity |  `365` |
+| --cert-country  | Country code |  `SE` |
+| --cert-state | State |  `Halland` |
+| --cert-city  | City |  `Varberg` |
+| --cert-org | Organization |  voiyd |
+| --cert-cn  | Common Name | voiyd-server |
 | --auto-install-deps | Auto-install dependencies | `true` |
 | --no-systemd | Skip systemd service creation | `false` |
 | --start | Start service after installation | `true` |

@@ -83,24 +83,24 @@ The installation script automatically detects your platform and downloads the ap
 Following is the complete set of flags that can be passed in to the installation script allowing you to customize the installation.
 
 | Option | Description | Default |
-|--------|-------------|---------|
+| ------ | ----------- | ------- |
 | `--server-address` | Address to voiyd-server | `localhost:5743` |
-| `--version <version>` | voiyd version to install | `latest` |
+| `--version` | voiyd version to install | `latest` |
 | `--nightly` | Install latest nightly build from master | `false` |
-| `--cni-version <version>` | CNI plugins version | `v1.9.0` |
-| `--prefix <path>` | Installation prefix | `/usr/local` |
-| `--cni-bin-dir <path>` | CNI plugins directory | `/opt/cni/bin` |
-| `--cni-conf-dir <path>` | CNI config directory | `/etc/cni/net.d` |
-| `--server-address <addr>` | Server address and port | `localhost:5743` |
-| `--insecure-skip-verify` | Skip TLS certificate verification (dev only) | `true` |
-| `--metrics-host <host>` | Metrics host address | `0.0.0.0` |
-| `--no-systemd` | Don't install systemd service | `false` |
-| `--start` | Start service after installation | `true` |
-| `--auto-install-deps` | Auto-install missing dependencies | `true` |
-| `--skip-deps` | Skip dependency checks | `false` |
-| `--dry-run` | Show what would be installed |  |
-| `--verbose` `-v` | Enable verbose output |  |
-| `--help` `-h` | Show help message |  |
+| `--cni-version` | CNI plugins version | `v1.9.0` |
+| `--prefix` | Installation prefix | `/usr/local` |
+| `--cni-bin-dir` | CNI plugins directory | `/opt/cni/bin` |
+| `--cni-conf-dir` | CNI config directory | `/etc/cni/net.d` |
+| `--server-address` | Server address and port | `localhost:5743` |
+| `--metrics-address` | Address to serve metrics on | `0.0.0.0:8889` |
+| `--insecure-skip-verify` | Skip TLS certificate verification (dev only) | - |
+| `--no-systemd` | Don't install systemd service | - |
+| `--start` | Start service after installation | - |
+| `--auto-install-deps` | Auto-install missing dependencies | - |
+| `--skip-deps` | Skip dependency checks | - |
+| `--dry-run` | Show what would be installed | - |
+| `--verbose` `-v` | Enable verbose output | - |
+| `--help` `-h` | Show help message | - |
 
 ### Manual Installation
 

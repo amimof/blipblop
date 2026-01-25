@@ -10,9 +10,9 @@ Type=simple
 # Node reads its identity from /etc/voiyd/node.yaml by default.
 # It connects to the server over gRPC on port 5743 with TLS.
 ExecStart=/usr/local/bin/voiyd-node \
-  --port=5743 \
+  --server-address=localhost:5743 \
   --tls-ca=/etc/voiyd/tls/ca.crt \
-  --metrics-host=0.0.0.0
+  --metrics-address=0.0.0.0:8888
 
 Restart=on-failure
 RestartSec=5s

@@ -27,7 +27,7 @@ VOIYD_DATA_DIR="${VOIYD_DATA_DIR:-/var/lib/voiyd}"
 # Server configuration
 SERVER_ADDRESS="${SERVER_ADDRESS:-localhost:5743}"
 INSECURE_SKIP_VERIFY="${INSECURE_SKIP_VERIFY:-true}"
-METRICS_HOST="${METRICS_HOST:-0.0.0.0}"
+METRICS_ADDRESS="${METRICS_ADDRESS:-0.0.0.0:8888}"
 
 # Installation options
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-true}"
@@ -632,10 +632,9 @@ Type=simple
 
 # Node connects to the server over gRPC with TLS
 ExecStart=${PREFIX}/bin/voiyd-node \\
-  --port=${SERVER_ADDRESS##*:} \\
-  --host=${SERVER_ADDRESS%%:*} \\
+  --server-address=${SERVER_ADDRESS} \\
   ${tls_flag} \\
-  --metrics-host=${METRICS_HOST}
+  --metrics-address=${METRICS_ADDRESS}
 
 Restart=on-failure
 RestartSec=5s
@@ -750,7 +749,7 @@ ${BOLD}OPTIONS:${NC}
     --server-address <addr>     Server address (default: localhost:5743)
                                 Example: --server-address server.example.com:5743
     --insecure-skip-verify      Skip TLS certificate verification (insecure, dev only)
-    --metrics-host <host>       Metrics host (default: 0.0.0.0)
+    --metrics-address <addr>    Metrics server address (default: 0.0.0.0:8889)
 
     ${BOLD}Systemd Options:${NC}
     --no-systemd                Don't install systemd service
@@ -845,8 +844,8 @@ parse_args() {
       INSECURE_SKIP_VERIFY="true"
       shift
       ;;
-    --metrics-host)
-      METRICS_HOST="$2"
+    --metrics-address)
+      METRICS_ADDRESS="$2"
       shift 2
       ;;
     --no-systemd)

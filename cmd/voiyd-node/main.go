@@ -6,11 +6,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -47,13 +45,11 @@ var (
 	GOVERSION string
 
 	insecureSkipVerify   bool
-	host                 string
-	port                 int
+	serverAddress        string
+	metricsAddress       string
 	tlsCertificate       string
 	tlsCertificateKey    string
 	tlsCACertificate     string
-	metricsHost          string
-	metricsPort          int
 	containerdSocket     string
 	logLevel             string
 	nodeFile             string
@@ -64,19 +60,17 @@ var (
 )
 
 func init() {
-	pflag.StringVar(&host, "host", "localhost", "The host address to connect to, defaults to localhost")
+	pflag.StringVar(&serverAddress, "server-address", "localhost:5743", "Address of the server to connect to")
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
-	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
+	pflag.StringVar(&metricsAddress, "metrics-address", "localhost:8889", "The address on which to serve metrics on")
 	pflag.StringVar(&containerdSocket, "containerd-socket", "/run/containerd/containerd.sock", "Path to containerd socket")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&nodeFile, "node-file", "/etc/voiyd/node.yaml", "Path to node identity file")
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for tasks.")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.StringVar(&runtimeLogDir, "runtime-log-dir", "/var/lib/voiyd/tasks/%s/logs", "Directory in which the runtime stores container log files in (stdout)")
-	pflag.IntVar(&port, "port", 5700, "the port to connect to, defaults to 5700")
-	pflag.IntVar(&metricsPort, "metrics-port", 8889, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
 	pflag.DurationVar(&leaseRenewalInterval, "lease-renew-interval", time.Second*30, "how often leases are renewed on interval")
 }
@@ -178,11 +172,10 @@ func main() {
 		log.Error("Failed to start prometheus exporter", "error", err)
 	}
 
-	go serveMetrics(promhttp.Handler(), log)
+	go serveMetrics(metricsAddress, promhttp.Handler(), log)
 
 	// Setup a clientset for this node
-	serverAddr := fmt.Sprintf("%s:%d", host, port)
-	clientSet, err := connectToServer(serverAddr,
+	clientSet, err := connectToServer(serverAddress,
 		client.WithGrpcDialOption(
 			metricsOpts,
 			grpc.WithStatsHandler(
@@ -339,8 +332,7 @@ func connectToServer(addr string, opts ...client.NewClientOption) (*client.Clien
 	}
 }
 
-func serveMetrics(h http.Handler, l *slog.Logger) {
-	addr := net.JoinHostPort(metricsHost, strconv.Itoa(metricsPort))
+func serveMetrics(addr string, h http.Handler, l *slog.Logger) {
 	l.Info("metrics listening", "address", addr)
 	if err := http.ListenAndServe(addr, h); err != nil {
 		l.Error("error serving metrics", "error", err)
