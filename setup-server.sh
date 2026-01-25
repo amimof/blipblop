@@ -21,10 +21,9 @@ VOIYD_CONFIG_DIR="${VOIYD_CONFIG_DIR:-/etc/voiyd}"
 VOIYD_TLS_DIR="${VOIYD_TLS_DIR:-/etc/voiyd/tls}"
 
 # Server configuration
-SERVER_PORT="${SERVER_PORT:-5743}"
-TLS_HOST="${TLS_HOST:-0.0.0.0}"
-TCP_TLS_HOST="${TCP_TLS_HOST:-0.0.0.0}"
-METRICS_HOST="${METRICS_HOST:-0.0.0.0}"
+SERVER_ADDRESS="${SERVER_ADDRESS:-0.0.0.0:5743}"
+GATEWAY_ADDRESS="${GATEWAY_ADDRESS:-0.0.0.0:8443}"
+METRICS_ADDRESS="${SERVER_ADDRESS:-0.0.0.0:8888}"
 
 # TLS Certificate configuration
 CERT_COUNTRY="${CERT_COUNTRY:-SE}"
@@ -584,7 +583,7 @@ setup_systemd_service() {
 
   if [ "$DRY_RUN" = "true" ]; then
     log "[DRY RUN] Would create systemd service at: $service_file"
-    log "[DRY RUN] Server port: $SERVER_PORT"
+    log "[DRY RUN] Server address: $SERVER_ADDRESS"
     return 0
   fi
 
@@ -602,13 +601,11 @@ Type=simple
 
 # Server configuration
 ExecStart=${PREFIX}/bin/voiyd-server \\
-  --port=${SERVER_PORT} \\
-  --tls-host=${TLS_HOST} \\
-  --tcp-tls-host=${TCP_TLS_HOST} \\
+  --server-address=${SERVER_ADDRESS} \\
+  --gateway-address=${GATEWAY_ADDRESS} \\
+  --metrics-address=${METRICS_ADDRESS} \\
   --tls-key=${VOIYD_TLS_DIR}/server.key \\
-  --tls-certificate=${VOIYD_TLS_DIR}/server.crt \\
-  --tls-ca=${VOIYD_TLS_DIR}/ca.crt \\
-  --metrics-host=${METRICS_HOST}
+  --tls-certificate=${VOIYD_TLS_DIR}/server.crt
 
 Restart=on-failure
 RestartSec=5s
@@ -715,10 +712,9 @@ ${BOLD}OPTIONS:${NC}
     --data-dir <path>           Data directory (default: /var/lib/voiyd)
 
     ${BOLD}Server Configuration:${NC}
-    --port <port>               Server port (default: 5743)
-    --tls-host <host>           HTTPS listen address (default: 0.0.0.0)
-    --tcp-tls-host <host>       gRPC TLS listen address (default: 0.0.0.0)
-    --metrics-host <host>       Metrics host (default: 0.0.0.0)
+    --server-address <addr>     Server address (default: 0.0.0.0:5743)
+    --gateway-address <addr>    HTTP Gateway address j(default: 0.0.0.0:8443)
+    --metrics-address <addr>    Metics server address (default: 0.0.0.0:8889)
 
     ${BOLD}TLS Certificate Options:${NC}
     --skip-cert-generation      Skip automatic certificate generation
@@ -814,20 +810,16 @@ parse_args() {
       VOIYD_TLS_DIR="$2"
       shift 2
       ;;
-    --port)
-      SERVER_PORT="$2"
+    --server-address)
+      SERVER_ADDRESS="$2"
       shift 2
       ;;
-    --tls-host)
-      TLS_HOST="$2"
+    --gateway-address)
+      GATEWAY_ADDRESS="$2"
       shift 2
       ;;
-    --tcp-tls-host)
-      TCP_TLS_HOST="$2"
-      shift 2
-      ;;
-    --metrics-host)
-      METRICS_HOST="$2"
+    --metrics-address)
+      METRICS_ADDRESS="$2"
       shift 2
       ;;
     --skip-cert-generation)
@@ -928,7 +920,7 @@ main() {
   fi
   log "  Install prefix:   ${PREFIX}"
   log "  TLS directory:    ${VOIYD_TLS_DIR}"
-  log "  Server port:      ${SERVER_PORT}"
+  log "  Server address:   ${SERVER_ADDRESS}"
   log "  Generate certs:   ${GENERATE_CERTS}"
   log "  Auto-install deps: ${AUTO_INSTALL_DEPS}"
   log "  Install systemd:  ${INSTALL_SYSTEMD}"
@@ -986,7 +978,7 @@ main() {
       warn "For production deployments, replace these with certificates from a trusted CA."
       echo ""
       log "To use these certificates with voiyd-node, copy ca.crt to the node and use:"
-      log "  voiyd-node --tls-ca ${VOIYD_TLS_DIR}/ca.crt --port ${SERVER_PORT}"
+      log "  voiyd-node --tls-ca ${VOIYD_TLS_DIR}/ca.crt --server-address ${SERVER_ADDRESS}"
     fi
 
     echo ""

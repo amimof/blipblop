@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -56,28 +60,18 @@ var (
 	// GOVERSION used to compile. Is set when project is built and should never be set manually
 	GOVERSION string
 
-	enabledListeners []string
-	cleanupTimeout   time.Duration
-	maxHeaderSize    uint64
-
-	socketPath string
-
-	host         string
-	port         int
-	metricsHost  string
-	metricsPort  int
-	listenLimit  int
-	keepAlive    time.Duration
-	readTimeout  time.Duration
-	writeTimeout time.Duration
-	logLevel     string
-
-	tcpHost           string
-	tcpPort           int
-	tcptlsHost        string
-	tcptlsPort        int
-	tlsHost           string
-	tlsPort           int
+	enabledListeners  []string
+	cleanupTimeout    time.Duration
+	maxHeaderSize     uint64
+	socketPath        string
+	serverAddress     string
+	metricsAddress    string
+	gatewayAddress    string
+	listenLimit       int
+	keepAlive         time.Duration
+	readTimeout       time.Duration
+	writeTimeout      time.Duration
+	logLevel          string
 	tlsListenLimit    int
 	tlsKeepAlive      time.Duration
 	tlsReadTimeout    time.Duration
@@ -92,25 +86,18 @@ var (
 )
 
 func init() {
+	pflag.StringVar(&serverAddress, "server-address", "0.0.0.0:5743", "Address to listen the TCP server on")
+	pflag.StringVar(&metricsAddress, "metrics-address", "0.0.0.0:8888", "Address to listen the metrics server on")
+	pflag.StringVar(&gatewayAddress, "gateway-address", "0.0.0.0:8443", "Address to listen the http gateway server on")
 	pflag.StringVar(&socketPath, "socket-path", "/var/run/voiyd/voiyd.sock", "the unix socket to listen on")
-	pflag.StringVar(&host, "host", "localhost", "The host address on which to listen for the --port port")
-	pflag.StringVar(&tcpHost, "tcp-host", "localhost", "The host address on which to listen for the --tcp-port port")
-	pflag.StringVar(&tlsHost, "tls-host", "localhost", "The host address on which to listen for the --tls-port port")
-	pflag.StringVar(&tcptlsHost, "tcp-tls-host", "localhost", "The host address on which to listen for the --tcp-tls-port port")
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
-	pflag.StringVar(&metricsHost, "metrics-host", "localhost", "The host address on which to listen for the --metrics-port port")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.StringVar(&dbPath, "db-path", "/var/lib/voiyd/db", "Directory to store database state")
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
-	pflag.IntVar(&port, "port", 8080, "the port to listen on for insecure connections, defaults to 8080")
-	pflag.IntVar(&tcpPort, "tcp-port", 5700, "the port to listen on for insecure connections, defaults to 8080")
-	pflag.IntVar(&tlsPort, "tls-port", 8443, "the port to listen on for secure connections, defaults to 8443")
-	pflag.IntVar(&tcptlsPort, "tcp-tls-port", 5743, "the port to listen on for GRPC connections, defaults to 5743")
-	pflag.IntVar(&metricsPort, "metrics-port", 8888, "the port to listen on for Prometheus metrics, defaults to 8888")
 	pflag.IntVar(&listenLimit, "listen-limit", 0, "limit the number of outstanding requests")
 	pflag.IntVar(&tlsListenLimit, "tls-listen-limit", 0, "limit the number of outstanding requests")
 	pflag.Uint64Var(&maxHeaderSize, "max-header-size", 1000000, "controls the maximum number of bytes the server will read parsing the request header's keys and values, including the request line. It does not limit the size of the request body")
@@ -196,54 +183,52 @@ func main() {
 	var serverOpts []server.NewServerOption
 	var gatewayOpts []server.NewGatewayOption
 
-	if tlsCertificate != "" && tlsCertificateKey != "" {
+	// Load in certificates either from flags or auto-generated
+	cert, err := generateCertificates()
+	if err != nil {
+		log.Error("error loading x509 certificates", "error", err)
+		os.Exit(1)
+	}
 
-		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	// Enable mTLS for gRPC server, if CA cert provided
+	if tlsCACertificate != "" {
+		caCert, err := os.ReadFile(tlsCACertificate)
 		if err != nil {
-			log.Error("error loading x509 cert key pair", "error", err)
+			log.Error("error reading CA certificate file", "error", err)
+			os.Exit(1)
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(caCert) {
+			log.Error("error appending CA certificate to pool")
 			os.Exit(1)
 		}
 
-		tlsConfig := &tls.Config{
+		tlsConfig = &tls.Config{
 			Certificates: []tls.Certificate{cert},
+			ClientAuth:   tls.RequireAndVerifyClientCert, // ← mTLS
+			ClientCAs:    certPool,
 		}
-
-		// Enable mTLS for gRPC server, if CA cert provided
-		if tlsCACertificate != "" {
-			caCert, err := os.ReadFile(tlsCACertificate)
-			if err != nil {
-				log.Error("error reading CA certificate file", "error", err)
-				os.Exit(1)
-			}
-			certPool := x509.NewCertPool()
-			if !certPool.AppendCertsFromPEM(caCert) {
-				log.Error("error appending CA certificate to pool")
-				os.Exit(1)
-			}
-
-			tlsConfig = &tls.Config{
-				Certificates: []tls.Certificate{cert},
-				ClientAuth:   tls.RequireAndVerifyClientCert, // ← mTLS
-				ClientCAs:    certPool,
-			}
-			log.Info("mutual TLS enabled for gRPC server")
-		}
-
-		creds := credentials.NewTLS(tlsConfig)
-		serverOpts = append(serverOpts,
-			server.WithGrpcOption(grpc.Creds(creds),
-				grpc.StatsHandler(otelgrpc.NewServerHandler()),
-			),
-		)
-
-		tlsConfigGw := &tls.Config{
-			InsecureSkipVerify: true,
-		}
-		gatewayOpts = append(gatewayOpts,
-			server.WithTLSConfig(tlsConfig),
-			server.WithGrpcDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfigGw))),
-		)
+		log.Info("mutual TLS enabled for gRPC server")
 	}
+
+	creds := credentials.NewTLS(tlsConfig)
+	serverOpts = append(serverOpts,
+		server.WithGrpcOption(grpc.Creds(creds),
+			grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		),
+	)
+
+	tlsConfigGw := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	gatewayOpts = append(gatewayOpts,
+		server.WithTLSConfig(tlsConfig),
+		server.WithGrpcDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfigGw))),
+	)
 
 	// Setup signal handlers
 	exit := make(chan os.Signal, 1)
@@ -326,7 +311,7 @@ func main() {
 
 	serverOpts = append(serverOpts, server.WithGrpcOption(metricsOpts), server.WithGrpcOption(grpc.UnaryInterceptor(protovalidate_middleware.UnaryServerInterceptor(validator))))
 
-	go serveMetrics(promhttp.Handler())
+	go serveMetrics(metricsAddress, promhttp.Handler())
 
 	// Setup server
 	s, err := server.New(serverOpts...)
@@ -349,7 +334,7 @@ func main() {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)
 	}
-	go serveTCP(s)
+	go serveTCP(serverAddress, s)
 	go serveUnix(s)
 
 	// Used by clientset and the gateway to connect internally
@@ -381,7 +366,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	go serveGateway(gw)
+	go serveGateway(gatewayAddress, gw)
 
 	// Setup a clientset for the controllers
 	cs, err := client.New(socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
@@ -437,8 +422,7 @@ func main() {
 	close(exit)
 }
 
-func serveMetrics(h http.Handler) {
-	addr := net.JoinHostPort(metricsHost, strconv.Itoa(metricsPort))
+func serveMetrics(addr string, h http.Handler) {
 	log.Info("metrics listening", "address", addr)
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Error("error serving metrics", "error", err)
@@ -446,27 +430,12 @@ func serveMetrics(h http.Handler) {
 	}
 }
 
-func serveGateway(gw *server.Gateway) {
-	if tlsCertificate != "" && tlsCertificateKey != "" {
-		addr := net.JoinHostPort(tlsHost, strconv.Itoa(tlsPort))
-		l, err := net.Listen("tcp", addr)
-		if err != nil {
-			log.Error("error creating gateway listener", "error", err)
-		}
-		log.Info("gateway listening securely", "address", addr)
-		if err := gw.ServeTLS(l, tlsCertificate, tlsCertificateKey); err != nil {
-			log.Error("error serving gateway", "error", err)
-			os.Exit(1)
-		}
-	}
-
-	addr := net.JoinHostPort(host, strconv.Itoa(port))
+func serveGateway(addr string, gw *server.Gateway) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Error("error creating gateway listener", "error", err)
 	}
-	log.Info("gateway listening", "address", addr)
-	if err := gw.Serve(l); err != nil {
+	if err := gw.ServeTLS(l, tlsCertificate, tlsCertificateKey); err != nil {
 		log.Error("error serving gateway", "error", err)
 		os.Exit(1)
 	}
@@ -502,12 +471,7 @@ func serveUnix(s *server.Server) {
 	}
 }
 
-func serveTCP(s *server.Server) {
-	addr := net.JoinHostPort(tcpHost, strconv.Itoa(tcpPort))
-	if tlsCertificate != "" && tlsCertificateKey != "" {
-		addr = net.JoinHostPort(tcptlsHost, strconv.Itoa(tcptlsPort))
-	}
-
+func serveTCP(addr string, s *server.Server) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Error("error setting up server listener", "error", err.Error())
@@ -518,4 +482,65 @@ func serveTCP(s *server.Server) {
 		log.Error("error serving server", "error", err)
 		os.Exit(1)
 	}
+}
+
+func generateCertificates() (tls.Certificate, error) {
+	if tlsCertificate != "" && tlsCertificateKey != "" {
+		return tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
+	}
+
+	cert := tls.Certificate{}
+
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return cert, err
+	}
+
+	// Valid for 1 year
+	notBefore := time.Now()
+	notAfter := notBefore.Add(365 * 24 * time.Hour) // Valid for 1 year
+
+	parent := &x509.Certificate{
+		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+		IsCA:                  false,
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"localhost", "voiyd-node"},
+		IPAddresses: []net.IP{
+			net.IPv4(127, 0, 0, 1),
+		},
+		Subject: pkix.Name{
+			CommonName:         "voiyd-node",
+			Country:            []string{"SE"},
+			Province:           []string{"Halland"},
+			Locality:           []string{"Varberg"},
+			Organization:       []string{"voiyd-node"},
+			OrganizationalUnit: []string{"voiyd"},
+		},
+		SerialNumber: serial,
+		NotAfter:     notAfter,
+		NotBefore:    notBefore,
+	}
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return cert, err
+	}
+
+	certData, err := x509.CreateCertificate(rand.Reader, parent, parent, &key.PublicKey, key)
+	if err != nil {
+		return cert, err
+	}
+
+	cert = tls.Certificate{
+		Certificate: [][]byte{certData}, // Raw DER bytes from x509.CreateCertificate
+		PrivateKey:  key,                // *ecdsa.PrivateKey directly
+	}
+
+	log.Info("generated x509 key pair")
+
+	return cert, nil
 }

@@ -14,10 +14,7 @@ __up() {
     ghcr.io/amimof/voiyd:latest \
     voiyd-server \
     --tls-key /etc/voiyd/tls/server.key \
-    --tls-certificate /etc/voiyd/tls/server.crt \
-    --tls-ca /etc/voiyd/tls/ca.crt \
-    --tls-host 0.0.0.0 \
-    --tcp-tls-host 0.0.0.0
+    --tls-certificate /etc/voiyd/tls/server.crt
 
   # Start nodes
   for i in $(seq $node_count); do
@@ -34,9 +31,7 @@ __up() {
       ghcr.io/amimof/voiyd:latest \
       voiyd-node \
       --tls-ca /etc/voiyd/tls/ca.crt \
-      --port 5743 \
-      --host voiyd-server \
-      --insecure-skip-verify
+      --server-address voiyd-server:5743
   done
 
 }

@@ -73,11 +73,10 @@ spec:
                 - SYS_ADMIN
           args:
             - "voiyd-node"
-            - "--port=5743"
-            - "--host=voiyd-server"
+            - "--server-address=voiyd-server:5743"
             - "--log-level=debug"
             - "--insecure-skip-verify"
-            - "--metrics-host=0.0.0.0"
+            - "--metrics-address=0.0.0.0:8889"
           ports:
             - name: grpc
               containerPort: 5743
