@@ -17,6 +17,7 @@ import (
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/volume"
 
@@ -38,6 +39,7 @@ type Controller struct {
 	attacher         volume.Attacher
 	exchange         *events.Exchange
 	renewInterval    time.Duration
+	netmanager       networking.Manager
 }
 
 type NewOption func(c *Controller)
@@ -75,6 +77,12 @@ func WithName(s string) NewOption {
 func WithExchange(e *events.Exchange) NewOption {
 	return func(c *Controller) {
 		c.exchange = e
+	}
+}
+
+func WithNetworkManager(m networking.Manager) NewOption {
+	return func(c *Controller) {
+		c.netmanager = m
 	}
 }
 
@@ -325,6 +333,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 	m := &Controller{
 		clientset:        c,
 		runtime:          rt,
+		netmanager:       &networking.UnimplementedManager{},
 		logger:           logger.ConsoleLogger{},
 		tracer:           otel.Tracer("controller"),
 		logChan:          make(chan *logsv1.LogEntry),

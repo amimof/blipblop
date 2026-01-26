@@ -44,6 +44,7 @@ type Runtime interface {
 	Version(context.Context) (string, error)
 	ID(context.Context, string) (string, error)
 	Name(context.Context, string) (string, error)
+	Pid(context.Context, string) (uint32, error)
 }
 
 func GenerateID() ID {
