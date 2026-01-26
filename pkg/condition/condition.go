@@ -63,6 +63,9 @@ const (
 	ReasonUpgrading     Reason = "Upgrading"
 	ReasonUpgraded      Reason = "Upgraded"
 	ReasonUpgradeFailed Reason = "UpgradeFailed"
+
+	ReasonUnhealthy Reason = "Unhealthy"
+	ReasonReady     Reason = "Ready"
 )
 
 type (

@@ -83,12 +83,12 @@ func (c *Controller) onNodeCondition(ctx context.Context, report *typesv1.Condit
 	updatedConditions := mergeCondition(n.GetStatus().GetConditions(), newCondition)
 
 	// Derive fields from metadata
-	hostname := getMetadataField(report, condition.NodeReady, "hostname")       // hostname
-	runtime := getMetadataField(report, condition.NodeReady, "runtime_version") // runtime_version
-	nodever := getMetadataField(report, condition.NodeReady, "node_version")    // node_version / upgraded_to
+	hostname := getMetadataString(report, condition.NodeReady, "hostname")       // hostname
+	runtime := getMetadataString(report, condition.NodeReady, "runtime_version") // runtime_version
+	nodever := getMetadataString(report, condition.NodeReady, "node_version")    // node_version / upgraded_to
 
 	// Derive phase from conditions
-	phase := getPhaseFromConditions(updatedConditions)
+	phase := getPhaseFromConditions(updatedConditions, condition.ReasonReady)
 
 	// Update Node status
 	return c.clientset.NodeV1().Status().Update(
@@ -126,14 +126,13 @@ func (c *Controller) onTaskCondition(ctx context.Context, report *typesv1.Condit
 	updatedConditions := mergeCondition(t.GetStatus().GetConditions(), newCondition)
 
 	// Derive fields from metadata
-	nodeID := getNodeFromReport(report)
-	pid := getPidFromReport(report)
-	id := getIDFromReport(report)
-	ipaddr := getMetadataField(report, condition.NetworkReady, "ip_address") // node_version / upgraded_to
-	// gateway := getMetadataField(report, condition.NetworkReady, "gateway")   // node_version / upgraded_to
+	nodeID := getMetadataString(report, condition.TaskScheduled, "node")
+	pid := getMetadataUInt32(report, condition.TaskReady, "pid")
+	id := getMetadataString(report, condition.TaskReady, "id")
+	ipaddr := getMetadataString(report, condition.NetworkReady, "ip_address") // node_version / upgraded_to
 
 	// Derive phase from conditions
-	phase := getPhaseFromConditions(updatedConditions)
+	phase := getPhaseFromConditions(updatedConditions, condition.ReasonRunning)
 
 	// Update Task status
 	return c.clientset.TaskV1().Status().Update(
@@ -183,7 +182,7 @@ func (c *Controller) onConditionReported(ctx context.Context, report *typesv1.Co
 	return nil
 }
 
-func getMetadataField(report *typesv1.ConditionReport, t condition.Type, key string) *wrapperspb.StringValue {
+func getMetadataString(report *typesv1.ConditionReport, t condition.Type, key string) *wrapperspb.StringValue {
 	if condition.Type(report.GetType()) == condition.Type(t) {
 		if v, ok := report.GetMetadata()[key]; ok {
 			return v
@@ -192,27 +191,9 @@ func getMetadataField(report *typesv1.ConditionReport, t condition.Type, key str
 	return nil
 }
 
-func getNodeFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
-	if condition.Type(report.GetType()) == condition.Type(condition.TaskScheduled) {
-		if v, ok := report.GetMetadata()["node"]; ok {
-			return v
-		}
-	}
-	return nil
-}
-
-func getIDFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
-	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
-		if v, ok := report.GetMetadata()["id"]; ok {
-			return v
-		}
-	}
-	return nil
-}
-
-func getPidFromReport(report *typesv1.ConditionReport) *wrapperspb.UInt32Value {
-	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
-		if v, ok := report.GetMetadata()["pid"]; ok {
+func getMetadataUInt32(report *typesv1.ConditionReport, t condition.Type, key string) *wrapperspb.UInt32Value {
+	if condition.Type(report.GetType()) == condition.Type(t) {
+		if v, ok := report.GetMetadata()[key]; ok {
 			i, err := strconv.Atoi(v.GetValue())
 			if err != nil {
 				return wrapperspb.UInt32(0)
@@ -223,12 +204,26 @@ func getPidFromReport(report *typesv1.ConditionReport) *wrapperspb.UInt32Value {
 	return nil
 }
 
-func getPhaseFromConditions(conds []*typesv1.Condition) string {
+func getPhaseFromConditions(conds []*typesv1.Condition, ready condition.Reason) string {
 	if len(conds) == 0 {
 		return consts.PHASEUNKNOWN
 	}
 
-	// Find most recently transitioned condition
+	// Check if there are un-ready conditions (status==false)
+	var hasfailed bool
+	for _, c := range conds {
+		if !c.GetStatus().GetValue() {
+			hasfailed = true
+			break
+		}
+	}
+
+	// Condition is "Ready" when all statuses are true
+	if !hasfailed {
+		return string(ready)
+	}
+
+	// Derive phase from most recent condition
 	var mostRecent *typesv1.Condition
 	for _, c := range conds {
 		if mostRecent == nil ||
@@ -237,7 +232,6 @@ func getPhaseFromConditions(conds []*typesv1.Condition) string {
 		}
 	}
 
-	// Derive phase from most recent condition
 	return string(condition.Reason(mostRecent.GetReason().GetValue()))
 }
 
