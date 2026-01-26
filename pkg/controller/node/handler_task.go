@@ -9,10 +9,19 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/containerd/errdefs"
 	gocni "github.com/containerd/go-cni"
 )
+
+func (c *Controller) isNodeSelected(ctx context.Context, task *tasksv1.Task) bool {
+	node, err := c.clientset.NodeV1().Get(ctx, c.node.GetMeta().GetName())
+	if err != nil {
+		return false
+	}
+	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
+}
 
 func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
@@ -232,6 +241,10 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task) error {
 }
 
 func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *nodesv1.Node) error {
+	if !c.isNodeSelected(ctx, task) {
+		c.logger.Debug("declining schedule request due to selector mismatch", "selector", task.GetConfig().GetNodeSelector())
+		return nil
+	}
 	return c.startTask(ctx, task)
 }
 
