@@ -35,7 +35,7 @@ var testNodes = &nodesv1.ListResponse{
 				},
 			},
 			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(string(condition.ReasonConnected)),
+				Phase: wrapperspb.String(string(condition.ReasonReady)),
 			},
 		},
 		{
@@ -48,7 +48,7 @@ var testNodes = &nodesv1.ListResponse{
 				Name: "node-c",
 			},
 			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(string(condition.ReasonConnected)),
+				Phase: wrapperspb.String(string(condition.ReasonReady)),
 			},
 		},
 		{
@@ -56,7 +56,7 @@ var testNodes = &nodesv1.ListResponse{
 				Name: "node-d",
 			},
 			Status: &nodesv1.Status{
-				Phase: wrapperspb.String(string(condition.ReasonConnected)),
+				Phase: wrapperspb.String(string(condition.ReasonReady)),
 			},
 		},
 	},
@@ -166,7 +166,7 @@ var testTasks = []*tasksv1.Task{
 func TestHoriontalSchedulerFilters(t *testing.T) {
 	in := testNodes.GetNodes()
 
-	in = filterByState(in, string(condition.ReasonConnected))
+	in = filterByState(in, string(condition.ReasonReady))
 	assert.Len(t, in, 3, "Number of nodes should be 3")
 	for _, n := range in {
 		assert.NotEqual(t, n.GetMeta().GetName(), "node-b", "Unready nodes should should not exist in result")
@@ -247,7 +247,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						},
 					},
 					Status: &nodesv1.Status{
-						Phase: wrapperspb.String(string(condition.ReasonConnected)),
+						Phase: wrapperspb.String(string(condition.ReasonReady)),
 					},
 				},
 				{
@@ -260,7 +260,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						Name: "node-d",
 					},
 					Status: &nodesv1.Status{
-						Phase: wrapperspb.String(string(condition.ReasonConnected)),
+						Phase: wrapperspb.String(string(condition.ReasonReady)),
 					},
 				},
 			},
@@ -289,7 +289,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 						},
 					},
 					Status: &nodesv1.Status{
-						Phase: wrapperspb.String(string(condition.ReasonConnected)),
+						Phase: wrapperspb.String(string(condition.ReasonReady)),
 					},
 				},
 			},

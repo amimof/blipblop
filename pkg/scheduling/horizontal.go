@@ -74,7 +74,7 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 	}
 
 	// Don't attempt to schedule on a Unready node
-	filteredNodes := filterByState(allNodes, string(condition.ReasonConnected))
+	filteredNodes := filterByState(allNodes, string(condition.ReasonReady))
 
 	// Make sure we have at least 1 node in the cluster
 	if len(filteredNodes) < 1 {
