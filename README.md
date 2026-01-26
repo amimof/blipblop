@@ -33,38 +33,19 @@ Voiyd is a lightweight container orchestration platform with a central server an
 - **Central control plane**: voiyd-server provides the API and manages cluster state.
 - **Node agent**: voiyd-node runs on each worker node and integrates with a *Runtime* such as [containerd](https://containerd.io). More runtimes are beeing added for example the *Exec* runtime for legacy applications.
 - **Task orchestration**: Deploy workload with *Tasks* - the unit of scheduling.
-- **Volume management**: Create and attach host-local volumes. Snapshot and template support (where configured).
+- **Declarative configuration**: Define cluster resources as yaml or json and apply them all at once from a single source of truth.
+- **Volume management**: Create volumes and attach them to tasks. Host-local mounts for data, templates for application configuration.
 - **Networking**: Expose services with built-in [CNI](https://www.cni.dev) support.
-- **Scheduling**: Built-in scheduler for placing *Tasks* on nodes. Horizontal scheduling utilities for multi-node clusters.
-- **Event and log streaming**: Event service for cluster events. Log service for streaming container logs.
-- **Node management and upgrades**: Node upgrade support and associated controllers.
-- **Pluggable storage backends**: BadgerDB-based repository implementation. In-memory repositories for testing.
+- **Scheduling**: Built-in reactive scheduler for placing *Tasks* on nodes.
+- **Event and log streaming**: Task log streaming is relayed through the server.
+- **Node management and upgrades**: Perform node upgrades remotely with a single command.
+- **Pluggable storage backends**: BadgerDB-based repository implementation by default.
 - **CLI-focused**: Use voiydctl to manage clusters.
 - **Instrumentation**: Metrics and tracing hooks in pkg/instrumentation.
 
 ## Architecture
 
-```
-┌─────────────┐
-│  voiydctl   │
-│   (CLI)     │
-└──────┬──────┘
-       │ gRPC/HTTPS
-       ▼
-┌─────────────────┐
-│  voiyd-server   │
-│ (Control Plane) │
-└─────────────────┘
-       ▲
-       │ 
-       │ Outbound gRPC
-       │
-  ┌────┴───┬────────┬────────┐
-  │        │        │        │
-┌─┴──┐   ┌─┴──┐   ┌─┴──┐   ┌─┴──┐
-│Node│   │Node│   │Node│   │Node│
-└────┘   └────┘   └────┘   └────┘
-```
+![diagram](./logo/voiyd_diagram_black_on_white.png)
 
 ## Components
 
