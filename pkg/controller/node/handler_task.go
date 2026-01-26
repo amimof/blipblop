@@ -9,6 +9,9 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/containerd/errdefs"
+	gocni "github.com/containerd/go-cni"
 )
 
 func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
@@ -26,14 +29,20 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
+	// Detach network
+	err := c.detachNetwork(ctx, task)
+	if err != nil {
+		return err
+	}
+
 	// Remove any previous tasks
-	err := c.runtime.Kill(ctx, task)
+	err = c.runtime.Kill(ctx, task)
 	if err != nil {
 		return err
 	}
 
 	err = c.detachMounts(ctx, task)
-	if err != nil {
+	if !errdefs.IsNotFound(err) {
 		return err
 	}
 
@@ -58,6 +67,12 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Detach volumes
 	err := c.detachMounts(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	// Detach network
+	err = c.detachNetwork(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -255,5 +270,89 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
-	return c.runtime.Run(ctx, task)
+	err = c.runtime.Run(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	return c.attachNetwork(ctx, task)
+}
+
+func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task) error {
+	report := condition.NewForResource(task)
+	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetaching))
+
+	id, err := c.runtime.ID(ctx, task.GetMeta().GetName())
+	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+		return err
+	}
+
+	pid, err := c.runtime.Pid(ctx, id)
+	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+		return err
+	}
+
+	pm := networking.ParseCNIPortMappings(task.GetConfig().PortMappings...)
+	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
+
+	// Delete CNI Network
+	err = c.netmanager.Detach(ctx, id, pid, attachOpts...)
+	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+		return err
+	}
+
+	md := map[string]string{
+		"ip_address": "",
+		"gateway":    "",
+	}
+
+	return c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).WithMetadata(md).True(condition.ReasonDetached))
+}
+
+func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task) error {
+	report := condition.NewForResource(task)
+	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttaching))
+
+	id, err := c.runtime.ID(ctx, task.GetMeta().GetName())
+	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		return err
+	}
+
+	pid, err := c.runtime.Pid(ctx, id)
+	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		return err
+	}
+
+	pm := networking.ParseCNIPortMappings(task.GetConfig().PortMappings...)
+	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
+
+	res, err := c.netmanager.Attach(ctx, id, pid, attachOpts...)
+	if err != nil {
+		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		return err
+	}
+
+	var ipaddr, gw string
+
+	for i, inter := range res.Interfaces {
+		for _, ipcfg := range inter.IPConfigs {
+			if i == "eth1" {
+				ipaddr = ipcfg.IP.String()
+				gw = ipcfg.Gateway.String()
+				break
+			}
+		}
+	}
+
+	md := map[string]string{
+		"ip_address": ipaddr,
+		"gateway":    gw,
+	}
+
+	return c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).WithMetadata(md).True(condition.ReasonAttached))
 }

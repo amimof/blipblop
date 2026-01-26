@@ -1,13 +1,10 @@
 package networking
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"path"
-	"strings"
 
 	gocni "github.com/containerd/go-cni"
 	"go.opentelemetry.io/otel"
@@ -16,7 +13,7 @@ import (
 var tracer = otel.GetTracerProvider().Tracer("voiyd-node")
 
 type Manager interface {
-	Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
+	Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error)
 	Detach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
 	Check(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error
 }
@@ -59,6 +56,20 @@ type CNIManager struct {
 
 	// DefaultCNIConf is the CNI configuration file used by pluginsto setup networking
 	DefaultCNIConf string
+}
+
+type UnimplementedManager struct{}
+
+func (m *UnimplementedManager) Attach(ctx context.Context, id string, pid uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
+	return nil, fmt.Errorf("UnimplementedManager Attach() is unimplemented")
+}
+
+func (m *UnimplementedManager) Detach(ctx context.Context, id string, pid uint32, opts ...gocni.NamespaceOpts) error {
+	return fmt.Errorf("UnimplementedManager Detach() is unimplemented")
+}
+
+func (m *UnimplementedManager) Check(ctx context.Context, id string, pid uint32, opts ...gocni.NamespaceOpts) error {
+	return fmt.Errorf("UnimplementedManager Check() is unimplemented")
 }
 
 type CNIManagerOpts func(*CNIManager) error
@@ -153,22 +164,18 @@ func (c *CNIManager) netNamespace(pid uint32) string {
 }
 
 // Attach implements Manager.
-func (c *CNIManager) Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error {
+func (c *CNIManager) Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
 	ctx, span := tracer.Start(ctx, "networking.cni.Attach")
 	defer span.End()
 
 	netnsPath := c.netNamespace(containerPID)
 
-	_, err := c.cni.Setup(
+	return c.cni.Setup(
 		ctx,
 		containerID,
 		netnsPath,
 		opts...,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // Check implements Manager.
@@ -195,42 +202,12 @@ func (c *CNIManager) Detach(ctx context.Context, containerID string, containerPI
 	return c.cni.Remove(ctx, containerID, netnsPath, opts...)
 }
 
-func (c *CNIManager) GetIPAddress(id string) (net.IP, error) {
-	netdir := path.Join(c.CNIDataDir, c.DefaultNetworkName)
-	fileinfos, err := os.ReadDir(netdir)
-	if err != nil {
-		return nil, err
-	}
-	for _, fileinfo := range fileinfos {
-		if fileinfo.Name() == "lock" {
-			continue
-		}
-		f, err := os.Open(path.Join(netdir, fileinfo.Name()))
-		if err != nil {
-			return nil, err
-		}
-
-		//nolint:errcheck
-		defer f.Close()
-
-		reader := bufio.NewReader(f)
-		content, err := reader.ReadString('\n')
-		if err != nil {
-			return nil, err
-		}
-		if strings.Contains(content, id) {
-			return net.ParseIP(fileinfo.Name()), nil
-		}
-	}
-	return nil, fmt.Errorf("couldn't find IP Address for %s", id)
-}
-
 func NewCNIManager(opts ...CNIManagerOpts) (Manager, error) {
 	m := &CNIManager{
 		CNIBinDir:              "/opt/cni/bin",
 		CNIConfDir:             "/etc/cni/net.d",
 		NetNSPathFmt:           "/proc/%d/ns/net",
-		CNIDataDir:             "",
+		CNIDataDir:             "/var/lib/cni/",
 		DefaultCNIConfFilename: "10-voiyd.conflist",
 		DefaultNetworkName:     "bridge",
 		DefaultBridgeName:      "voiyd0",

@@ -239,7 +239,6 @@ func main() {
 	// Setup and run controllers
 	runtime := rt.NewContainerdRuntimeClient(
 		cclient,
-		cni,
 		rt.WithLogger(log),
 		rt.WithNamespace(runtimeNamespace),
 		rt.WithLogDirFmt(runtimeLogDir),
@@ -261,6 +260,7 @@ func main() {
 		clientSet,
 		nodeCfg,
 		runtime,
+		nodectrl.WithNetworkManager(cni),
 		nodectrl.WithExchange(exchange),
 		nodectrl.WithLogger(log),
 		nodectrl.WithVolumeAttacher(volume.NewDefaultAttacher(clientSet.VolumeV1())),

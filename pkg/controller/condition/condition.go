@@ -129,6 +129,8 @@ func (c *Controller) onTaskCondition(ctx context.Context, report *typesv1.Condit
 	nodeID := getNodeFromReport(report)
 	pid := getPidFromReport(report)
 	id := getIDFromReport(report)
+	ipaddr := getMetadataField(report, condition.NetworkReady, "ip_address") // node_version / upgraded_to
+	// gateway := getMetadataField(report, condition.NetworkReady, "gateway")   // node_version / upgraded_to
 
 	// Derive phase from conditions
 	phase := getPhaseFromConditions(updatedConditions)
@@ -143,8 +145,10 @@ func (c *Controller) onTaskCondition(ctx context.Context, report *typesv1.Condit
 			Node:       nodeID,
 			Id:         id,
 			Pid:        pid,
+			Ip:         ipaddr,
+			// Gw:         gateway,
 		},
-		"conditions", "phase", "node", "id", "pid",
+		"conditions", "phase", "node", "id", "pid", "ip",
 	)
 }
 
@@ -209,9 +213,11 @@ func getIDFromReport(report *typesv1.ConditionReport) *wrapperspb.StringValue {
 func getPidFromReport(report *typesv1.ConditionReport) *wrapperspb.UInt32Value {
 	if condition.Type(report.GetType()) == condition.Type(condition.TaskReady) {
 		if v, ok := report.GetMetadata()["pid"]; ok {
-			if i, err := strconv.Atoi(v.GetValue()); err == nil {
-				return wrapperspb.UInt32(uint32(i))
+			i, err := strconv.Atoi(v.GetValue())
+			if err != nil {
+				return wrapperspb.UInt32(0)
 			}
+			return wrapperspb.UInt32(uint32(i))
 		}
 	}
 	return nil

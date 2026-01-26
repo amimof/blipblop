@@ -12,7 +12,7 @@ Type=simple
 ExecStart=/usr/local/bin/voiyd-node \
   --server-address=localhost:5743 \
   --tls-ca=/etc/voiyd/tls/ca.crt \
-  --metrics-address=0.0.0.0:8888
+  --metrics-address=0.0.0.0:8889
 
 Restart=on-failure
 RestartSec=5s

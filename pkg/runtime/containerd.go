@@ -43,7 +43,6 @@ var tracer = otel.GetTracerProvider().Tracer("voiyd-node")
 
 type ContainerdRuntime struct {
 	client       *containerd.Client
-	cni          networking.Manager
 	logger       logger.Logger
 	ns           string
 	mu           sync.Mutex
@@ -190,20 +189,6 @@ func (c *ContainerdRuntime) Cleanup(ctx context.Context, id string) error {
 	b := ctrLabels["voiyd/ports"]
 	cniports := []gocni.PortMapping{}
 	err = json.Unmarshal([]byte(b), &cniports)
-	if err != nil {
-		return err
-	}
-
-	c.logger.Debug("detaching cni network from container", "id", ctr.ID(), "name", id, "pid", t.Pid(), "cniPorts", cniports)
-
-	// Delete CNI Network
-	err = c.cni.Detach(
-		ctx,
-		ctr.ID(),
-		t.Pid(),
-		gocni.WithCapabilityPortMap(cniports),
-		gocni.WithArgs("IgnoreUnknown", "true"),
-	)
 	if err != nil {
 		return err
 	}
@@ -557,19 +542,8 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 		return err
 	}
 
-	// ctr.GetConfig().GetPortMappings()
-	pm := networking.ParseCNIPortMappings(t.GetConfig().PortMappings...)
-
-	// Setup networking
-	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
-
 	// Start the  task
 	err = task.Start(ctx)
-	if err != nil {
-		return err
-	}
-
-	err = c.cni.Attach(ctx, cont.ID(), task.Pid(), attachOpts...)
 	if err != nil {
 		return err
 	}
@@ -648,10 +622,27 @@ func (c *ContainerdRuntime) Name(ctx context.Context, id string) (string, error)
 	return cName, nil
 }
 
-func NewContainerdRuntimeClient(client *containerd.Client, cni networking.Manager, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
+func (c *ContainerdRuntime) Pid(ctx context.Context, id string) (uint32, error) {
+	ctx = namespaces.WithNamespace(ctx, c.Namespace())
+	ctx, span := tracer.Start(ctx, "runtime.containerd.Pid")
+	defer span.End()
+
+	ctr, err := c.get(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+
+	t, err := ctr.Task(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	return t.Pid(), nil
+}
+
+func NewContainerdRuntimeClient(client *containerd.Client, opts ...NewContainerdRuntimeOption) *ContainerdRuntime {
 	runtime := &ContainerdRuntime{
 		client:       client,
-		cni:          cni,
 		logger:       logger.ConsoleLogger{},
 		ns:           DefaultNamespace,
 		containerIOs: map[string]*TaskIO{},
