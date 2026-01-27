@@ -3,6 +3,7 @@ package errors
 
 import (
 	"errors"
+	"os"
 
 	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/containerd/containerd/errdefs"
@@ -27,6 +28,11 @@ func IsNotFound(err error) bool {
 
 	// repo errors
 	if errors.Is(err, repository.ErrNotFound) {
+		b = true
+	}
+
+	// os errors
+	if errors.Is(err, os.ErrNotExist) {
 		b = true
 	}
 

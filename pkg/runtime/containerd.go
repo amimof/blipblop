@@ -23,12 +23,15 @@ import (
 	gocni "github.com/containerd/go-cni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"go.opentelemetry.io/otel"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/amimof/voiyd/api/types/v1"
+	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/amimof/voiyd/pkg/store"
 	"github.com/amimof/voiyd/pkg/util"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -48,6 +51,7 @@ type ContainerdRuntime struct {
 	mu           sync.Mutex
 	containerIOs map[string]*TaskIO
 	logDirFmt    string
+	store        store.Store
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -63,6 +67,12 @@ func WithLogDirFmt(rootPath string) NewContainerdRuntimeOption {
 func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
 		c.logger = l
+	}
+}
+
+func WithStore(s store.Store) NewContainerdRuntimeOption {
+	return func(c *ContainerdRuntime) {
+		c.store = s
 	}
 }
 
@@ -477,6 +487,21 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Run")
 	defer span.End()
 
+	// Does task require reprovisioning?
+	var tt tasksv1.Task
+	err := c.store.Load(t.GetMeta().GetName(), &tt)
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	fmt.Printf("in store %v\n", &tt)
+	fmt.Printf("got %v\n", &t)
+
+	if proto.Equal(tt.GetConfig(), t.GetConfig()) {
+		c.logger.Debug("task is already running", "task", t.GetMeta().GetName())
+		return nil
+	}
+
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the image. Assumes that image has been pulled beforehand
@@ -538,6 +563,12 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 
 	// Create task
 	task, err := cont.NewTask(ctx, ioCreator)
+	if err != nil {
+		return err
+	}
+
+	// Create task in store
+	err = c.store.Save(containerName, t)
 	if err != nil {
 		return err
 	}
@@ -647,6 +678,7 @@ func NewContainerdRuntimeClient(client *containerd.Client, opts ...NewContainerd
 		ns:           DefaultNamespace,
 		containerIOs: map[string]*TaskIO{},
 		logDirFmt:    "/var/lib/voiyd/containers/%s/log",
+		store:        store.NewEphemeralStore(),
 	}
 
 	for _, opt := range opts {
