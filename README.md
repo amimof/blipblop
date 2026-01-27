@@ -34,6 +34,7 @@ Voiyd is a lightweight container orchestration platform with a central server an
 - **Node agent**: voiyd-node runs on each worker node and integrates with a *Runtime* such as [containerd](https://containerd.io). More runtimes are beeing added for example the *Exec* runtime for legacy applications.
 - **Task orchestration**: Deploy workload with *Tasks* - the unit of scheduling.
 - **Declarative configuration**: Define cluster resources as yaml or json and apply them all at once from a single source of truth.
+- **High-Latency Tolerance**: Designed for stretched clusters across vast distances, making it ideal for edge and IoT deployments.
 - **Volume management**: Create volumes and attach them to tasks. Host-local mounts for data, templates for application configuration.
 - **Networking**: Expose services with built-in [CNI](https://www.cni.dev) support.
 - **Scheduling**: Built-in reactive scheduler for placing *Tasks* on nodes.
