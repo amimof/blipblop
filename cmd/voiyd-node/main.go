@@ -15,6 +15,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/events"
 	rt "github.com/amimof/voiyd/pkg/runtime"
+	"github.com/amimof/voiyd/pkg/store"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -56,6 +57,7 @@ var (
 	runtimeNamespace     string
 	otelEndpoint         string
 	runtimeLogDir        string
+	runtimeStoreDir      string
 	leaseRenewalInterval time.Duration
 )
 
@@ -71,6 +73,7 @@ func init() {
 	pflag.StringVar(&runtimeNamespace, "namespace", rt.DefaultNamespace, "Runtime namespace to use for tasks.")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.StringVar(&runtimeLogDir, "runtime-log-dir", "/var/lib/voiyd/tasks/%s/logs", "Directory in which the runtime stores container log files in (stdout)")
+	pflag.StringVar(&runtimeStoreDir, "runtime-store-dir", "/var/lib/voiyd/runtime/", "Directory in which the runtime stores container state")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
 	pflag.DurationVar(&leaseRenewalInterval, "lease-renew-interval", time.Second*30, "how often leases are renewed on interval")
 }
@@ -237,8 +240,15 @@ func main() {
 	}
 
 	// Setup and run controllers
+	runtimeStore, err := store.NewFSStore(runtimeStoreDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating FS store: %v", err)
+		return
+	}
+
 	runtime := rt.NewContainerdRuntimeClient(
 		cclient,
+		rt.WithStore(runtimeStore),
 		rt.WithLogger(log),
 		rt.WithNamespace(runtimeNamespace),
 		rt.WithLogDirFmt(runtimeLogDir),

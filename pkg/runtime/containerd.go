@@ -23,12 +23,12 @@ import (
 	gocni "github.com/containerd/go-cni"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"go.opentelemetry.io/otel"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/amimof/voiyd/api/types/v1"
+	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/amimof/voiyd/pkg/store"
 	"github.com/amimof/voiyd/pkg/util"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -48,6 +48,7 @@ type ContainerdRuntime struct {
 	mu           sync.Mutex
 	containerIOs map[string]*TaskIO
 	logDirFmt    string
+	store        store.Store
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -63,6 +64,12 @@ func WithLogDirFmt(rootPath string) NewContainerdRuntimeOption {
 func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
 		c.logger = l
+	}
+}
+
+func WithStore(s store.Store) NewContainerdRuntimeOption {
+	return func(c *ContainerdRuntime) {
+		c.store = s
 	}
 }
 
@@ -116,14 +123,6 @@ func withResetAdditionalGIDs() oci.SpecOpts {
 		s.Process.User.AdditionalGids = nil
 		return nil
 	}
-}
-
-func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
-	info, err := container.Labels(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return info, nil
 }
 
 func withContainerLabels(l labels.Label, task *tasksv1.Task) containerd.NewContainerOpts {
@@ -215,75 +214,57 @@ func (c *ContainerdRuntime) List(ctx context.Context, filter ...string) ([]*task
 	}
 
 	result := make([]*tasksv1.Task, len(ctrs))
-	for i, c := range ctrs {
+	for i, ctr := range ctrs {
 
-		l, err := parseContainerLabels(ctx, c)
+		cl, err := ctr.Labels(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		info, err := c.Info(ctx, containerd.WithoutRefreshedMetadata)
-		if err != nil {
-			return nil, err
-		}
-
-		cl, err := c.Labels(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		containerName, ok := cl["voiyd.io/name"]
+		taskName, ok := cl["voiyd.io/name"]
 		if !ok {
 			continue
 		}
 
-		result[i] = &tasksv1.Task{
-			Meta: &types.Meta{
-				Name:     containerName,
-				Revision: util.StringToUint64(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "revision"))),
-				Created:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "created")))),
-				Updated:  timestamppb.New(util.StringToTimestamp(l.Get(fmt.Sprintf("%s/%s", labelPrefix, "updated")))),
-			},
-			Config: &tasksv1.Config{
-				Image: info.Image,
-			},
+		var t tasksv1.Task
+		err = c.store.Load(taskName, &t)
+		if err != nil {
+			return nil, err
 		}
+
+		result[i] = &t
 	}
 
 	return result, nil
 }
 
 // Get returns the first container from the runtime that matches the provided id
-func (c *ContainerdRuntime) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
-	ctr, err := c.get(ctx, id)
+func (c *ContainerdRuntime) Get(ctx context.Context, taskName string) (*tasksv1.Task, error) {
+	// Get from runtime first to verify that the task is provisioned
+	_, err := c.get(ctx, taskName)
 	if err != nil {
 		return nil, err
 	}
 
-	info, err := ctr.Info(ctx)
+	var t tasksv1.Task
+	err = c.store.Load(taskName, &t)
 	if err != nil {
 		return nil, err
 	}
 
-	return &tasksv1.Task{
-		Meta: &types.Meta{
-			Name: id,
-		},
-		Config: &tasksv1.Config{
-			Image: info.Image,
-		},
-	}, nil
+	return &t, nil
 }
 
-func (c *ContainerdRuntime) get(ctx context.Context, id string) (containerd.Container, error) {
+// gets a containerd-container using voiyd task names.
+func (c *ContainerdRuntime) get(ctx context.Context, taskName string) (containerd.Container, error) {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.get")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	cfilters := []string{
-		fmt.Sprintf(`labels."voiyd.io/name"=="%s"`, regexp.QuoteMeta(id)),
-		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(id)),
+		fmt.Sprintf(`labels."voiyd.io/name"=="%s"`, regexp.QuoteMeta(taskName)),
+		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(taskName)),
 	}
 
 	_, err := filters.ParseAll(cfilters...)
@@ -296,7 +277,12 @@ func (c *ContainerdRuntime) get(ctx context.Context, id string) (containerd.Cont
 		return nil, err
 	}
 
+	// Not found in runtime, remove from store
 	if len(ctrs) == 0 {
+		err = c.store.Delete(taskName)
+		if errs.IgnoreNotFound(err) != nil {
+			return nil, err
+		}
 		return nil, errdefs.ErrNotFound
 	}
 
@@ -373,7 +359,8 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 		return fmt.Errorf("error deleting container and its tasks: %v", err)
 	}
 
-	return nil
+	// Delete from store
+	return c.store.Delete(t.GetMeta().GetName())
 }
 
 // Stop stops containers associated with the name of provided container instance.
@@ -542,6 +529,12 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 		return err
 	}
 
+	// Create task in store
+	err = c.store.Save(containerName, t)
+	if err != nil {
+		return err
+	}
+
 	// Start the  task
 	err = task.Start(ctx)
 	if err != nil {
@@ -647,6 +640,7 @@ func NewContainerdRuntimeClient(client *containerd.Client, opts ...NewContainerd
 		ns:           DefaultNamespace,
 		containerIOs: map[string]*TaskIO{},
 		logDirFmt:    "/var/lib/voiyd/containers/%s/log",
+		store:        store.NewEphemeralStore(),
 	}
 
 	for _, opt := range opts {

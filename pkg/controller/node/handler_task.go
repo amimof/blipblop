@@ -5,14 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	"github.com/containerd/errdefs"
+	gocni "github.com/containerd/go-cni"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/networking"
-	"github.com/containerd/errdefs"
-	gocni "github.com/containerd/go-cni"
+
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 func (c *Controller) isNodeSelected(ctx context.Context, task *tasksv1.Task) bool {
@@ -248,6 +251,14 @@ func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *node
 	return c.startTask(ctx, task)
 }
 
+// Returns a version of task that is comparable by stripping fields that
+// should be omitted when comparing with proto.Equal for example
+func comparable(task *tasksv1.Task) *tasksv1.Task {
+	t := proto.Clone(task).(*tasksv1.Task)
+	t.Status = nil
+	return t
+}
+
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
@@ -262,8 +273,10 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
+	// Skip task provision if no changes are made. Ignore status-fields when comparing
 	if t != nil {
-		if t.GetMeta().GetRevision() == task.GetMeta().GetRevision() {
+		if proto.Equal(comparable(t), comparable(task)) {
+			c.logger.Debug("task does not require re-provisioning", "task", task.GetMeta().GetName())
 			return nil
 		}
 	}
