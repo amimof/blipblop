@@ -5,15 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	"github.com/containerd/errdefs"
+	gocni "github.com/containerd/go-cni"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/networking"
-	"github.com/containerd/errdefs"
-	gocni "github.com/containerd/go-cni"
-	"github.com/golang/protobuf/proto"
+
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 func (c *Controller) isNodeSelected(ctx context.Context, task *tasksv1.Task) bool {

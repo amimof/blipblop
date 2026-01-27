@@ -125,14 +125,6 @@ func withResetAdditionalGIDs() oci.SpecOpts {
 	}
 }
 
-func parseContainerLabels(ctx context.Context, container containerd.Container) (labels.Label, error) {
-	info, err := container.Labels(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return info, nil
-}
-
 func withContainerLabels(l labels.Label, task *tasksv1.Task) containerd.NewContainerOpts {
 	pm := task.GetConfig().GetPortMappings()
 

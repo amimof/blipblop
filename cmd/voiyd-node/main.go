@@ -242,7 +242,7 @@ func main() {
 	// Setup and run controllers
 	runtimeStore, err := store.NewFSStore(runtimeStoreDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating FS store", "error", err)
+		fmt.Fprintf(os.Stderr, "error creating FS store: %v", err)
 		return
 	}
 
