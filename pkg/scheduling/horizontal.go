@@ -55,11 +55,13 @@ func filterByState(original []*nodesv1.Node, state string) []*nodesv1.Node {
 	return result
 }
 
-func pickRandomNode(original []*nodesv1.Node) *nodesv1.Node {
+func pickRandomNode(original []*nodesv1.Node) (*nodesv1.Node, error) {
+	if len(original) <= 0 {
+		return nil, ErrSchedulingNoNode
+	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	// Schedule on random node as a last resort
 	i := r.Intn(len(original))
-	return original[i]
+	return original[i], nil
 }
 
 func (s *horizontal) Score(ctx context.Context, c *tasksv1.Task) (map[string]float64, error) {
@@ -112,7 +114,7 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 	}
 
 	// Choose a node by random out of the filtered list of nodes
-	return pickRandomNode(filteredNodes), nil
+	return pickRandomNode(filteredNodes)
 }
 
 func NewHorizontalScheduler(c *client.ClientSet) Scheduler {

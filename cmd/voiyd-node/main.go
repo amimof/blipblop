@@ -122,7 +122,7 @@ func main() {
 	// Setup logging
 	lvl, err := parseSlogLevel(logLevel)
 	if err != nil {
-		fmt.Printf("error parsing log level: %v", err)
+		fmt.Printf("error parsing log level: %v\n", err)
 		os.Exit(1)
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
@@ -132,12 +132,13 @@ func main() {
 	if tlsCACertificate != "" {
 		caCert, err := os.ReadFile(tlsCACertificate)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading CA certificate file: %v", err)
-			return
+			log.Error("error reading CA certificate", "error", err, "path", tlsCACertificate)
+			os.Exit(1)
 		}
 		certPool := x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(caCert) {
-			fmt.Fprintf(os.Stderr, "error appending CA certitifacte to pool: %v", err)
+			log.Error("error appending CA certificate to pool", "path", tlsCACertificate)
+			os.Exit(1)
 		}
 		tlsConfig.RootCAs = certPool
 	}
@@ -146,7 +147,7 @@ func main() {
 	if tlsCertificate != "" && tlsCertificateKey != "" {
 		cert, err := tls.LoadX509KeyPair(tlsCertificate, tlsCertificateKey)
 		if err != nil {
-			log.Error("error loading x509 cert key pair", "error", err)
+			log.Error("error loading x509 cert key pair", "error", err, "key", tlsCertificateKey, "cert", tlsCertificate)
 			os.Exit(1)
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
@@ -160,7 +161,7 @@ func main() {
 		shutdownTraceProvider, err := instrumentation.InitTracing(ctx, "voiyd-node", VERSION, otelEndpoint)
 		if err != nil {
 			log.Error("error setting up tracing", "error", err)
-			os.Exit(0)
+			os.Exit(1)
 		}
 		defer func() {
 			if err := shutdownTraceProvider(ctx); err != nil {
@@ -172,13 +173,14 @@ func main() {
 	// Setup metrics
 	metricsOpts, err := instrumentation.InitClientMetrics()
 	if err != nil {
-		log.Error("Failed to start prometheus exporter", "error", err)
+		log.Error("failed to start prometheus exporter", "error", err)
+		os.Exit(1)
 	}
 
 	go serveMetrics(metricsAddress, promhttp.Handler(), log)
 
 	// Setup a clientset for this node
-	clientSet, err := connectToServer(serverAddress,
+	clientSet, err := connectToServer(ctx, serverAddress,
 		client.WithGrpcDialOption(
 			metricsOpts,
 			grpc.WithStatsHandler(
@@ -189,7 +191,8 @@ func main() {
 		client.WithLogger(log),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		log.Error("error connecting to server", "error", err)
+		os.Exit(1)
 	}
 
 	defer func() {
@@ -198,37 +201,25 @@ func main() {
 		}
 	}()
 
-	// Create containerd client
-	// cclient, err := reconnectWithBackoff(ctx, containerdSocket, log)
-	// if err != nil {
-	// 	log.Error("could not establish connection to containerd: %v", "error", err)
-	// 	return
-	// }
-	// defer func() {
-	// 	if err := cclient.Close(); err != nil {
-	// 		log.Error("error closing containerd connection", "error", err)
-	// 	}
-	// }()
-
 	// Join node
 	nodeCfg, err := node.LoadNodeFromEnv(nodeFile)
 	if err != nil {
-		log.Error("error creating a node from environment", "error", err)
-		return
+		log.Error("error creating a node from environment", "error", err, "path", nodeFile)
+		os.Exit(1)
 	}
 
 	// Join node to cluster
 	err = clientSet.NodeV1().Join(ctx, nodeCfg)
 	if err != nil {
 		log.Error("error joining node to server", "error", err)
-		return
+		os.Exit(1)
 	}
 
 	// Create networking
 	cni, err := networking.NewCNIManager()
 	if err != nil {
 		log.Error("error initializing networking", "error", err)
-		return
+		os.Exit(1)
 	}
 
 	// Setup event exchange bus
@@ -236,14 +227,21 @@ func main() {
 
 	cclient, err := containerd.New(containerdSocket)
 	if err != nil {
-		log.Error("failed to connect to containerd", "error", err)
+		log.Error("failed to connect to containerd", "error", err, "path", containerdSocket)
+		os.Exit(1)
 	}
+
+	defer func() {
+		if err := cclient.Close(); err != nil {
+			log.Error("error closing containerd connection", "error", err)
+		}
+	}()
 
 	// Setup and run controllers
 	runtimeStore, err := store.NewFSStore(runtimeStoreDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating FS store: %v", err)
-		return
+		log.Error("error creating FS store", "error", err, "path", runtimeStoreDir)
+		os.Exit(1)
 	}
 
 	runtime := rt.NewContainerdRuntimeClient(
@@ -253,7 +251,6 @@ func main() {
 		rt.WithNamespace(runtimeNamespace),
 		rt.WithLogDirFmt(runtimeLogDir),
 	)
-	exit := make(chan os.Signal, 1)
 
 	// Containerd runtime controller
 	containerdCtrl := containerdctrl.New(
@@ -278,8 +275,9 @@ func main() {
 	)
 	if err != nil {
 		log.Error("error setting up Node Controller", "error", err)
-		return
+		os.Exit(1)
 	}
+
 	go nodeCtrl.Run(ctx)
 	log.Info("started node controller")
 
@@ -304,12 +302,19 @@ func main() {
 	go upgradeCtrl.Run(ctx)
 	log.Info("started node upgrade controller")
 
-	// Setup signal handler
+	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
-	<-exit
-	cancel()
+
+	select {
+	case <-exit:
+		log.Info("received shutdown signal")
+		cancel()
+	case <-ctx.Done():
+		log.Info("context cancelled externally")
+	}
 
 	log.Info("shutting down")
+	close(exit)
 }
 
 func reconnectWithBackoff(addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
@@ -323,22 +328,26 @@ func reconnectWithBackoff(addr string, opts ...client.NewClientOption) (*client.
 
 	resp, err := clientSet.HealthV1().Check(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("error connecting, check didn't pass %v: %v", err, resp)
+		return nil, fmt.Errorf("health check failed: %w (response: %v)", err, resp)
 	}
+
 	return clientSet, nil
 }
 
-func connectToServer(addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
+func connectToServer(ctx context.Context, addr string, opts ...client.NewClientOption) (*client.ClientSet, error) {
 	interval := time.Second * 2
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
 		cs, err := reconnectWithBackoff(addr, opts...)
 		if err == nil {
 			return cs, nil
 		}
-
-		fmt.Printf("error connecting to server, retrying: %v", err)
-
-		time.Sleep(interval)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+		}
 	}
 }
 

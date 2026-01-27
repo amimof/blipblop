@@ -25,7 +25,6 @@ import (
 	protovalidate_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -125,7 +124,7 @@ func init() {
 		},
 		func() float64 { return 1 },
 	)); err != nil {
-		logrus.Printf("Unable to register 'voiyd_build_info metric %s'", err.Error())
+		fmt.Fprintf(os.Stderr, "Unable to register 'voiyd_build_info metric %s'", err.Error())
 	}
 }
 
@@ -173,7 +172,7 @@ func main() {
 	// Setup logging
 	lvl, err := parseSlogLevel(logLevel)
 	if err != nil {
-		fmt.Printf("error parsing log level: %v", err)
+		fmt.Fprintf(os.Stderr, "error parsing log level: %v", err)
 		os.Exit(1)
 	}
 	// log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
@@ -203,7 +202,7 @@ func main() {
 		}
 		certPool := x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(caCert) {
-			log.Error("error appending CA certificate to pool")
+			log.Error("error appending CA certificate to pool", "caCert", tlsCACertificate)
 			os.Exit(1)
 		}
 
@@ -237,7 +236,7 @@ func main() {
 	// Setup badgerdb and repo
 	db, err := badger.Open(badger.DefaultOptions(dbPath))
 	if err != nil {
-		log.Error("error opening badger database", "error", err.Error())
+		log.Error("error opening badger database", "error", err)
 		os.Exit(1)
 	}
 
@@ -302,16 +301,19 @@ func main() {
 	metricsOpts, err := instrumentation.InitServerMetrics(ctx)
 	if err != nil {
 		log.Error("Failed to start prometheus exporter", "error", err)
+		os.Exit(1)
 	}
 
 	validator, err := protovalidate.New()
 	if err != nil {
 		log.Error("Failed to create protovalidate validator", "error", err)
+		os.Exit(1)
 	}
 
 	serverOpts = append(serverOpts, server.WithGrpcOption(metricsOpts), server.WithGrpcOption(grpc.UnaryInterceptor(protovalidate_middleware.UnaryServerInterceptor(validator))))
+	errChan := make(chan error)
 
-	go serveMetrics(metricsAddress, promhttp.Handler())
+	go serveMetrics(metricsAddress, promhttp.Handler(), errChan)
 
 	// Setup server
 	s, err := server.New(serverOpts...)
@@ -334,8 +336,9 @@ func main() {
 		log.Error("error registering services to server", "error", err)
 		os.Exit(1)
 	}
-	go serveTCP(serverAddress, s)
-	go serveUnix(s)
+
+	go serveTCP(serverAddress, s, errChan)
+	go serveUnix(s, errChan)
 
 	// Used by clientset and the gateway to connect internally
 	socketAddr := fmt.Sprintf("unix://%s", socketPath)
@@ -349,7 +352,7 @@ func main() {
 		}
 		defer func() {
 			if err := shutdownTraceProvider(ctx); err != nil {
-				log.Error("error sutting down trace provider", "error", err)
+				log.Error("error shutting down trace provider", "error", err)
 			}
 		}()
 	}
@@ -366,12 +369,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	go serveGateway(gatewayAddress, gw)
+	go serveGateway(gatewayAddress, gw, errChan)
 
 	// Setup a clientset for the controllers
 	cs, err := client.New(socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		log.Error("error creating clientset", "error", err.Error())
 	}
 	defer func() {
 		if err := cs.Close(); err != nil {
@@ -400,52 +403,69 @@ func main() {
 	go conditionCtrl.Run(ctx)
 	log.Info("Started Condition Controller")
 
-	// Wait for exit signal, begin shutdown process after this point
-	<-exit
-	cancel()
+	select {
+	case <-exit:
+		log.Info("received shutdown signal")
+		cancel()
+	case e := <-errChan:
+		log.Error("fatal error in server component", "error", e)
+		cancel()
+	case <-ctx.Done():
+		log.Info("context cancelled externally")
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cleanupTimeout)
+	defer shutdownCancel()
 
 	// Shut down gateway
-	if err := gw.Shutdown(ctx); err != nil {
+	if err := gw.Shutdown(shutdownCtx); err != nil {
 		log.Error("error shutting down gateway", "error", err)
 	}
-	log.Info("shutting down gateway")
 
-	// Shut down server
+	// Shut down server with force shutdown as fallback
+	serverShutdownDone := make(chan struct{})
 	go func() {
-		time.Sleep(time.Second * 10)
-		log.Info("deadline exceeded, shutting down forcefully")
-		s.ForceShutdown()
+		s.Shutdown()
+		close(serverShutdownDone)
 	}()
 
-	s.Shutdown()
-	log.Info("shutting down server")
+	select {
+	case <-serverShutdownDone:
+		log.Info("server shut down gracefully")
+	case <-time.After(10 * time.Second):
+		log.Warn("timeout exceeded, forcing shutdown")
+		s.ForceShutdown()
+	}
+
 	close(exit)
+	close(errChan)
 }
 
-func serveMetrics(addr string, h http.Handler) {
+func serveMetrics(addr string, h http.Handler, errChan chan error) {
 	log.Info("metrics listening", "address", addr)
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Error("error serving metrics", "error", err)
+		errChan <- err
+	}
+}
+
+func serveGateway(addr string, gw *server.Gateway, errChan chan error) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		errChan <- fmt.Errorf("error creating gateway listener: %v", err)
+		return
+	}
+	if err := gw.ServeTLS(l, tlsCertificate, tlsCertificateKey); err != nil {
+		errChan <- fmt.Errorf("error serving gateway: %v", err)
 		return
 	}
 }
 
-func serveGateway(addr string, gw *server.Gateway) {
-	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Error("error creating gateway listener", "error", err)
-	}
-	if err := gw.ServeTLS(l, tlsCertificate, tlsCertificateKey); err != nil {
-		log.Error("error serving gateway", "error", err)
-		os.Exit(1)
-	}
-}
-
-func serveUnix(s *server.Server) {
+func serveUnix(s *server.Server, errChan chan error) {
 	// Remove the socket file if it already exists
 	if _, err := os.Stat(socketPath); err == nil {
 		if err := os.RemoveAll(socketPath); err != nil {
-			log.Error("failed to remove existing Unix socket", "error", err)
+			errChan <- fmt.Errorf("failed to remove existing Unix socket: %v", err)
 			return
 		}
 	}
@@ -453,34 +473,34 @@ func serveUnix(s *server.Server) {
 	// Create socket dir if doesn't exist
 	dirPath := filepath.Dir(socketPath)
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(dirPath, 0); err != nil {
-			log.Error("failed to create socket directory", "error", err)
+		if err := os.MkdirAll(dirPath, 0o755); err != nil {
+			errChan <- fmt.Errorf("failed to create socket directory: %v", err)
 			return
 		}
 	}
 	unixListener, err := net.Listen("unix", socketPath)
 	if err != nil {
-		log.Error("error setting up Unix socket listener", "error", err.Error())
-		os.Exit(1)
+		errChan <- fmt.Errorf("error setting up Unix socket listener: %v", err)
+		return
 	}
 
 	log.Info("server listening", "socket", socketPath)
 	if err := s.Serve(unixListener); err != nil {
-		log.Error("error serving server", "error", err)
-		os.Exit(1)
+		errChan <- fmt.Errorf("error serving server: %v", err)
+		return
 	}
 }
 
-func serveTCP(addr string, s *server.Server) {
+func serveTCP(addr string, s *server.Server, errChan chan error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Error("error setting up server listener", "error", err.Error())
-		os.Exit(1)
+		errChan <- fmt.Errorf("error setting up server listener: %v", err)
+		return
 	}
 	log.Info("server listening", "address", addr)
 	if err := s.Serve(l); err != nil {
-		log.Error("error serving server", "error", err)
-		os.Exit(1)
+		errChan <- fmt.Errorf("error serving server: %v", err)
+		return
 	}
 }
 
