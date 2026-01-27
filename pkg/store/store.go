@@ -64,15 +64,14 @@ func (s *fsStore) Save(id string, m proto.Message) error {
 }
 
 func (s *fsStore) Delete(id string) error {
-	fName := path.Join(id, s.rootDir)
+	fName := path.Join(s.rootDir, id)
 	return os.Remove(fName)
 }
 
 // NewFSStore returns a filesystem based store starting at dir.
-// Checks if dir exists by performing os.Stat. Callers are responsible for
-// creating directory structure prior to calling NewFSStore().
+// Checks if dir exists by performing os.Stat.
 func NewFSStore(dir string) (Store, error) {
-	_, err := os.Stat(dir)
+	err := os.MkdirAll(dir, 0o755)
 	if err != nil {
 		return nil, err
 	}
