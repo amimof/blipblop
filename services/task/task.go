@@ -56,15 +56,15 @@ func (c *TaskService) Create(ctx context.Context, req *tasksv1.CreateRequest) (*
 	return c.local.Create(ctx, req)
 }
 
-func (c *TaskService) Delete(ctx context.Context, req *tasksv1.DeleteRequest) (*tasksv1.DeleteResponse, error) {
+func (c *TaskService) Delete(ctx context.Context, req *tasksv1.DeleteRequest) (*emptypb.Empty, error) {
 	return c.local.Delete(ctx, req)
 }
 
-func (c *TaskService) Kill(ctx context.Context, req *tasksv1.KillRequest) (*tasksv1.KillResponse, error) {
+func (c *TaskService) Kill(ctx context.Context, req *tasksv1.KillRequest) (*emptypb.Empty, error) {
 	return c.local.Kill(ctx, req)
 }
 
-func (c *TaskService) Start(ctx context.Context, req *tasksv1.StartRequest) (*tasksv1.StartResponse, error) {
+func (c *TaskService) Start(ctx context.Context, req *tasksv1.StartRequest) (*emptypb.Empty, error) {
 	return c.local.Start(ctx, req)
 }
 
@@ -84,7 +84,7 @@ func (c *TaskService) Condition(ctx context.Context, req *typesv1.ConditionReque
 	return c.local.Condition(ctx, req)
 }
 
-func NewService(repo repository.TaskRepository, opts ...NewServiceOption) *TaskService {
+func NewService(repo *repository.Repo[*tasksv1.Task], opts ...NewServiceOption) *TaskService {
 	s := &TaskService{
 		logger: logger.ConsoleLogger{},
 	}

@@ -4,10 +4,12 @@ import (
 	"context"
 
 	"github.com/amimof/voiyd/api/services/volumes/v1"
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const Version string = "volume/v1"
@@ -50,7 +52,7 @@ func (l *VolumeService) Create(ctx context.Context, req *volumes.CreateRequest) 
 	return l.local.Create(ctx, req)
 }
 
-func (l *VolumeService) Delete(ctx context.Context, req *volumes.DeleteRequest) (*volumes.DeleteResponse, error) {
+func (l *VolumeService) Delete(ctx context.Context, req *volumes.DeleteRequest) (*emptypb.Empty, error) {
 	return l.local.Delete(ctx, req)
 }
 
@@ -66,7 +68,7 @@ func (l *VolumeService) UpdateStatus(ctx context.Context, req *volumes.UpdateSta
 	return l.local.UpdateStatus(ctx, req)
 }
 
-func NewService(repo repository.VolumeRepository, opts ...NewServiceOption) *VolumeService {
+func NewService(repo *repository.Repo[*volumesv1.Volume], opts ...NewServiceOption) *VolumeService {
 	s := &VolumeService{
 		logger: logger.ConsoleLogger{},
 	}

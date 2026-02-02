@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -27,7 +28,7 @@ type VolumeServiceClient interface {
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 	Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error)
-	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 }
 
@@ -84,8 +85,8 @@ func (c *volumeServiceClient) Patch(ctx context.Context, in *PatchRequest, opts 
 	return out, nil
 }
 
-func (c *volumeServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
-	out := new(DeleteResponse)
+func (c *volumeServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/services.volumes.v1.VolumeService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -111,7 +112,7 @@ type VolumeServiceServer interface {
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
 	Patch(context.Context, *PatchRequest) (*PatchResponse, error)
-	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	mustEmbedUnimplementedVolumeServiceServer()
 }
@@ -135,7 +136,7 @@ func (UnimplementedVolumeServiceServer) Update(context.Context, *UpdateRequest) 
 func (UnimplementedVolumeServiceServer) Patch(context.Context, *PatchRequest) (*PatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Patch not implemented")
 }
-func (UnimplementedVolumeServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
+func (UnimplementedVolumeServiceServer) Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
 func (UnimplementedVolumeServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {

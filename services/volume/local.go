@@ -14,23 +14,26 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
+
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 )
 
 var (
-	_      volumes.VolumeServiceClient = &local{}
-	tracer                             = otel.GetTracerProvider().Tracer("volume-service")
+	_      volumesv1.VolumeServiceClient = &local{}
+	tracer                               = otel.GetTracerProvider().Tracer("volume-service")
 )
 
 type local struct {
-	repo     repository.VolumeRepository
+	repo     *repository.Repo[*volumesv1.Volume]
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
@@ -46,7 +49,7 @@ func (l *local) handleError(err error, msg string, keysAndValues ...any) error {
 	return status.Error(codes.Internal, fmt.Sprintf("%s: %v", msg, err.Error()))
 }
 
-func applyMaskedUpdate(dst, src *volumes.Status, mask *fieldmaskpb.FieldMask) error {
+func applyMaskedUpdate(dst, src *volumesv1.Status, mask *fieldmaskpb.FieldMask) error {
 	if mask == nil || len(mask.Paths) == 0 {
 		return status.Error(codes.InvalidArgument, "update_mask is required")
 	}
@@ -67,12 +70,12 @@ func applyMaskedUpdate(dst, src *volumes.Status, mask *fieldmaskpb.FieldMask) er
 }
 
 // Patch implements volumes.VolumeServiceClient.
-func (l *local) Patch(ctx context.Context, in *volumes.PatchRequest, opts ...grpc.CallOption) (*volumes.PatchResponse, error) {
+func (l *local) Patch(ctx context.Context, in *volumesv1.PatchRequest, opts ...grpc.CallOption) (*volumesv1.PatchResponse, error) {
 	panic("unimplemented")
 }
 
 // Create implements volumes.VolumeServiceClient.
-func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...grpc.CallOption) (*volumes.CreateResponse, error) {
+func (l *local) Create(ctx context.Context, req *volumesv1.CreateRequest, opts ...grpc.CallOption) (*volumesv1.CreateResponse, error) {
 	ctx, span := tracer.Start(ctx, "volume.Create")
 	defer span.End()
 
@@ -83,30 +86,22 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	volumeID := volume.GetMeta().GetName()
 
 	// Check if volume already exists
-	if existing, _ := l.Get(ctx, &volumes.GetRequest{Id: volumeID}); existing != nil {
+	if existing, _ := l.Get(ctx, &volumesv1.GetRequest{Uid: volumeID}); existing != nil {
 		return nil, fmt.Errorf("volume %s already exists", volume.GetMeta().GetName())
 	}
 
-	volume.GetMeta().Created = timestamppb.Now()
-	volume.GetMeta().Updated = timestamppb.Now()
 	volume.GetMeta().ResourceVersion = 1
 	volume.GetMeta().Generation = 1
 
 	// Initialize status field if empty
 	if volume.GetStatus() == nil {
-		volume.Status = &volumes.Status{}
+		volume.Status = &volumesv1.Status{}
 	}
 
 	// Create volume in repo
-	err := l.Repo().Create(ctx, volume)
+	volume, err := l.repo.Create(ctx, volume)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE volume in repo", "name", volumeID)
-	}
-
-	// Get the created volume from repo
-	volume, err = l.Repo().Get(ctx, volumeID)
-	if err != nil {
-		return nil, err
+		return nil, l.handleError(err, "error creating volume", "name", volumeID)
 	}
 
 	// Decorate label with some labels
@@ -117,24 +112,30 @@ func (l *local) Create(ctx context.Context, req *volumes.CreateRequest, opts ...
 	// Publish event that volume is created
 	err = l.exchange.Forward(ctx, events.NewEvent(events.VolumeCreate, volume, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", volume.GetMeta().GetName(), "event", "VolumeCreate")
+		return nil, l.handleError(err, "error publishing volume create event", "name", volume.GetMeta().GetName(), "event", "VolumeCreate")
 	}
 
-	return &volumes.CreateResponse{
+	return &volumesv1.CreateResponse{
 		Volume: volume,
 	}, nil
 }
 
 // Delete implements volumes.VolumeServiceClient.
-func (l *local) Delete(ctx context.Context, req *volumes.DeleteRequest, opts ...grpc.CallOption) (*volumes.DeleteResponse, error) {
+func (l *local) Delete(ctx context.Context, req *volumesv1.DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	ctx, span := tracer.Start(ctx, "volume.Delete")
 	defer span.End()
 
-	volume, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET volume from repo", "id", req.GetId())
+		return nil, l.handleError(err, "couldn't parse uid")
 	}
-	err = l.Repo().Delete(ctx, req.GetId())
+
+	volume, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, l.handleError(err, "error deleting repo", "id", req.GetUid())
+	}
+
+	err = l.repo.Delete(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -146,66 +147,72 @@ func (l *local) Delete(ctx context.Context, req *volumes.DeleteRequest, opts ...
 
 	err = l.exchange.Forward(ctx, events.NewEvent(events.VolumeDelete, volume, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", volume.GetMeta().GetName(), "event", "VolumeDelete")
+		return nil, l.handleError(err, "error publishing volume delete event", "name", volume.GetMeta().GetName(), "event", "VolumeDelete")
 	}
-	return &volumes.DeleteResponse{
-		Id: req.GetId(),
-	}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // Get implements volumes.VolumeServiceClient.
-func (l *local) Get(ctx context.Context, req *volumes.GetRequest, opts ...grpc.CallOption) (*volumes.GetResponse, error) {
+func (l *local) Get(ctx context.Context, req *volumesv1.GetRequest, opts ...grpc.CallOption) (*volumesv1.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "volume.Get", trace.WithSpanKind(trace.SpanKindServer))
 	span.SetAttributes(
 		attribute.String("service", "Volume"),
-		attribute.String("volume.id", req.GetId()),
+		attribute.String("volume.id", req.GetUid()),
 	)
 	defer span.End()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	// Get volume from repo
-	volume, err := l.Repo().Get(ctx, req.GetId())
+	volume, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		span.RecordError(err)
-		return nil, l.handleError(err, "couldn't GET volume from repo", "name", req.GetId())
+		return nil, l.handleError(err, "error getting volume", "name", req.GetUid())
 	}
 
 	span.SetAttributes(attribute.String("volume.name", volume.GetMeta().GetName()))
 
-	return &volumes.GetResponse{
+	return &volumesv1.GetResponse{
 		Volume: volume,
 	}, nil
 }
 
 // List implements volumes.VolumeServiceClient.
-func (l *local) List(ctx context.Context, req *volumes.ListRequest, opts ...grpc.CallOption) (*volumes.ListResponse, error) {
+func (l *local) List(ctx context.Context, req *volumesv1.ListRequest, opts ...grpc.CallOption) (*volumesv1.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "volume.List")
 	defer span.End()
 
-	// Validate request
-
 	// Get volumes from repo
-	ctrs, err := l.Repo().List(ctx, req.GetSelector())
+	ctrs, err := l.repo.List(ctx, int(req.GetLimit()))
 	if err != nil {
-		return nil, l.handleError(err, "couldn't LIST volumes from repo")
+		return nil, l.handleError(err, "error listing volumes")
 	}
-	return &volumes.ListResponse{
+	return &volumesv1.ListResponse{
 		Volumes: ctrs,
 	}, nil
 }
 
 // Update implements volumes.VolumeServiceClient.
-func (l *local) UpdateStatus(ctx context.Context, req *volumes.UpdateStatusRequest, opts ...grpc.CallOption) (*volumes.UpdateStatusResponse, error) {
+func (l *local) UpdateStatus(ctx context.Context, req *volumesv1.UpdateStatusRequest, opts ...grpc.CallOption) (*volumesv1.UpdateStatusResponse, error) {
 	ctx, span := tracer.Start(ctx, "volume.UpdateStatus")
 	defer span.End()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	// Get the existing container before updating so we can compare specs
-	existingVolume, err := l.Repo().Get(ctx, req.GetId())
+	existingVolume, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
 
 	// Apply mask safely
-	base := proto.Clone(existingVolume.GetStatus()).(*volumes.Status)
+	base := proto.Clone(existingVolume.GetStatus()).(*volumesv1.Status)
 	if err := applyMaskedUpdate(base, req.Status, req.UpdateMask); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
 	}
@@ -213,28 +220,32 @@ func (l *local) UpdateStatus(ctx context.Context, req *volumes.UpdateStatusReque
 	existingVolume.GetMeta().ResourceVersion++
 	existingVolume.Status = base
 
-	if err := l.Repo().Update(ctx, existingVolume); err != nil {
+	if err := l.repo.Update(ctx, uid, existingVolume); err != nil {
 		return nil, err
 	}
 
-	return &volumes.UpdateStatusResponse{
+	return &volumesv1.UpdateStatusResponse{
 		Id: existingVolume.GetMeta().GetName(),
 	}, nil
 }
 
 // UpdateStatus implements volumes.VolumeServiceClient.
-func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...grpc.CallOption) (*volumes.UpdateResponse, error) {
+func (l *local) Update(ctx context.Context, req *volumesv1.UpdateRequest, opts ...grpc.CallOption) (*volumesv1.UpdateResponse, error) {
 	ctx, span := tracer.Start(ctx, "volume.Update")
 	defer span.End()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Validate request
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	updateVolume := req.GetVolume()
 
 	// Get the existing volume before updating so we can compare specs
-	existingVolume, err := l.Repo().Get(ctx, req.GetId())
+	existingVolume, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -256,13 +267,13 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 	}
 
 	// Update the volume
-	err = l.Repo().Update(ctx, updateVolume)
+	err = l.repo.Update(ctx, uid, updateVolume)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE volume in repo", "name", updateVolume.GetMeta().GetName())
+		return nil, l.handleError(err, "error updating volume", "name", updateVolume.GetMeta().GetName())
 	}
 
 	// Retreive the volume again so that we can include it in an event
-	volume, err := l.Repo().Get(ctx, req.GetId())
+	volume, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -275,23 +286,13 @@ func (l *local) Update(ctx context.Context, req *volumes.UpdateRequest, opts ...
 		eventLabels.Set(labels.LabelPrefix("object-id").String(), volume.GetMeta().GetName())
 		eventLabels.Set(labels.LabelPrefix("object-version").String(), volume.GetVersion())
 
-		l.logger.Debug("volume was updated, emitting event to listeners", "event", "VolumeUpdate", "name", volume.GetMeta().GetName(), "revision", updateVolume.GetMeta().GetGeneration())
 		err = l.exchange.Forward(ctx, events.NewEvent(events.VolumeUpdate, volume, eventLabels))
 		if err != nil {
 			return nil, l.handleError(err, "error publishing UPDATE event", "name", volume.GetMeta().GetName(), "event", "VolumeUpdate")
 		}
 	}
 
-	return &volumes.UpdateResponse{
+	return &volumesv1.UpdateResponse{
 		Volume: volume,
 	}, nil
-}
-
-func (l *local) Repo() repository.VolumeRepository {
-	if l.repo != nil {
-		return l.repo
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return repository.NewVolumeInMemRepo()
 }

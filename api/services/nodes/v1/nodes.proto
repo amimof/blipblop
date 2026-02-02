@@ -19,7 +19,10 @@ service NodeService {
     option (google.api.http) = {get: "/api/v1/nodes"};
   }
   rpc Get(GetRequest) returns (GetResponse) {
-    option (google.api.http) = {get: "/api/v1/nodes/{id}"};
+    option (google.api.http) = {
+      get: "/api/v1/nodes/{uid}"
+      additional_bindings: {get: "/api/v1/nodes/{name}"}
+    };
   }
   rpc Create(CreateRequest) returns (CreateResponse) {
     option (google.api.http) = {
@@ -29,24 +32,38 @@ service NodeService {
   }
   rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
-      put: "/api/v1/nodes/{node.meta.name}"
+      put: "/api/v1/nodes/{uid}"
       body: "node"
+      additional_bindings: {
+        put: "/api/v1/nodes/{name}"
+        body: "node"
+      }
     };
   }
   rpc Patch(PatchRequest) returns (PatchResponse) {
     option (google.api.http) = {
-      patch: "/api/v1/nodes/{node.meta.name}"
+      patch: "/api/v1/nodes/{uid}"
       body: "node"
+      additional_bindings: {
+        patch: "/api/v1/nodes/{name}"
+        body: "node"
+      }
     };
   }
-  rpc Delete(DeleteRequest) returns (DeleteResponse) {
-    option (google.api.http) = {delete: "/api/v1/nodes/{id}"};
+  rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/nodes/{uid}"
+      additional_bindings: {delete: "/api/v1/nodes/{name}"}
+    };
   }
   rpc Join(JoinRequest) returns (JoinResponse) {}
   rpc Forget(ForgetRequest) returns (ForgetResponse) {}
   rpc Connect(stream services.events.v1.Event) returns (stream services.events.v1.Event) {}
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
-    option (google.api.http) = {put: "/api/v1/nodes/{id}/status"};
+    option (google.api.http) = {
+      put: "/api/v1/nodes/{uid}/status"
+      additional_bindings: {put: "/api/v1/nodes/{name}/status"}
+    };
   }
   rpc Upgrade(UpgradeRequest) returns (UpgradeResponse) {}
   rpc Condition(types.v1.ConditionRequest) returns (google.protobuf.Empty) {}
@@ -106,7 +123,14 @@ message DNSStatus {
 }
 
 message GetRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
+  string uid = 1 [
+    (buf.validate.field).string.uuid = true,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
+  string name = 2 [
+    (buf.validate.field).string.min_len = 1,
+    (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE
+  ];
 }
 
 message GetResponse {
@@ -122,17 +146,27 @@ message CreateResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message DeleteResponse {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message UpdateRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-  Node node = 2 [(buf.validate.field).required = true];
-  google.protobuf.FieldMask update_mask = 3;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  Node node = 3 [(buf.validate.field).required = true];
+  google.protobuf.FieldMask update_mask = 4;
 }
 
 message UpdateResponse {
@@ -140,9 +174,16 @@ message UpdateResponse {
 }
 
 message PatchRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-  Node node = 2 [(buf.validate.field).required = true];
-  google.protobuf.FieldMask update_mask = 3;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  Node node = 3 [(buf.validate.field).required = true];
+  google.protobuf.FieldMask update_mask = 4;
 }
 
 message PatchResponse {
@@ -150,7 +191,8 @@ message PatchResponse {
 }
 
 message ListRequest {
-  map<string, string> selector = 1;
+  int32 limit = 1;
+  map<string, string> selector = 2;
 }
 
 message ListResponse {
@@ -166,16 +208,30 @@ message JoinResponse {
 }
 
 message ForgetRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message ForgetResponse {
   string id = 1;
 }
 message UpdateStatusRequest {
-  string id = 1;
-  google.protobuf.FieldMask update_mask = 2 [(buf.validate.field).required = true];
-  Status status = 3 [(buf.validate.field).required = true];
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.FieldMask update_mask = 3 [(buf.validate.field).required = true];
+  Status status = 4 [(buf.validate.field).required = true];
 }
 message UpdateStatusResponse {
   string id = 1;
@@ -188,12 +244,14 @@ message UpgradeRequest {
 
   option (buf.validate.message).oneof = {
     fields: [
-      "node_id",
-      "node_selector"
+      "uid",
+      "name",
+      "selector"
     ]
   };
-  string node_id = 2 [(buf.validate.field).string.min_len = 1];
-  map<string, string> node_selector = 3;
+  string uid = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  map<string, string> selector = 4;
 }
 
 message UpgradeResponse {}

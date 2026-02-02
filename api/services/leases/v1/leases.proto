@@ -13,7 +13,10 @@ option go_package = "github.com/amimof/voiyd/api/services/leases/v1;leases";
 
 service LeaseService {
   rpc Get(GetRequest) returns (GetResponse) {
-    option (google.api.http) = {get: "/api/v1/leases/{id}"};
+    option (google.api.http) = {
+      get: "/api/v1/leases/{uid}"
+      additional_bindings: {get: "/api/v1/leases/{name}"}
+    };
   }
   rpc List(ListRequest) returns (ListResponse) {
     option (google.api.http) = {get: "/api/v1/leases"};
@@ -83,7 +86,14 @@ message ReleaseResponse {
 }
 
 message GetRequest {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -91,8 +101,9 @@ message GetResponse {
 }
 
 message ListRequest {
-  map<string, string> selector = 1;
-  bool expired_only = 2;
+  int32 limit = 1;
+  map<string, string> selector = 2;
+  bool expired_only = 3;
 }
 
 message ListResponse {

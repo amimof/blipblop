@@ -35,6 +35,13 @@
         },
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "selector",
             "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
             "in": "query",
@@ -77,9 +84,9 @@
         ]
       }
     },
-    "/api/v1/tasks/{id}": {
+    "/api/v1/tasks/{name}": {
       "get": {
-        "operationId": "TaskService_Get",
+        "operationId": "TaskService_Get2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -96,9 +103,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -107,12 +120,13 @@
         ]
       },
       "delete": {
-        "operationId": "TaskService_Delete",
+        "operationId": "TaskService_Delete2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicestasksv1DeleteResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -124,9 +138,105 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      },
+      "put": {
+        "operationId": "TaskService_Update2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "task",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Task"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      },
+      "patch": {
+        "operationId": "TaskService_Patch2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PatchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "task",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Task"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -135,14 +245,15 @@
         ]
       }
     },
-    "/api/v1/tasks/{id}/kill": {
+    "/api/v1/tasks/{name}/kill": {
       "put": {
-        "operationId": "TaskService_Kill",
+        "operationId": "TaskService_Kill2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1KillResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -154,9 +265,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           },
           {
@@ -171,14 +288,15 @@
         ]
       }
     },
-    "/api/v1/tasks/{id}/start": {
+    "/api/v1/tasks/{name}/start": {
       "put": {
-        "operationId": "TaskService_Start",
+        "operationId": "TaskService_Start2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1StartResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -190,9 +308,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -201,9 +325,9 @@
         ]
       }
     },
-    "/api/v1/tasks/{id}/status": {
+    "/api/v1/tasks/{name}/status": {
       "put": {
-        "operationId": "TaskService_UpdateStatus",
+        "operationId": "TaskService_UpdateStatus2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -220,9 +344,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           },
           {
@@ -274,7 +404,76 @@
         ]
       }
     },
-    "/api/v1/tasks/{task.meta.name}": {
+    "/api/v1/tasks/{uid}": {
+      "get": {
+        "operationId": "TaskService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicestasksv1GetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      },
+      "delete": {
+        "operationId": "TaskService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      },
       "put": {
         "operationId": "TaskService_Update",
         "responses": {
@@ -293,7 +492,7 @@
         },
         "parameters": [
           {
-            "name": "task.meta.name",
+            "name": "uid",
             "in": "path",
             "required": true,
             "type": "string"
@@ -303,52 +502,11 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "generation": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "resourceVersion": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "uid": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "config": {
-                  "$ref": "#/definitions/v1Config"
-                },
-                "status": {
-                  "$ref": "#/definitions/tasksv1Status"
-                }
-              }
+              "$ref": "#/definitions/v1Task"
             }
           },
           {
-            "name": "id",
+            "name": "name",
             "in": "query",
             "required": false,
             "type": "string"
@@ -382,7 +540,7 @@
         },
         "parameters": [
           {
-            "name": "task.meta.name",
+            "name": "uid",
             "in": "path",
             "required": true,
             "type": "string"
@@ -392,52 +550,170 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "generation": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "resourceVersion": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "uid": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "config": {
-                  "$ref": "#/definitions/v1Config"
-                },
-                "status": {
-                  "$ref": "#/definitions/tasksv1Status"
-                }
-              }
+              "$ref": "#/definitions/v1Task"
             }
           },
           {
-            "name": "id",
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      }
+    },
+    "/api/v1/tasks/{uid}/kill": {
+      "put": {
+        "operationId": "TaskService_Kill",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "forceKill",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      }
+    },
+    "/api/v1/tasks/{uid}/start": {
+      "put": {
+        "operationId": "TaskService_Start",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TaskService"
+        ]
+      }
+    },
+    "/api/v1/tasks/{uid}/status": {
+      "put": {
+        "operationId": "TaskService_UpdateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.phase",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.reason",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.node",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.ip",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.pid",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "name": "status.id",
             "in": "query",
             "required": false,
             "type": "string"
@@ -485,14 +761,6 @@
       "properties": {
         "task": {
           "$ref": "#/definitions/v1Task"
-        }
-      }
-    },
-    "servicestasksv1DeleteResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
         }
       }
     },
@@ -693,14 +961,6 @@
         }
       }
     },
-    "v1KillResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      }
-    },
     "v1Meta": {
       "type": "object",
       "properties": {
@@ -786,14 +1046,6 @@
           "type": "string"
         },
         "hostIp": {
-          "type": "string"
-        }
-      }
-    },
-    "v1StartResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
           "type": "string"
         }
       }

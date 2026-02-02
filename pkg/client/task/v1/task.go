@@ -37,9 +37,9 @@ func WithClient(client tasksv1.TaskServiceClient) CreateOption {
 
 type ClientV1 interface {
 	Status() StatusClientV1
-	Kill(context.Context, string) (*tasksv1.KillResponse, error)
-	Stop(context.Context, string) (*tasksv1.KillResponse, error)
-	Start(context.Context, string) (*tasksv1.StartResponse, error)
+	Kill(context.Context, string) error
+	Stop(context.Context, string) error
+	Start(context.Context, string) error
 	Create(context.Context, *tasksv1.Task, ...CreateOption) error
 	Update(context.Context, string, *tasksv1.Task) error
 	Patch(context.Context, string, *tasksv1.Task) error
@@ -76,7 +76,7 @@ func (c *statusV1) Update(ctx context.Context, id string, status *tasksv1.Status
 	}
 
 	req := &tasksv1.UpdateStatusRequest{
-		Id:         id,
+		Name:       id,
 		UpdateMask: mask,
 		Status:     status,
 	}
@@ -89,44 +89,44 @@ func (c *statusV1) Update(ctx context.Context, id string, status *tasksv1.Status
 	return nil
 }
 
-func (c *clientV1) Kill(ctx context.Context, id string) (*tasksv1.KillResponse, error) {
+func (c *clientV1) Kill(ctx context.Context, id string) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.task.Kill")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	resp, err := c.Client.Kill(ctx, &tasksv1.KillRequest{Id: id, ForceKill: true})
+	_, err := c.Client.Kill(ctx, &tasksv1.KillRequest{Name: id, ForceKill: true})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return resp, err
+	return err
 }
 
-func (c *clientV1) Stop(ctx context.Context, id string) (*tasksv1.KillResponse, error) {
+func (c *clientV1) Stop(ctx context.Context, id string) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.task.Start")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	resp, err := c.Client.Kill(ctx, &tasksv1.KillRequest{Id: id, ForceKill: false})
+	_, err := c.Client.Kill(ctx, &tasksv1.KillRequest{Name: id, ForceKill: false})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return resp, err
+	return err
 }
 
-func (c *clientV1) Start(ctx context.Context, id string) (*tasksv1.StartResponse, error) {
+func (c *clientV1) Start(ctx context.Context, id string) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.task.Start")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	resp, err := c.Client.Start(ctx, &tasksv1.StartRequest{Id: id})
+	_, err := c.Client.Start(ctx, &tasksv1.StartRequest{Name: id})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return resp, err
+	return err
 }
 
 func (c *clientV1) Create(ctx context.Context, ctr *tasksv1.Task, opts ...CreateOption) error {
@@ -156,7 +156,7 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *tasksv1.Task) err
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Update(ctx, &tasksv1.UpdateRequest{Id: id, Task: ctr})
+	_, err := c.Client.Update(ctx, &tasksv1.UpdateRequest{Name: id, Task: ctr})
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *tasksv1.Task) erro
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Patch(ctx, &tasksv1.PatchRequest{Id: id, Task: ctr})
+	_, err := c.Client.Patch(ctx, &tasksv1.PatchRequest{Name: id, Task: ctr})
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
 	ctx, span := tracer.Start(ctx, "client.task.Get")
 	defer span.End()
 
-	res, err := c.Client.Get(ctx, &tasksv1.GetRequest{Id: id})
+	res, err := c.Client.Get(ctx, &tasksv1.GetRequest{Name: id})
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx, span := tracer.Start(ctx, "client.task.Delete")
 
 	defer span.End()
-	_, err := c.Client.Delete(ctx, &tasksv1.DeleteRequest{Id: id})
+	_, err := c.Client.Delete(ctx, &tasksv1.DeleteRequest{Name: id})
 	if err != nil {
 		return err
 	}

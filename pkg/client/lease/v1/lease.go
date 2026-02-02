@@ -93,7 +93,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*leasesv1.Lease, error) 
 	ctx, span := tracer.Start(ctx, "client.lease.Get")
 	defer span.End()
 
-	res, err := c.Client.Get(ctx, &leasesv1.GetRequest{Id: id})
+	res, err := c.Client.Get(ctx, &leasesv1.GetRequest{Name: id})
 	if err != nil {
 		return nil, err
 	}

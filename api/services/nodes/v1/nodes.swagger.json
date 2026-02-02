@@ -35,6 +35,13 @@
         },
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "selector",
             "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
             "in": "query",
@@ -77,9 +84,9 @@
         ]
       }
     },
-    "/api/v1/nodes/{id}": {
+    "/api/v1/nodes/{name}": {
       "get": {
-        "operationId": "NodeService_Get",
+        "operationId": "NodeService_Get2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -96,9 +103,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -107,12 +120,13 @@
         ]
       },
       "delete": {
-        "operationId": "NodeService_Delete",
+        "operationId": "NodeService_Delete2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicesnodesv1DeleteResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -124,9 +138,105 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NodeService"
+        ]
+      },
+      "put": {
+        "operationId": "NodeService_Update2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicesnodesv1UpdateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "node",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Node"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NodeService"
+        ]
+      },
+      "patch": {
+        "operationId": "NodeService_Patch2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicesnodesv1PatchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "node",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1Node"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -135,9 +245,9 @@
         ]
       }
     },
-    "/api/v1/nodes/{id}/status": {
+    "/api/v1/nodes/{name}/status": {
       "put": {
-        "operationId": "NodeService_UpdateStatus",
+        "operationId": "NodeService_UpdateStatus2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -154,9 +264,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
             "type": "string"
           },
           {
@@ -207,7 +323,76 @@
         ]
       }
     },
-    "/api/v1/nodes/{node.meta.name}": {
+    "/api/v1/nodes/{uid}": {
+      "get": {
+        "operationId": "NodeService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicesnodesv1GetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NodeService"
+        ]
+      },
+      "delete": {
+        "operationId": "NodeService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NodeService"
+        ]
+      },
       "put": {
         "operationId": "NodeService_Update",
         "responses": {
@@ -226,7 +411,7 @@
         },
         "parameters": [
           {
-            "name": "node.meta.name",
+            "name": "uid",
             "in": "path",
             "required": true,
             "type": "string"
@@ -236,52 +421,11 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "generation": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "resourceVersion": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "uid": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "config": {
-                  "$ref": "#/definitions/servicesnodesv1Config"
-                },
-                "status": {
-                  "$ref": "#/definitions/servicesnodesv1Status"
-                }
-              }
+              "$ref": "#/definitions/v1Node"
             }
           },
           {
-            "name": "id",
+            "name": "name",
             "in": "query",
             "required": false,
             "type": "string"
@@ -315,7 +459,7 @@
         },
         "parameters": [
           {
-            "name": "node.meta.name",
+            "name": "uid",
             "in": "path",
             "required": true,
             "type": "string"
@@ -325,52 +469,89 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "generation": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "resourceVersion": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "uid": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "config": {
-                  "$ref": "#/definitions/servicesnodesv1Config"
-                },
-                "status": {
-                  "$ref": "#/definitions/servicesnodesv1Status"
-                }
-              }
+              "$ref": "#/definitions/v1Node"
             }
           },
           {
-            "name": "id",
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NodeService"
+        ]
+      }
+    },
+    "/api/v1/nodes/{uid}/status": {
+      "put": {
+        "operationId": "NodeService_UpdateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicesnodesv1UpdateStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.phase",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.status",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.ip.dns",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.hostname",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.runtime",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status.version",
             "in": "query",
             "required": false,
             "type": "string"
@@ -426,14 +607,6 @@
       "properties": {
         "node": {
           "$ref": "#/definitions/v1Node"
-        }
-      }
-    },
-    "servicesnodesv1DeleteResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
         }
       }
     },

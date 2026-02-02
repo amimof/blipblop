@@ -16,21 +16,20 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
-	"github.com/google/uuid"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/api/types/v1"
 )
 
 type local struct {
-	repo     repository.TaskRepository
+	repo     *repository.Repo[*tasksv1.Task]
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
@@ -173,15 +172,21 @@ func (l *local) Get(ctx context.Context, req *tasksv1.GetRequest, _ ...grpc.Call
 	ctx, span := tracer.Start(ctx, "task.Get", trace.WithSpanKind(trace.SpanKindServer))
 	span.SetAttributes(
 		attribute.String("service", "Task"),
-		attribute.String("task.id", req.GetId()),
+		attribute.String("task.name", req.GetName()),
+		attribute.String("task.uid", req.GetUid()),
 	)
 	defer span.End()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	// Get task from repo
-	task, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		span.RecordError(err)
-		return nil, l.handleError(err, "couldn't GET task from repo", "name", req.GetId())
+		return nil, l.handleError(err, "error getting task", "name", req.GetName())
 	}
 
 	span.SetAttributes(attribute.String("task.name", task.GetMeta().GetName()))
@@ -196,9 +201,9 @@ func (l *local) List(ctx context.Context, req *tasksv1.ListRequest, _ ...grpc.Ca
 	defer span.End()
 
 	// Get tasks from repo
-	ctrs, err := l.Repo().List(ctx, req.GetSelector())
+	ctrs, err := l.repo.List(ctx, int(req.GetLimit()))
 	if err != nil {
-		return nil, l.handleError(err, "couldn't LIST tasks from repo")
+		return nil, l.handleError(err, "error listing tasks")
 	}
 	return &tasksv1.ListResponse{
 		Tasks: ctrs,
@@ -213,18 +218,14 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 	defer l.mu.Unlock()
 
 	task := req.GetTask()
-	taskID := task.GetMeta().GetName()
+	taskName := task.GetMeta().GetName()
 
-	// Check if task already exists
-	if existing, _ := l.Get(ctx, &tasksv1.GetRequest{Id: taskID}); existing != nil {
+	if existing, _ := l.Get(ctx, &tasksv1.GetRequest{Name: taskName}); existing != nil {
 		return nil, fmt.Errorf("task %s already exists", task.GetMeta().GetName())
 	}
 
-	task.GetMeta().Created = timestamppb.Now()
-	task.GetMeta().Updated = timestamppb.Now()
 	task.GetMeta().Generation = 1
 	task.GetMeta().ResourceVersion = 1
-	task.GetMeta().Uid = uuid.New().String()
 
 	// Initialize status field if empty
 	if task.GetStatus() == nil {
@@ -232,18 +233,12 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 	}
 
 	// Create task in repo
-	err := l.Repo().Create(ctx, task)
+	newTask, err := l.repo.Create(ctx, task)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE task in repo", "name", taskID)
+		return nil, l.handleError(err, "error creating task", "name", taskName)
 	}
 
-	// Get the created task from repo
-	task, err = l.Repo().Get(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decorate label with some labels
+	// Decorate task with some labels
 	eventLabels := labels.New()
 	eventLabels.Set(labels.LabelPrefix("object-id").String(), task.GetMeta().GetName())
 	eventLabels.Set(labels.LabelPrefix("object-version").String(), task.GetVersion())
@@ -251,7 +246,7 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 	// Publish event that task is created
 	err = l.exchange.Forward(ctx, events.NewEvent(events.TaskCreate, task, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", task.GetMeta().GetName(), "event", "TaskCreate")
+		return nil, l.handleError(err, "error publishing task create event", "name", newTask.GetMeta().GetName(), "event", "TaskCreate")
 	}
 
 	return &tasksv1.CreateResponse{
@@ -261,18 +256,24 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 
 // Delete publishes a delete request and the subscribers are responsible for deleting resources.
 // Once they do, they will update there resource with the status Deleted
-func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grpc.CallOption) (*tasksv1.DeleteResponse, error) {
+func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
 	ctx, span := tracer.Start(ctx, "task.Delete")
 	defer span.End()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	task, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET task from repo", "id", req.GetId())
+		return nil, l.handleError(err, "couldn't parse uid")
 	}
-	err = l.Repo().Delete(ctx, req.GetId())
+
+	task, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, l.handleError(err, "error getting task", "name", req.GetName())
+	}
+
+	err = l.repo.Delete(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -284,18 +285,22 @@ func (l *local) Delete(ctx context.Context, req *tasksv1.DeleteRequest, _ ...grp
 
 	err = l.exchange.Forward(ctx, events.NewEvent(events.TaskDelete, task, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", task.GetMeta().GetName(), "event", "TaskDelete")
+		return nil, l.handleError(err, "error publishing task delete event", "name", task.GetMeta().GetName(), "event", "TaskDelete")
 	}
-	return &tasksv1.DeleteResponse{
-		Id: req.GetId(),
-	}, nil
+
+	return &emptypb.Empty{}, nil
 }
 
-func (l *local) Kill(ctx context.Context, req *tasksv1.KillRequest, _ ...grpc.CallOption) (*tasksv1.KillResponse, error) {
+func (l *local) Kill(ctx context.Context, req *tasksv1.KillRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
 	ctx, span := tracer.Start(ctx, "task.Kill")
 	defer span.End()
 
-	task, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	task, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -312,18 +317,22 @@ func (l *local) Kill(ctx context.Context, req *tasksv1.KillRequest, _ ...grpc.Ca
 
 	err = l.exchange.Forward(ctx, events.NewEvent(ev, task, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing STOP/KILL event", "name", req.GetId(), "event", ev.String())
+		return nil, l.handleError(err, "error publishing task kill event", "name", req.GetName(), "event", ev.String())
 	}
-	return &tasksv1.KillResponse{
-		Id: req.GetId(),
-	}, nil
+
+	return &emptypb.Empty{}, nil
 }
 
-func (l *local) Start(ctx context.Context, req *tasksv1.StartRequest, _ ...grpc.CallOption) (*tasksv1.StartResponse, error) {
+func (l *local) Start(ctx context.Context, req *tasksv1.StartRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
 	ctx, span := tracer.Start(ctx, "task.Start")
 	defer span.End()
 
-	task, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	task, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -338,9 +347,7 @@ func (l *local) Start(ctx context.Context, req *tasksv1.StartRequest, _ ...grpc.
 		return nil, err
 	}
 
-	return &tasksv1.StartResponse{
-		Id: req.GetId(),
-	}, nil
+	return &emptypb.Empty{}, nil
 }
 
 func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.CallOption) (*tasksv1.PatchResponse, error) {
@@ -350,12 +357,17 @@ func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	updateTask := req.GetTask()
 
 	// Get existing task from repo
-	existing, err := l.Repo().Get(ctx, req.GetId())
+	existing, err := l.repo.Get(ctx, uid)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET task from repo", "name", updateTask.GetMeta().GetName())
+		return nil, l.handleError(err, "error getting task", "name", updateTask.GetMeta().GetName())
 	}
 
 	// Generate field mask
@@ -377,13 +389,13 @@ func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.
 	existing.GetMeta().ResourceVersion++
 
 	// Update the task
-	err = l.Repo().Update(ctx, existing)
+	err = l.repo.Update(ctx, uid, existing)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't PATCH task in repo", "name", existing.GetMeta().GetName())
+		return nil, l.handleError(err, "error updating task", "name", existing.GetMeta().GetName())
 	}
 
 	// Retreive the task again so that we can include it in an event
-	task, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +410,7 @@ func (l *local) Patch(ctx context.Context, req *tasksv1.PatchRequest, _ ...grpc.
 
 		err = l.exchange.Forward(ctx, events.NewEvent(events.TaskPatch, task, eventLabels))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing PATCH event", "name", existing.GetMeta().GetName(), "event", "TaskUpdate")
+			return nil, l.handleError(err, "error publishing task patch event", "name", existing.GetMeta().GetName(), "event", "TaskUpdate")
 		}
 	}
 
@@ -415,8 +427,13 @@ func (l *local) UpdateStatus(ctx context.Context, req *tasksv1.UpdateStatusReque
 	ctx, span := tracer.Start(ctx, "task.UpdateStatus")
 	defer span.End()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	// Get the existing task before updating so we can compare specs
-	existingTask, err := l.Repo().Get(ctx, req.GetId())
+	existingTask, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +447,7 @@ func (l *local) UpdateStatus(ctx context.Context, req *tasksv1.UpdateStatusReque
 	existingTask.GetMeta().ResourceVersion++
 	existingTask.Status = base
 
-	if err := l.Repo().Update(ctx, existingTask); err != nil {
+	if err := l.repo.Update(ctx, uid, existingTask); err != nil {
 		return nil, err
 	}
 
@@ -446,10 +463,15 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	updateTask := req.GetTask()
 
 	// Get the existing task before updating so we can compare specs
-	existingTask, err := l.Repo().Get(ctx, req.GetId())
+	existingTask, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -466,17 +488,16 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 	// Only update metadata fields if spec is updated
 	if !updVal.Equal(newVal) {
 		updateTask.Meta.Generation++
-		updateTask.Meta.Updated = timestamppb.Now()
 	}
 
 	// Update the task
-	err = l.Repo().Update(ctx, updateTask)
+	err = l.repo.Update(ctx, uid, updateTask)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE task in repo", "name", updateTask.GetMeta().GetName())
+		return nil, l.handleError(err, "error updating task", "name", updateTask.GetMeta().GetName())
 	}
 
 	// Retreive the task again so that we can include it in an event
-	task, err := l.Repo().Get(ctx, req.GetId())
+	task, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +513,7 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 		l.logger.Debug("task was updated, emitting event to listeners", "event", "TaskUpdate", "name", task.GetMeta().GetName(), "revision", updateTask.GetMeta().GetGeneration())
 		err = l.exchange.Forward(ctx, events.NewEvent(events.TaskUpdate, task, eventLabels))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing UPDATE event", "name", task.GetMeta().GetName(), "event", "TaskUpdate")
+			return nil, l.handleError(err, "error publishing task update event", "name", task.GetMeta().GetName(), "event", "TaskUpdate")
 		}
 	}
 
@@ -508,13 +529,4 @@ func (l *local) Condition(ctx context.Context, req *types.ConditionRequest, opts
 		return nil, err
 	}
 	return nil, nil
-}
-
-func (l *local) Repo() repository.TaskRepository {
-	if l.repo != nil {
-		return l.repo
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return repository.NewTaskInMemRepo()
 }

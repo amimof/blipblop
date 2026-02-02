@@ -4,6 +4,7 @@ package services.containersets.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "services/tasks/v1/tasks.proto";
 import "types/v1/meta.proto";
@@ -12,7 +13,10 @@ option go_package = "github.com/amimof/voiyd/api/services/containersets/v1;conta
 
 service ContainerSetService {
   rpc Get(GetRequest) returns (GetResponse) {
-    option (google.api.http) = {get: "/api/v1/containersets/{id}"};
+    option (google.api.http) = {
+      get: "/api/v1/containersets/{uid}"
+      additional_bindings: {get: "/api/v1/containersets/{name}"}
+    };
   }
   rpc List(ListRequest) returns (ListResponse) {
     option (google.api.http) = {get: "/api/v1/containersets"};
@@ -25,16 +29,19 @@ service ContainerSetService {
   }
   rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
-      put: "/api/v1/containersets/{containerSet.meta.name}"
+      put: "/api/v1/containersets/{uid}"
       body: "containerSet"
       additional_bindings: {
-        patch: "/api/v1/containersets/{containerSet.meta.name}"
+        put: "/api/v1/containersets/{name}"
         body: "containerSet"
       }
     };
   }
-  rpc Delete(DeleteRequest) returns (DeleteResponse) {
-    option (google.api.http) = {delete: "/api/v1/containersets/{id}"};
+  rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/containersets/{uid}"
+      additional_bindings: {delete: "/api/v1/containersets/{name}"}
+    };
   }
 }
 
@@ -49,7 +56,14 @@ message ContainerSet {
 }
 
 message GetRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -65,9 +79,16 @@ message CreateResponse {
 }
 
 message UpdateRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-  ContainerSet containerSet = 2;
-  google.protobuf.FieldMask update_mask = 3;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  ContainerSet containerSet = 3;
+  google.protobuf.FieldMask update_mask = 4;
 }
 
 message UpdateResponse {
@@ -75,15 +96,19 @@ message UpdateResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message DeleteResponse {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message ListRequest {
-  map<string, string> selector = 1;
+  uint32 limit = 1;
+  map<string, string> selector = 2;
 }
 
 message ListResponse {

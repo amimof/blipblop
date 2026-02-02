@@ -4,6 +4,7 @@ import (
 	"context"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -12,10 +13,7 @@ import (
 )
 
 type local struct {
-	repo repository.EventRepository
-	// mu       sync.Mutex
-	// exchange *events.Exchange
-	// logger   logger.Logger
+	repo *repository.Repo[*eventsv1.Event]
 }
 
 var (
@@ -40,18 +38,23 @@ func (n *local) Create(ctx context.Context, req *eventsv1.CreateRequest, _ ...gr
 	ev.GetMeta().Generation = 1
 	ev.GetMeta().Uid = uid
 
-	err := n.repo.Create(ctx, req.GetEvent())
+	newEvent, err := n.repo.Create(ctx, req.GetEvent())
 	if err != nil {
 		return nil, err
 	}
-	return &eventsv1.CreateResponse{Event: req.GetEvent()}, nil
+	return &eventsv1.CreateResponse{Event: newEvent}, nil
 }
 
 func (n *local) Get(ctx context.Context, req *eventsv1.GetRequest, _ ...grpc.CallOption) (*eventsv1.GetResponse, error) {
 	ctx, span := tracer.Start(ctx, "event.Get")
 	defer span.End()
 
-	e, err := n.repo.Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), "")
+	if err != nil {
+		return nil, err
+	}
+
+	e, err := n.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +65,16 @@ func (n *local) Delete(ctx context.Context, req *eventsv1.DeleteRequest, _ ...gr
 	ctx, span := tracer.Start(ctx, "event.Delete")
 	defer span.End()
 
-	err := n.repo.Delete(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), "")
 	if err != nil {
 		return nil, err
 	}
-	return &eventsv1.DeleteResponse{Id: req.GetId()}, nil
+
+	err = n.repo.Delete(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &eventsv1.DeleteResponse{Uid: req.GetUid()}, nil
 }
 
 func (n *local) List(ctx context.Context, req *eventsv1.ListRequest, _ ...grpc.CallOption) (*eventsv1.ListResponse, error) {
@@ -78,7 +86,7 @@ func (n *local) List(ctx context.Context, req *eventsv1.ListRequest, _ ...grpc.C
 		req.Limit = 100
 	}
 
-	l, err := n.repo.List(ctx)
+	l, err := n.repo.List(ctx, int(req.GetLimit()))
 	if err != nil {
 		return nil, err
 	}

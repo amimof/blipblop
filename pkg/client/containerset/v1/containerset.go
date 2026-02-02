@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 
 	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
@@ -52,8 +53,13 @@ func (c *ClientV1) Create(ctx context.Context, ctr *containersetsv1.ContainerSet
 }
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*containersetsv1.ContainerSet, error) {
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	res, err := c.containerService.Get(ctx, &containersetsv1.GetRequest{Id: id})
+	res, err := c.containerService.Get(ctx, &containersetsv1.GetRequest{Name: uid.String(), Uid: uid.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +76,12 @@ func (c *ClientV1) List(ctx context.Context) ([]*containersetsv1.ContainerSet, e
 }
 
 func (c *ClientV1) Delete(ctx context.Context, id string) error {
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.containerService.Delete(ctx, &containersetsv1.DeleteRequest{Id: id})
+	_, err = c.containerService.Delete(ctx, &containersetsv1.DeleteRequest{Name: uid.String(), Uid: uid.String()})
 	if err != nil {
 		return err
 	}

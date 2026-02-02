@@ -19,6 +19,7 @@ import (
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
@@ -65,8 +66,8 @@ func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateRequest) (*
 	return n.local.Create(ctx, req)
 }
 
-func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteRequest) (*nodesv1.DeleteResponse, error) {
-	n.closeNodeStream(req.GetId())
+func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteRequest) (*empty.Empty, error) {
+	n.closeNodeStream(req.GetUid())
 	return n.local.Delete(ctx, req)
 }
 
@@ -87,7 +88,7 @@ func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*node
 }
 
 func (n *NodeService) Forget(ctx context.Context, req *nodesv1.ForgetRequest) (*nodesv1.ForgetResponse, error) {
-	n.closeNodeStream(req.GetId())
+	n.closeNodeStream(req.GetUid())
 	return n.local.Forget(ctx, req)
 }
 
@@ -106,7 +107,13 @@ func (n *NodeService) Condition(ctx context.Context, req *typesv1.ConditionReque
 func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	ctx := stream.Context()
 
+	var nodeUID string
 	var nodeName string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if res, ok := md["voiyd_node_uid"]; ok && len(res) > 0 {
+			nodeUID = res[0]
+		}
+	}
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if res, ok := md["voiyd_node_name"]; ok && len(res) > 0 {
 			nodeName = res[0]
@@ -119,7 +126,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	}
 
 	// Check if node is joined to cluster prior to connecting
-	res, err := n.Get(ctx, &nodesv1.GetRequest{Id: nodeName})
+	res, err := n.Get(ctx, &nodesv1.GetRequest{Uid: nodeUID, Name: nodeName})
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return errors.Join(fmt.Errorf("node %s not found", nodeName), err)
@@ -213,7 +220,7 @@ func (n *NodeService) closeNodeStream(nodeName string) {
 	// or when the next Recv()/Send() operation fails
 }
 
-func NewService(repo repository.NodeRepository, opts ...NewServiceOption) *NodeService {
+func NewService(repo *repository.Repo[*nodesv1.Node], opts ...NewServiceOption) *NodeService {
 	s := &NodeService{
 		logger:      logger.ConsoleLogger{},
 		streams:     make(map[string]nodesv1.NodeService_ConnectServer),

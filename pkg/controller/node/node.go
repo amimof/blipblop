@@ -88,6 +88,7 @@ func WithNetworkManager(m networking.Manager) NewOption {
 
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
+	nodeUID := c.node.GetMeta().GetUid()
 	nodeName := c.node.GetMeta().GetName()
 
 	topics := []eventsv1.EventType{
@@ -136,7 +137,7 @@ func (c *Controller) Run(ctx context.Context) {
 	// Connect with retry logic
 	connErr := make(chan error, 1)
 	go func() {
-		err := c.clientset.NodeV1().Connect(ctx, nodeName, evt, connErr)
+		err := c.clientset.NodeV1().Connect(ctx, nodeUID, nodeName, evt, connErr)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
 		}

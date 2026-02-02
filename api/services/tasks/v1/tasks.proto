@@ -16,7 +16,10 @@ option go_package = "github.com/amimof/voiyd/api/services/tasks/v1;tasks";
 
 service TaskService {
   rpc Get(GetRequest) returns (GetResponse) {
-    option (google.api.http) = {get: "/api/v1/tasks/{id}"};
+    option (google.api.http) = {
+      get: "/api/v1/tasks/{uid}"
+      additional_bindings: {get: "/api/v1/tasks/{name}"}
+    };
   }
   rpc List(ListRequest) returns (ListResponse) {
     option (google.api.http) = {get: "/api/v1/tasks"};
@@ -29,27 +32,47 @@ service TaskService {
   }
   rpc Update(UpdateRequest) returns (UpdateResponse) {
     option (google.api.http) = {
-      put: "/api/v1/tasks/{task.meta.name}"
+      put: "/api/v1/tasks/{uid}"
       body: "task"
+      additional_bindings: {
+        put: "/api/v1/tasks/{name}"
+        body: "task"
+      }
     };
   }
   rpc Patch(PatchRequest) returns (PatchResponse) {
     option (google.api.http) = {
-      patch: "/api/v1/tasks/{task.meta.name}"
+      patch: "/api/v1/tasks/{uid}"
       body: "task"
+      additional_bindings: {
+        patch: "/api/v1/tasks/{name}"
+        body: "task"
+      }
     };
   }
-  rpc Delete(DeleteRequest) returns (DeleteResponse) {
-    option (google.api.http) = {delete: "/api/v1/tasks/{id}"};
+  rpc Delete(DeleteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/tasks/{uid}"
+      additional_bindings: {delete: "/api/v1/tasks/{name}"}
+    };
   }
-  rpc Start(StartRequest) returns (StartResponse) {
-    option (google.api.http) = {put: "/api/v1/tasks/{id}/start"};
+  rpc Start(StartRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/api/v1/tasks/{uid}/start"
+      additional_bindings: {put: "/api/v1/tasks/{name}/start"}
+    };
   }
-  rpc Kill(KillRequest) returns (KillResponse) {
-    option (google.api.http) = {put: "/api/v1/tasks/{id}/kill"};
+  rpc Kill(KillRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/api/v1/tasks/{uid}/kill"
+      additional_bindings: {put: "/api/v1/tasks/{name}/kill"}
+    };
   }
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
-    option (google.api.http) = {put: "/api/v1/tasks/{id}/status"};
+    option (google.api.http) = {
+      put: "/api/v1/tasks/{uid}/status"
+      additional_bindings: {put: "/api/v1/tasks/{name}/status"}
+    };
   }
   rpc Condition(types.v1.ConditionRequest) returns (google.protobuf.Empty) {}
 }
@@ -132,7 +155,14 @@ message Event {
 }
 
 message GetRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetResponse {
@@ -148,9 +178,16 @@ message CreateResponse {
 }
 
 message UpdateRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-  Task task = 2 [(buf.validate.field).required = true];
-  google.protobuf.FieldMask update_mask = 3;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  Task task = 3 [(buf.validate.field).required = true];
+  google.protobuf.FieldMask update_mask = 4;
 }
 
 message UpdateResponse {
@@ -158,9 +195,16 @@ message UpdateResponse {
 }
 
 message PatchRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-  Task task = 2 [(buf.validate.field).required = true];
-  google.protobuf.FieldMask update_mask = 3;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  Task task = 3 [(buf.validate.field).required = true];
+  google.protobuf.FieldMask update_mask = 4;
 }
 
 message PatchResponse {
@@ -168,15 +212,19 @@ message PatchResponse {
 }
 
 message DeleteRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message DeleteResponse {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message ListRequest {
-  map<string, string> selector = 1;
+  int32 limit = 1;
+  map<string, string> selector = 2;
 }
 
 message ListResponse {
@@ -184,34 +232,50 @@ message ListResponse {
 }
 
 message StartRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message StartResponse {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message StopRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message StopResponse {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message KillRequest {
-  string id = 1 [(buf.validate.field).string.min_len = 1];
-  bool forceKill = 2;
-}
-
-message KillResponse {
-  string id = 1;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  bool forceKill = 3;
 }
 
 message UpdateStatusRequest {
-  string id = 1;
-  google.protobuf.FieldMask update_mask = 2 [(buf.validate.field).required = true];
-  Status status = 3 [(buf.validate.field).required = true];
+  option (buf.validate.message).oneof = {
+    fields: [
+      "uid",
+      "name"
+    ]
+  };
+  string uid = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.FieldMask update_mask = 3 [(buf.validate.field).required = true];
+  Status status = 4 [(buf.validate.field).required = true];
 }
 message UpdateStatusResponse {
   string id = 1;

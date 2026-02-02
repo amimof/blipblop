@@ -58,14 +58,14 @@ func (c *clientV1) Status() StatusClientV1 {
 	}
 }
 
-func (c *statusV1) Update(ctx context.Context, id string, status *volumes.Status, path ...string) error {
+func (c *statusV1) Update(ctx context.Context, name string, status *volumes.Status, path ...string) error {
 	// Construct field mask
 	mask := &fieldmaskpb.FieldMask{
 		Paths: path,
 	}
 
 	req := &volumes.UpdateStatusRequest{
-		Id:         id,
+		Name:       name,
 		UpdateMask: mask,
 		Status:     status,
 	}
@@ -94,26 +94,26 @@ func (c *clientV1) Create(ctx context.Context, ctr *volumes.Volume, opts ...Crea
 	return nil
 }
 
-func (c *clientV1) Update(ctx context.Context, id string, ctr *volumes.Volume) error {
+func (c *clientV1) Update(ctx context.Context, name string, ctr *volumes.Volume) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.volume.Update")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Update(ctx, &volumes.UpdateRequest{Id: id, Volume: ctr})
+	_, err := c.Client.Update(ctx, &volumes.UpdateRequest{Name: name, Volume: ctr})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *clientV1) Patch(ctx context.Context, id string, ctr *volumes.Volume) error {
+func (c *clientV1) Patch(ctx context.Context, name string, ctr *volumes.Volume) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.volume.Patch")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Patch(ctx, &volumes.PatchRequest{Id: id, Volume: ctr})
+	_, err := c.Client.Patch(ctx, &volumes.PatchRequest{Name: name, Volume: ctr})
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) 
 	ctx, span := tracer.Start(ctx, "client.volume.Get")
 	defer span.End()
 
-	res, err := c.Client.Get(ctx, &volumes.GetRequest{Id: id})
+	res, err := c.Client.Get(ctx, &volumes.GetRequest{Name: id})
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	ctx, span := tracer.Start(ctx, "client.volume.Delete")
 
 	defer span.End()
-	_, err := c.Client.Delete(ctx, &volumes.DeleteRequest{Id: id})
+	_, err := c.Client.Delete(ctx, &volumes.DeleteRequest{Name: id})
 	if err != nil {
 		return err
 	}

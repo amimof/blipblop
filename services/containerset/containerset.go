@@ -3,11 +3,13 @@ package containerset
 import (
 	"context"
 
+	"github.com/amimof/voiyd/api/services/containersets/v1"
 	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const Version string = "containerset/v1"
@@ -51,7 +53,7 @@ func (c *ContainerSetService) Create(ctx context.Context, req *containersetsv1.C
 	return c.local.Create(ctx, req)
 }
 
-func (c *ContainerSetService) Delete(ctx context.Context, req *containersetsv1.DeleteRequest) (*containersetsv1.DeleteResponse, error) {
+func (c *ContainerSetService) Delete(ctx context.Context, req *containersetsv1.DeleteRequest) (*emptypb.Empty, error) {
 	return c.local.Delete(ctx, req)
 }
 
@@ -59,7 +61,7 @@ func (c *ContainerSetService) Update(ctx context.Context, req *containersetsv1.U
 	return c.local.Update(ctx, req)
 }
 
-func NewService(repo repository.ContainerSetRepository, opts ...NewServiceOption) *ContainerSetService {
+func NewService(repo *repository.Repo[*containersets.ContainerSet], opts ...NewServiceOption) *ContainerSetService {
 	s := &ContainerSetService{
 		logger: logger.ConsoleLogger{},
 	}

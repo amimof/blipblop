@@ -30,7 +30,7 @@ type NodeServiceClient interface {
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 	Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error)
-	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Forget(ctx context.Context, in *ForgetRequest, opts ...grpc.CallOption) (*ForgetResponse, error)
 	Connect(ctx context.Context, opts ...grpc.CallOption) (NodeService_ConnectClient, error)
@@ -92,8 +92,8 @@ func (c *nodeServiceClient) Patch(ctx context.Context, in *PatchRequest, opts ..
 	return out, nil
 }
 
-func (c *nodeServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
-	out := new(DeleteResponse)
+func (c *nodeServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/services.nodes.v1.NodeService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -186,7 +186,7 @@ type NodeServiceServer interface {
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
 	Patch(context.Context, *PatchRequest) (*PatchResponse, error)
-	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error)
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Forget(context.Context, *ForgetRequest) (*ForgetResponse, error)
 	Connect(NodeService_ConnectServer) error
@@ -215,7 +215,7 @@ func (UnimplementedNodeServiceServer) Update(context.Context, *UpdateRequest) (*
 func (UnimplementedNodeServiceServer) Patch(context.Context, *PatchRequest) (*PatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Patch not implemented")
 }
-func (UnimplementedNodeServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
+func (UnimplementedNodeServiceServer) Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
 func (UnimplementedNodeServiceServer) Join(context.Context, *JoinRequest) (*JoinResponse, error) {

@@ -84,7 +84,7 @@ func TestDownloadBinary_Success(t *testing.T) {
 		EXPECT().
 		Get(
 			gomock.Any(), // context
-			gomock.Eq(&nodesv1.GetRequest{Id: "test-node"}),
+			gomock.Eq(&nodesv1.GetRequest{Uid: "test-node"}),
 		).
 		Return(&nodesv1.GetResponse{
 			Node: &nodesv1.Node{

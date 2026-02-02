@@ -57,7 +57,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 			// Start task one by one without waiting
 			if !viper.GetBool("wait") {
 				for _, tname := range args {
-					_, err = c.TaskV1().Start(ctx, tname)
+					err = c.TaskV1().Start(ctx, tname)
 					if err != nil {
 						logrus.Fatal(err)
 					}
@@ -74,7 +74,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 				for i, cname := range args {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
-						_, err := c.TaskV1().Start(ctx, taskID)
+						err := c.TaskV1().Start(ctx, taskID)
 						if err != nil {
 							dash.FailMsg(idx, err.Error())
 							return

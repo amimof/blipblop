@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/google/uuid"
@@ -23,7 +24,7 @@ import (
 )
 
 type local struct {
-	repo        repository.LeaseRepository
+	repo        *repository.Repo[*leasesv1.Lease]
 	mu          sync.Mutex
 	exchange    *events.Exchange
 	logger      logger.Logger
@@ -50,9 +51,14 @@ func (l *local) Get(ctx context.Context, req *leasesv1.GetRequest, _ ...grpc.Cal
 	ctx, span := tracer.Start(ctx, "lease.Get")
 	defer span.End()
 
-	lease, err := l.repo.Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET lease from repo", "name", req.GetId())
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	lease, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, l.handleError(err, "error getting lease", "name", req.GetName())
 	}
 	return &leasesv1.GetResponse{
 		Lease: lease,
@@ -63,7 +69,7 @@ func (l *local) List(ctx context.Context, req *leasesv1.ListRequest, _ ...grpc.C
 	ctx, span := tracer.Start(ctx, "lease.List")
 	defer span.End()
 
-	ctrs, err := l.repo.List(ctx)
+	ctrs, err := l.repo.List(ctx, int(req.GetLimit()))
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST leases from repo")
 	}
@@ -72,12 +78,20 @@ func (l *local) List(ctx context.Context, req *leasesv1.ListRequest, _ ...grpc.C
 	}, nil
 }
 
+// TODO: Acquire checks if lease already exists by lease-uid. But we're looking for the task id.
+// I need to refactor the lease API to account for this.
 func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...grpc.CallOption) (*leasesv1.AcquireResponse, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// TODO: Wont work but doing like this so errors go away
+	uid, err := keys.FromUIDOrName(req.GetTaskId(), req.GetTaskId())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	// Check if lease already exists
-	existing, err := l.repo.Get(ctx, req.GetTaskId())
+	existing, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 
@@ -105,17 +119,17 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 					TtlSeconds: ttl,
 				},
 			}
-			err = l.repo.Create(ctx, lease)
+			newLease, err := l.repo.Create(ctx, lease)
 			if err != nil {
 				return nil, l.handleError(err, "error creating lease", "name", req.GetTaskId())
 			}
 
-			err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseAcquiered, lease))
+			err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseAcquiered, newLease))
 			if err != nil {
-				return nil, l.handleError(err, "error publishing lease acquire event", "leaseID", lease.GetMeta().GetName(), "task", lease.GetConfig().GetTaskId(), "node", lease.GetConfig().GetNodeId())
+				return nil, l.handleError(err, "error publishing lease acquire event", "leaseID", newLease.GetMeta().GetName(), "task", newLease.GetConfig().GetTaskId(), "node", newLease.GetConfig().GetNodeId())
 			}
 
-			return &leasesv1.AcquireResponse{Acquired: true, Lease: lease}, nil
+			return &leasesv1.AcquireResponse{Acquired: true, Lease: newLease}, nil
 		}
 		return nil, l.handleError(err, "error getting lease", "name", req.TaskId)
 	}
@@ -150,7 +164,12 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 }
 
 func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...grpc.CallOption) (*leasesv1.ReleaseResponse, error) {
-	lease, err := l.repo.Get(ctx, req.TaskId)
+	// TODO: Wont work but doing like this so errors go away
+	uid, err := keys.FromUIDOrName(req.GetTaskId(), req.GetTaskId())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+	lease, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return &leasesv1.ReleaseResponse{Released: false}, l.handleError(err, "error getting lease")
 	}
@@ -160,7 +179,7 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 		return nil, status.Error(codes.InvalidArgument, "cannot release lease on behalf of another lease holder")
 	}
 
-	err = l.repo.Delete(ctx, req.TaskId)
+	err = l.repo.Delete(ctx, uid)
 	if err != nil {
 		return nil, l.handleError(err, "error releasing lease", "lease", lease.GetMeta().GetName())
 	}
@@ -188,7 +207,13 @@ func (l *local) Renew(ctx context.Context, req *leasesv1.RenewRequest, _ ...grpc
 }
 
 func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lease, error) {
-	existing, err := l.repo.Get(ctx, taskID)
+	// TODO: Wont work but doing like this so errors go away
+	uid, err := keys.FromUIDOrName(taskID, nodeID)
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	existing, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +232,7 @@ func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lea
 	existing.GetMeta().ResourceVersion++
 	existing.GetMeta().Generation++
 
-	err = l.repo.Update(ctx, existing)
+	err = l.repo.Update(ctx, uid, existing)
 	if err != nil {
 		return nil, err
 	}
