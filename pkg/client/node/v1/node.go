@@ -87,13 +87,19 @@ func (c *statusClientV1) Update(ctx context.Context, id string, status *nodesv1.
 		Paths: path,
 	}
 
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
+
 	req := &nodesv1.UpdateStatusRequest{
-		Name:       id,
+		Name:       uid.NameStr(),
+		Uid:        uid.UUIDStr(),
 		UpdateMask: mask,
 		Status:     status,
 	}
 
-	_, err := c.client.UpdateStatus(ctx, req)
+	_, err = c.client.UpdateStatus(ctx, req)
 	if err != nil {
 		return err
 	}

@@ -59,19 +59,25 @@ func (c *clientV1) Status() StatusClientV1 {
 	}
 }
 
-func (c *statusV1) Update(ctx context.Context, name string, status *volumes.Status, path ...string) error {
+func (c *statusV1) Update(ctx context.Context, id string, status *volumes.Status, path ...string) error {
 	// Construct field mask
 	mask := &fieldmaskpb.FieldMask{
 		Paths: path,
 	}
 
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
+
 	req := &volumes.UpdateStatusRequest{
-		Name:       name,
+		Name:       uid.NameStr(),
+		Uid:        uid.UUIDStr(),
 		UpdateMask: mask,
 		Status:     status,
 	}
 
-	_, err := c.client.UpdateStatus(ctx, req)
+	_, err = c.client.UpdateStatus(ctx, req)
 	if err != nil {
 		return err
 	}

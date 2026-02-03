@@ -90,9 +90,6 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 		"node": n.GetMeta().GetName(),
 	}
 
-	// Update task status
-	_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
-
 	taskpb, err := anypb.New(task)
 	if err != nil {
 		return err
@@ -274,6 +271,9 @@ func (c *Controller) Run(ctx context.Context) {
 		events.NodePatch,
 		events.LeaseExpired,
 	)
+	if err != nil {
+		c.logger.Error("error subscribing to events", "error", err)
+	}
 
 	// Setup Handlers
 	c.clientset.EventV1().On(events.TaskCreate, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))

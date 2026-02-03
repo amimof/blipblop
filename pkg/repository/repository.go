@@ -381,8 +381,6 @@ func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) erro
 		default:
 		}
 
-		fmt.Println("id", id)
-
 		// Fetch existing resource
 		existing, err := r.Get(ctx, id)
 		if err != nil {

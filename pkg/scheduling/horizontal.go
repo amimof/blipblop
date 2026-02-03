@@ -100,7 +100,6 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 		}
 
 		// Remove nodes that already have containers from the same set
-
 		containersInSet := filteredNodes
 		for _, task := range tasks {
 			containersInSet = excludeByName(containersInSet, task.GetStatus().GetNode().GetValue())
