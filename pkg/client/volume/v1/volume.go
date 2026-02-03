@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
 	"go.opentelemetry.io/otel"
@@ -99,8 +100,13 @@ func (c *clientV1) Update(ctx context.Context, name string, ctr *volumes.Volume)
 	ctx, span := tracer.Start(ctx, "client.volume.Update")
 	defer span.End()
 
+	uid, err := keys.ParseStr(name)
+	if err != nil {
+		return err
+	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Update(ctx, &volumes.UpdateRequest{Name: name, Volume: ctr})
+	_, err = c.Client.Update(ctx, &volumes.UpdateRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Volume: ctr})
 	if err != nil {
 		return err
 	}
@@ -112,8 +118,13 @@ func (c *clientV1) Patch(ctx context.Context, name string, ctr *volumes.Volume) 
 	ctx, span := tracer.Start(ctx, "client.volume.Patch")
 	defer span.End()
 
+	uid, err := keys.ParseStr(name)
+	if err != nil {
+		return err
+	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Patch(ctx, &volumes.PatchRequest{Name: name, Volume: ctr})
+	_, err = c.Client.Patch(ctx, &volumes.PatchRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Volume: ctr})
 	if err != nil {
 		return err
 	}
@@ -127,7 +138,12 @@ func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) 
 	ctx, span := tracer.Start(ctx, "client.volume.Get")
 	defer span.End()
 
-	res, err := c.Client.Get(ctx, &volumes.GetRequest{Name: id})
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := c.Client.Get(ctx, &volumes.GetRequest{Name: uid.NameStr(), Uid: uid.UUIDStr()})
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +170,14 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.volume.Delete")
-
 	defer span.End()
-	_, err := c.Client.Delete(ctx, &volumes.DeleteRequest{Name: id})
+
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Client.Delete(ctx, &volumes.DeleteRequest{Name: uid.NameStr(), Uid: uid.UUIDStr()})
 	if err != nil {
 		return err
 	}

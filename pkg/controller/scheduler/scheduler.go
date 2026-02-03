@@ -51,7 +51,7 @@ func (c *Controller) onLeaseExpired(ctx context.Context, lease *leasesv1.Lease) 
 }
 
 func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error {
-	taskID := task.GetMeta().GetName()
+	taskID := task.GetMeta().GetUid()
 	reporter := condition.NewReportFor(task)
 
 	// Check if task has any nodes available for scheduling based on the tasks' selector
@@ -119,7 +119,7 @@ func (c *Controller) onNodeDelete(ctx context.Context, node *nodesv1.Node) error
 	for _, task := range tasks {
 
 		reporter := condition.NewReportFor(task)
-		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
 
 		if errs.IgnoreNotFound(err) != nil {
 			c.logger.Error("error getting lease", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
@@ -127,9 +127,9 @@ func (c *Controller) onNodeDelete(ctx context.Context, node *nodesv1.Node) error
 		}
 
 		// If lease is held by the deleted node, release
-		if l.GetConfig().GetNodeId() == node.GetMeta().GetName() {
+		if l.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
 
-			err = c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetName(), l.GetConfig().GetNodeId())
+			err = c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetUid(), l.GetConfig().GetNodeId())
 			if errs.IgnoreNotFound(err) != nil {
 				c.logger.Error("error releasing lease for task", "error", err, "task", task.GetMeta().GetName())
 				_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
@@ -150,7 +150,7 @@ func (c *Controller) onNodeJoin(ctx context.Context, node *nodesv1.Node) error {
 	}
 
 	for _, task := range tasks {
-		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+		l, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
 		if errs.IgnoreNotFound(err) != nil {
 			c.logger.Error("error getting lease", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
 			continue
@@ -189,7 +189,7 @@ func (c *Controller) hasMatchingNodes(ctx context.Context, task *tasksv1.Task) (
 
 func (c *Controller) onTaskLabelsChange(ctx context.Context, task *tasksv1.Task) error {
 	// Get current lease holder
-	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
 	if err != nil {
 		if errs.IsNotFound(err) {
 			return nil
@@ -207,7 +207,7 @@ func (c *Controller) onTaskLabelsChange(ctx context.Context, task *tasksv1.Task)
 	selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
 	if !selector.Matches(node.GetMeta().GetLabels()) {
 		reporter := condition.NewForResource(task)
-		err = c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetName(), node.GetMeta().GetName())
+		err = c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetUid(), node.GetMeta().GetUid())
 		if errs.IgnoreNotFound(err) != nil {
 			c.logger.Error("error releasing lease for task", "error", err, "task", task.GetMeta().GetName())
 			_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
@@ -226,7 +226,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 
 	for _, task := range tasks {
 
-		taskID := task.GetMeta().GetName()
+		taskID := task.GetMeta().GetUid()
 
 		// Skip tasks without node selector
 		if task.GetConfig().GetNodeSelector() == nil || len(task.GetConfig().GetNodeSelector()) == 0 {
@@ -235,7 +235,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		}
 
 		// Get current lease
-		lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetName())
+		lease, err := c.clientset.LeaseV1().Get(ctx, taskID)
 		if err != nil {
 			if errs.IsNotFound(err) {
 				return c.scheduleTask(ctx, task)
@@ -247,7 +247,7 @@ func (c *Controller) onNodeLabelsChange(ctx context.Context, node *nodesv1.Node)
 		currentNodeID := lease.GetConfig().GetNodeId()
 
 		// Skip if task is running on another node
-		if currentNodeID != node.GetMeta().GetName() {
+		if currentNodeID != node.GetMeta().GetUid() {
 			continue
 		}
 

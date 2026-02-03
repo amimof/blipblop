@@ -13,10 +13,7 @@ option go_package = "github.com/amimof/voiyd/api/services/leases/v1;leases";
 
 service LeaseService {
   rpc Get(GetRequest) returns (GetResponse) {
-    option (google.api.http) = {
-      get: "/api/v1/leases/{uid}"
-      additional_bindings: {get: "/api/v1/leases/{name}"}
-    };
+    option (google.api.http) = {get: "/api/v1/leases/{uid}"};
   }
   rpc List(ListRequest) returns (ListResponse) {
     option (google.api.http) = {get: "/api/v1/leases"};
@@ -43,19 +40,19 @@ message Lease {
 }
 
 message LeaseConfig {
-  string task_id = 3 [(buf.validate.field).string.min_len = 1];
-  string node_id = 4 [(buf.validate.field).string.min_len = 1];
-  google.protobuf.Timestamp acquired_at = 5;
-  google.protobuf.Timestamp renew_time = 6;
-  google.protobuf.Timestamp expires_at = 7;
-  uint32 ttl_seconds = 8;
-  uint32 reschedule_count = 9;
-  string original_node = 10;
+  string task_id = 1 [(buf.validate.field).string.uuid = true];
+  string node_id = 2 [(buf.validate.field).string.uuid = true];
+  google.protobuf.Timestamp acquired_at = 3;
+  google.protobuf.Timestamp renew_time = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  uint32 ttl_seconds = 6;
+  uint32 reschedule_count = 7;
+  string original_node = 8;
 }
 
 message AcquireRequest {
-  string task_id = 1;
-  string node_id = 2;
+  string task_id = 1 [(buf.validate.field).string.uuid = true];
+  string node_id = 2 [(buf.validate.field).string.uuid = true];
 }
 
 message AcquireResponse {
@@ -66,8 +63,8 @@ message AcquireResponse {
 
 message RenewRequest {
   string id = 1;
-  string task_id = 2;
-  string node_id = 3;
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string node_id = 3 [(buf.validate.field).string.uuid = true];
 }
 
 message RenewResponse {
@@ -77,8 +74,8 @@ message RenewResponse {
 
 message ReleaseRequest {
   string id = 1;
-  string task_id = 2;
-  string node_id = 3;
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string node_id = 3 [(buf.validate.field).string.uuid = true];
 }
 
 message ReleaseResponse {
@@ -86,14 +83,7 @@ message ReleaseResponse {
 }
 
 message GetRequest {
-  option (buf.validate.message).oneof = {
-    fields: [
-      "uid",
-      "name"
-    ]
-  };
-  string uid = 1 [(buf.validate.field).string.min_len = 1];
-  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string uid = 1 [(buf.validate.field).string.uuid = true];
 }
 
 message GetResponse {

@@ -49,6 +49,7 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...C
 	for _, opt := range opts {
 		opt(c)
 	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	resp, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID})
 	if err != nil {
@@ -93,7 +94,7 @@ func (c *clientV1) Get(ctx context.Context, id string) (*leasesv1.Lease, error) 
 	ctx, span := tracer.Start(ctx, "client.lease.Get")
 	defer span.End()
 
-	res, err := c.Client.Get(ctx, &leasesv1.GetRequest{Name: id})
+	res, err := c.Client.Get(ctx, &leasesv1.GetRequest{Uid: id})
 	if err != nil {
 		return nil, err
 	}

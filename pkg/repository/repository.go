@@ -27,6 +27,11 @@ var (
 	ErrIdxExists = errors.New("index already exists")
 )
 
+type Resource interface {
+	proto.Message
+	GetMeta() *typesv1.Meta
+}
+
 type Txn interface {
 	Get(key []byte) ([]byte, error)     // returns a COPY of value
 	List([]byte, int) ([][]byte, error) // returns a COPY of value
@@ -105,7 +110,7 @@ func (c ProtoCodec[T]) Decode(b []byte) (T, error) {
 	return msg, nil
 }
 
-type Repo[T proto.Message] struct {
+type Repo[T Resource] struct {
 	// db      *badger.DB
 	db      DB
 	prefix  []byte
@@ -114,7 +119,7 @@ type Repo[T proto.Message] struct {
 }
 
 // func NewRepo[T proto.Message](db *badger.DB, codec Codec[T], prefix, iprefix []byte) *Repo[T] {
-func NewRepo[T proto.Message](db DB, codec Codec[T], prefix, iprefix []byte) *Repo[T] {
+func NewRepo[T Resource](db DB, codec Codec[T], prefix, iprefix []byte) *Repo[T] {
 	return &Repo[T]{
 		db:      db,
 		prefix:  prefix,
@@ -245,11 +250,6 @@ func (r Repo[T]) getByName(ctx context.Context, id keys.ID) (T, error) {
 	return res, err
 }
 
-type Resource interface {
-	proto.Message
-	GetMeta() *typesv1.Meta
-}
-
 func (r *Repo[T]) Create(ctx context.Context, resource Resource) (T, error) {
 	var res T
 
@@ -310,35 +310,58 @@ func (r Repo[T]) Delete(ctx context.Context, id keys.ID) error {
 
 		switch id.Tag() {
 		case keys.TagUID:
-			ids, err := txn.Keys(r.iprefix)
+			// Find and delete the index entry that points to this UID
+			indexKeys, err := txn.Keys(r.iprefix)
 			if err != nil {
 				return err
 			}
-			for _, id := range ids {
-				if bytes.HasSuffix(id, r.iprefix) {
-					if err := txn.Delete(id); err != nil {
+
+			// Iterate through all index keys to find which one points to this UID
+			for _, indexKey := range indexKeys {
+				// Read the value stored in this index key (it contains the UID)
+				indexValue, err := txn.Get(indexKey)
+				if err != nil {
+					continue // Skip if we can't read this index key
+				}
+
+				// Decode the UID stored in the index
+				indexedUID, err := keys.Decode(indexValue)
+				if err != nil {
+					continue // Skip if we can't decode
+				}
+
+				// Compare the indexed UID with the UID we're trying to delete
+				if bytes.Equal(indexedUID.Encode(), id.Encode()) {
+					// This index points to our UID, delete it
+					if err := txn.Delete(indexKey); err != nil {
 						return err
 					}
+					break
 				}
 			}
+
+			// Delete the main resource key
 			key := id.EncodePrefixed(r.prefix)
 			if err := txn.Delete(key); err != nil {
 				return err
 			}
 		case keys.TagName:
 			idxKey := id.EncodePrefixed(r.iprefix)
-
 			idxItem, err := txn.Get(idxKey)
 			if err != nil {
 				return err
 			}
-
 			uid, err := keys.Decode(idxItem)
 			if err != nil {
 				return err
 			}
-
+			// Delete the main resource
 			if err := txn.Delete(uid.EncodePrefixed(r.prefix)); err != nil {
+				return err
+			}
+
+			// Delete the index key
+			if err := txn.Delete(idxKey); err != nil {
 				return err
 			}
 		default:
@@ -351,28 +374,52 @@ func (r Repo[T]) Delete(ctx context.Context, id keys.ID) error {
 }
 
 func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) error {
-	err := r.db.View(ctx, func(txn Txn) error {
+	err := r.db.Update(ctx, func(txn Txn) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
+		fmt.Println("id", id)
+
+		// Fetch existing resource
+		existing, err := r.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+
+		// Preserve read-only fields from existing resource
+		meta := resource.GetMeta()
+		existingMeta := existing.GetMeta()
+		meta.Uid = existingMeta.Uid
+		meta.Created = existingMeta.Created
+		meta.Updated = timestamppb.Now()
+		meta.ResourceVersion = existingMeta.ResourceVersion + 1
+
+		// Marshal and save
+		b, err := proto.Marshal(resource)
+		if err != nil {
+			return err
+		}
 		// TODO: Consider returning not-found err and let users decide if they want to override
 		// _, err := txn.Get(id.EncodePrefixed(r.prefix))
 		// if err == nil {
 		// 	return ErrIdxExists
 		// }
 
+		// Ignore read-only fields
+		resource.GetMeta().Updated = timestamppb.Now()
+
 		switch id.Tag() {
 		case keys.TagUID:
-			err := r.updateByUID(ctx, id, resource)
+			err := r.updateByUID(ctx, id, b)
 			if err != nil {
 				return err
 			}
 
 		case keys.TagName:
-			err := r.updateByName(ctx, id, resource)
+			err := r.updateByName(ctx, id, b)
 			if err != nil {
 				return err
 			}
@@ -384,14 +431,7 @@ func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) erro
 	return err
 }
 
-func (r Repo[T]) updateByName(ctx context.Context, id keys.ID, resource Resource) error {
-	resource.GetMeta().Updated = timestamppb.Now()
-
-	b, err := proto.Marshal(resource)
-	if err != nil {
-		return err
-	}
-
+func (r Repo[T]) updateByName(ctx context.Context, id keys.ID, b []byte) error {
 	return r.db.Update(ctx, func(txn Txn) error {
 		idxItem, err := txn.Get(id.EncodePrefixed(r.iprefix))
 		if err != nil {
@@ -411,14 +451,7 @@ func (r Repo[T]) updateByName(ctx context.Context, id keys.ID, resource Resource
 	})
 }
 
-func (r Repo[T]) updateByUID(ctx context.Context, id keys.ID, resource Resource) error {
-	resource.GetMeta().Updated = timestamppb.Now()
-
-	b, err := proto.Marshal(resource)
-	if err != nil {
-		return err
-	}
-
+func (r Repo[T]) updateByUID(ctx context.Context, id keys.ID, b []byte) error {
 	return r.db.Update(ctx, func(txn Txn) error {
 		_, err := txn.Get(id.EncodePrefixed(r.prefix))
 		if err != nil {
@@ -427,7 +460,6 @@ func (r Repo[T]) updateByUID(ctx context.Context, id keys.ID, resource Resource)
 		if err := txn.Set(id.EncodePrefixed(r.prefix), b); err != nil {
 			return err
 		}
-
 		return nil
 	})
 }

@@ -216,42 +216,6 @@
         ]
       }
     },
-    "/api/v1/leases/{name}": {
-      "get": {
-        "operationId": "LeaseService_Get2",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/servicesleasesv1GetResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "uid",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "LeaseService"
-        ]
-      }
-    },
     "/api/v1/leases/{uid}": {
       "get": {
         "operationId": "LeaseService_Get",
@@ -274,12 +238,6 @@
             "name": "uid",
             "in": "path",
             "required": true,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "required": false,
             "type": "string"
           }
         ],

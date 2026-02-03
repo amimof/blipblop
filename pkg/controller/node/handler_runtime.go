@@ -33,16 +33,22 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 		return err
 	}
 
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+	if lease.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
 		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-		report := condition.NewForResource(task).As(c.node.GetMeta().GetName())
+		report := condition.NewForResource(task).As(node.GetMeta().GetUid())
 
 		md := map[string]string{
-			"pid":  strconv.Itoa(int(e.GetPid())),
-			"id":   e.GetContainerID(),
-			"node": lease.GetConfig().GetNodeId(),
+			"pid":       strconv.Itoa(int(e.GetPid())),
+			"id":        e.GetContainerID(),
+			"node_uid":  node.GetMeta().GetUid(),
+			"node_name": node.GetMeta().GetName(),
 		}
 
 		report.
@@ -85,11 +91,16 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		return err
 	}
 
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+	if lease.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
 		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
 
-		report := condition.NewForResource(task).As(c.node.GetMeta().GetName())
+		report := condition.NewForResource(task).As(node.GetMeta().GetUid())
 
 		exitStatus := ""
 		if e.GetExitStatus() > 0 {
@@ -130,11 +141,16 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		return err
 	}
 
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == c.node.GetMeta().GetName() {
+	if lease.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
 		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-		report := condition.NewForResource(task).As(c.node.GetMeta().GetName())
+		report := condition.NewForResource(task).As(node.GetMeta().GetUid())
 		md := map[string]string{
 			"id":  "",
 			"pid": "",
