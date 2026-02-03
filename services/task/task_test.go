@@ -141,16 +141,16 @@ func Test_TaskService_Status(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name   string
-		expect *tasksv1.Status
-		patch  *tasksv1.Status
-		taskID string
-		mask   string
+		name     string
+		expect   *tasksv1.Status
+		patch    *tasksv1.Status
+		taskName string
+		mask     string
 	}{
 		{
-			name:   "should be equal",
-			taskID: "test-task-1",
-			mask:   "phase",
+			name:     "should be equal",
+			taskName: "test-task-1",
+			mask:     "phase",
 			patch: &tasksv1.Status{
 				Phase: wrapperspb.String("creating"),
 			},
@@ -162,7 +162,7 @@ func Test_TaskService_Status(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &tasksv1.UpdateStatusRequest{Uid: tt.taskID, Status: tt.patch, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{tt.mask}}}
+			req := &tasksv1.UpdateStatusRequest{Name: tt.taskName, Status: tt.patch, UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{tt.mask}}}
 			_, err := client.UpdateStatus(ctx, req)
 			if err != nil {
 				t.Fatal("error updating task", err)
@@ -170,7 +170,7 @@ func Test_TaskService_Status(t *testing.T) {
 
 			expectedVal := protoreflect.ValueOfMessage(tt.expect.ProtoReflect())
 
-			updated, err := client.Get(ctx, &tasksv1.GetRequest{Uid: tt.taskID})
+			updated, err := client.Get(ctx, &tasksv1.GetRequest{Name: tt.taskName})
 			if err != nil {
 				t.Fatal("error getting task", err)
 			}
@@ -270,7 +270,7 @@ func Test_TaskService_Equal(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &tasksv1.PatchRequest{Uid: tt.patch.Meta.Name, Task: tt.patch}
+			req := &tasksv1.PatchRequest{Name: tt.patch.Meta.Name, Task: tt.patch}
 			res, err := client.Patch(ctx, req)
 			if err != nil {
 				t.Fatal("error updating task", err)
@@ -855,7 +855,7 @@ func Test_TaskService_Patch(t *testing.T) {
 	// Run tests
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			req := &tasksv1.PatchRequest{Uid: tt.patch.Meta.Name, Task: tt.patch}
+			req := &tasksv1.PatchRequest{Name: tt.patch.Meta.Name, Task: tt.patch}
 			res, err := client.Patch(ctx, req)
 			if err != nil {
 				t.Fatal("error updating task", err)
