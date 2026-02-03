@@ -47,13 +47,13 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 		task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
 		if err != nil {
 			if errs.IsNotFound(err) {
-				if err := c.clientset.LeaseV1().Release(ctx, task.GetMeta().GetName(), lease.GetConfig().GetNodeId()); err != nil {
+				if err := c.clientset.LeaseV1().Release(ctx, lease.GetConfig().GetTaskId(), lease.GetConfig().GetNodeId()); err != nil {
 					c.logger.Error("error releasing lease", "error", err, "task", task.GetMeta().GetName())
-					return
+					continue
 				}
 			}
 			c.logger.Error("error getting task for lease", "error", err, "task", lease.GetConfig().GetTaskId())
-			return
+			continue
 		}
 
 		// If lease has expired

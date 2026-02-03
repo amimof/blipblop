@@ -14,21 +14,22 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
-	"github.com/google/uuid"
+
+	// noderepo "github.com/amimof/voiyd/pkg/repository/node"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type local struct {
-	repo     repository.NodeRepository
+	repo     *repository.Repo[*nodesv1.Node]
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
@@ -120,10 +121,16 @@ func (l *local) Get(ctx context.Context, req *nodesv1.GetRequest, _ ...grpc.Call
 	ctx, span := tracer.Start(ctx, "node.Get")
 	defer span.End()
 
-	node, err := l.Repo().Get(ctx, req.Id)
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET node from repo", "name", req.GetId())
+		return nil, l.handleError(err, "couldn't parse uid")
 	}
+
+	node, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, l.handleError(err, "error getting node", "name", req.GetUid())
+	}
+
 	return &nodesv1.GetResponse{
 		Node: node,
 	}, nil
@@ -137,56 +144,59 @@ func (l *local) Create(ctx context.Context, req *nodesv1.CreateRequest, _ ...grp
 	defer l.mu.Unlock()
 
 	node := req.GetNode()
-	nodeID := node.GetMeta().GetName()
+	nodeName := node.GetMeta().GetName()
 
-	if existing, _ := l.Repo().Get(ctx, node.GetMeta().GetName()); existing != nil {
+	if existing, _ := l.Get(ctx, &nodesv1.GetRequest{Name: nodeName}); existing != nil {
 		return nil, status.Error(codes.AlreadyExists, "node already exists")
 	}
 
-	node.Meta.Created = timestamppb.Now()
-	node.GetMeta().Updated = timestamppb.Now()
 	node.GetMeta().ResourceVersion = 1
 	node.GetMeta().Generation = 1
-	node.GetMeta().Uid = uuid.New().String()
 
 	// Initialize status field if empty
 	if node.GetStatus() == nil {
 		node.Status = &nodesv1.Status{}
 	}
 
-	err := l.Repo().Create(ctx, node)
+	newNode, err := l.repo.Create(ctx, node)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE node in repo", "name", nodeID)
+		return nil, l.handleError(err, "error creating node", "name", nodeName)
 	}
 
 	// Decorate label with some labels
 	eventLabels := labels.New()
-	eventLabels.Set(labels.LabelPrefix("object-id").String(), node.GetMeta().GetName())
-	eventLabels.Set(labels.LabelPrefix("object-version").String(), node.GetVersion())
+	eventLabels.Set(labels.LabelPrefix("object-id").String(), newNode.GetMeta().GetName())
+	eventLabels.Set(labels.LabelPrefix("object-version").String(), newNode.GetVersion())
 
-	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeCreate, node, eventLabels))
+	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeCreate, newNode, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", nodeID, "event", "NodeCreate")
+		return nil, l.handleError(err, "error publishing node create event", "name", nodeName, "event", "NodeCreate")
 	}
 	return &nodesv1.CreateResponse{
 		Node: node,
 	}, nil
 }
 
-func (l *local) Delete(ctx context.Context, req *nodesv1.DeleteRequest, _ ...grpc.CallOption) (*nodesv1.DeleteResponse, error) {
+func (l *local) Delete(ctx context.Context, req *nodesv1.DeleteRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
 	ctx, span := tracer.Start(ctx, "node.Delete")
 	defer span.End()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	node, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	node, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
-	err = l.Repo().Delete(ctx, req.GetId())
+
+	err = l.repo.Delete(ctx, uid)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET node from repo", "id", req.GetId())
+		return nil, l.handleError(err, "error getting node", "id", req.GetName())
 	}
 
 	// Decorate label with some labels
@@ -196,18 +206,17 @@ func (l *local) Delete(ctx context.Context, req *nodesv1.DeleteRequest, _ ...grp
 
 	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeDelete, node, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", req.GetId(), "event", "nodeDelete")
+		return nil, l.handleError(err, "error publishing node delete event", "name", req.GetName(), "event", "nodeDelete")
 	}
-	return &nodesv1.DeleteResponse{
-		Id: req.Id,
-	}, nil
+
+	return &emptypb.Empty{}, nil
 }
 
 func (l *local) List(ctx context.Context, req *nodesv1.ListRequest, _ ...grpc.CallOption) (*nodesv1.ListResponse, error) {
 	ctx, span := tracer.Start(ctx, "node.List")
 	defer span.End()
 
-	nodeList, err := l.Repo().List(ctx)
+	nodeList, err := l.repo.List(ctx, int(req.GetLimit()))
 	if err != nil {
 		return nil, err
 	}
@@ -223,8 +232,13 @@ func (l *local) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatusReque
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	// Get the existing node before updating so we can compare specs
-	existingNode, err := l.Repo().Get(ctx, req.GetId())
+	existingNode, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +252,7 @@ func (l *local) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatusReque
 	existingNode.GetMeta().ResourceVersion++
 	existingNode.Status = base
 
-	if err := l.Repo().Update(ctx, existingNode); err != nil {
+	if err := l.repo.Update(ctx, uid, existingNode); err != nil {
 		return nil, err
 	}
 
@@ -255,12 +269,17 @@ func (l *local) Patch(ctx context.Context, req *nodesv1.PatchRequest, opts ...gr
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	updateNode := req.GetNode()
 
 	// Get existing node from repo
-	existing, err := l.Repo().Get(ctx, req.GetId())
+	existing, err := l.repo.Get(ctx, uid)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET node from repo", "name", updateNode.GetMeta().GetName())
+		return nil, l.handleError(err, "error getting node", "name", updateNode.GetMeta().GetName())
 	}
 
 	// Generate field mask
@@ -280,13 +299,13 @@ func (l *local) Patch(ctx context.Context, req *nodesv1.PatchRequest, opts ...gr
 	existing = merge(existing, updated)
 
 	// Update the node
-	err = l.Repo().Update(ctx, existing)
+	err = l.repo.Update(ctx, uid, existing)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't PATCH node in repo", "name", existing.GetMeta().GetName())
+		return nil, l.handleError(err, "error patching node", "name", existing.GetMeta().GetName())
 	}
 
 	// Retreive the node again so that we can include it in an event
-	node, err := l.Repo().Get(ctx, req.GetId())
+	node, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +317,6 @@ func (l *local) Patch(ctx context.Context, req *nodesv1.PatchRequest, opts ...gr
 
 	// Only publish if spec is updated
 	if !proto.Equal(updateNode, node) {
-		l.logger.Debug("node was patched, emitting event to listeners", "event", "NodePatch", "name", node.GetMeta().GetName(), "revision", updateNode.GetMeta().GetGeneration())
 
 		// Decorate label with some labels
 		eventLabels := labels.New()
@@ -307,7 +325,7 @@ func (l *local) Patch(ctx context.Context, req *nodesv1.PatchRequest, opts ...gr
 
 		err = l.exchange.Forward(ctx, events.NewEvent(events.NodePatch, node, eventLabels))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing PATCH event", "name", existing.GetMeta().GetName(), "event", "NodePatch")
+			return nil, l.handleError(err, "error publishing node patch event", "name", existing.GetMeta().GetName(), "event", "NodePatch")
 		}
 	}
 
@@ -323,12 +341,17 @@ func (l *local) Update(ctx context.Context, req *nodesv1.UpdateRequest, _ ...grp
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
 	updateNode := req.GetNode()
 
 	// Get the existing node before updating so we can compare specs
-	existingNode, err := l.Repo().Get(ctx, req.GetId())
+	existingNode, err := l.repo.Get(ctx, uid)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET node from repo", "name", updateNode.GetMeta().GetName())
+		return nil, l.handleError(err, "error getting node", "name", updateNode.GetMeta().GetName())
 	}
 
 	// Ignore fields
@@ -343,24 +366,22 @@ func (l *local) Update(ctx context.Context, req *nodesv1.UpdateRequest, _ ...grp
 	// Only update metadata fields if spec is updated
 	if !updVal.Equal(newVal) {
 		updateNode.Meta.Generation++
-		updateNode.Meta.Updated = timestamppb.Now()
 	}
 
 	// Update the node
-	err = l.Repo().Update(ctx, updateNode)
+	err = l.repo.Update(ctx, uid, updateNode)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE node in repo", "name", updateNode.GetMeta().GetName())
+		return nil, l.handleError(err, "error updating node", "name", updateNode.GetMeta().GetName())
 	}
 
 	// Retreive the node again so that we can include it in an event
-	node, err := l.Repo().Get(ctx, req.GetId())
+	node, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
 
 	// Only publish if spec is updated
 	if !updVal.Equal(newVal) {
-		l.logger.Debug("node was updated, emitting event to listeners", "event", "NodeUpdate", "name", node.GetMeta().GetName(), "revision", updateNode.GetMeta().GetGeneration())
 
 		// Decorate label with some labels
 		eventLabels := labels.New()
@@ -369,7 +390,7 @@ func (l *local) Update(ctx context.Context, req *nodesv1.UpdateRequest, _ ...grp
 
 		err = l.exchange.Forward(ctx, events.NewEvent(events.NodeUpdate, node, eventLabels))
 		if err != nil {
-			return nil, l.handleError(err, "error publishing UPDATE event", "name", node.GetMeta().GetName(), "event", "NodeUpdate")
+			return nil, l.handleError(err, "error publishing node update event", "name", node.GetMeta().GetName(), "event", "NodeUpdate")
 		}
 	}
 
@@ -382,24 +403,30 @@ func (l *local) Join(ctx context.Context, req *nodesv1.JoinRequest, _ ...grpc.Ca
 	ctx, span := tracer.Start(ctx, "node.Join")
 	defer span.End()
 
-	nodeID := req.GetNode().GetMeta().GetName()
+	nodeID := req.GetNode().GetMeta().GetUid()
+	nodeName := req.GetNode().GetMeta().GetName()
 
-	node, err := l.Repo().Get(ctx, nodeID)
+	uid, err := keys.FromUIDOrName(nodeID, nodeName)
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	node, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			l.logger.Debug("creating node that joined", "nodeID", nodeID)
+			l.logger.Debug("creating node that joined", "nodeID", nodeName)
 			if _, err := l.Create(ctx, &nodesv1.CreateRequest{Node: req.GetNode()}); err != nil {
-				return nil, l.handleError(err, "couldn't CREATE node", "name", nodeID)
+				return nil, l.handleError(err, "error creating node", "name", nodeName)
 			}
 		} else {
-			return nil, l.handleError(err, "couldn't GET node", "name", nodeID)
+			return nil, l.handleError(err, "error getting node", "name", nodeName)
 		}
 	}
 
 	// Perform update if node exists
 	if err == nil {
-		l.logger.Debug("updating node that joined", "nodeID", nodeID)
-		res, err := l.Update(ctx, &nodesv1.UpdateRequest{Id: nodeID, Node: req.GetNode()})
+		l.logger.Debug("updating node that joined", "nodeID", nodeName)
+		res, err := l.Update(ctx, &nodesv1.UpdateRequest{Uid: nodeID, Name: nodeName, Node: req.GetNode()})
 		if err != nil {
 			return nil, err
 		}
@@ -432,14 +459,19 @@ func (l *local) Forget(ctx context.Context, req *nodesv1.ForgetRequest, _ ...grp
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	node, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	node, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = l.Delete(ctx, &nodesv1.DeleteRequest{Id: req.GetId()})
+	err = l.repo.Delete(ctx, uid)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't FORGET node", "name", req.GetId())
+		return nil, l.handleError(err, "error deleting node", "name", req.GetName())
 	}
 
 	// Decorate label with some labels
@@ -449,10 +481,10 @@ func (l *local) Forget(ctx context.Context, req *nodesv1.ForgetRequest, _ ...grp
 
 	err = l.exchange.Forward(ctx, events.NewEvent(events.NodeForget, node, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing FORGET event", "name", req.GetId(), "event", "NodeForget")
+		return nil, l.handleError(err, "error publishing node forget event", "name", req.GetName(), "event", "NodeForget")
 	}
 	return &nodesv1.ForgetResponse{
-		Id: req.Id,
+		Id: req.GetUid(),
 	}, nil
 }
 
@@ -469,12 +501,13 @@ func (l *local) Upgrade(ctx context.Context, req *nodesv1.UpgradeRequest, _ ...g
 
 	// Decorate label with some labels
 	eventLabels := labels.New()
-	eventLabels.Set(labels.LabelPrefix("object-id").String(), req.GetNodeId())
+	eventLabels.Set(labels.LabelPrefix("uid").String(), req.GetUid())
+	eventLabels.Set(labels.LabelPrefix("name").String(), req.GetName())
 	eventLabels.Set(labels.LabelPrefix("target-version").String(), req.GetTargetVersion())
 
 	err := l.exchange.Forward(ctx, events.NewEvent(events.NodeUpgrade, req, eventLabels))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing UPGRADE event", "name", req.GetNodeSelector(), "event", "NodeUpgrade")
+		return nil, l.handleError(err, "error publishing node upgrade event", "name", req.GetSelector(), "event", "NodeUpgrade")
 	}
 
 	return &nodesv1.UpgradeResponse{}, nil
@@ -486,13 +519,4 @@ func (l *local) Condition(ctx context.Context, req *typesv1.ConditionRequest, _ 
 		return nil, err
 	}
 	return nil, nil
-}
-
-func (l *local) Repo() repository.NodeRepository {
-	if l.repo != nil {
-		return l.repo
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return repository.NewNodeInMemRepo()
 }

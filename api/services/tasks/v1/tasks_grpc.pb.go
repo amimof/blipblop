@@ -29,9 +29,9 @@ type TaskServiceClient interface {
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 	Patch(ctx context.Context, in *PatchRequest, opts ...grpc.CallOption) (*PatchResponse, error)
-	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
-	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
-	Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*KillResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 	Condition(ctx context.Context, in *v1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -89,8 +89,8 @@ func (c *taskServiceClient) Patch(ctx context.Context, in *PatchRequest, opts ..
 	return out, nil
 }
 
-func (c *taskServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
-	out := new(DeleteResponse)
+func (c *taskServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/services.tasks.v1.TaskService/Delete", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -98,8 +98,8 @@ func (c *taskServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts 
 	return out, nil
 }
 
-func (c *taskServiceClient) Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error) {
-	out := new(StartResponse)
+func (c *taskServiceClient) Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/services.tasks.v1.TaskService/Start", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -107,8 +107,8 @@ func (c *taskServiceClient) Start(ctx context.Context, in *StartRequest, opts ..
 	return out, nil
 }
 
-func (c *taskServiceClient) Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*KillResponse, error) {
-	out := new(KillResponse)
+func (c *taskServiceClient) Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/services.tasks.v1.TaskService/Kill", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -143,9 +143,9 @@ type TaskServiceServer interface {
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
 	Patch(context.Context, *PatchRequest) (*PatchResponse, error)
-	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
-	Start(context.Context, *StartRequest) (*StartResponse, error)
-	Kill(context.Context, *KillRequest) (*KillResponse, error)
+	Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error)
+	Start(context.Context, *StartRequest) (*emptypb.Empty, error)
+	Kill(context.Context, *KillRequest) (*emptypb.Empty, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	Condition(context.Context, *v1.ConditionRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedTaskServiceServer()
@@ -170,13 +170,13 @@ func (UnimplementedTaskServiceServer) Update(context.Context, *UpdateRequest) (*
 func (UnimplementedTaskServiceServer) Patch(context.Context, *PatchRequest) (*PatchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Patch not implemented")
 }
-func (UnimplementedTaskServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
+func (UnimplementedTaskServiceServer) Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
-func (UnimplementedTaskServiceServer) Start(context.Context, *StartRequest) (*StartResponse, error) {
+func (UnimplementedTaskServiceServer) Start(context.Context, *StartRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Start not implemented")
 }
-func (UnimplementedTaskServiceServer) Kill(context.Context, *KillRequest) (*KillResponse, error) {
+func (UnimplementedTaskServiceServer) Kill(context.Context, *KillRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Kill not implemented")
 }
 func (UnimplementedTaskServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {

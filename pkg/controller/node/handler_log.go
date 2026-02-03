@@ -17,9 +17,15 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	if err != nil {
 		return err
 	}
+
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
 	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
 
-	if s.GetNodeId() != c.node.GetMeta().GetName() {
+	if s.GetNodeId() != node.GetMeta().GetUid() {
 		return nil
 	}
 
@@ -172,15 +178,21 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	return nil
 }
 
-func (c *Controller) onLogStop(_ context.Context, obj *eventsv1.Event) error {
+func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
 	s := &logsv1.TailLogRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
 	if err != nil {
 		return err
 	}
+
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
 	c.logger.Debug("someone requested stop logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 
-	if s.GetNodeId() != c.node.GetMeta().GetName() {
+	if s.GetNodeId() != node.GetMeta().GetUid() {
 		return nil
 	}
 

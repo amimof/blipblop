@@ -138,6 +138,7 @@ func withContainerLabels(l labels.Label, task *tasksv1.Task) containerd.NewConta
 	l.Set("voiyd/revision", util.Uint64ToString(task.GetMeta().GetGeneration()))
 	l.Set("voiyd/created", task.GetMeta().GetCreated().String())
 	l.Set("voiyd/updated", task.GetMeta().GetUpdated().String())
+	l.Set("voiyd/uid", task.GetMeta().GetUid())
 	l.Set("voiyd/name", task.GetMeta().GetName())
 	l.Set("voiyd/namespace", "voiyd")
 	l.Set("voiyd/ports", string(b))
@@ -203,7 +204,7 @@ func (c *ContainerdRuntime) List(ctx context.Context, filter ...string) ([]*task
 
 	// We're only interested in containers with the voiyd.io/name label
 	filters := []string{
-		`labels."voiyd.io/name"`,
+		`labels."voiyd.io/uid"`,
 	}
 	filters = append(filters, filter...)
 
@@ -221,7 +222,7 @@ func (c *ContainerdRuntime) List(ctx context.Context, filter ...string) ([]*task
 			return nil, err
 		}
 
-		taskName, ok := cl["voiyd.io/name"]
+		taskName, ok := cl["voiyd.io/uid"]
 		if !ok {
 			continue
 		}
@@ -238,16 +239,16 @@ func (c *ContainerdRuntime) List(ctx context.Context, filter ...string) ([]*task
 	return result, nil
 }
 
-// Get returns the first container from the runtime that matches the provided id
-func (c *ContainerdRuntime) Get(ctx context.Context, taskName string) (*tasksv1.Task, error) {
+// Get returns the first container from the runtime that matches the provided UID
+func (c *ContainerdRuntime) Get(ctx context.Context, taskUID string) (*tasksv1.Task, error) {
 	// Get from runtime first to verify that the task is provisioned
-	_, err := c.get(ctx, taskName)
+	_, err := c.get(ctx, taskUID)
 	if err != nil {
 		return nil, err
 	}
 
 	var t tasksv1.Task
-	err = c.store.Load(taskName, &t)
+	err = c.store.Load(taskUID, &t)
 	if err != nil {
 		return nil, err
 	}
@@ -255,16 +256,16 @@ func (c *ContainerdRuntime) Get(ctx context.Context, taskName string) (*tasksv1.
 	return &t, nil
 }
 
-// gets a containerd-container using voiyd task names.
-func (c *ContainerdRuntime) get(ctx context.Context, taskName string) (containerd.Container, error) {
+// gets a containerd-container using voiyd task UID's.
+func (c *ContainerdRuntime) get(ctx context.Context, taskUID string) (containerd.Container, error) {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.get")
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	cfilters := []string{
-		fmt.Sprintf(`labels."voiyd.io/name"=="%s"`, regexp.QuoteMeta(taskName)),
-		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(taskName)),
+		fmt.Sprintf(`labels."voiyd.io/uid"=="%s"`, regexp.QuoteMeta(taskUID)),
+		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(taskUID)),
 	}
 
 	_, err := filters.ParseAll(cfilters...)
@@ -279,7 +280,7 @@ func (c *ContainerdRuntime) get(ctx context.Context, taskName string) (container
 
 	// Not found in runtime, remove from store
 	if len(ctrs) == 0 {
-		err = c.store.Delete(taskName)
+		err = c.store.Delete(taskUID)
 		if errs.IgnoreNotFound(err) != nil {
 			return nil, err
 		}
@@ -310,7 +311,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
 	// Get the container from runtime. If container isn't found, then assume that it's already been deleted
-	container, err := c.get(ctx, t.GetMeta().GetName())
+	container, err := c.get(ctx, t.GetMeta().GetUid())
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return nil
@@ -336,14 +337,14 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 
 	// Clean up IO streams
 	c.mu.Lock()
-	if io, exists := c.containerIOs[t.GetMeta().GetName()]; exists {
+	if io, exists := c.containerIOs[t.GetMeta().GetUid()]; exists {
 		if io.Stdout != nil {
 			_ = io.Stdout.Close()
 		}
 		if io.Stderr != nil {
 			_ = io.Stderr.Close()
 		}
-		delete(c.containerIOs, t.GetMeta().GetName())
+		delete(c.containerIOs, t.GetMeta().GetUid())
 	}
 	c.mu.Unlock()
 
@@ -360,7 +361,7 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 	}
 
 	// Delete from store
-	return c.store.Delete(t.GetMeta().GetName())
+	return c.store.Delete(t.GetMeta().GetUid())
 }
 
 // Stop stops containers associated with the name of provided container instance.
@@ -372,7 +373,7 @@ func (c *ContainerdRuntime) Stop(ctx context.Context, t *tasksv1.Task) error {
 	defer span.End()
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
-	cont, err := c.get(ctx, t.GetMeta().GetName())
+	cont, err := c.get(ctx, t.GetMeta().GetUid())
 	if err != nil {
 		return err
 	}
@@ -414,7 +415,7 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, t *tasksv1.Task) error {
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
-	cont, err := c.get(ctx, t.GetMeta().GetName())
+	cont, err := c.get(ctx, t.GetMeta().GetUid())
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			return nil
@@ -500,17 +501,18 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	// Assemble some labels
 	l := labels.New()
 	l.Set("voiyd.io/name", t.GetMeta().GetName())
+	l.Set("voiyd.io/uid", t.GetMeta().GetUid())
 
 	// Generate ID for the container
 	containerID := GenerateID()
-	containerName := t.GetMeta().GetName()
+	containerUID := t.GetMeta().GetUid()
 
 	// Create container
 	cont, err := c.client.NewContainer(
 		ctx,
 		containerID.String(),
 		containerd.WithImage(image),
-		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerName), image),
+		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerUID), image),
 		containerd.WithNewSpec(opts...),
 		withContainerLabels(l, t),
 	)
@@ -519,7 +521,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	}
 
 	// Pipe stdout and stderr to log file on disk
-	logRoot := fmt.Sprintf(c.logDirFmt, containerName)
+	logRoot := fmt.Sprintf(c.logDirFmt, containerUID)
 	stdOut := filepath.Join(logRoot, logFileName)
 	ioCreator := cio.LogFile(stdOut)
 
@@ -530,7 +532,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	}
 
 	// Create task in store
-	err = c.store.Save(containerName, t)
+	err = c.store.Save(containerUID, t)
 	if err != nil {
 		return err
 	}
@@ -607,7 +609,7 @@ func (c *ContainerdRuntime) Name(ctx context.Context, id string) (string, error)
 		return "", err
 	}
 
-	cName, ok := l["voiyd.io/name"]
+	cName, ok := l["voiyd.io/uid"]
 	if !ok {
 		return "", errdefs.ErrNotFound
 	}

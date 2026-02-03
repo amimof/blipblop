@@ -17,9 +17,10 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
-func (c *Controller) isNodeSelected(ctx context.Context, task *tasksv1.Task) bool {
-	node, err := c.clientset.NodeV1().Get(ctx, c.node.GetMeta().GetName())
+func (c *Controller) isNodeSelected(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) bool {
+	node, err := c.clientset.NodeV1().Get(ctx, node.GetMeta().GetUid())
 	if err != nil {
+		c.logger.Debug("error checking node selection", "error", err)
 		return false
 	}
 	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
@@ -29,8 +30,13 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskKill")
 	defer span.End()
 
-	taskID := task.GetMeta().GetName()
-	nodeID := c.node.GetMeta().GetName()
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
+	taskID := task.GetMeta().GetUid()
+	nodeID := node.GetMeta().GetUid()
 
 	// Release lease
 	defer func() {
@@ -40,10 +46,10 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
-	report := condition.NewForResource(task).As(c.node.GetMeta().GetName())
+	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
 
 	// Detach network
-	err := c.detachNetwork(ctx, task, report)
+	err = c.detachNetwork(ctx, task, report)
 	if err != nil {
 		return err
 	}
@@ -67,8 +73,13 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStop")
 	defer span.End()
 
-	taskID := task.GetMeta().GetName()
-	nodeID := c.node.GetMeta().GetName()
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
+	taskID := task.GetMeta().GetUid()
+	nodeID := node.GetMeta().GetUid()
 
 	// Release lease
 	defer func() {
@@ -78,10 +89,10 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
-	report := condition.NewForResource(task).As(c.node.GetMeta().GetName())
+	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
 
 	// Detach volumes
-	err := c.detachMounts(ctx, task, report)
+	err = c.detachMounts(ctx, task, report)
 	if err != nil {
 		return err
 	}
@@ -102,9 +113,27 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	return c.deleteTask(ctx, task, report)
 }
 
+// getNode fetches the node by either node name or node UID from the server. It uses whichever idenfier that exists in the
+// local node config but prioritizes node uid's and will fall back to names.
+func (c *Controller) getNode(ctx context.Context) (*nodesv1.Node, error) {
+	var nodeID string
+	if c.node.GetMeta().GetName() != "" {
+		nodeID = c.node.GetMeta().GetName()
+	}
+	if c.node.GetMeta().GetUid() != "" {
+		nodeID = c.node.GetMeta().GetUid()
+	}
+	return c.clientset.NodeV1().Get(ctx, nodeID)
+}
+
 func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error {
-	taskID := task.GetMeta().GetName()
-	nodeID := c.node.GetMeta().GetName()
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
+	taskID := task.GetMeta().GetUid()
+	nodeID := node.GetMeta().GetUid()
 
 	ttl, expired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
 	if err != nil {
@@ -135,7 +164,7 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task, report 
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskDelete")
 	defer span.End()
 
-	taskID := task.GetMeta().GetName()
+	taskID := task.GetMeta().GetUid()
 
 	// Run cleanup early while netns still exists.
 	// This will allow the CNI plugin to remove networks without leaking.
@@ -239,8 +268,8 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task, report *
 	return c.clientset.TaskV1().Condition(ctx, report.Report())
 }
 
-func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, _ *nodesv1.Node) error {
-	if !c.isNodeSelected(ctx, task) {
+func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
+	if !c.isNodeSelected(ctx, task, node) {
 		c.logger.Debug("declining schedule request due to selector mismatch", "selector", task.GetConfig().GetNodeSelector())
 		return nil
 	}
@@ -265,7 +294,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
-	t, err := c.runtime.Get(ctx, task.GetMeta().GetName())
+	t, err := c.runtime.Get(ctx, task.GetMeta().GetUid())
 	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
@@ -278,7 +307,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}
 
-	report := condition.NewForResource(task).As(c.node.GetMeta().GetName())
+	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
 
 	err = c.deleteTask(ctx, task, report)
 	if err != nil {
@@ -306,7 +335,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
 	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetaching))
 
-	id, err := c.runtime.ID(ctx, task.GetMeta().GetName())
+	id, err := c.runtime.ID(ctx, task.GetMeta().GetUid())
 	if err != nil {
 		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
 		return err
@@ -339,7 +368,7 @@ func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, repo
 func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
 	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttaching))
 
-	id, err := c.runtime.ID(ctx, task.GetMeta().GetName())
+	id, err := c.runtime.ID(ctx, task.GetMeta().GetUid())
 	if err != nil {
 		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
 		return err

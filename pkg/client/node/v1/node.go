@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/amimof/voiyd/pkg/condition"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/services/node"
@@ -47,7 +48,7 @@ type ClientV1 interface {
 	List(context.Context, ...labels.Label) ([]*nodesv1.Node, error)
 	Join(context.Context, *nodesv1.Node) error
 	Forget(context.Context, string) error
-	Connect(context.Context, string, chan *eventsv1.Event, chan error) error
+	Connect(context.Context, string, string, chan *eventsv1.Event, chan error) error
 	Upgrade(context.Context, string, string) error
 	UpgradeAll(context.Context, map[string]string, string) error
 	Condition(context.Context, ...*typesv1.ConditionReport) error
@@ -86,13 +87,19 @@ func (c *statusClientV1) Update(ctx context.Context, id string, status *nodesv1.
 		Paths: path,
 	}
 
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
+
 	req := &nodesv1.UpdateStatusRequest{
-		Id:         id,
+		Name:       uid.NameStr(),
+		Uid:        uid.UUIDStr(),
 		UpdateMask: mask,
 		Status:     status,
 	}
 
-	_, err := c.client.UpdateStatus(ctx, req)
+	_, err = c.client.UpdateStatus(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -101,8 +108,12 @@ func (c *statusClientV1) Update(ctx context.Context, id string, status *nodesv1.
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Delete(ctx, &nodesv1.DeleteRequest{Id: id})
+	_, err = c.Client.Delete(ctx, &nodesv1.DeleteRequest{Name: uid.NameStr(), Uid: uid.UUIDStr()})
 	if err != nil {
 		return err
 	}
@@ -110,8 +121,13 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 }
 
 func (c *clientV1) Get(ctx context.Context, id string) (*nodesv1.Node, error) {
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	n, err := c.Client.Get(ctx, &nodesv1.GetRequest{Id: id})
+	n, err := c.Client.Get(ctx, &nodesv1.GetRequest{Name: uid.NameStr(), Uid: uid.UUIDStr()})
 	if err != nil {
 		return nil, err
 	}
@@ -128,8 +144,12 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodesv1.Node
 }
 
 func (c *clientV1) Update(ctx context.Context, id string, node *nodesv1.Node) error {
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return err
+	}
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Update(ctx, &nodesv1.UpdateRequest{Id: id, Node: node})
+	_, err = c.Client.Update(ctx, &nodesv1.UpdateRequest{Name: uid.NameStr(), Uid: uid.UUIDStr(), Node: node})
 	if err != nil {
 		return err
 	}
@@ -157,7 +177,7 @@ func (c *clientV1) Join(ctx context.Context, node *nodesv1.Node) error {
 func (c *clientV1) Forget(ctx context.Context, n string) error {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	req := &nodesv1.ForgetRequest{
-		Id: n,
+		Name: n,
 	}
 	_, err := c.Client.Forget(ctx, req)
 	if err != nil {
@@ -166,7 +186,7 @@ func (c *clientV1) Forget(ctx context.Context, n string) error {
 	return nil
 }
 
-func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan chan *eventsv1.Event, errChan chan error) error {
+func (c *clientV1) Connect(ctx context.Context, nodeUID, nodeName string, receiveChan chan *eventsv1.Event, errChan chan error) error {
 	for {
 		// Check if the context is already canceled before starting a connection
 		select {
@@ -176,7 +196,7 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 		}
 
 		// Start a new stream connection
-		stream, err := c.startStream(ctx, nodeName)
+		stream, err := c.startStream(ctx, nodeUID, nodeName)
 		if err != nil {
 			c.logger.Info("error connecting to stream", "error", err)
 			time.Sleep(2 * time.Second)
@@ -217,8 +237,14 @@ func (c *clientV1) Connect(ctx context.Context, nodeName string, receiveChan cha
 }
 
 func (c *clientV1) Upgrade(ctx context.Context, nodeID string, version string) error {
-	_, err := c.Client.Upgrade(ctx, &nodesv1.UpgradeRequest{
-		NodeId:        nodeID,
+	uid, err := keys.ParseStr(nodeID)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Client.Upgrade(ctx, &nodesv1.UpgradeRequest{
+		Name:          uid.String(),
+		Uid:           uid.String(),
 		TargetVersion: version,
 	})
 	return err
@@ -226,7 +252,7 @@ func (c *clientV1) Upgrade(ctx context.Context, nodeID string, version string) e
 
 func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, version string) error {
 	_, err := c.Client.Upgrade(ctx, &nodesv1.UpgradeRequest{
-		NodeSelector:  selector,
+		Selector:      selector,
 		TargetVersion: version,
 	})
 	return err
@@ -241,8 +267,9 @@ func (c *clientV1) Condition(ctx context.Context, reports ...*typesv1.ConditionR
 	return nil
 }
 
-func (c *clientV1) startStream(ctx context.Context, nodeName string) (nodesv1.NodeService_ConnectClient, error) {
-	mdCtx := metadata.AppendToOutgoingContext(ctx, "voiyd_node_name", nodeName)
+func (c *clientV1) startStream(ctx context.Context, nodeUID, nodeName string) (nodesv1.NodeService_ConnectClient, error) {
+	mdCtx := metadata.AppendToOutgoingContext(ctx, "voiyd_node_uid", nodeUID)
+	mdCtx = metadata.AppendToOutgoingContext(mdCtx, "voiyd_node_name", nodeName)
 	stream, err := c.Client.Connect(mdCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)

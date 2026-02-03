@@ -38,6 +38,7 @@ import (
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/instrumentation"
 	"github.com/amimof/voiyd/pkg/repository"
+	badgerrepo "github.com/amimof/voiyd/pkg/repository/badger"
 	"github.com/amimof/voiyd/pkg/scheduling"
 	"github.com/amimof/voiyd/pkg/server"
 	"github.com/amimof/voiyd/services/containerset"
@@ -239,37 +240,39 @@ func main() {
 		log.Error("error opening badger database", "error", err)
 		os.Exit(1)
 	}
-
 	defer func() {
 		if err := db.Close(); err != nil {
 			log.Error("error closing database", "error", err)
 		}
 	}()
 
+	// Setup repo
+	repo := badgerrepo.New(db)
+
 	// Setup event exchange bus
 	exchange := events.NewExchange(events.WithExchangeLogger(log))
 
 	// Setup services
 	eventService := event.NewService(
-		repository.NewEventBadgerRepository(db),
+		repository.NewEventRepo(repo),
 		event.WithLogger(log),
 		event.WithExchange(exchange),
 	)
 
 	nodeService := node.NewService(
-		repository.NewNodeBadgerRepository(db),
+		repository.NewNodeRepo(repo),
 		node.WithLogger(log),
 		node.WithExchange(exchange),
 	)
 
 	containerSetService := containerset.NewService(
-		repository.NewContainerSetBadgerRepository(db),
+		repository.NewContainerSetRepo(repo),
 		containerset.WithLogger(log),
 		containerset.WithExchange(exchange),
 	)
 
 	taskService := task.NewService(
-		repository.NewTaskBadgerRepository(db),
+		repository.NewTaskRepo(repo),
 		task.WithLogger(log),
 		task.WithExchange(exchange),
 	)
@@ -280,13 +283,13 @@ func main() {
 	)
 
 	volumeService := volume.NewService(
-		repository.NewVolumeBadgerRepository(db),
+		repository.NewVolumeRepo(repo),
 		volume.WithLogger(log),
 		volume.WithExchange(exchange),
 	)
 
 	leaseService := lease.NewService(
-		repository.NewLeaseBadgerRepository(db),
+		repository.NewLeaseRepo(repo),
 		lease.WithLogger(log),
 		lease.WithExchange(exchange),
 		lease.WithTTL(leaseTTLSeconds),

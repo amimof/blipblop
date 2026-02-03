@@ -10,19 +10,20 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
 
 	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 )
 
 type local struct {
-	repo     repository.ContainerSetRepository
+	repo     *repository.Repo[*containersetsv1.ContainerSet]
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
@@ -47,12 +48,18 @@ func (l *local) Get(ctx context.Context, req *containersetsv1.GetRequest, _ ...g
 	ctx, span := tracer.Start(ctx, "containerset.Get")
 	defer span.End()
 
-	container, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET container from repo", "name", req.GetId())
+		return nil, err
 	}
+
+	containerSet, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, l.handleError(err, "error getting containerset", "name", containerSet.GetMeta().GetName())
+	}
+
 	return &containersetsv1.GetResponse{
-		ContainerSet: container,
+		ContainerSet: containerSet,
 	}, nil
 }
 
@@ -60,104 +67,126 @@ func (l *local) List(ctx context.Context, req *containersetsv1.ListRequest, _ ..
 	ctx, span := tracer.Start(ctx, "containerset.List")
 	defer span.End()
 
-	ctrs, err := l.Repo().List(ctx)
+	sets, err := l.repo.List(ctx, int(req.GetLimit()))
 	if err != nil {
 		return nil, l.handleError(err, "couldn't LIST containers from repo")
 	}
+
 	return &containersetsv1.ListResponse{
-		ContainerSets: ctrs,
+		ContainerSets: sets,
 	}, nil
 }
 
 func (l *local) Create(ctx context.Context, req *containersetsv1.CreateRequest, _ ...grpc.CallOption) (*containersetsv1.CreateResponse, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	containerSet := req.GetContainerSet()
 	containerSetId := containerSet.GetMeta().GetName()
 
-	if existing, _ := l.Repo().Get(ctx, containerSetId); existing != nil {
-		return nil, fmt.Errorf("container set %s already exists", containerSet.GetMeta().GetName())
+	if existing, _ := l.Get(ctx, &containersetsv1.GetRequest{Name: containerSetId}); existing != nil {
+		return nil, fmt.Errorf("containerset %s already exists", containerSet.GetMeta().GetName())
 	}
 
-	containerSet.GetMeta().Created = timestamppb.Now()
+	containerSet.GetMeta().ResourceVersion = 1
+	containerSet.GetMeta().Generation = 1
 
-	err := l.Repo().Create(ctx, containerSet)
+	newSet, err := l.repo.Create(ctx, containerSet)
 	if err != nil {
-		return nil, l.handleError(err, "couldn't CREATE container in repo", "name", containerSet.GetMeta().GetName())
+		return nil, l.handleError(err, "error creating containerset", "name", newSet.GetMeta().GetName())
 	}
 
-	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetCreate, containerSet))
+	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetCreate, newSet))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing CREATE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerCreate")
+		return nil, l.handleError(err, "error publishing containerset create event", "name", newSet.GetMeta().GetName(), "event", "ContainerCreate")
 	}
 	return &containersetsv1.CreateResponse{
-		ContainerSet: containerSet,
+		ContainerSet: newSet,
 	}, nil
 }
 
-func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteRequest, _ ...grpc.CallOption) (*containersetsv1.DeleteResponse, error) {
+func (l *local) Delete(ctx context.Context, req *containersetsv1.DeleteRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
 	ctx, span := tracer.Start(ctx, "containerset.Delete")
 	defer span.End()
 
-	containerSet, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, l.handleError(err, "couldn't GET container from repo", "id", req.GetId())
+		return nil, err
 	}
-	containerSetId := containerSet.GetMeta().GetName()
-	err = l.Repo().Delete(ctx, containerSetId)
+
+	containerSet, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, l.handleError(err, "error getting containerset", "id", containerSet.GetMeta().GetName())
+	}
+
+	err = l.repo.Delete(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
 	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetDelete, containerSet))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing DELETE event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
+		return nil, l.handleError(err, "error publishing containerset delete event", "name", containerSet.GetMeta().GetName(), "event", "ContainerDelete")
 	}
-	return &containersetsv1.DeleteResponse{
-		Id: req.GetId(),
-	}, nil
+
+	return &emptypb.Empty{}, nil
 }
 
 func (l *local) Update(ctx context.Context, req *containersetsv1.UpdateRequest, _ ...grpc.CallOption) (*containersetsv1.UpdateResponse, error) {
 	ctx, span := tracer.Start(ctx, "containerset.Update")
 	defer span.End()
 
-	updateMask := req.GetUpdateMask()
 	updateContainerSet := req.GetContainerSet()
-	existing, err := l.Repo().Get(ctx, req.GetId())
-	if err != nil {
-		return nil, l.handleError(err, "couldn't GET container from repo", "name", updateContainerSet.GetMeta().GetName())
-	}
 
-	maskedUpdate, err := protoutils.ApplyFieldMaskToNewMessage(updateContainerSet, updateMask)
-	if err != nil {
-		return nil, err
-	}
-	proto.Merge(existing, maskedUpdate)
-
-	existing.GetMeta().Updated = timestamppb.Now()
-
-	err = l.Repo().Update(ctx, existing)
-	if err != nil {
-		return nil, l.handleError(err, "couldn't UPDATE container in repo", "name", existing.GetMeta().GetName())
-	}
-
-	containerSet, err := l.Repo().Get(ctx, req.GetId())
+	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.exchange.Publish(ctx, events.NewEvent(events.ContainerSetUpdate, containerSet))
+	existing, err := l.repo.Get(ctx, uid)
 	if err != nil {
-		return nil, l.handleError(err, "error publishing UPDATE event", "name", existing.GetMeta().GetName(), "event", "ContainerUpdate")
+		return nil, l.handleError(err, "error getting containerset", "name", updateContainerSet.GetMeta().GetName())
 	}
+
+	// Ignore fields
+	updateContainerSet.GetMeta().ResourceVersion++
+	updateContainerSet.GetMeta().Updated = existing.Meta.Updated
+	updateContainerSet.GetMeta().Created = existing.Meta.Created
+
+	updVal := protoreflect.ValueOfMessage(updateContainerSet.ProtoReflect())
+	newVal := protoreflect.ValueOfMessage(existing.ProtoReflect())
+
+	// Only update metadata fields if spec is updated
+	if !updVal.Equal(newVal) {
+		updateContainerSet.Meta.Generation++
+	}
+
+	// Update the set
+	err = l.repo.Update(ctx, uid, updateContainerSet)
+	if err != nil {
+		return nil, l.handleError(err, "error updating containerset", "name", updateContainerSet.GetMeta().GetName())
+	}
+
+	// Retreive the set again so that we can include it in an event
+	containerSet, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only publish if spec is updated
+	if !updVal.Equal(newVal) {
+
+		// Decorate label with some labels
+		eventLabels := labels.New()
+		eventLabels.Set(labels.LabelPrefix("object-id").String(), containerSet.GetMeta().GetName())
+		eventLabels.Set(labels.LabelPrefix("object-version").String(), containerSet.GetVersion())
+
+		err = l.exchange.Forward(ctx, events.NewEvent(events.TaskUpdate, containerSet, eventLabels))
+		if err != nil {
+			return nil, l.handleError(err, "error publishing containerset update event", "name", containerSet.GetMeta().GetName(), "event", "TaskUpdate")
+		}
+	}
+
 	return &containersetsv1.UpdateResponse{
-		ContainerSet: existing,
+		ContainerSet: containerSet,
 	}, nil
-}
-
-func (l *local) Repo() repository.ContainerSetRepository {
-	if l.repo != nil {
-		return l.repo
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return repository.NewContainerSetInMemRepo()
 }

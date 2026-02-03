@@ -68,7 +68,7 @@ func (c *LeaseService) Renew(ctx context.Context, req *leasesv1.RenewRequest) (*
 	return c.local.Renew(ctx, req)
 }
 
-func NewService(repo repository.LeaseRepository, opts ...NewServiceOption) *LeaseService {
+func NewService(repo *repository.Repo[*leasesv1.Lease], opts ...NewServiceOption) *LeaseService {
 	s := &LeaseService{
 		logger:   logger.ConsoleLogger{},
 		leaseTTL: 60,

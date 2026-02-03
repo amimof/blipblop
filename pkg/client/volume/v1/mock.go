@@ -16,6 +16,7 @@ import (
 	volumes "github.com/amimof/voiyd/api/services/volumes/v1"
 	gomock "go.uber.org/mock/gomock"
 	grpc "google.golang.org/grpc"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // MockVolumeServiceClient is a mock of VolumeServiceClient interface.
@@ -63,14 +64,14 @@ func (mr *MockVolumeServiceClientMockRecorder) Create(ctx, in any, opts ...any) 
 }
 
 // Delete mocks base method.
-func (m *MockVolumeServiceClient) Delete(ctx context.Context, in *volumes.DeleteRequest, opts ...grpc.CallOption) (*volumes.DeleteResponse, error) {
+func (m *MockVolumeServiceClient) Delete(ctx context.Context, in *volumes.DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
-	ret0, _ := ret[0].(*volumes.DeleteResponse)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -114,7 +114,7 @@ enum EventType {
 }
 
 message GetRequest {
-  string id = 1;
+  string uid = 1;
 }
 
 message GetResponse {
@@ -122,8 +122,8 @@ message GetResponse {
 }
 
 message ListRequest {
-  map<string, string> selector = 1;
-  uint32 limit = 2;
+  uint32 limit = 1;
+  map<string, string> selector = 2;
 }
 
 message ListResponse {
@@ -131,11 +131,11 @@ message ListResponse {
 }
 
 message DeleteRequest {
-  string id = 1;
+  string uid = 1;
 }
 
 message DeleteResponse {
-  string id = 1;
+  string uid = 1;
 }
 
 message CreateRequest {

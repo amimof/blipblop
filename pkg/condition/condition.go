@@ -91,13 +91,13 @@ func NewReport(resourceID string, gen uint64) *Report {
 }
 
 func NewReportFor(task *tasksv1.Task) *Report {
-	return NewReport(task.GetMeta().GetName(), task.GetMeta().GetGeneration())
+	return NewReport(task.GetMeta().GetUid(), task.GetMeta().GetGeneration())
 }
 
 func NewForResource(res Resource) *Report {
 	return &Report{
 		report: &typesv1.ConditionReport{
-			ResourceId:         res.GetMeta().GetName(),
+			ResourceId:         res.GetMeta().GetUid(),
 			ObservedGeneration: res.GetMeta().GetResourceVersion(),
 			ObservedAt:         timestamppb.Now(),
 		},

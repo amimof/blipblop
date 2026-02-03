@@ -147,7 +147,7 @@ func (s *EventService) Publish(ctx context.Context, req *eventsv1.PublishRequest
 	return &eventsv1.PublishResponse{Event: res.GetEvent()}, nil
 }
 
-func NewService(repo repository.EventRepository, opts ...NewServiceOption) *EventService {
+func NewService(repo *repository.Repo[*eventsv1.Event], opts ...NewServiceOption) *EventService {
 	s := &EventService{
 		logger: logger.ConsoleLogger{},
 	}

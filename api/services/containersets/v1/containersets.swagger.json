@@ -35,6 +35,13 @@
         },
         "parameters": [
           {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int64"
+          },
+          {
             "name": "selector",
             "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
             "in": "query",
@@ -47,14 +54,14 @@
         ]
       }
     },
-    "/api/v1/containersets/{containerSet.meta.name}": {
-      "put": {
-        "operationId": "ContainerSetService_Update",
+    "/api/v1/containersets/{name}": {
+      "get": {
+        "operationId": "ContainerSetService_Get2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersetsv1UpdateResponse"
+              "$ref": "#/definitions/servicescontainersetsv1GetResponse"
             }
           },
           "default": {
@@ -66,65 +73,13 @@
         },
         "parameters": [
           {
-            "name": "containerSet.meta.name",
+            "name": "name",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
-            "name": "containerSet",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "generation": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "resourceVersion": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "uid": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "template": {
-                  "$ref": "#/definitions/v1Config"
-                }
-              }
-            }
-          },
-          {
-            "name": "id",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "updateMask",
+            "name": "uid",
             "in": "query",
             "required": false,
             "type": "string"
@@ -134,7 +89,42 @@
           "ContainerSetService"
         ]
       },
-      "patch": {
+      "delete": {
+        "operationId": "ContainerSetService_Delete2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      },
+      "put": {
         "operationId": "ContainerSetService_Update2",
         "responses": {
           "200": {
@@ -152,7 +142,7 @@
         },
         "parameters": [
           {
-            "name": "containerSet.meta.name",
+            "name": "name",
             "in": "path",
             "required": true,
             "type": "string"
@@ -162,49 +152,17 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "string"
-                },
-                "meta": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "string"
-                      }
-                    },
-                    "created": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "updated": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "generation": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "resourceVersion": {
-                      "type": "string",
-                      "format": "uint64"
-                    },
-                    "uid": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "template": {
-                  "$ref": "#/definitions/v1Config"
-                }
-              }
+              "$ref": "#/definitions/v1ContainerSet"
             }
           },
           {
-            "name": "id",
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
             "in": "query",
             "required": false,
             "type": "string"
@@ -215,7 +173,7 @@
         ]
       }
     },
-    "/api/v1/containersets/{id}": {
+    "/api/v1/containersets/{uid}": {
       "get": {
         "operationId": "ContainerSetService_Get",
         "responses": {
@@ -234,9 +192,15 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "uid",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -250,7 +214,8 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/servicescontainersetsv1DeleteResponse"
+              "type": "object",
+              "properties": {}
             }
           },
           "default": {
@@ -262,9 +227,63 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "uid",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ContainerSetService"
+        ]
+      },
+      "put": {
+        "operationId": "ContainerSetService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/servicescontainersetsv1UpdateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "containerSet",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ContainerSet"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "updateMask",
+            "in": "query",
+            "required": false,
             "type": "string"
           }
         ],
@@ -342,14 +361,6 @@
       "properties": {
         "containerSet": {
           "$ref": "#/definitions/v1ContainerSet"
-        }
-      }
-    },
-    "servicescontainersetsv1DeleteResponse": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
         }
       }
     },

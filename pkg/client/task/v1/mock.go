@@ -85,14 +85,14 @@ func (mr *MockTaskServiceClientMockRecorder) Create(ctx, in any, opts ...any) *g
 }
 
 // Delete mocks base method.
-func (m *MockTaskServiceClient) Delete(ctx context.Context, in *tasks.DeleteRequest, opts ...grpc.CallOption) (*tasks.DeleteResponse, error) {
+func (m *MockTaskServiceClient) Delete(ctx context.Context, in *tasks.DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
-	ret0, _ := ret[0].(*tasks.DeleteResponse)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -125,14 +125,14 @@ func (mr *MockTaskServiceClientMockRecorder) Get(ctx, in any, opts ...any) *gomo
 }
 
 // Kill mocks base method.
-func (m *MockTaskServiceClient) Kill(ctx context.Context, in *tasks.KillRequest, opts ...grpc.CallOption) (*tasks.KillResponse, error) {
+func (m *MockTaskServiceClient) Kill(ctx context.Context, in *tasks.KillRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Kill", varargs...)
-	ret0, _ := ret[0].(*tasks.KillResponse)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -185,14 +185,14 @@ func (mr *MockTaskServiceClientMockRecorder) Patch(ctx, in any, opts ...any) *go
 }
 
 // Start mocks base method.
-func (m *MockTaskServiceClient) Start(ctx context.Context, in *tasks.StartRequest, opts ...grpc.CallOption) (*tasks.StartResponse, error) {
+func (m *MockTaskServiceClient) Start(ctx context.Context, in *tasks.StartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Start", varargs...)
-	ret0, _ := ret[0].(*tasks.StartResponse)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

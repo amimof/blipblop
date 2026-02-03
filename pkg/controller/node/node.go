@@ -88,6 +88,7 @@ func WithNetworkManager(m networking.Manager) NewOption {
 
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
+	nodeUID := c.node.GetMeta().GetUid()
 	nodeName := c.node.GetMeta().GetName()
 
 	topics := []eventsv1.EventType{
@@ -136,7 +137,7 @@ func (c *Controller) Run(ctx context.Context) {
 	// Connect with retry logic
 	connErr := make(chan error, 1)
 	go func() {
-		err := c.clientset.NodeV1().Connect(ctx, nodeName, evt, connErr)
+		err := c.clientset.NodeV1().Connect(ctx, nodeUID, nodeName, evt, connErr)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
 		}
@@ -211,7 +212,12 @@ func (c *Controller) renewLeases(ctx context.Context) {
 }
 
 func (c *Controller) renewAllLeases(ctx context.Context) {
-	nodeName := c.node.GetMeta().GetName()
+	node, err := c.getNode(ctx)
+	if err != nil {
+		c.logger.Error("error getting node", "error", err)
+		return
+	}
+	nodeUID := node.GetMeta().GetUid()
 
 	// Get all running tasks on this node from runtime
 	tasks, err := c.runtime.List(ctx)
@@ -221,37 +227,37 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 	}
 
 	for _, task := range tasks {
-		taskName, err := c.runtime.Name(ctx, task.GetMeta().GetName())
+		taskUID, err := c.runtime.Name(ctx, task.GetMeta().GetUid())
 		if err != nil {
 			continue
 		}
 
 		// Stop task if lease doesn't exist for it
-		if _, err := c.clientset.LeaseV1().Get(ctx, taskName); err != nil {
+		if _, err := c.clientset.LeaseV1().Get(ctx, taskUID); err != nil {
 			if errs.IsNotFound(err) {
 				if err := c.stopTask(ctx, task); err != nil {
-					c.logger.Error("error stopping task", "error", err, "task", taskName)
+					c.logger.Error("error stopping task", "error", err, "task", taskUID)
 					continue
 				}
 			}
 		}
 
 		// Renew lease
-		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskName, nodeName)
+		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskUID, nodeUID)
 		if err != nil {
-			c.logger.Debug("couldn't renew lease, stopping task", "task", taskName)
+			c.logger.Debug("couldn't renew lease, stopping task", "error", err, "task", taskUID)
 			if err := c.stopTask(ctx, task); err != nil {
-				c.logger.Error("error stopping task", "error", err, "task", taskName)
+				c.logger.Error("error stopping task", "error", err, "task", taskUID)
 				continue
 			}
 			continue
 		}
 
 		if !renewed {
-			c.logger.Warn("failed to renew lease", "task", taskName, "error", err)
+			c.logger.Warn("failed to renew lease", "task", taskUID, "error", err)
 		}
 
-		c.logger.Debug("renewed lease, reconciling", "task", taskName)
+		c.logger.Debug("renewed lease, reconciling", "task", taskUID)
 	}
 }
 
@@ -260,7 +266,12 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
 func (c *Controller) Reconcile(ctx context.Context) error {
-	nodeID := c.node.GetMeta().GetName()
+	node, err := c.getNode(ctx)
+	if err != nil {
+		return err
+	}
+
+	nodeID := node.GetMeta().GetUid()
 
 	// Renew leases on boot
 	c.renewAllLeases(ctx)
@@ -274,7 +285,7 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 	// Verify that the containers in the runtime are supposed to run. If a lease
 	// for a running container cannot be acquired, stop it. Otherwise let it run.
 	for _, task := range runtimeTasks {
-		taskID := task.GetMeta().GetName()
+		taskID := task.GetMeta().GetUid()
 
 		// Only acquire if task is supposed to be running
 		if task.GetStatus().GetPhase().GetValue() != string(condition.ReasonRunning) {

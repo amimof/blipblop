@@ -69,7 +69,7 @@ func (c *Controller) validateLease(ctx context.Context, task *tasksv1.Task, repo
 		return true
 	}
 
-	taskID := task.GetMeta().GetName()
+	taskID := task.GetMeta().GetUid()
 	lease, err := c.clientset.LeaseV1().Get(ctx, taskID)
 	if err != nil {
 		c.logger.Warn("lease validation failed, error getting lease for task", "error", err, "task", taskID)
@@ -166,7 +166,7 @@ func (c *Controller) onTaskCondition(ctx context.Context, report *typesv1.Condit
 	updatedConditions := mergeCondition(t.GetStatus().GetConditions(), newCondition)
 
 	// Derive fields from metadata
-	nodeID := getMetadataString(report, condition.TaskScheduled, "node")
+	nodeName := getMetadataString(report, condition.TaskScheduled, "node_name")
 	pid := getMetadataUInt32(report, condition.TaskReady, "pid")
 	id := getMetadataString(report, condition.TaskReady, "id")
 	ipaddr := getMetadataString(report, condition.NetworkReady, "ip_address") // node_version / upgraded_to
@@ -181,7 +181,7 @@ func (c *Controller) onTaskCondition(ctx context.Context, report *typesv1.Condit
 		&tasksv1.Status{
 			Conditions: updatedConditions,
 			Phase:      wrapperspb.String(phase),
-			Node:       nodeID,
+			Node:       nodeName,
 			Id:         id,
 			Pid:        pid,
 			Ip:         ipaddr,

@@ -105,14 +105,14 @@ func (mr *MockNodeServiceClientMockRecorder) Create(ctx, in any, opts ...any) *g
 }
 
 // Delete mocks base method.
-func (m *MockNodeServiceClient) Delete(ctx context.Context, in *nodes.DeleteRequest, opts ...grpc.CallOption) (*nodes.DeleteResponse, error) {
+func (m *MockNodeServiceClient) Delete(ctx context.Context, in *nodes.DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
-	ret0, _ := ret[0].(*nodes.DeleteResponse)
+	ret0, _ := ret[0].(*emptypb.Empty)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

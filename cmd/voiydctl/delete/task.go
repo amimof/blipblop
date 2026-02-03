@@ -70,12 +70,12 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 					// Fire off delete operations concurrently
 					go func(idx int, taskID string) {
 						if viper.GetBool("force") {
-							if _, err = c.TaskV1().Kill(ctx, cname); err != nil {
+							if err = c.TaskV1().Kill(ctx, cname); err != nil {
 								dash.FailMsg(idx, fmt.Sprintf("failed to kill: %v", err))
 								return
 							}
 						} else {
-							if _, err = c.TaskV1().Stop(ctx, cname); err != nil {
+							if err = c.TaskV1().Stop(ctx, cname); err != nil {
 								dash.FailMsg(idx, fmt.Sprintf("failed to stop: %v", err))
 								return
 							}

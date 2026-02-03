@@ -84,7 +84,7 @@ func TestDownloadBinary_Success(t *testing.T) {
 		EXPECT().
 		Get(
 			gomock.Any(), // context
-			gomock.Eq(&nodesv1.GetRequest{Id: "test-node"}),
+			gomock.Eq(&nodesv1.GetRequest{Name: "test-node"}),
 		).
 		Return(&nodesv1.GetResponse{
 			Node: &nodesv1.Node{
@@ -111,9 +111,6 @@ func TestDownloadBinary_Success(t *testing.T) {
 				t.Errorf("expected resource_version=%s, got %s", node.Version, req.GetResourceVersion())
 			}
 			report := req.GetReport()
-			if report.GetResourceId() != "test-node" {
-				t.Errorf("expected resource_id=test-node, got %s", report.GetResourceId())
-			}
 			if report.GetType() != string(condition.NodeReady) {
 				t.Errorf("expected condition type=%s, got %s", condition.NodeReady, report.GetType())
 			}

@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/util"
@@ -36,7 +37,11 @@ func (c *ClientV1) EventService() eventsv1.EventServiceClient {
 }
 
 func (c *ClientV1) Get(ctx context.Context, id string) (*eventsv1.Event, error) {
-	resp, err := c.eventService.Get(ctx, &eventsv1.GetRequest{Id: id})
+	uid, err := keys.ParseStr(id)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.eventService.Get(ctx, &eventsv1.GetRequest{Uid: uid.UUIDStr()})
 	if err != nil {
 		return nil, err
 	}

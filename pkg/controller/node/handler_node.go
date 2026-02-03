@@ -28,14 +28,14 @@ func (c *Controller) onNodeConnect(ctx context.Context, e *eventsv1.Event) error
 }
 
 func (c *Controller) onNodeDelete(ctx context.Context, obj *eventsv1.Event) error {
-	if obj.GetMeta().GetName() != c.node.GetMeta().GetName() {
+	if obj.GetMeta().GetName() != c.node.GetMeta().GetUid() {
 		return nil
 	}
-	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetName())
+	err := c.clientset.NodeV1().Forget(ctx, obj.GetMeta().GetUid())
 	if err != nil {
-		c.logger.Error("error unjoining node", "node", obj.GetMeta().GetName(), "error", err)
+		c.logger.Error("error unjoining node", "node", obj.GetMeta().GetUid(), "error", err)
 		return err
 	}
-	c.logger.Debug("successfully unjoined node", "node", obj.GetMeta().GetName())
+	c.logger.Debug("successfully unjoined node", "node", obj.GetMeta().GetUid())
 	return nil
 }

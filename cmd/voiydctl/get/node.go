@@ -78,6 +78,7 @@ func NewCmdGetNode(cfg *client.Config) *cobra.Command {
 
 			if len(args) == 1 {
 				name := args[0]
+
 				node, err := c.NodeV1().Get(ctx, name)
 				if err != nil {
 					logrus.Fatal(err)

@@ -58,7 +58,7 @@
     "v1DeleteResponse": {
       "type": "object",
       "properties": {
-        "id": {
+        "uid": {
           "type": "string"
         }
       }
