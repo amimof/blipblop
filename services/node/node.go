@@ -21,6 +21,7 @@ import (
 	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/golang/protobuf/ptypes/empty"
 
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
@@ -104,6 +105,34 @@ func (n *NodeService) Condition(ctx context.Context, req *typesv1.ConditionReque
 	return n.local.Condition(ctx, req)
 }
 
+// Add new method after line 221
+func (n *NodeService) SendToNode(nodeUID string, event *eventsv1.Event) error {
+	n.mu.Lock()
+	stream, exists := n.streams[nodeUID]
+	n.mu.Unlock()
+
+	if !exists {
+		return fmt.Errorf("node %s not connected", nodeUID)
+	}
+
+	// Send event directly to this node's stream
+	if err := stream.Send(event); err != nil {
+		n.logger.Error("failed to send event to node", "error", err, "nodeUID", nodeUID, "eventType", event.GetType().String())
+		return err
+	}
+
+	n.logger.Debug("sent targeted event to node", "nodeUID", nodeUID, "eventType", event.GetType().String())
+	return nil
+}
+
+// IsNodeConnected checks if nodeUID exists in the node stream map
+func (n *NodeService) IsNodeConnected(nodeUID string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	_, exists := n.streams[nodeUID]
+	return exists
+}
+
 func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	ctx := stream.Context()
 
@@ -124,6 +153,9 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	if nodeName == "" {
 		return status.Error(codes.FailedPrecondition, "missing voiyd_node_name in context")
 	}
+	if nodeUID == "" {
+		return status.Error(codes.FailedPrecondition, "missing voiyd_node_uid in context")
+	}
 
 	// Check if node is joined to cluster prior to connecting
 	res, err := n.Get(ctx, &nodesv1.GetRequest{Uid: nodeUID, Name: nodeName})
@@ -137,7 +169,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	node := res.GetNode()
 
 	n.mu.Lock()
-	n.streams[nodeName] = stream
+	n.streams[nodeUID] = stream
 	n.mu.Unlock()
 
 	// Publish event that node is connected
@@ -171,7 +203,7 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 
 		// Remove stream from map
 		n.mu.Lock()
-		delete(n.streams, nodeName)
+		delete(n.streams, nodeUID)
 		n.mu.Unlock()
 	}()
 
@@ -200,21 +232,21 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	}
 }
 
-func (n *NodeService) closeNodeStream(nodeName string) {
+func (n *NodeService) closeNodeStream(nodeUID string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	_, exists := n.streams[nodeName]
+	_, exists := n.streams[nodeUID]
 	if !exists {
 		return
 	}
 
-	n.logger.Info("closing stream for deleted node", "node", nodeName)
+	n.logger.Info("closing stream for deleted node", "node", nodeUID)
 
 	// Note: We don't need to explicitly close the stream or call stream.Context().Cancel()
 	// The defer in Connect() will handle cleanup when the stream ends.
 	// We just remove it from our map to prevent future sends.
-	delete(n.streams, nodeName)
+	delete(n.streams, nodeUID)
 
 	// The stream will naturally close when the client's context is done
 	// or when the next Recv()/Send() operation fails
