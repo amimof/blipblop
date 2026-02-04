@@ -3,6 +3,7 @@ package nodecontroller
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/containerd/errdefs"
 	gocni "github.com/containerd/go-cni"
@@ -89,7 +90,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
-	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
+	report := condition.NewForResource(task).As(node.GetMeta().GetUid())
 
 	// Detach volumes
 	err = c.detachMounts(ctx, task, report)
@@ -269,9 +270,15 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task, report *
 }
 
 func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
+	// Should never return false since scheduler validates before it gets here
 	if !c.isNodeSelected(ctx, task, node) {
-		c.logger.Debug("declining schedule request due to selector mismatch", "selector", task.GetConfig().GetNodeSelector())
-		return nil
+		c.logger.Warn("received unexpected schedule for non-matching selector",
+			"task", task.GetMeta().GetName(),
+			"selector", task.GetConfig().GetNodeSelector(),
+			"nodeLabels", node.GetMeta().GetLabels())
+
+		// Still return error to avoid running mismatched tasks
+		return fmt.Errorf("node selector mismatch")
 	}
 	return c.startTask(ctx, task)
 }

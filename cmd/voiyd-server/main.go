@@ -392,7 +392,7 @@ func main() {
 
 	// Start scheduler
 	sched := scheduling.NewHorizontalScheduler(cs)
-	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
+	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithNodeService(nodeService), schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Scheduler Controller")
 

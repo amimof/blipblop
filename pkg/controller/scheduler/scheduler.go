@@ -2,6 +2,7 @@ package schedulercontroller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"google.golang.org/grpc/metadata"
@@ -14,6 +15,7 @@ import (
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/scheduling"
+	"github.com/amimof/voiyd/services/node"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
@@ -35,11 +37,18 @@ func WithExchange(e *events.Exchange) NewOption {
 	}
 }
 
+func WithNodeService(ns *node.NodeService) NewOption {
+	return func(c *Controller) {
+		c.nodeService = ns
+	}
+}
+
 type Controller struct {
-	clientset *client.ClientSet
-	scheduler scheduling.Scheduler
-	logger    logger.Logger
-	exchange  *events.Exchange
+	clientset   *client.ClientSet
+	scheduler   scheduling.Scheduler
+	logger      logger.Logger
+	exchange    *events.Exchange
+	nodeService *node.NodeService
 }
 
 func (c *Controller) onLeaseExpired(ctx context.Context, lease *leasesv1.Lease) error {
@@ -48,6 +57,74 @@ func (c *Controller) onLeaseExpired(ctx context.Context, lease *leasesv1.Lease) 
 		return err
 	}
 	return c.scheduleTask(ctx, task)
+}
+
+func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
+	reporter := condition.NewReportFor(task)
+
+	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
+	if err != nil {
+		return err
+	}
+
+	node, err := c.clientset.NodeV1().Get(ctx, lease.GetConfig().GetNodeId())
+	if err != nil {
+		return err
+	}
+
+	nodeUID := node.GetMeta().GetUid()
+
+	if !c.nodeService.IsNodeConnected(nodeUID) {
+		c.logger.Warn("target node not connected, cannot kill", "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "target node not connected"))
+		return fmt.Errorf("target node %s not connected", node.GetMeta().GetName())
+	}
+
+	// Create kill event
+	event := events.NewEvent(events.TaskKill, task)
+
+	// Send to target node
+	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
+		c.logger.Error("failed to send kill event to node", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
+		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
+	reporter := condition.NewReportFor(task)
+
+	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
+	if err != nil {
+		return err
+	}
+
+	node, err := c.clientset.NodeV1().Get(ctx, lease.GetConfig().GetNodeId())
+	if err != nil {
+		return err
+	}
+
+	nodeUID := node.GetMeta().GetUid()
+
+	if !c.nodeService.IsNodeConnected(nodeUID) {
+		c.logger.Warn("target node not connected, cannot stop", "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, "target node not connected"))
+		return fmt.Errorf("target node %s not connected", node.GetMeta().GetName())
+	}
+
+	// Create kill event
+	event := events.NewEvent(events.TaskStop, task)
+
+	// Send to target node
+	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
+		c.logger.Error("failed to send stop event to node", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
+		return err
+	}
+
+	return nil
 }
 
 func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error {
@@ -86,8 +163,16 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 		return err
 	}
 
+	nodeUID := n.GetMeta().GetUid()
 	md := map[string]string{
 		"node": n.GetMeta().GetName(),
+	}
+
+	// Check if target node is connected
+	if !c.nodeService.IsNodeConnected(nodeUID) {
+		c.logger.Warn("target node not connected, cannot schedule", "task", task.GetMeta().GetName(), "node", n.GetMeta().GetName())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "target node not connected"))
+		return fmt.Errorf("target node %s not connected", n.GetMeta().GetName())
 	}
 
 	taskpb, err := anypb.New(task)
@@ -100,11 +185,25 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 		return err
 	}
 
-	// Update task status
-	_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+	// Create targeted schedule request
+	scheduleReq := &eventsv1.ScheduleRequest{
+		Task: taskpb,
+		Node: nodepb,
+	}
 
-	// Publish start event
-	return c.exchange.Forward(ctx, events.NewEvent(events.Schedule, &eventsv1.ScheduleRequest{Task: taskpb, Node: nodepb}))
+	// Create event
+	event := events.NewEvent(events.Schedule, scheduleReq)
+	// Send ONLY to target node
+	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
+		c.logger.Error("failed to send schedule event to node", "error", err, "task", task.GetMeta().GetName(), "node", n.GetMeta().GetName())
+		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
+		return err
+	}
+
+	// Update task status AFTER successful send
+	_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+	c.logger.Info("scheduled task to node", "task", task.GetMeta().GetName(), "node", n.GetMeta().GetName())
+	return nil
 }
 
 func (c *Controller) onNodeDelete(ctx context.Context, node *nodesv1.Node) error {
@@ -279,6 +378,8 @@ func (c *Controller) Run(ctx context.Context) {
 	c.clientset.EventV1().On(events.TaskCreate, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
 	c.clientset.EventV1().On(events.TaskStart, events.HandleErrors(c.logger, events.HandleTask(c.scheduleTask)))
 	c.clientset.EventV1().On(events.TaskUpdate, events.HandleErrors(c.logger, events.HandleTask(c.onTaskLabelsChange)))
+	c.clientset.EventV1().On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.killTask)))
+	c.clientset.EventV1().On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
 
 	// NEW handlers
 	c.clientset.EventV1().On(events.NodeConnect, events.HandleErrors(c.logger, events.HandleNode(c.onNodeJoin)))

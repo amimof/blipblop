@@ -75,7 +75,7 @@ func init() {
 	pflag.StringVar(&runtimeLogDir, "runtime-log-dir", "/var/lib/voiyd/tasks/%s/logs", "Directory in which the runtime stores container log files in (stdout)")
 	pflag.StringVar(&runtimeStoreDir, "runtime-store-dir", "/var/lib/voiyd/runtime/", "Directory in which the runtime stores container state")
 	pflag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "whether the client should verify the server's certificate chain and host name")
-	pflag.DurationVar(&leaseRenewalInterval, "lease-renew-interval", time.Second*30, "how often leases are renewed on interval")
+	pflag.DurationVar(&leaseRenewalInterval, "lease-renew-interval", time.Second*10, "how often leases are renewed on interval")
 }
 
 func parseSlogLevel(lvl string) (slog.Level, error) {

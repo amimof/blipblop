@@ -88,16 +88,14 @@ func WithNetworkManager(m networking.Manager) NewOption {
 
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
-	nodeUID := c.node.GetMeta().GetUid()
+	node, err := c.getNode(ctx)
+	if err != nil {
+		c.logger.Error("error getting node", "error", err)
+	}
+	nodeUID := node.GetMeta().GetUid()
 	nodeName := c.node.GetMeta().GetName()
 
 	topics := []eventsv1.EventType{
-		events.NodeDelete,
-		events.NodeConnect,
-		events.Schedule,
-		events.TaskDelete,
-		events.TaskStop,
-		events.TaskKill,
 		events.TailLogsStart,
 		events.TailLogsStop,
 	}
@@ -106,13 +104,6 @@ func (c *Controller) Run(ctx context.Context) {
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "node")
 	evt, errCh := c.clientset.EventV1().Subscribe(ctx, topics...)
 
-	// Setup Node Handlers
-	c.clientset.EventV1().On(events.NodeDelete, c.onNodeDelete)
-	c.clientset.EventV1().On(events.NodeConnect, c.onNodeConnect)
-	c.clientset.EventV1().On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.onSchedule)))
-	c.clientset.EventV1().On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
-	c.clientset.EventV1().On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
-	c.clientset.EventV1().On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.killTask)))
 	c.clientset.EventV1().On(events.TailLogsStart, events.HandleErrors(c.logger, c.onLogStart))
 	c.clientset.EventV1().On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
 
@@ -121,6 +112,12 @@ func (c *Controller) Run(ctx context.Context) {
 			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
 		}
 	}()
+
+	// Setup Node Handlers
+	c.exchange.On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.onSchedule)))
+	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
+	c.exchange.On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
+	c.exchange.On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.killTask)))
 
 	// Handle runtime events
 	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart, events.RuntimeTaskDelete)
@@ -136,10 +133,21 @@ func (c *Controller) Run(ctx context.Context) {
 
 	// Connect with retry logic
 	connErr := make(chan error, 1)
+	connEvt := make(chan *eventsv1.Event)
 	go func() {
-		err := c.clientset.NodeV1().Connect(ctx, nodeUID, nodeName, evt, connErr)
+		err := c.clientset.NodeV1().Connect(ctx, nodeUID, nodeName, connEvt, connErr)
 		if err != nil {
 			c.logger.Error("error connecting to server", "error", err)
+		}
+	}()
+	go func() {
+		for e := range connEvt {
+			c.logger.Info("node controller received targeted event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
+
+			// CRITICAL: Publish to local exchange so handlers can process it!
+			if err := c.exchange.Publish(ctx, e); err != nil {
+				c.logger.Error("failed to publish event to local exchange", "error", err, "eventType", e.GetType().String())
+			}
 		}
 	}()
 
