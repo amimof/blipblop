@@ -3,6 +3,8 @@ package start
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,7 +70,11 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 			// Start tasks in parallell and wait until they are running
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
+				dash := cmdutil.NewDashboard(
+					args,
+					cmdutil.WithWriter(os.Stdout),
+					cmdutil.WithFormat(`{{ spinner | FgCyan }}|4|{{ .Metadata.Name | FgYellow }}|20|{{ .Metadata.Phase | FgGreen}}`),
+				)
 				go dash.Loop(ctx)
 
 				for i, cname := range args {
@@ -97,12 +103,25 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 							phase := task.GetStatus().GetPhase().GetValue()
 							node := task.GetStatus().GetNode().GetValue()
 							id := task.GetStatus().GetId().GetValue()
+							pid := strconv.Itoa(int(task.GetStatus().GetPid().GetValue()))
 
-							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-							dash.UpdateDetails(idx, "Ready", fmt.Sprintf("%t", isReady(task.GetStatus().GetConditions())))
-							dash.UpdateDetails(idx, "Image", image)
-							dash.UpdateDetails(idx, "Node", node)
-							dash.UpdateDetails(idx, "ID", id)
+							md := map[string]any{
+								"Name":  task.GetMeta().GetName(),
+								"Phase": phase,
+								"Pid":   pid,
+								"Node":  node,
+								"UID":   id,
+								"Image": image,
+							}
+
+							dash.SetMetadata(idx, md)
+							dash.UpdateText(idx, task.GetMeta().GetUid())
+
+							// dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
+							// dash.UpdateDetails(idx, "Ready", fmt.Sprintf("%t", isReady(task.GetStatus().GetConditions())))
+							// dash.UpdateDetails(idx, "Image", image)
+							// dash.UpdateDetails(idx, "Node", node)
+							// dash.UpdateDetails(idx, "ID", id)
 
 							if phase == "running" {
 								dash.DoneMsg(idx, "started successfully")

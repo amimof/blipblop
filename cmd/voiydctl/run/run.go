@@ -133,7 +133,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
+				dash := cmdutil.NewDashboard(args)
 				go dash.Loop(ctx)
 
 				// Fire off start operations concurrently
