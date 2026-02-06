@@ -6,13 +6,22 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"maps"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
+// Data holds information used when templating
+type Data map[string]any
+
+// Frames for the spinner
 var frames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
 
-type Renderer interface {
+// Component describes how objects are rendered frame by frame
+type Component interface {
 	// Loop runs the rendering loop until context is cancelled
 	Loop(context.Context)
 
@@ -23,8 +32,12 @@ type Renderer interface {
 	Close() error
 }
 
-type Data map[string]any
+// Renderer describes how objects are renderd on to the screen
+type Renderer interface {
+	Render(any) []byte
+}
 
+// App is the top most item and renders child containers.
 type App struct {
 	data       Data
 	containers []*Container
@@ -34,10 +47,12 @@ type App struct {
 	writer     io.Writer
 }
 
+// Container renders elements on the screen. Contaner holds layout information such
+// as dimensions and padding.
 type Container struct {
-	Width   int
-	Height  int
-	Padding [4]int
+	Layout
+	Style
+	data Data
 
 	mu       sync.Mutex
 	elements []*Element
@@ -52,13 +67,21 @@ type Element struct {
 }
 
 type Layout struct {
-	Padding [4]int //  top, right, bottom, left
+	Dimensions [2]int // Width, Height
+	Padding    [4]int // Top, right, bottom, left
+}
+
+type Style struct {
+	Bg   BG
+	Fg   FG
+	Attr Attr
 }
 
 func (e *Element) spinner() string {
 	return fmt.Sprintf("%c", frames[e.frameIdx%len(frames)])
 }
 
+// Render implements [Renderer]
 func (e *Element) Render(d any) []byte {
 	buf := bytes.Buffer{}
 	b := bytes.NewBuffer(buf.Bytes())
@@ -79,8 +102,86 @@ func (e *Element) Render(d any) []byte {
 	return b.Bytes()
 }
 
+// Count returns the total amount of lines all child elements render.
+// Always returns 1 since elements never span across multiple lines.
 func (e *Element) Count() int {
 	return 1
+}
+
+func (c *Container) contentWidth(data Data) int {
+	// if c.Dimensions[0] > 1 {
+	// 	return c.Dimensions[0]
+	// }
+
+	// Otherwise, calculate based on widest element
+	maxWidth := 0
+	for _, e := range c.elements {
+		b := e.Render(data)
+		stripped := stripANSI(string(b))
+		width := utf8.RuneCount([]byte(stripped))
+		if width > maxWidth {
+			maxWidth = width
+		}
+	}
+
+	return maxWidth
+}
+
+var (
+	ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	resetCode = "\x1b[0m"
+)
+
+// extractANSIStart gets the opening ANSI code from a colored string
+// e.g., color.New(color.BgCyan).Sprint("") -> "\x1b[46m\x1b[0m" -> "\x1b[46m"
+func extractANSIStart(coloredEmpty string) string {
+	// Remove the trailing reset code
+	return strings.TrimSuffix(coloredEmpty, resetCode)
+}
+
+// padToWidth pads a string to a specific width, accounting for ANSI codes
+func padToWidth(s string, width int) string {
+	visibleLen := utf8.RuneCount([]byte(stripANSI(s)))
+	if visibleLen >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-visibleLen)
+}
+
+// applyBgColor wraps a string with background color ANSI codes
+func (c *Container) applyBgColor(s string, max int) string {
+	bgAttr := c.Style.Bg
+
+	// No background color set
+	if bgAttr == "" {
+		return padToWidth(s, max)
+	}
+
+	if max < c.Dimensions[0] {
+		max = c.Dimensions[0]
+	}
+
+	// Get the background ANSI start code
+	bgCode := extractANSIStart(string(bgAttr))
+	if bgCode == "" {
+		return padToWidth(s, max)
+	}
+
+	// Strategy: Replace all reset codes with reset+background
+	// This maintains background even after foreground color resets
+	result := bgCode + strings.ReplaceAll(s, resetCode, resetCode+bgCode)
+
+	// Pad to width with background-colored spaces
+	visibleLen := utf8.RuneCount([]byte(stripANSI(result)))
+	if visibleLen < max {
+		padding := strings.Repeat(" ", max-visibleLen)
+		result = result + padding
+	}
+
+	// Final reset to clean up
+	result = result + resetCode
+
+	return result
 }
 
 func (c *Container) RenderLines(data Data) []string {
@@ -88,26 +189,51 @@ func (c *Container) RenderLines(data Data) []string {
 	defer c.mu.Unlock()
 
 	lines := make([]string, 0, len(c.elements))
+	width := c.contentWidth(data)
 
+	// Top padding
 	for i := 0; i < c.Padding[0]; i++ {
-		lines = append(lines, string([]byte{}))
+		line := c.applyBgColor(string([]byte{}), width)
+		lines = append(lines, line)
 	}
 
+	// Content
 	for _, e := range c.elements {
-		b := e.Render(data)
-		lines = append(lines, string(b))
+
+		// Make a copy of app data
+		d := map[string]any{}
+		maps.Copy(d, data)
+
+		d["Container"] = c.data
+		b := e.Render(d)
+		// padded := fmt.Sprintf("  %s  ", string(b))
+		// if len(padded) >= width {
+		// 	padded = truncateWithEllipsis(padded, c.Dimensions[0])
+		// }
+
+		line := c.applyBgColor(string(b), width)
+		lines = append(lines, line)
 
 		// Advance frame tick
 		e.frameIdx = (e.frameIdx + 1) % len(frames)
+
 	}
 
+	// Bottom padding
 	for i := 0; i < c.Padding[2]; i++ {
-		lines = append(lines, string([]byte{}))
+		line := c.applyBgColor(string([]byte{}), width)
+		lines = append(lines, line)
 	}
 
 	return lines
 }
 
+func (c *Container) SetMetadata(data Data) *Container {
+	c.data = data
+	return c
+}
+
+// Render implements [Renderer]
 func (c *Container) Render(data Data) []byte {
 	buf := bytes.Buffer{}
 	by := bytes.NewBuffer(buf.Bytes())
@@ -123,12 +249,14 @@ func (c *Container) Render(data Data) []byte {
 	return by.Bytes()
 }
 
+// Count returns the total amount of lines all child elements render.
 func (c *Container) Count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return len(c.elements)
 }
 
+// Render implements [Renderer]
 func (a *App) Render() []byte {
 	buf := bytes.Buffer{}
 	by := bytes.NewBuffer(buf.Bytes())
@@ -175,9 +303,10 @@ func (a *App) renderFrame() {
 	a.lastLines = linesThisFrame
 }
 
+// Loop renders the app each frame
 func (a *App) Loop(ctx context.Context) {
 	// Calculate total lines needed
-	totalLines := a.LineCount()
+	totalLines := a.Count()
 
 	// Pre-allocate space for rendering
 	for i := 0; i < totalLines; i++ {
@@ -202,7 +331,8 @@ func (a *App) Loop(ctx context.Context) {
 	}
 }
 
-func (a *App) LineCount() int {
+// Count returns the total amount of lines all child containers render.
+func (a *App) Count() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -230,6 +360,19 @@ func (a *App) WaitAnd(fn func()) {
 	a.Wait()
 }
 
+// func (a *App) AddContainer(c *Container) int {
+// 	a.containers = append(a.containers, c)
+// 	return len(a.containers) - 1
+// }
+//
+// func (a *App) UpdateContainer(idx int, c *Container) {
+// }
+
+func (a *App) SetMetadata(md map[string]any) {
+	a.data = md
+}
+
+// NewElement creates a new element with the provided format string.
 func NewElement(format string) *Element {
 	tmpl, err := template.New("header").Funcs(templateFuncs).Parse(format)
 	if err != nil {
@@ -242,15 +385,26 @@ func NewElement(format string) *Element {
 	}
 }
 
-func NewContainer(opts Layout, r ...*Element) *Container {
+// NewContainer creates a new 1x1 container with the given elements and children.
+// func NewContainer(style Style, opts Layout, r ...*Element) *Container {
+func NewContainer(data Data, r ...*Element) *Container {
 	return &Container{
 		elements: r,
-		Width:    1,
-		Height:   1,
-		Padding:  opts.Padding,
+		data:     data,
 	}
 }
 
+func (c *Container) WithStyle(s Style) *Container {
+	c.Style = s
+	return c
+}
+
+func (c *Container) WithLayout(l Layout) *Container {
+	c.Layout = l
+	return c
+}
+
+// NewApp creates a new App using the given writer and containers and children.
 func NewApp(wr io.Writer, data Data, containers ...*Container) *App {
 	return &App{
 		writer:     wr,
