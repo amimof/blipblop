@@ -3,12 +3,22 @@ package nodecontroller
 import (
 	"bufio"
 	"context"
+	"io"
+	"strings"
 	"time"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
 	"github.com/amimof/voiyd/pkg/events"
 	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+const (
+	// Log stream timeout - how long to wait for new log data before stopping the stream
+	logStreamTimeout = 5 * time.Minute
+
+	// Tail scan interval - polling interval when waiting for new log lines
+	tailScanInterval = 300 * time.Millisecond
 )
 
 func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error {
@@ -36,13 +46,13 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 		SessionID: s.GetSessionId(),
 	}
 
-	c.logStreamsMu.Lock()
+	c.logStreamsMu.RLock()
 	if _, exists := c.activeLogStreams[streamKey]; exists {
-		c.logStreamsMu.Unlock()
+		c.logStreamsMu.RUnlock()
 		c.logger.Debug("log stream already active", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
 		return nil
 	}
-	c.logStreamsMu.Unlock()
+	c.logStreamsMu.RUnlock()
 
 	taskIO, err := c.runtime.IO(ctx, s.GetTaskId())
 	if err != nil {
@@ -62,9 +72,8 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	c.activeLogStreams[streamKey] = cancel
 	c.logStreamsMu.Unlock()
 
+	c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 	go func() {
-		c.logger.Info("starting log scanner goroutine", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-
 		defer func() {
 			c.logStreamsMu.Lock()
 			delete(c.activeLogStreams, streamKey)
@@ -78,57 +87,10 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 
 		// Setup scanner. We use a channel to send each line through
 		lines := make(chan string)
-		scanner := bufio.NewScanner(taskIO.Stdout)
+		defer close(lines)
 
 		// Goroutine that scans the log file and sends each line on the channel
-		go func() {
-			defer close(lines)
-
-			for {
-
-				// Exit early on cancel even when at EOF
-				select {
-				case <-streamCtx.Done():
-					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-					return
-				default:
-				}
-
-				// Scan log file and send each line through the channel
-				if scanner.Scan() {
-					line := scanner.Text()
-					select {
-					case <-streamCtx.Done():
-						c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-						return
-					case lines <- line: // Send line through
-					}
-					continue
-				}
-
-				// Scanner returned false. Check for errors and exit out if any
-				if err := scanner.Err(); err != nil {
-					c.logger.Error(
-						"error reading from stdout",
-						"error", err,
-						"nodeID", s.GetNodeId(),
-						"taskID", s.GetTaskId(),
-					)
-					return
-				}
-
-				// No errors, maybe EOF?
-				select {
-				case <-streamCtx.Done():
-					c.logger.Debug("exiting log streaming because context was cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
-					return
-				case <-time.After(300 * time.Millisecond): // Wait a bit before iterating again
-				}
-
-				// EOF reached, ovewrite the scanner to start reading again
-				scanner = bufio.NewScanner(taskIO.Stdout)
-			}
-		}()
+		go c.tail(streamCtx, taskIO.Stdout, lines)
 
 		// Count the number of lines read
 		var seq uint64
@@ -140,7 +102,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 			case <-streamCtx.Done():
 				c.logger.Debug("log stream cancelled", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 				return
-			case <-time.After(5 * time.Minute):
+			case <-time.After(logStreamTimeout):
 				c.logger.Debug("scanner timeout - no data received", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId())
 				return
 			case line, ok := <-lines:
@@ -179,6 +141,53 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	return nil
 }
 
+func (c *Controller) tail(ctx context.Context, reader io.Reader, lines chan string) {
+	bufReader := bufio.NewReader(reader)
+
+	for {
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		// Read until newline
+		line, err := bufReader.ReadString('\n')
+
+		// Send any data we got (even with EOF)
+		if len(line) > 0 {
+			// Trim the newline
+			line = strings.TrimSuffix(line, "\n")
+			line = strings.TrimSuffix(line, "\r") // Handle CRLF too
+
+			select {
+			case <-ctx.Done():
+				return
+			case lines <- line:
+			}
+		}
+
+		// Handle errors
+		if err != nil {
+			if err == io.EOF {
+				// Reached end of file, wait before checking for more
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(tailScanInterval):
+					// Loop continues, will try reading again
+				}
+				continue
+			}
+
+			// Real error (not EOF)
+			c.logger.Error("error reading from log stream", "error", err)
+			return
+		}
+	}
+}
+
 func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
 	s := &logsv1.TailLogRequest{}
 	err := obj.GetObject().UnmarshalTo(s)
@@ -203,9 +212,9 @@ func (c *Controller) onLogStop(ctx context.Context, obj *eventsv1.Event) error {
 		SessionID: s.GetSessionId(),
 	}
 
-	c.logStreamsMu.Lock()
+	c.logStreamsMu.RLock()
 	cancel, exists := c.activeLogStreams[streamKey]
-	c.logStreamsMu.Unlock()
+	c.logStreamsMu.RUnlock()
 
 	if exists {
 		cancel()
