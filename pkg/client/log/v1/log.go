@@ -48,8 +48,8 @@ func (c *ClientV1) Stream(ctx context.Context) (*Stream, error) {
 	return &Stream{stream: stream}, nil
 }
 
-func (c *ClientV1) TailLogs(ctx context.Context, req *logsv1.TailLogRequest) (logsv1.LogService_TailLogsClient, error) {
-	return c.client.TailLogs(ctx, req)
+func (c *ClientV1) TailLogs(ctx context.Context, taskUID, nodeUID string) (logsv1.LogService_TailLogsClient, error) {
+	return c.client.TailLogs(ctx, &logsv1.TailLogRequest{TaskId: taskUID, NodeId: nodeUID, Watch: true})
 }
 
 func NewClientV1(conn *grpc.ClientConn, opts ...ClientOption) *ClientV1 {

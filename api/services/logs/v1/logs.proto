@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package services.logs.v1;
 
+import "buf/validate/validate.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -13,16 +14,16 @@ service LogService {
 }
 
 message TailLogRequest {
-  string node_id = 1;
-  string task_id = 2;
+  string node_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
   string session_id = 3;
   bool watch = 4;
   int64 since_seconds = 5;
 }
 
 message LogEntry {
-  string node_id = 1;
-  string task_id = 2;
+  string node_id = 1 [(buf.validate.field).string.uuid = true];
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
   string session_id = 3;
   google.protobuf.Timestamp timestamp = 4;
   string line = 5;
