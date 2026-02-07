@@ -7,11 +7,12 @@ import (
 	"html/template"
 	"io"
 	"maps"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/fatih/color"
 )
 
 // Data holds information used when templating
@@ -72,9 +73,9 @@ type Layout struct {
 }
 
 type Style struct {
-	Bg   BG
-	Fg   FG
-	Attr Attr
+	Bg   Attribute
+	Fg   Attribute
+	Attr Attribute
 }
 
 func (e *Element) spinner() string {
@@ -127,10 +128,7 @@ func (c *Container) contentWidth(data Data) int {
 	return maxWidth
 }
 
-var (
-	ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	resetCode = "\x1b[0m"
-)
+var resetCode = "\x1b[0m"
 
 // extractANSIStart gets the opening ANSI code from a colored string
 // e.g., color.New(color.BgCyan).Sprint("") -> "\x1b[46m\x1b[0m" -> "\x1b[46m"
@@ -150,10 +148,10 @@ func padToWidth(s string, width int) string {
 
 // applyBgColor wraps a string with background color ANSI codes
 func (c *Container) applyBgColor(s string, max int) string {
-	bgAttr := c.Style.Bg
+	bgAttr := c.Bg
 
 	// No background color set
-	if bgAttr == "" {
+	if bgAttr == 0 {
 		return padToWidth(s, max)
 	}
 
@@ -162,7 +160,7 @@ func (c *Container) applyBgColor(s string, max int) string {
 	}
 
 	// Get the background ANSI start code
-	bgCode := extractANSIStart(string(bgAttr))
+	bgCode := extractANSIStart(color.New(color.Attribute(bgAttr)).Sprint(""))
 	if bgCode == "" {
 		return padToWidth(s, max)
 	}
@@ -277,7 +275,7 @@ func (a *App) renderFrame() {
 	defer a.mu.Unlock()
 	// Move cursor up to start position (if not first frame)
 	if a.lastLines > 0 {
-		fmt.Fprintf(a.writer, "\033[%dA", a.lastLines)
+		_, _ = fmt.Fprintf(a.writer, "\033[%dA", a.lastLines)
 	}
 	linesThisFrame := 0
 	// Render each container
@@ -288,13 +286,13 @@ func (a *App) renderFrame() {
 		// Write each line with proper clearing
 		for _, line := range lines {
 			// Clear current line + return to column 0
-			fmt.Fprint(a.writer, "\033[2K\r")
+			_, _ = fmt.Fprint(a.writer, "\033[2K\r")
 
 			// Write line content
-			fmt.Fprint(a.writer, line)
+			_, _ = fmt.Fprint(a.writer, line)
 
 			// Move to next line
-			fmt.Fprint(a.writer, "\n")
+			_, _ = fmt.Fprint(a.writer, "\n")
 
 			linesThisFrame++
 		}
@@ -309,8 +307,8 @@ func (a *App) Loop(ctx context.Context) {
 	totalLines := a.Count()
 
 	// Pre-allocate space for rendering
-	for i := 0; i < totalLines; i++ {
-		fmt.Fprintln(a.writer)
+	for range totalLines {
+		_, _ = fmt.Fprintln(a.writer)
 	}
 
 	// Set initial line count
@@ -323,7 +321,7 @@ func (a *App) Loop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// Move cursor past rendered content on exit
-			fmt.Fprintln(a.writer)
+			_, _ = fmt.Fprintln(a.writer)
 			return
 		case <-ticker.C:
 			a.renderFrame()
@@ -392,6 +390,19 @@ func NewContainer(data Data, r ...*Element) *Container {
 		elements: r,
 		data:     data,
 	}
+}
+
+func NewContainers(num int, data Data, layout Layout, style Style, e ...*Element) []*Container {
+	containers := make([]*Container, num)
+	for i := range containers {
+		containers[i] = &Container{
+			elements: e,
+			data:     data,
+			Layout:   layout,
+			Style:    style,
+		}
+	}
+	return containers
 }
 
 func (c *Container) WithStyle(s Style) *Container {

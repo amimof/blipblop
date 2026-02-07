@@ -3,7 +3,7 @@ package stop
 import (
 	"context"
 	"fmt"
-	"strings"
+	"os"
 	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -71,56 +71,62 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 
 			// Send stop or kill for each task in args and wait for them all to stop
 			if viper.GetBool("wait") {
-				dash := cmdutil.NewDashboard(args)
-				go dash.Loop(ctx)
+
+				containers := cmdutil.NewContainers(len(args),
+					map[string]any{},
+					cmdutil.Layout{
+						Dimensions: [2]int{76, 2},
+						Padding:    [4]int{1, 2, 1, 2},
+					},
+					cmdutil.Style{
+						Bg: cmdutil.ColorBgHiBlack,
+					},
+					cmdutil.NewElement(` {{ spinner | FgYellow }} Stopping task {{ .Container.Name | FgBlue }}`),
+					cmdutil.NewElement(`   Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
+				)
+
+				app := cmdutil.NewApp(
+					os.Stdout,
+					map[string]any{},
+					containers...,
+				)
+
+				appCtx, cancel := context.WithTimeout(cmd.Context(), time.Second*10)
+				defer cancel()
+				go app.Loop(appCtx)
 
 				for i, cname := range args {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
 						if viper.GetBool("force") {
 							if err = c.TaskV1().Kill(ctx, cname); err != nil {
-								dash.FailMsg(idx, fmt.Sprintf("failed to start: %v", err))
+								fmt.Printf("Error stopping task: %v", err)
 								return
 							}
 						} else {
 							if err = c.TaskV1().Stop(ctx, cname); err != nil {
-								dash.FailMsg(idx, fmt.Sprintf("failed to start: %v", err))
+								fmt.Printf("Error stopping task: %v", err)
 								return
 							}
 						}
 
-						dash.UpdateText(idx, "stopping…")
-
 						// Continously check task
 						for {
 
-							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
-
 							task, werr := c.TaskV1().Get(ctx, taskID)
 							if werr != nil {
-								dash.FailMsg(idx, werr.Error())
+								fmt.Printf("Error stopping task: %v", err)
 								return
 							}
 
 							phase := task.GetStatus().GetPhase().GetValue()
-							reason := task.GetStatus().GetReason().GetValue()
 
-							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-
-							if reason != "" {
-								dash.UpdateDetails(idx, "Status", reason)
+							md := map[string]any{
+								"Name":  task.GetMeta().GetName(),
+								"Phase": phase,
 							}
 
-							if phase == "stopped" {
-								dash.DoneMsg(idx, "stopped successfully")
-								return
-							}
-
-							if strings.Contains(phase, "Err") {
-								dash.FailMsg(idx, "failed to stop")
-								dash.UpdateDetails(idx, "Error", err.Error())
-								return
-							}
+							containers[i].SetMetadata(md)
 
 							// Wait until retry
 							time.Sleep(250 * time.Millisecond)
@@ -128,7 +134,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 					}(i, cname)
 				}
 
-				dash.WaitAnd(cancel)
+				app.Wait()
 
 			}
 		},

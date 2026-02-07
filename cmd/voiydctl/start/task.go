@@ -5,18 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
-
-	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 func NewCmdStartTask(cfg *client.Config) *cobra.Command {
@@ -70,32 +66,48 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 			// Start tasks in parallell and wait until they are running
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(
-					args,
-					cmdutil.WithWriter(os.Stdout),
-					cmdutil.WithFormat(`{{ spinner | FgCyan }}|4|{{ .Metadata.Name | FgYellow }}|20|{{ .Metadata.Phase | FgGreen}}`),
+				containers := cmdutil.NewContainers(len(args),
+					map[string]any{},
+					cmdutil.Layout{
+						Dimensions: [2]int{76, 2},
+						Padding:    [4]int{1, 2, 1, 2},
+					},
+					cmdutil.Style{
+						Bg: cmdutil.ColorBgHiBlack,
+					},
+					cmdutil.NewElement(` {{ spinner | FgYellow }} Starting task {{ .Container.Name | FgBlue }}`),
+					cmdutil.NewElement(`   Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
+					cmdutil.NewElement(`   Node: {{ .Container.Node | FgBlue }}`),
+					cmdutil.NewElement(`   Pid: {{ .Container.Pid | FgBlue }}`),
+					cmdutil.NewElement(`   ID: {{ .Container.ID | FgBlue }}`),
+					cmdutil.NewElement(`   Image: {{ .Container.Image | FgBlue }}`),
 				)
-				go dash.Loop(ctx)
+
+				app := cmdutil.NewApp(
+					os.Stdout,
+					map[string]any{},
+					containers...,
+				)
+
+				appCtx, cancel := context.WithTimeout(cmd.Context(), time.Second*10)
+				defer cancel()
+				go app.Loop(appCtx)
 
 				for i, cname := range args {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
 						err := c.TaskV1().Start(ctx, taskID)
 						if err != nil {
-							dash.FailMsg(idx, err.Error())
+							fmt.Printf("Error starting task: %v", err)
 							return
 						}
-
-						dash.UpdateText(idx, "starting…")
 
 						// Continously check task
 						for {
 
-							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
-
 							task, err := c.TaskV1().Get(ctx, taskID)
 							if err != nil {
-								dash.FailMsg(idx, err.Error())
+								fmt.Printf("Error starting task: %v", err)
 								return
 							}
 
@@ -110,51 +122,21 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 								"Phase": phase,
 								"Pid":   pid,
 								"Node":  node,
-								"UID":   id,
+								"ID":    id,
 								"Image": image,
 							}
 
-							dash.SetMetadata(idx, md)
-							dash.UpdateText(idx, task.GetMeta().GetUid())
+							containers[i].SetMetadata(md)
 
-							// dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-							// dash.UpdateDetails(idx, "Ready", fmt.Sprintf("%t", isReady(task.GetStatus().GetConditions())))
-							// dash.UpdateDetails(idx, "Image", image)
-							// dash.UpdateDetails(idx, "Node", node)
-							// dash.UpdateDetails(idx, "ID", id)
-
-							if phase == "running" {
-								dash.DoneMsg(idx, "started successfully")
-								return
-							}
-
-							if strings.Contains(phase, "Err") {
-								dash.FailMsg(idx, "failed to start")
-								dash.UpdateDetails(idx, "Error", err.Error())
-								return
-							}
-
-							// Wait until retry
 							time.Sleep(250 * time.Millisecond)
 						}
 					}(i, cname)
 				}
 
-				dash.WaitAnd(cancel)
+				app.Wait()
 
 			}
 		},
 	}
 	return runCmd
-}
-
-func isReady(t []*typesv1.Condition) bool {
-	for _, cond := range t {
-		if condition.Type(cond.GetType().GetValue()) == condition.TaskReady {
-			if cond.GetStatus().GetValue() {
-				return true
-			}
-		}
-	}
-	return false
 }

@@ -145,9 +145,9 @@ func (s *ServiceState) Spinner(frames []rune, frameIdx int) string {
 		return "⠿"
 	}
 	if s.Failed {
-		return fmt.Sprintf("%s%s", FG("✖").FgRed(), Attr("").Reset())
+		return fmt.Sprintf("%s%s", ColorBasic(ColorFgRed).Sprint("✖"), ColorBasic(AttrReset).Sprint(""))
 	}
-	return fmt.Sprintf("%s%s", FG("✔").FgGreen(), Attr("").Reset())
+	return fmt.Sprintf("%s%s", ColorBasic(ColorFgGreen).Sprint("✔"), ColorBasic(AttrReset).Sprint(""))
 }
 
 // UpdateMetadata updates metadata for template access
@@ -591,7 +591,7 @@ func (d *Dashboard) renderFrame(frames []rune) {
 
 		rendered, err := d.renderServiceWithColumns(s)
 		if err != nil {
-			fmt.Fprintf(d.writer, "Error rendering: %v", err)
+			_, _ = fmt.Fprintf(d.writer, "Error rendering: %v", err)
 		} else {
 			_, _ = fmt.Fprint(d.writer, rendered)
 		}
@@ -633,81 +633,81 @@ func (d *Dashboard) renderFrame(frames []rune) {
 }
 
 // renderFinal draws a final snapshot (no spinning)
-func (d *Dashboard) renderFinal() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if d.lastLines > 0 {
-		_, _ = fmt.Fprintf(os.Stdout, "\033[%dA", d.lastLines)
-	}
-
-	linesThisFrame := 0
-
-	// NEW: Re-render header if present
-	// if d.hasHeader {
-	// 	_, _ = fmt.Fprint(d.writer, "\033[2K") // Clear line
-	// 	headerLine := d.renderHeader()         // NEW: Use helper
-	// 	_, _ = fmt.Fprintln(d.writer, headerLine)
-	// 	linesThisFrame++
-	// }
-
-	for _, s := range d.services {
-
-		// color := ""
-		// color := FgGreen
-		// icon := fmt.Sprintf("%s✔%s", color, ColorReset)
-		// icon := fmt.Sprintf("%s%s", fg(s.successIcon).FgGreen(), attr("").Reset())
-
-		// if s.Failed {
-		// 	// color = FgRed
-		// 	// icon = fmt.Sprintf("%s✖%s", color, ColorReset)
-		// 	icon = fmt.Sprintf("%s", fg(s.failedIcon).FgRed(), attr("").Reset())
-		// }
-
-		// text := fmt.Sprintf("%s%s%s", color, s.Text, ColorReset)
-		// _, _ = fmt.Fprint(d.writer, "\033[2K")
-		// _, _ = fmt.Fprintf(
-		// 	d.writer,
-		// 	"%s %s\t%s\n",
-		// 	icon,
-		// 	s.Name,
-		// 	text,
-		// )
-		// Update icon function for this service
-		// templateFuncs["spinner"] = func() string {
-		// 	return icon
-		// }
-
-		rendered, err := d.renderServiceWithColumns(s)
-		if err != nil {
-			_, _ = fmt.Fprintf(d.writer, "Error rendering: %v", err)
-		} else {
-			_, _ = fmt.Fprint(d.writer, rendered)
-		}
-
-		_, _ = fmt.Fprintln(d.writer)
-		linesThisFrame++
-
-		// detail lines (indented; no spinner)
-		for _, line := range s.Details {
-			// key := fmt.Sprintf("%s%s%s", FgGrey245, line.Key, ColorReset)
-			// val := fmt.Sprintf("%s%s%s", FgGrey245, line.Value, ColorReset)
-			key := fmt.Sprintf("%s%s%s", "", line.Key, "")
-			val := fmt.Sprintf("%s%s%s", "", line.Value, "")
-			_, _ = fmt.Fprint(d.writer, "\033[2K")
-			_, _ = fmt.Fprintf(
-				d.writer,
-				"  %s:\t%s\n",
-				key,
-				val,
-			)
-			linesThisFrame++
-		}
-	}
-
-	d.flushFunc()
-	d.lastLines = linesThisFrame
-}
+// func (d *Dashboard) renderFinal() {
+// 	d.mu.Lock()
+// 	defer d.mu.Unlock()
+//
+// 	if d.lastLines > 0 {
+// 		_, _ = fmt.Fprintf(os.Stdout, "\033[%dA", d.lastLines)
+// 	}
+//
+// 	linesThisFrame := 0
+//
+// 	// NEW: Re-render header if present
+// 	// if d.hasHeader {
+// 	// 	_, _ = fmt.Fprint(d.writer, "\033[2K") // Clear line
+// 	// 	headerLine := d.renderHeader()         // NEW: Use helper
+// 	// 	_, _ = fmt.Fprintln(d.writer, headerLine)
+// 	// 	linesThisFrame++
+// 	// }
+//
+// 	for _, s := range d.services {
+//
+// 		// color := ""
+// 		// color := FgGreen
+// 		// icon := fmt.Sprintf("%s✔%s", color, ColorReset)
+// 		// icon := fmt.Sprintf("%s%s", fg(s.successIcon).FgGreen(), attr("").Reset())
+//
+// 		// if s.Failed {
+// 		// 	// color = FgRed
+// 		// 	// icon = fmt.Sprintf("%s✖%s", color, ColorReset)
+// 		// 	icon = fmt.Sprintf("%s", fg(s.failedIcon).FgRed(), attr("").Reset())
+// 		// }
+//
+// 		// text := fmt.Sprintf("%s%s%s", color, s.Text, ColorReset)
+// 		// _, _ = fmt.Fprint(d.writer, "\033[2K")
+// 		// _, _ = fmt.Fprintf(
+// 		// 	d.writer,
+// 		// 	"%s %s\t%s\n",
+// 		// 	icon,
+// 		// 	s.Name,
+// 		// 	text,
+// 		// )
+// 		// Update icon function for this service
+// 		// templateFuncs["spinner"] = func() string {
+// 		// 	return icon
+// 		// }
+//
+// 		rendered, err := d.renderServiceWithColumns(s)
+// 		if err != nil {
+// 			_, _ = fmt.Fprintf(d.writer, "Error rendering: %v", err)
+// 		} else {
+// 			_, _ = fmt.Fprint(d.writer, rendered)
+// 		}
+//
+// 		_, _ = fmt.Fprintln(d.writer)
+// 		linesThisFrame++
+//
+// 		// detail lines (indented; no spinner)
+// 		for _, line := range s.Details {
+// 			// key := fmt.Sprintf("%s%s%s", FgGrey245, line.Key, ColorReset)
+// 			// val := fmt.Sprintf("%s%s%s", FgGrey245, line.Value, ColorReset)
+// 			key := fmt.Sprintf("%s%s%s", "", line.Key, "")
+// 			val := fmt.Sprintf("%s%s%s", "", line.Value, "")
+// 			_, _ = fmt.Fprint(d.writer, "\033[2K")
+// 			_, _ = fmt.Fprintf(
+// 				d.writer,
+// 				"  %s:\t%s\n",
+// 				key,
+// 				val,
+// 			)
+// 			linesThisFrame++
+// 		}
+// 	}
+//
+// 	d.flushFunc()
+// 	d.lastLines = linesThisFrame
+// }
 
 // IsDone return true if all services in the Dashboard is marked as done
 func (d *Dashboard) IsDone() bool {
@@ -746,55 +746,55 @@ var templateFuncs = template.FuncMap{
 	},
 	"padLeft":         padLeft,
 	"padRight":        padRight,
-	"FgBlack":         func(s string) string { return FG(s).FgBlack() },
-	"FgRed":           func(s string) string { return FG(s).FgRed() },
-	"FgGreen":         func(s string) string { return FG(s).FgGreen() },
-	"FgYellow":        func(s string) string { return FG(s).FgYellow() },
-	"FgBlue":          func(s string) string { return FG(s).FgBlue() },
-	"FgMagenta":       func(s string) string { return FG(s).FgMagenta() },
-	"FgCyan":          func(s string) string { return FG(s).FgCyan() },
-	"FgWhite":         func(s string) string { return FG(s).FgWhite() },
-	"FgHiBlack":       func(s string) string { return FG(s).FgHiBlack() },
-	"FgHiRed":         func(s string) string { return FG(s).FgHiRed() },
-	"FgHiGreen":       func(s string) string { return FG(s).FgHiGreen() },
-	"FgHiYellow":      func(s string) string { return FG(s).FgHiYellow() },
-	"FgHiBlue":        func(s string) string { return FG(s).FgHiBlue() },
-	"FgHiMagenta":     func(s string) string { return FG(s).FgHiMagenta() },
-	"FgHiCyan":        func(s string) string { return FG(s).FgHiCyan() },
-	"FgHiWhite":       func(s string) string { return FG(s).FgHiWhite() },
-	"BgBlack":         func(s string) string { return BG(s).BgBlack() },
-	"BgRed":           func(s string) string { return BG(s).BgRed() },
-	"BgGreen":         func(s string) string { return BG(s).BgGreen() },
-	"BgYellow":        func(s string) string { return BG(s).BgYellow() },
-	"BgBlue":          func(s string) string { return BG(s).BgBlue() },
-	"BgMagenta":       func(s string) string { return BG(s).BgMagenta() },
-	"BgCyan":          func(s string) string { return BG(s).BgCyan() },
-	"BgWhite":         func(s string) string { return BG(s).BgWhite() },
-	"BgHiBlack":       func(s string) string { return BG(s).BgHiBlack() },
-	"BgHiRed":         func(s string) string { return BG(s).BgHiRed() },
-	"BgHiGreen":       func(s string) string { return BG(s).BgHiGreen() },
-	"BgHiYellow":      func(s string) string { return BG(s).BgHiYellow() },
-	"BgHiBlue":        func(s string) string { return BG(s).BgHiBlue() },
-	"BgHiMagenta":     func(s string) string { return BG(s).BgHiMagenta() },
-	"BgHiCyan":        func(s string) string { return BG(s).BgHiCyan() },
-	"BgHiWhite":       func(s string) string { return BG(s).BgHiWhite() },
-	"Reset":           func(s string) string { return Attr(s).Reset() },
-	"Bold":            func(s string) string { return Attr(s).Bold() },
-	"Faint":           func(s string) string { return Attr(s).Faint() },
-	"Italic":          func(s string) string { return Attr(s).Italic() },
-	"Underline":       func(s string) string { return Attr(s).Underline() },
-	"BlinkSlow":       func(s string) string { return Attr(s).BlinkSlow() },
-	"BlinkRapid":      func(s string) string { return Attr(s).BlinkRapid() },
-	"ReverseVideo":    func(s string) string { return Attr(s).ReverseVideo() },
-	"Concealed":       func(s string) string { return Attr(s).Concealed() },
-	"CrossedOut":      func(s string) string { return Attr(s).CrossedOut() },
-	"ResetBold":       func(s string) string { return Attr(s).ResetBold() },
-	"ResetItalic":     func(s string) string { return Attr(s).ResetItalic() },
-	"ResetUnderline":  func(s string) string { return Attr(s).ResetUnderline() },
-	"ResetBlinking":   func(s string) string { return Attr(s).ResetBlinking() },
-	"ResetReversed":   func(s string) string { return Attr(s).ResetReversed() },
-	"ResetConcealed":  func(s string) string { return Attr(s).ResetConcealed() },
-	"ResetCrossedOut": func(s string) string { return Attr(s).ResetCrossedOut() },
+	"FgBlack":         func(s string) string { return ColorBasic(ColorFgBlack).Sprint(s) },
+	"FgRed":           func(s string) string { return ColorBasic(ColorFgRed).Sprint(s) },
+	"FgGreen":         func(s string) string { return ColorBasic(ColorFgGreen).Sprint(s) },
+	"FgYellow":        func(s string) string { return ColorBasic(ColorFgYellow).Sprint(s) },
+	"FgBlue":          func(s string) string { return ColorBasic(ColorFgBlue).Sprint(s) },
+	"FgMagenta":       func(s string) string { return ColorBasic(ColorFgMagenta).Sprint(s) },
+	"FgCyan":          func(s string) string { return ColorBasic(ColorFgCyan).Sprint(s) },
+	"FgWhite":         func(s string) string { return ColorBasic(ColorFgWhite).Sprint(s) },
+	"FgHiBlack":       func(s string) string { return ColorBasic(ColorFgHiBlack).Sprint(s) },
+	"FgHiRed":         func(s string) string { return ColorBasic(ColorFgHiRed).Sprint(s) },
+	"FgHiGreen":       func(s string) string { return ColorBasic(ColorFgHiGreen).Sprint(s) },
+	"FgHiYellow":      func(s string) string { return ColorBasic(ColorFgHiYellow).Sprint(s) },
+	"FgHiBlue":        func(s string) string { return ColorBasic(ColorFgHiBlue).Sprint(s) },
+	"FgHiMagenta":     func(s string) string { return ColorBasic(ColorFgHiMagenta).Sprint(s) },
+	"FgHiCyan":        func(s string) string { return ColorBasic(ColorFgHiCyan).Sprint(s) },
+	"FgHiWhite":       func(s string) string { return ColorBasic(ColorFgHiWhite).Sprint(s) },
+	"BgBlack":         func(s string) string { return ColorBasic(ColorBgBlack).Sprint(s) },
+	"BgRed":           func(s string) string { return ColorBasic(ColorBgRed).Sprint(s) },
+	"BgGreen":         func(s string) string { return ColorBasic(ColorBgGreen).Sprint(s) },
+	"BgYellow":        func(s string) string { return ColorBasic(ColorBgYellow).Sprint(s) },
+	"BgBlue":          func(s string) string { return ColorBasic(ColorBgBlue).Sprint(s) },
+	"BgMagenta":       func(s string) string { return ColorBasic(ColorBgMagenta).Sprint(s) },
+	"BgCyan":          func(s string) string { return ColorBasic(ColorBgCyan).Sprint(s) },
+	"BgWhite":         func(s string) string { return ColorBasic(ColorBgWhite).Sprint(s) },
+	"BgHiBlack":       func(s string) string { return ColorBasic(ColorBgHiBlack).Sprint(s) },
+	"BgHiRed":         func(s string) string { return ColorBasic(ColorBgHiRed).Sprint(s) },
+	"BgHiGreen":       func(s string) string { return ColorBasic(ColorBgHiGreen).Sprint(s) },
+	"BgHiYellow":      func(s string) string { return ColorBasic(ColorBgHiYellow).Sprint(s) },
+	"BgHiBlue":        func(s string) string { return ColorBasic(ColorBgHiBlue).Sprint(s) },
+	"BgHiMagenta":     func(s string) string { return ColorBasic(ColorBgHiMagenta).Sprint(s) },
+	"BgHiCyan":        func(s string) string { return ColorBasic(ColorBgHiCyan).Sprint(s) },
+	"BgHiWhite":       func(s string) string { return ColorBasic(ColorBgHiWhite).Sprint(s) },
+	"Reset":           func(s string) string { return ColorBasic(AttrReset).Sprint(s) },
+	"Bold":            func(s string) string { return ColorBasic(AttrBold).Sprint(s) },
+	"Faint":           func(s string) string { return ColorBasic(AttrFaint).Sprint(s) },
+	"Italic":          func(s string) string { return ColorBasic(AttrItalic).Sprint(s) },
+	"Underline":       func(s string) string { return ColorBasic(AttrUnderline).Sprint(s) },
+	"BlinkSlow":       func(s string) string { return ColorBasic(AttrBlinkSlow).Sprint(s) },
+	"BlinkRapid":      func(s string) string { return ColorBasic(AttrBlinkRapid).Sprint(s) },
+	"ReverseVideo":    func(s string) string { return ColorBasic(AttrReverseVideo).Sprint(s) },
+	"Concealed":       func(s string) string { return ColorBasic(AttrConcealed).Sprint(s) },
+	"CrossedOut":      func(s string) string { return ColorBasic(AttrCrossedOut).Sprint(s) },
+	"ResetBold":       func(s string) string { return ColorBasic(AttrResetBold).Sprint(s) },
+	"ResetItalic":     func(s string) string { return ColorBasic(AttrResetItalic).Sprint(s) },
+	"ResetUnderline":  func(s string) string { return ColorBasic(AttrResetUnderline).Sprint(s) },
+	"ResetBlinking":   func(s string) string { return ColorBasic(AttrResetBlinking).Sprint(s) },
+	"ResetReversed":   func(s string) string { return ColorBasic(AttrResetReversed).Sprint(s) },
+	"ResetConcealed":  func(s string) string { return ColorBasic(AttrResetConcealed).Sprint(s) },
+	"ResetCrossedOut": func(s string) string { return ColorBasic(AttrResetCrossedOut).Sprint(s) },
 }
 
 // NewDashboard creates the dashboard with one ServiceState per name.

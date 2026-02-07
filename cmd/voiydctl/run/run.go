@@ -4,6 +4,8 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +16,6 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/networking"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -133,21 +134,41 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args)
-				go dash.Loop(ctx)
+				container := cmdutil.NewContainer(
+					map[string]any{},
+					cmdutil.NewElement(` {{ spinner | FgYellow }} Starting task {{ .Container.Name | FgBlue }}`),
+					cmdutil.NewElement(`   Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
+					cmdutil.NewElement(`   Node: {{ .Container.Node | FgBlue }}`),
+					cmdutil.NewElement(`   Pid: {{ .Container.Pid | FgBlue }}`),
+					cmdutil.NewElement(`   ID: {{ .Container.ID | FgBlue }}`),
+					cmdutil.NewElement(`   Image: {{ .Container.Image | FgBlue }}`),
+				).WithLayout(cmdutil.Layout{
+					Dimensions: [2]int{76, 2},
+					Padding:    [4]int{1, 2, 1, 2},
+				},
+				).WithStyle(cmdutil.Style{
+					Bg: cmdutil.ColorBgHiBlack,
+				},
+				)
+
+				app := cmdutil.NewApp(
+					os.Stdout,
+					map[string]any{},
+					container,
+				)
+
+				appCtx, cancel := context.WithTimeout(cmd.Context(), time.Second*10)
+				defer cancel()
+				go app.Loop(appCtx)
 
 				// Fire off start operations concurrently
 				go func(idx int, taskID string) {
-					dash.UpdateText(idx, "starting…")
-
 					// Continously check task
 					for {
 
-						dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to start in time")
-
 						task, werr := c.TaskV1().Get(ctx, taskID)
 						if werr != nil {
-							dash.FailMsg(idx, werr.Error())
+							fmt.Printf("Error starting task: %v", err)
 							return
 						}
 
@@ -155,21 +176,26 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						phase := task.GetStatus().GetPhase().GetValue()
 						node := task.GetStatus().GetNode().GetValue()
 						id := task.GetStatus().GetId().GetValue()
+						pid := strconv.Itoa(int(task.GetStatus().GetPid().GetValue()))
 
-						dash.UpdateText(idx, fmt.Sprintf("%s…", "starting"))
-						dash.UpdateDetails(idx, "Ready", fmt.Sprintf("%t", isReady(task.GetStatus().GetConditions())))
-						dash.UpdateDetails(idx, "Image", image)
-						dash.UpdateDetails(idx, "Node", node)
-						dash.UpdateDetails(idx, "ID", id)
+						md := map[string]any{
+							"Name":  task.GetMeta().GetName(),
+							"Phase": phase,
+							"Pid":   pid,
+							"Node":  node,
+							"ID":    id,
+							"Image": image,
+						}
+
+						container.SetMetadata(md)
 
 						if phase == "running" {
-							dash.DoneMsg(idx, "started successfully")
+							fmt.Printf("Error starting task: %v", err)
 							return
 						}
 
 						if strings.Contains(phase, "Err") {
-							dash.FailMsg(idx, "failed to start")
-							dash.UpdateDetails(idx, "Error", err.Error())
+							fmt.Printf("Error starting task: %v", err)
 							return
 						}
 
@@ -178,7 +204,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 					}
 				}(0, tname)
 
-				dash.WaitAnd(cancel)
+				app.Wait()
 
 			}
 		},
@@ -260,15 +286,4 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 		logrus.Fatal(err)
 	}
 	return runCmd
-}
-
-func isReady(t []*typesv1.Condition) bool {
-	for _, cond := range t {
-		if condition.Type(cond.GetType().GetValue()) == condition.TaskReady {
-			if cond.GetStatus().GetValue() {
-				return true
-			}
-		}
-	}
-	return false
 }

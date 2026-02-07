@@ -4,10 +4,8 @@ package watch
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -101,8 +99,8 @@ voiydctl watch nodes --selector voiyd.io/arch=arm64
 			signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 			// Create watcher
-			dashCtx, dashCancel := context.WithCancel(context.Background())
-			defer dashCancel()
+			// dashCtx, dashCancel := context.WithCancel(context.Background())
+			// defer dashCancel()
 
 			watcher := cmdutil.NewDashboard(
 				args,
@@ -111,19 +109,19 @@ voiydctl watch nodes --selector voiyd.io/arch=arm64
 				cmdutil.WithHeader(`{{"NAME"}}|20|{{ "Node"}}|20|{{"Task"}}|20|{{ "TTL" }}|20|{{ "AGE" }}|10|{{ "ExpiresIn" }}`),
 				cmdutil.WithFormat("{{ .Name | FgYellow }}|20|{{ .Metadata.NodeID}}|20|{{ .Metadata.TaskID }}|20|{{ .Metadata.TTL }}|20|{{ .Metadata.Age | age }}|10|{{ .Metadata.ExpiresIn | age }}"),
 			)
-			go watcher.Loop(dashCtx)
+			go watcher.Loop(ctx)
 
 			// Subscribe to events
-			eventChan, errChan := c.EventV1().Subscribe(dashCtx, events.ALL...)
+			eventChan, errChan := c.EventV1().Subscribe(ctx, events.ALL...)
 
 			go func() {
 				for {
 					select {
 					case <-exit:
-						dashCancel()
+						cancel()
 					case <-errChan:
-						dashCancel()
-					case <-dashCtx.Done():
+						cancel()
+					case <-ctx.Done():
 						return
 					case event := <-eventChan:
 
@@ -177,25 +175,25 @@ voiydctl watch nodes --selector voiyd.io/arch=arm64
 	return upgradeCmd
 }
 
-func parseSelectors(inputs []string) (map[string]string, error) {
-	out := make(map[string]string)
-	for _, raw := range inputs {
-		part := strings.TrimSpace(raw)
-		if part == "" {
-			continue
-		}
-
-		k, v, ok := strings.Cut(part, "=")
-		if !ok {
-			return nil, fmt.Errorf("invalid selector %q expected key=value", part)
-		}
-
-		k = strings.TrimSpace(k)
-		v = strings.TrimSpace(v)
-
-		out[k] = v
-
-	}
-
-	return out, nil
-}
+// func parseSelectors(inputs []string) (map[string]string, error) {
+// 	out := make(map[string]string)
+// 	for _, raw := range inputs {
+// 		part := strings.TrimSpace(raw)
+// 		if part == "" {
+// 			continue
+// 		}
+//
+// 		k, v, ok := strings.Cut(part, "=")
+// 		if !ok {
+// 			return nil, fmt.Errorf("invalid selector %q expected key=value", part)
+// 		}
+//
+// 		k = strings.TrimSpace(k)
+// 		v = strings.TrimSpace(v)
+//
+// 		out[k] = v
+//
+// 	}
+//
+// 	return out, nil
+// }
