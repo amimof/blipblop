@@ -21,6 +21,7 @@ import (
 	"github.com/amimof/voiyd/cmd/voiydctl/start"
 	"github.com/amimof/voiyd/cmd/voiydctl/stop"
 	"github.com/amimof/voiyd/cmd/voiydctl/upgrade"
+	"github.com/amimof/voiyd/cmd/voiydctl/watch"
 )
 
 var (
@@ -94,6 +95,7 @@ func NewDefaultCommand() *cobra.Command {
 	rootCmd.AddCommand(apply.NewCmdApply())
 	rootCmd.AddCommand(upgrade.NewCmdUpgrade())
 	rootCmd.AddCommand(config.NewCmdConfig())
+	rootCmd.AddCommand(watch.NewCmdWatch())
 
 	return rootCmd
 }

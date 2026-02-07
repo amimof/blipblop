@@ -64,7 +64,9 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 
 			// Stop tasks in parallell and wait until they are stopped before deleting them
 			if viper.GetBool("wait") {
-				dash := cmdutil.NewDashboard(args, cmdutil.WithWriter(cmdutil.DefaultTabWriter))
+
+				dash := cmdutil.NewDashboard(args)
+
 				go dash.Loop(ctx)
 				for i, cname := range args {
 					// Fire off delete operations concurrently
