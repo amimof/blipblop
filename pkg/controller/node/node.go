@@ -34,7 +34,7 @@ type Controller struct {
 	tracer           trace.Tracer
 	logChan          chan *logsv1.LogEntry
 	activeLogStreams map[events.LogKey]context.CancelFunc
-	logStreamsMu     sync.Mutex
+	logStreamsMu     sync.RWMutex
 	node             *nodesv1.Node
 	attacher         volume.Attacher
 	exchange         *events.Exchange
