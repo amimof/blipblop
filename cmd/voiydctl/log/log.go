@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/amimof/voiyd/api/services/logs/v1"
 	"github.com/amimof/voiyd/pkg/client"
 )
 
@@ -72,20 +71,19 @@ func NewCmdLog() *cobra.Command {
 			exit := make(chan os.Signal, 1)
 			signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-			// We need to know which node the task is scheduled on
+			// We need to know which node the task is scheduled on as well as the UIDs of both
 			taskID := args[0]
 			task, err := c.TaskV1().Get(ctx, taskID)
 			if err != nil {
 				return err
 			}
 
-			req := logs.TailLogRequest{
-				NodeId: task.GetStatus().GetNode().GetValue(),
-				TaskId: task.GetMeta().GetName(),
-				Watch:  true,
+			node, err := c.NodeV1().Get(ctx, task.GetStatus().GetNode().GetValue())
+			if err != nil {
+				return err
 			}
 
-			stream, err := c.LogV1().TailLogs(ctx, &req)
+			stream, err := c.LogV1().TailLogs(ctx, task.GetMeta().GetUid(), node.GetMeta().GetUid())
 			if err != nil {
 				logrus.Fatalf("error setting up log stream: %v", err)
 			}

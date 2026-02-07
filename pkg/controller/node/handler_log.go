@@ -26,6 +26,7 @@ func (c *Controller) onLogStart(ctx context.Context, obj *eventsv1.Event) error 
 	c.logger.Debug("someone requested logs", "nodeID", s.GetNodeId(), "taskID", s.GetTaskId(), "sessionID", s.GetSessionId())
 
 	if s.GetNodeId() != node.GetMeta().GetUid() {
+		c.logger.Debug("log not for us", "requested", s.GetNodeId(), "our", node.GetMeta().GetUid())
 		return nil
 	}
 
