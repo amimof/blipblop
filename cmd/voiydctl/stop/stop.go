@@ -13,6 +13,7 @@ import (
 var (
 	force       bool
 	wait        bool
+	all         bool
 	waitTimeout time.Duration
 )
 
@@ -45,6 +46,11 @@ func NewCmdStop() *cobra.Command {
 		"force",
 		false,
 		"Attempt forceful shutdown of the task",
+	)
+	stopCmd.PersistentFlags().BoolVar(&all,
+		"all",
+		false,
+		"Stop all resources",
 	)
 	stopCmd.PersistentFlags().BoolVarP(
 		&wait,
