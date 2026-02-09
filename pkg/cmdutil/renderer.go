@@ -58,19 +58,16 @@ type App struct {
 type Container struct {
 	Layout
 	Style
-	data Data
-
-	// frameIdx int
-	mu       sync.Mutex
-	elements []*Element
+	ContentWidth int
+	data         Data
+	mu           sync.Mutex
+	elements     []*Element
 }
 
 type Element struct {
 	Template string             // Raw template string for this column
 	Width    int                // Max width (0 = unlimited)
 	Parsed   *template.Template // Compiled template (set during initialization)
-
-	// frameIdx int
 }
 
 type Layout struct {
@@ -171,7 +168,7 @@ func (c *Container) RenderLines(data Data) []string {
 	defer c.mu.Unlock()
 
 	lines := make([]string, 0, len(c.elements))
-	// width := c.contentWidth(data)
+	c.ContentWidth = c.contentWidth(data)
 
 	// Top padding
 	for i := 0; i < c.Padding[0]; i++ {
@@ -210,10 +207,10 @@ func (c *Container) RenderLines(data Data) []string {
 	return lines
 }
 
-// UpdateMetadata updates metadata for template access
+// SetMetadata updates metadata for template access
 func (c *Container) SetMetadata(data Data) *Container {
 	c.mu.Lock()
-	c.mu.Unlock()
+	defer c.mu.Unlock()
 	if c.data == nil {
 		c.data = make(map[string]any)
 	}
@@ -224,7 +221,7 @@ func (c *Container) SetMetadata(data Data) *Container {
 // UpdateMetadata sets metadata key for template access
 func (c *Container) UpdateMetadata(key string, value any) {
 	c.mu.Lock()
-	c.mu.Unlock()
+	defer c.mu.Unlock()
 	if c.data == nil {
 		c.data = make(map[string]any)
 	}
@@ -367,10 +364,10 @@ func (a *App) WithLevel(l ColorLevel) *App {
 	return a
 }
 
-// UpdateMetadata updates metadata for template access
+// SetMetadata updates metadata for template access
 func (a *App) SetMetadata(md map[string]any) {
 	a.mu.Lock()
-	a.mu.Unlock()
+	defer a.mu.Unlock()
 	if a.data == nil {
 		a.data = make(map[string]any)
 	}
@@ -380,7 +377,7 @@ func (a *App) SetMetadata(md map[string]any) {
 // UpdateMetadata sets metadata key for template access
 func (a *App) UpdateMetadata(key string, value any) {
 	a.mu.Lock()
-	a.mu.Unlock()
+	defer a.mu.Unlock()
 	if a.data == nil {
 		a.data = make(map[string]any)
 	}

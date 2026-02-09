@@ -5,9 +5,6 @@ import (
 	"html/template"
 	"io"
 	"os"
-	"regexp"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -98,7 +95,6 @@ type Dashboard struct {
 	flushFunc func()
 	emptyText string
 	app       *App
-	headerStr string
 }
 
 // Column defines a single column in the dashboard output
@@ -277,53 +273,53 @@ func (d *Dashboard) WaitAnd(fn func()) {
 // parseColumns parses a format string into column specifications.
 // Example: "{{ .Name }}|20|{{ .Text }}|15|{{ .Status }}"
 // Returns columns and whether column syntax was detected.
-func parseColumns(formatStr string) ([]Column, bool) {
-	// Check if format uses column syntax (contains |digit|)
-	if !regexp.MustCompile(`\|\d+\|?`).MatchString(formatStr) {
-		return nil, false // Not using column syntax
-	}
-
-	var columns []Column
-
-	// Split by pipe to find column boundaries
-	// Pattern: template|width|template|width|template
-	parts := strings.Split(formatStr, "|")
-
-	var currentTemplate strings.Builder
-
-	for i := range parts {
-		part := parts[i]
-
-		// Check if this part is a width specification (pure number)
-		part = strings.TrimSpace(part)
-		if width, err := strconv.Atoi(part); err == nil {
-			// This is a width spec, save current column
-			if currentTemplate.Len() > 0 {
-				columns = append(columns, Column{
-					Template: strings.TrimSpace(currentTemplate.String()),
-					Width:    width,
-				})
-				currentTemplate.Reset()
-			}
-		} else {
-			// This is template content
-			if currentTemplate.Len() > 0 {
-				currentTemplate.WriteString("|") // Restore pipe within template
-			}
-			currentTemplate.WriteString(part)
-		}
-	}
-
-	// Handle last column (may not have trailing |width)
-	if currentTemplate.Len() > 0 {
-		columns = append(columns, Column{
-			Template: strings.TrimSpace(currentTemplate.String()),
-			Width:    0, // Last column unlimited by default
-		})
-	}
-
-	return columns, len(columns) > 0
-}
+// func parseColumns(formatStr string) ([]Column, bool) {
+// 	// Check if format uses column syntax (contains |digit|)
+// 	if !regexp.MustCompile(`\|\d+\|?`).MatchString(formatStr) {
+// 		return nil, false // Not using column syntax
+// 	}
+//
+// 	var columns []Column
+//
+// 	// Split by pipe to find column boundaries
+// 	// Pattern: template|width|template|width|template
+// 	parts := strings.Split(formatStr, "|")
+//
+// 	var currentTemplate strings.Builder
+//
+// 	for i := range parts {
+// 		part := parts[i]
+//
+// 		// Check if this part is a width specification (pure number)
+// 		part = strings.TrimSpace(part)
+// 		if width, err := strconv.Atoi(part); err == nil {
+// 			// This is a width spec, save current column
+// 			if currentTemplate.Len() > 0 {
+// 				columns = append(columns, Column{
+// 					Template: strings.TrimSpace(currentTemplate.String()),
+// 					Width:    width,
+// 				})
+// 				currentTemplate.Reset()
+// 			}
+// 		} else {
+// 			// This is template content
+// 			if currentTemplate.Len() > 0 {
+// 				currentTemplate.WriteString("|") // Restore pipe within template
+// 			}
+// 			currentTemplate.WriteString(part)
+// 		}
+// 	}
+//
+// 	// Handle last column (may not have trailing |width)
+// 	if currentTemplate.Len() > 0 {
+// 		columns = append(columns, Column{
+// 			Template: strings.TrimSpace(currentTemplate.String()),
+// 			Width:    0, // Last column unlimited by default
+// 		})
+// 	}
+//
+// 	return columns, len(columns) > 0
+// }
 
 // renderServiceWithColumns renders a ServiceState using column-based formatting.
 // Each column is rendered independently, truncated to its max width, and concatenated.
