@@ -20,10 +20,12 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 		Long:    "Start one or more tasks",
 		Example: `voiydctl start task NAME`,
 		Aliases: []string{"task"},
-		Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
+			}
+			if len(args) == 0 && !all {
+				logrus.Fatal("no tasks to start")
 			}
 			return nil
 		},
@@ -50,9 +52,22 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
+			tasks := args
+			if all {
+				tlist, err := c.TaskV1().List(ctx)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				tnames := make([]string, len(tlist))
+				for i, t := range tlist {
+					tnames[i] = t.GetMeta().GetName()
+				}
+				tasks = tnames
+			}
+
 			// Start task one by one without waiting
 			if !viper.GetBool("wait") {
-				for _, tname := range args {
+				for _, tname := range tasks {
 					err = c.TaskV1().Start(ctx, tname)
 					if err != nil {
 						logrus.Fatal(err)
@@ -64,7 +79,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 			// Start tasks in parallell and wait until they are running
 			if viper.GetBool("wait") {
 
-				dash, err := cmdutil.NewDashboard(args, cmdutil.WithHeader("Starting task"))
+				dash, err := cmdutil.NewDashboard(tasks, cmdutil.WithHeader("Starting task"))
 				if err != nil {
 					logrus.Fatal(err)
 				}
@@ -72,7 +87,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 				appCtx := cmd.Context()
 				go dash.Loop(appCtx)
 
-				for i, cname := range args {
+				for i, cname := range tasks {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
 						dash.FailAfterMsg(idx, waitTimeout, "timeout reached")

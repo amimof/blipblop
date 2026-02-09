@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	all         bool
 	wait        bool
 	waitTimeout time.Duration
 )
@@ -48,6 +49,11 @@ func NewCmdStart() *cobra.Command {
 		"w",
 		true,
 		"Wait for command to finish",
+	)
+	startCmd.PersistentFlags().BoolVar(&all,
+		"all",
+		false,
+		"Start all resources",
 	)
 	startCmd.PersistentFlags().DurationVarP(
 		&waitTimeout,

@@ -15,15 +15,26 @@ import (
 
 func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:     "tasks NAME [NAME...]",
-		Short:   "Stop one or more tasks",
-		Long:    "Stop one or more tasks",
-		Example: `voiydctl stop task NAME`,
+		Use:   "tasks NAME [NAME...]",
+		Short: "Stop one or more tasks",
+		Long:  "Stop one or more tasks",
+		Example: `
+# Stop a task by name
+voiydctl stop task vm1
+
+# Stop multiple tasks
+voiydctl stop task vm1 prom nginx
+
+# Stop all tasks
+voiydctl stop task --all`,
 		Aliases: []string{"task"},
-		Args:    cobra.MinimumNArgs(1),
+		// Args:    cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := viper.BindPFlags(cmd.Flags()); err != nil {
 				return err
+			}
+			if len(args) == 0 && !all {
+				logrus.Fatal("no tasks to stop")
 			}
 			return nil
 		},
@@ -50,9 +61,22 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 				}
 			}()
 
+			tasks := args
+			if all {
+				tlist, err := c.TaskV1().List(ctx)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				tnames := make([]string, len(tlist))
+				for i, t := range tlist {
+					tnames[i] = t.GetMeta().GetName()
+				}
+				tasks = tnames
+			}
+
 			// Send stop or kill for each task in args without waiting
 			if !viper.GetBool("wait") {
-				for _, tname := range args {
+				for _, tname := range tasks {
 
 					if viper.GetBool("force") {
 						if err = c.TaskV1().Kill(ctx, tname); err != nil {
@@ -71,7 +95,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 			// Send stop or kill for each task in args and wait for them all to stop
 			if viper.GetBool("wait") {
 
-				dash, err := cmdutil.NewDashboard(args, cmdutil.WithHeader("Stopping task"))
+				dash, err := cmdutil.NewDashboard(tasks, cmdutil.WithHeader("Stopping task"))
 				if err != nil {
 					logrus.Fatal(err)
 				}
@@ -79,7 +103,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 				appCtx := cmd.Context()
 				go dash.Loop(appCtx)
 
-				for i, cname := range args {
+				for i, cname := range tasks {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
 						dash.FailAfterMsg(idx, waitTimeout, "timeout reached")
