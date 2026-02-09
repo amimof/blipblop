@@ -4,9 +4,6 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -134,77 +131,34 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 
 			if viper.GetBool("wait") {
 
-				container := cmdutil.NewContainer(
-					map[string]any{},
-					cmdutil.NewElement(` {{ spinner | FgYellow }} Starting task {{ .Container.Name | FgBlue }}`),
-					cmdutil.NewElement(`   Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
-					cmdutil.NewElement(`   Node: {{ .Container.Node | FgBlue }}`),
-					cmdutil.NewElement(`   Pid: {{ .Container.Pid | FgBlue }}`),
-					cmdutil.NewElement(`   ID: {{ .Container.ID | FgBlue }}`),
-					cmdutil.NewElement(`   Image: {{ .Container.Image | FgBlue }}`),
-				).WithLayout(cmdutil.Layout{
-					Dimensions: [2]int{76, 2},
-					Padding:    [4]int{1, 2, 1, 2},
-				},
-				).WithStyle(cmdutil.Style{
-					Bg: cmdutil.ColorBgHiBlack,
-				},
-				)
+				dash, err := cmdutil.NewDashboard(args, cmdutil.WithHeader("Starting task"))
+				if err != nil {
+					logrus.Fatal(err)
+				}
 
-				app := cmdutil.NewApp(
-					os.Stdout,
-					map[string]any{},
-					container,
-				)
-
-				appCtx, cancel := context.WithTimeout(cmd.Context(), time.Second*10)
-				defer cancel()
-				go app.Loop(appCtx)
+				appCtx := cmd.Context()
+				go dash.Loop(appCtx)
 
 				// Fire off start operations concurrently
 				go func(idx int, taskID string) {
+					dash.FailAfterMsg(idx, waitTimeout, "timeout reached")
 					// Continously check task
 					for {
 
 						task, werr := c.TaskV1().Get(ctx, taskID)
 						if werr != nil {
-							fmt.Printf("Error starting task: %v", err)
+							dash.FailMsg(idx, err.Error())
 							return
 						}
 
-						image := task.GetConfig().GetImage()
-						phase := task.GetStatus().GetPhase().GetValue()
-						node := task.GetStatus().GetNode().GetValue()
-						id := task.GetStatus().GetId().GetValue()
-						pid := strconv.Itoa(int(task.GetStatus().GetPid().GetValue()))
-
-						md := map[string]any{
-							"Name":  task.GetMeta().GetName(),
-							"Phase": phase,
-							"Pid":   pid,
-							"Node":  node,
-							"ID":    id,
-							"Image": image,
-						}
-
-						container.SetMetadata(md)
-
-						if phase == "running" {
-							fmt.Printf("Error starting task: %v", err)
-							return
-						}
-
-						if strings.Contains(phase, "Err") {
-							fmt.Printf("Error starting task: %v", err)
-							return
-						}
+						dash.SetTask(idx, task)
 
 						// Wait until retry
 						time.Sleep(250 * time.Millisecond)
 					}
 				}(0, tname)
 
-				app.Wait()
+				dash.Wait()
 
 			}
 		},

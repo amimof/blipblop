@@ -1,9 +1,7 @@
 package cmdutil
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"html/template"
 	"io"
 	"os"
@@ -11,8 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/tabwriter"
 	"time"
+
+	"golang.org/x/term"
+
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 )
 
 type Color string
@@ -25,13 +27,7 @@ type Option func(*Dashboard)
 // Basically it is set here so the user doesn't have to bother.
 func WithWriter(w io.Writer) Option {
 	return func(d *Dashboard) {
-		d.writer = w
-		switch w := w.(type) {
-		case *tabwriter.Writer:
-			d.flushFunc = func() {
-				_ = w.Flush()
-			}
-		}
+		d.app.Writer = w
 	}
 }
 
@@ -43,14 +39,14 @@ func WithFlushFunc(f func()) Option {
 	}
 }
 
-// WithDefaultText sets the text before UpdateText is called
-func WithDefaultText(text string) Option {
-	return func(d *Dashboard) {
-		for _, s := range d.services {
-			s.Text = text
-		}
-	}
-}
+// // WithDefaultText sets the text before UpdateText is called
+// func WithDefaultText(text string) Option {
+// 	return func(d *Dashboard) {
+// 		for _, s := range d.services {
+// 			s.Text = text
+// 		}
+// 	}
+// }
 
 // WithEmptyText sets the text to display when the list of services is empty
 func WithEmptyText(text string) Option {
@@ -60,67 +56,49 @@ func WithEmptyText(text string) Option {
 	}
 }
 
-func WithFormat(fmt string) Option {
-	return func(d *Dashboard) {
-		d.formatStr = fmt
-	}
-}
+// func WithFormat(fmt string) Option {
+// 	return func(d *Dashboard) {
+// 		d.formatStr = fmt
+// 	}
+// }
 
 // WithHeader sets a header line that will be rendered once at the start
-// The header can use template syntax if it contains {{ }}, otherwise it's treated as plain text
 func WithHeader(header string) Option {
 	return func(d *Dashboard) {
-		d.hasHeader = true
-		d.headerStr = header
+		d.app.UpdateMetadata("Prefix", header)
 	}
 }
 
 // WithMaxServices sets a limit of how many services can be displayed on each render frame.
-func WithMaxServices(max int) Option {
-	return func(d *Dashboard) {
-		d.maxServices = max
-	}
-}
+// func WithMaxServices(max int) Option {
+// 	return func(d *Dashboard) {
+// 		d.maxServices = max
+// 	}
+// }
 
 // ServiceState represents One line in the dashboard
 type ServiceState struct {
-	Name     string
-	Text     string
-	Color    Color
-	Done     bool
-	Failed   bool
-	Metadata map[string]any
+	Done      bool
+	DoneMsg   string
+	Failed    bool
+	FailedMsg string
+	task      *tasksv1.Task
+	container *Container
 
-	spinIdx     int
-	Details     []Detail
-	failedIcon  string
-	successIcon string
+	// failedIcon  string
+	// successIcon string
 }
 
 // Dashboard holds all services + rendering logic
 type Dashboard struct {
-	Name        string
-	mu          sync.Mutex
-	services    []*ServiceState
-	maxServices int
-	writer      io.Writer
-	done        chan struct{}
-	lastLines   int
-	flushFunc   func()
-	emptyText   string
-
-	// template  *template.Template
-	formatStr string
-
-	// Header management
-	headerStr     string // Raw header string (template or plain text)
-	hasHeader     bool   // Whether to render a header
-	headerWritten bool   // Track if header was writte
-
-	// NEW: Column-based rendering
-	headerCols []Column
-	columns    []Column // Parsed column specifications
-	useColumns bool     // Whether to use column-based rendering
+	Name      string
+	mu        sync.Mutex
+	services  []*ServiceState
+	done      chan struct{}
+	flushFunc func()
+	emptyText string
+	app       *App
+	headerStr string
 }
 
 // Column defines a single column in the dashboard output
@@ -137,78 +115,68 @@ type Detail struct {
 	Value string
 }
 
-func (s *ServiceState) Spinner(frames []rune, frameIdx int) string {
-	if !s.Done {
-		if len(frames) > 0 {
-			return fmt.Sprintf("%c", frames[frameIdx%len(frames)])
-		}
-		return "⠿"
-	}
-	if s.Failed {
-		return fmt.Sprintf("%s%s", ColorBasic(ColorFgRed).Sprint("✖"), ColorBasic(AttrReset).Sprint(""))
-	}
-	return fmt.Sprintf("%s%s", ColorBasic(ColorFgGreen).Sprint("✔"), ColorBasic(AttrReset).Sprint(""))
-}
-
 // UpdateMetadata updates metadata for template access
-func (d *Dashboard) UpdateMetadata(idx int, key, value string) {
-	d.Update(idx, func(s *ServiceState) {
-		if s.Metadata == nil {
-			s.Metadata = make(map[string]any)
-		}
-		s.Metadata[key] = value
-	})
-}
+// func (d *Dashboard) UpdateMetadata(idx int, key, value string) {
+// 	d.Update(idx, func(s *ServiceState) {
+// 		if s.Metadata == nil {
+// 			s.Metadata = make(map[string]any)
+// 		}
+// 		s.Metadata[key] = value
+// 	})
+// }
 
 // SetMetadata replaces all metadata
-func (d *Dashboard) SetMetadata(idx int, metadata map[string]any) {
-	d.Update(idx, func(s *ServiceState) {
-		s.Metadata = metadata
-	})
-}
+// func (d *Dashboard) SetMetadata(idx int, metadata map[string]any) {
+// 	d.Update(idx, func(s *ServiceState) {
+// 		s.Metadata = metadata
+// 	})
+// }
 
 // SetDetails assigns a new slice, overwriting any other Detail sets previously used.
 // If you want to update an existing line then use UpdateDetail()
-func (d *Dashboard) SetDetails(idx int, lines []Detail) {
-	d.Update(idx, func(s *ServiceState) {
-		s.Details = lines
-	})
-}
+// func (d *Dashboard) SetDetails(idx int, lines []Detail) {
+// 	d.Update(idx, func(s *ServiceState) {
+// 		s.Details = lines
+// 	})
+// }
 
 // UpdateDetails inserts a new line. If a line with same key exists then that line is updated.
 // So two lines with the same key cannot exist in the slice.
-func (d *Dashboard) UpdateDetails(idx int, key, value string) {
-	d.Update(idx, func(s *ServiceState) {
-		for i, d := range s.Details {
-			if d.Key == key {
-				s.Details[i] = Detail{Key: key, Value: value}
-				return
-			}
-		}
-		s.Details = append(s.Details, Detail{Key: key, Value: value})
-	})
-}
+// func (d *Dashboard) UpdateDetails(idx int, key, value string) {
+// 	d.Update(idx, func(s *ServiceState) {
+// 		for i, d := range s.Details {
+// 			if d.Key == key {
+// 				s.Details[i] = Detail{Key: key, Value: value}
+// 				return
+// 			}
+// 		}
+// 		s.Details = append(s.Details, Detail{Key: key, Value: value})
+// 	})
+// }
 
 // AddService adds a new service dynamically (returns index)
-func (d *Dashboard) AddService(name string) int {
+func (d *Dashboard) AddTask(t *tasksv1.Task) int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	s := &ServiceState{
-		Name: name,
-		Text: "",
-		// Color:    FgYellow,
-		Metadata: make(map[string]any),
-	}
-
-	d.services = append(d.services, s)
-
-	// Apply ring buffer if enabled
-	if d.maxServices > 0 && len(d.services) > d.maxServices {
-		d.services = d.services[len(d.services)-d.maxServices:]
-	}
+	d.services = append(d.services, &ServiceState{task: t})
 
 	return len(d.services) - 1
+}
+
+// AddService adds a new service dynamically (returns index)
+func (d *Dashboard) SetTask(idx int, t *tasksv1.Task) {
+	d.Update(idx, func(s *ServiceState) {
+		s.task = t
+		s.container.SetMetadata(map[string]any{
+			"Name":  t.GetMeta().GetName(),
+			"Phase": t.GetStatus().GetPhase().GetValue(),
+			"Node":  t.GetStatus().GetNode().GetValue(),
+			"Pid":   t.GetStatus().GetPid().GetValue(),
+			"ID":    t.GetStatus().GetId().GetValue(),
+			"Image": t.GetConfig().GetImage(),
+		})
+	})
 }
 
 // Update lets workers mutate a single service under lock.
@@ -222,73 +190,26 @@ func (d *Dashboard) Update(idx int, fn func(s *ServiceState)) {
 }
 
 // UpdateText lets workers mutate a single service under lock.
-func (d *Dashboard) UpdateText(idx int, text string) {
-	d.Update(idx, func(s *ServiceState) {
-		s.Text = text
-	})
-}
-
-// Loop runs the renderer until ctx is done.
-func (d *Dashboard) Loop(ctx context.Context) {
-	defer func() {
-		d.flushFunc()
-	}()
-
-	defer close(d.done)
-
-	frames := []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
-
-	// Re-render header once
-	if d.hasHeader && !d.headerWritten {
-		_, _ = fmt.Fprint(d.writer, "\033[2K")         // Clear line
-		headerLine, err := d.renderHeaderWithColumns() // NEW: Use helper
-		if err != nil {
-			_, _ = fmt.Fprintf(d.writer, "Error rendering header: %v", err)
-		}
-		_, _ = fmt.Fprint(d.writer, headerLine)
-		_, _ = fmt.Fprintln(d.writer)
-		_, _ = fmt.Fprintln(d.writer)
-		d.headerWritten = true
-	}
-
-	// Print initial empty lines for each service so we have space to rewrite.
-	for range d.services {
-		_, _ = fmt.Fprintln(d.writer)
-	}
-
-	d.flushFunc()
-
-	// Include header in line count if present
-	d.lastLines = len(d.services)
-	if d.hasHeader {
-		d.lastLines++
-	}
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			// d.renderFinal()
-			return
-		case <-ticker.C:
-			d.renderFrame(frames)
-		}
-	}
-}
+// func (d *Dashboard) UpdateText(idx int, text string) {
+// 	d.Update(idx, func(s *ServiceState) {
+// 		s.Text = text
+// 	})
+// }
 
 // DoneMsg sets the provided message when the Dashboard is done
 func (d *Dashboard) DoneMsg(idx int, msg string) {
 	d.Update(idx, func(s *ServiceState) {
+		s.container.UpdateMetadata("Done", true)
+		s.container.UpdateMetadata("DoneMsg", msg)
 		s.Done = true
-		s.Text = msg
+		s.DoneMsg = msg
 	})
 }
 
 // Done marks the service entry at idx as done
 func (d *Dashboard) Done(idx int) {
 	d.Update(idx, func(s *ServiceState) {
+		s.container.UpdateMetadata("Done", true)
 		s.Done = true
 	})
 }
@@ -296,9 +217,11 @@ func (d *Dashboard) Done(idx int) {
 // FailMsg sets the provided message and marks the service as failed
 func (d *Dashboard) FailMsg(idx int, msg string) {
 	d.Update(idx, func(s *ServiceState) {
+		s.container.UpdateMetadata("Failed", true)
+		s.container.UpdateMetadata("FailedMsg", msg)
 		s.Done = true
 		s.Failed = true
-		s.Text = msg
+		s.FailedMsg = msg
 	})
 }
 
@@ -328,7 +251,13 @@ func (d *Dashboard) FailAfterMsg(idx int, after time.Duration, msg string) {
 
 // Wait blocks until Loop finishes.
 func (d *Dashboard) Wait() {
-	<-d.done
+	d.app.Wait()
+	// <-d.done
+}
+
+// Loop calls loop on the underlying App instance passing the context through to it
+func (d *Dashboard) Loop(ctx context.Context) {
+	d.app.Loop(ctx)
 }
 
 // WaitAnd blocks until Loop finishes and executes the provided function when done
@@ -344,26 +273,6 @@ func (d *Dashboard) WaitAnd(fn func()) {
 	}()
 	d.Wait()
 }
-
-// renderHeader renders the header line (template or plain text)
-// func (d *Dashboard) renderHeader() string {
-// 	if !d.hasHeader {
-// 		return ""
-// 	}
-// 	// If header is a template, execute it
-// 	if d.headerTemplate != nil {
-// 		var buf bytes.Buffer
-// 		// Execute template with nil data (templates use static strings)
-// 		err := d.headerTemplate.Execute(&buf, nil)
-// 		if err != nil {
-// 			// Fall back to plain text on execution error
-// 			return d.headerStr
-// 		}
-// 		return buf.String()
-// 	}
-// 	// Plain text header
-// 	return d.headerStr
-// }
 
 // parseColumns parses a format string into column specifications.
 // Example: "{{ .Name }}|20|{{ .Text }}|15|{{ .Status }}"
@@ -416,297 +325,48 @@ func parseColumns(formatStr string) ([]Column, bool) {
 	return columns, len(columns) > 0
 }
 
-// // isTemplate detects if a string contains Go template syntax
-// func isTemplate(s string) bool {
-// 	return strings.Contains(s, "{{") && strings.Contains(s, "}}")
-// }
-
-// truncateToWidth truncates a string to exactly width visible characters,
-// preserving ANSI codes that appear before the cut point.
-func truncateToWidth(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-
-	visibleCount := 0
-	inEscape := false
-	var result strings.Builder
-
-	for _, r := range s {
-		// Detect ANSI escape sequence start
-		if r == '\x1b' {
-			inEscape = true
-		}
-
-		// Always include escape sequence characters
-		if inEscape {
-			result.WriteRune(r)
-			if r == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-
-		// Count visible characters
-		if visibleCount >= width {
-			break
-		}
-
-		result.WriteRune(r)
-		visibleCount++
-	}
-
-	return result.String()
-}
-
-// stripANSI removes ANSI escape sequences from a string.
-// This is used to calculate the visible width of strings that contain color codes.
-func stripANSI(s string) string {
-	// Regex pattern to match ANSI escape sequences
-	// Matches: ESC [ <optional params> <command letter>
-	// Example: \x1b[38;5;001m or \x1b[0m
-	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	return re.ReplaceAllString(s, "")
-}
-
-// truncateWithEllipsis truncates a string to maxWidth, accounting for ANSI codes.
-// If truncated, adds "..." at the end (within the width limit).
-// Example: truncateWithEllipsis("very-long-name", 10) => "very-lo..."
-func truncateWithEllipsis(s string, maxWidth int) string {
-	if maxWidth <= 0 {
-		return s // No limit
-	}
-
-	visible := visibleLength(s)
-	if visible <= maxWidth {
-		return fmt.Sprintf("%s%s", s, strings.Repeat(" ", maxWidth-visible))
-		// return s // Fits within limit
-	}
-
-	// Need to truncate
-	if maxWidth <= 3 {
-		// Too narrow for ellipsis, just cut
-		return truncateToWidth(s, maxWidth)
-	}
-
-	// Truncate to (maxWidth - 3) and add "..."
-	truncated := truncateToWidth(s, maxWidth-3)
-	return truncated + "…  "
-}
-
-// visibleLength returns the visible character count (excluding ANSI codes)
-func visibleLength(s string) int {
-	return len(stripANSI(s))
-}
-
-// padRight pads a string to a fixed width (accounting for ANSI codes)
-func padRight(s string, width int) string {
-	visible := visibleLength(s)
-	if visible >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-visible)
-}
-
-// padLeft pads a string to a fixed width on the left (accounting for ANSI codes)
-func padLeft(s string, width int) string {
-	visible := visibleLength(s)
-	if visible >= width {
-		return s
-	}
-	return strings.Repeat(" ", width-visible) + s
-}
-
 // renderServiceWithColumns renders a ServiceState using column-based formatting.
 // Each column is rendered independently, truncated to its max width, and concatenated.
-func (d *Dashboard) renderServiceWithColumns(s *ServiceState) (string, error) {
-	var result strings.Builder
-	for i, col := range d.columns {
-		content, err := d.renderCol(col, s)
-		if err != nil {
-			return "", fmt.Errorf("col %d render error: %w", i, err)
-		}
-		result.WriteString(content)
-	}
-	return result.String(), nil
-}
-
-func (d *Dashboard) renderHeaderWithColumns() (string, error) {
-	var result strings.Builder
-	for i, col := range d.headerCols {
-		content, err := d.renderCol(col, d)
-		if err != nil {
-			return "", fmt.Errorf("col %d render error: %w", i, err)
-		}
-		result.WriteString(content)
-	}
-	return result.String(), nil
-}
-
-func (d *Dashboard) renderCol(c Column, data any) (string, error) {
-	var buf bytes.Buffer
-	err := c.Parsed.Funcs(templateFuncs).Execute(&buf, data)
-	if err != nil {
-		return "", fmt.Errorf("column execution error: %w", err)
-	}
-
-	content := buf.String()
-
-	// Truncate to column width if specified
-	if c.Width > 0 {
-		content = truncateWithEllipsis(content, c.Width)
-		// Pad to exact width (for alignment)
-		content = padRight(content, c.Width)
-	}
-	return content, nil
-}
-
-// renderFrame draws all service lines with spinners.
-func (d *Dashboard) renderFrame(frames []rune) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if d.lastLines > 0 {
-		_, _ = fmt.Fprintf(d.writer, "\033[%dA", d.lastLines)
-		if len(d.services) == 0 {
-			_, _ = fmt.Fprint(d.writer, "\033[2K")
-			_, _ = fmt.Fprintf(d.writer, "%s", d.emptyText)
-		}
-	}
-
-	linesThisFrame := 0
-
-	// Clear each line and redraw via tabwriter
-	for _, s := range d.services {
-
-		// Advance spinner if not done
-		if !s.Done {
-			s.spinIdx = (s.spinIdx + 1) % len(frames)
-		}
-
-		// Update spinner function for this service
-		templateFuncs["spinner"] = func() string {
-			return s.Spinner(frames, s.spinIdx)
-		}
-
-		rendered, err := d.renderServiceWithColumns(s)
-		if err != nil {
-			_, _ = fmt.Fprintf(d.writer, "Error rendering: %v", err)
-		} else {
-			_, _ = fmt.Fprint(d.writer, rendered)
-		}
-
-		_, _ = fmt.Fprintln(d.writer)
-		linesThisFrame++
-
-		// detail lines (indented; no spinner)
-		for _, line := range s.Details {
-			// key := fmt.Sprintf("%s%s%s", FgGrey245, line.Key, ColorReset)
-			// val := fmt.Sprintf("%s%s%s", FgGrey245, line.Value, ColorReset)
-			key := fmt.Sprintf("%s%s%s", "", line.Key, "")
-			val := fmt.Sprintf("%s%s%s", "", line.Value, "")
-			_, _ = fmt.Fprint(d.writer, "\033[2K")
-
-			// formatStrFinal := fmt.Sprintf("%s {{ .Name }}", line)
-			//
-			// finalTmpl, err := template.New("line").Funcs(templateFuncs).Parse(formatStrFinal)
-			// if err != nil {
-			// 	panic(err)
-			// }
-
-			// err = finalTmpl.Execute(d.writer, s)
-			// if err != nil {
-			// 	panic(err)
-			// }
-			_, _ = fmt.Fprintf(
-				d.writer,
-				"  %s:\t%s\n",
-				key,
-				val,
-			)
-			linesThisFrame++
-		}
-	}
-
-	d.flushFunc()
-	d.lastLines = linesThisFrame
-}
-
-// renderFinal draws a final snapshot (no spinning)
-// func (d *Dashboard) renderFinal() {
-// 	d.mu.Lock()
-// 	defer d.mu.Unlock()
-//
-// 	if d.lastLines > 0 {
-// 		_, _ = fmt.Fprintf(os.Stdout, "\033[%dA", d.lastLines)
-// 	}
-//
-// 	linesThisFrame := 0
-//
-// 	// NEW: Re-render header if present
-// 	// if d.hasHeader {
-// 	// 	_, _ = fmt.Fprint(d.writer, "\033[2K") // Clear line
-// 	// 	headerLine := d.renderHeader()         // NEW: Use helper
-// 	// 	_, _ = fmt.Fprintln(d.writer, headerLine)
-// 	// 	linesThisFrame++
-// 	// }
-//
-// 	for _, s := range d.services {
-//
-// 		// color := ""
-// 		// color := FgGreen
-// 		// icon := fmt.Sprintf("%s✔%s", color, ColorReset)
-// 		// icon := fmt.Sprintf("%s%s", fg(s.successIcon).FgGreen(), attr("").Reset())
-//
-// 		// if s.Failed {
-// 		// 	// color = FgRed
-// 		// 	// icon = fmt.Sprintf("%s✖%s", color, ColorReset)
-// 		// 	icon = fmt.Sprintf("%s", fg(s.failedIcon).FgRed(), attr("").Reset())
-// 		// }
-//
-// 		// text := fmt.Sprintf("%s%s%s", color, s.Text, ColorReset)
-// 		// _, _ = fmt.Fprint(d.writer, "\033[2K")
-// 		// _, _ = fmt.Fprintf(
-// 		// 	d.writer,
-// 		// 	"%s %s\t%s\n",
-// 		// 	icon,
-// 		// 	s.Name,
-// 		// 	text,
-// 		// )
-// 		// Update icon function for this service
-// 		// templateFuncs["spinner"] = func() string {
-// 		// 	return icon
-// 		// }
-//
-// 		rendered, err := d.renderServiceWithColumns(s)
+// func (d *Dashboard) renderServiceWithColumns(s *ServiceState) (string, error) {
+// 	var result strings.Builder
+// 	for i, col := range d.columns {
+// 		content, err := d.renderCol(col, s)
 // 		if err != nil {
-// 			_, _ = fmt.Fprintf(d.writer, "Error rendering: %v", err)
-// 		} else {
-// 			_, _ = fmt.Fprint(d.writer, rendered)
+// 			return "", fmt.Errorf("col %d render error: %w", i, err)
 // 		}
+// 		result.WriteString(content)
+// 	}
+// 	return result.String(), nil
+// }
 //
-// 		_, _ = fmt.Fprintln(d.writer)
-// 		linesThisFrame++
-//
-// 		// detail lines (indented; no spinner)
-// 		for _, line := range s.Details {
-// 			// key := fmt.Sprintf("%s%s%s", FgGrey245, line.Key, ColorReset)
-// 			// val := fmt.Sprintf("%s%s%s", FgGrey245, line.Value, ColorReset)
-// 			key := fmt.Sprintf("%s%s%s", "", line.Key, "")
-// 			val := fmt.Sprintf("%s%s%s", "", line.Value, "")
-// 			_, _ = fmt.Fprint(d.writer, "\033[2K")
-// 			_, _ = fmt.Fprintf(
-// 				d.writer,
-// 				"  %s:\t%s\n",
-// 				key,
-// 				val,
-// 			)
-// 			linesThisFrame++
+// func (d *Dashboard) renderHeaderWithColumns() (string, error) {
+// 	var result strings.Builder
+// 	for i, col := range d.headerCols {
+// 		content, err := d.renderCol(col, d)
+// 		if err != nil {
+// 			return "", fmt.Errorf("col %d render error: %w", i, err)
 // 		}
+// 		result.WriteString(content)
+// 	}
+// 	return result.String(), nil
+// }
+//
+// func (d *Dashboard) renderCol(c Column, data any) (string, error) {
+// 	var buf bytes.Buffer
+// 	err := c.Parsed.Funcs(templateFuncs).Execute(&buf, data)
+// 	if err != nil {
+// 		return "", fmt.Errorf("column execution error: %w", err)
 // 	}
 //
-// 	d.flushFunc()
-// 	d.lastLines = linesThisFrame
+// 	content := buf.String()
+//
+// 	// Truncate to column width if specified
+// 	if c.Width > 0 {
+// 		content = truncateWithEllipsis(content, c.Width)
+// 		// Pad to exact width (for alignment)
+// 		content = padRight(content, c.Width)
+// 	}
+// 	return content, nil
 // }
 
 // IsDone return true if all services in the Dashboard is marked as done
@@ -721,144 +381,69 @@ func (d *Dashboard) IsDone() bool {
 	return true
 }
 
-// Custom template functions for convenience
-var templateFuncs = template.FuncMap{
-	"duration": func(d time.Duration) string {
-		return FormatDuration(d)
-	},
-	"age": func(t time.Time) string {
-		return FormatDuration(time.Since(t))
-	},
-	"icon": func(done, failed bool) string {
-		if !done {
-			return "⠿" // Placeholder when not done
-		}
-		if failed {
-			return "✖"
-		}
-		return "✔"
-	},
-	"spinner": func() string {
-		return "⠋"
-	},
-	"OCImage": func(s string) string {
-		return "" // TODO: Parse OCI registry URL and colorize
-	},
-	"padLeft":         padLeft,
-	"padRight":        padRight,
-	"FgBlack":         func(s string) string { return ColorBasic(ColorFgBlack).Sprint(s) },
-	"FgRed":           func(s string) string { return ColorBasic(ColorFgRed).Sprint(s) },
-	"FgGreen":         func(s string) string { return ColorBasic(ColorFgGreen).Sprint(s) },
-	"FgYellow":        func(s string) string { return ColorBasic(ColorFgYellow).Sprint(s) },
-	"FgBlue":          func(s string) string { return ColorBasic(ColorFgBlue).Sprint(s) },
-	"FgMagenta":       func(s string) string { return ColorBasic(ColorFgMagenta).Sprint(s) },
-	"FgCyan":          func(s string) string { return ColorBasic(ColorFgCyan).Sprint(s) },
-	"FgWhite":         func(s string) string { return ColorBasic(ColorFgWhite).Sprint(s) },
-	"FgHiBlack":       func(s string) string { return ColorBasic(ColorFgHiBlack).Sprint(s) },
-	"FgHiRed":         func(s string) string { return ColorBasic(ColorFgHiRed).Sprint(s) },
-	"FgHiGreen":       func(s string) string { return ColorBasic(ColorFgHiGreen).Sprint(s) },
-	"FgHiYellow":      func(s string) string { return ColorBasic(ColorFgHiYellow).Sprint(s) },
-	"FgHiBlue":        func(s string) string { return ColorBasic(ColorFgHiBlue).Sprint(s) },
-	"FgHiMagenta":     func(s string) string { return ColorBasic(ColorFgHiMagenta).Sprint(s) },
-	"FgHiCyan":        func(s string) string { return ColorBasic(ColorFgHiCyan).Sprint(s) },
-	"FgHiWhite":       func(s string) string { return ColorBasic(ColorFgHiWhite).Sprint(s) },
-	"BgBlack":         func(s string) string { return ColorBasic(ColorBgBlack).Sprint(s) },
-	"BgRed":           func(s string) string { return ColorBasic(ColorBgRed).Sprint(s) },
-	"BgGreen":         func(s string) string { return ColorBasic(ColorBgGreen).Sprint(s) },
-	"BgYellow":        func(s string) string { return ColorBasic(ColorBgYellow).Sprint(s) },
-	"BgBlue":          func(s string) string { return ColorBasic(ColorBgBlue).Sprint(s) },
-	"BgMagenta":       func(s string) string { return ColorBasic(ColorBgMagenta).Sprint(s) },
-	"BgCyan":          func(s string) string { return ColorBasic(ColorBgCyan).Sprint(s) },
-	"BgWhite":         func(s string) string { return ColorBasic(ColorBgWhite).Sprint(s) },
-	"BgHiBlack":       func(s string) string { return ColorBasic(ColorBgHiBlack).Sprint(s) },
-	"BgHiRed":         func(s string) string { return ColorBasic(ColorBgHiRed).Sprint(s) },
-	"BgHiGreen":       func(s string) string { return ColorBasic(ColorBgHiGreen).Sprint(s) },
-	"BgHiYellow":      func(s string) string { return ColorBasic(ColorBgHiYellow).Sprint(s) },
-	"BgHiBlue":        func(s string) string { return ColorBasic(ColorBgHiBlue).Sprint(s) },
-	"BgHiMagenta":     func(s string) string { return ColorBasic(ColorBgHiMagenta).Sprint(s) },
-	"BgHiCyan":        func(s string) string { return ColorBasic(ColorBgHiCyan).Sprint(s) },
-	"BgHiWhite":       func(s string) string { return ColorBasic(ColorBgHiWhite).Sprint(s) },
-	"Reset":           func(s string) string { return ColorBasic(AttrReset).Sprint(s) },
-	"Bold":            func(s string) string { return ColorBasic(AttrBold).Sprint(s) },
-	"Faint":           func(s string) string { return ColorBasic(AttrFaint).Sprint(s) },
-	"Italic":          func(s string) string { return ColorBasic(AttrItalic).Sprint(s) },
-	"Underline":       func(s string) string { return ColorBasic(AttrUnderline).Sprint(s) },
-	"BlinkSlow":       func(s string) string { return ColorBasic(AttrBlinkSlow).Sprint(s) },
-	"BlinkRapid":      func(s string) string { return ColorBasic(AttrBlinkRapid).Sprint(s) },
-	"ReverseVideo":    func(s string) string { return ColorBasic(AttrReverseVideo).Sprint(s) },
-	"Concealed":       func(s string) string { return ColorBasic(AttrConcealed).Sprint(s) },
-	"CrossedOut":      func(s string) string { return ColorBasic(AttrCrossedOut).Sprint(s) },
-	"ResetBold":       func(s string) string { return ColorBasic(AttrResetBold).Sprint(s) },
-	"ResetItalic":     func(s string) string { return ColorBasic(AttrResetItalic).Sprint(s) },
-	"ResetUnderline":  func(s string) string { return ColorBasic(AttrResetUnderline).Sprint(s) },
-	"ResetBlinking":   func(s string) string { return ColorBasic(AttrResetBlinking).Sprint(s) },
-	"ResetReversed":   func(s string) string { return ColorBasic(AttrResetReversed).Sprint(s) },
-	"ResetConcealed":  func(s string) string { return ColorBasic(AttrResetConcealed).Sprint(s) },
-	"ResetCrossedOut": func(s string) string { return ColorBasic(AttrResetCrossedOut).Sprint(s) },
-}
-
 // NewDashboard creates the dashboard with one ServiceState per name.
-func NewDashboard(names []string, opts ...Option) *Dashboard {
+func NewDashboard(names []string, opts ...Option) (*Dashboard, error) {
+	var width, height int
+	// Get width of terminal
+	if term.IsTerminal(0) {
+		w, h, err := term.GetSize(0)
+		if err != nil {
+			return nil, err
+		}
+		width = w
+		height = h
+	}
+
+	app := NewApp(os.Stdout,
+		map[string]any{},
+	)
+
 	svcs := make([]*ServiceState, len(names))
 	for i, n := range names {
-		svcs[i] = &ServiceState{
-			Name:        n,
-			Text:        "",
-			Metadata:    make(map[string]any),
-			failedIcon:  "✖",
-			successIcon: "✔",
+		data := map[string]any{
+			"Done":      false,
+			"Failed":    false,
+			"FailedMsg": "",
+			"Name":      n,
+			"Phase":     "",
+			"Node":      "",
+			"Pid":       "",
+			"ID":        "",
+			"Image":     "",
 		}
+		svc := &ServiceState{
+			task: &tasksv1.Task{Meta: &types.Meta{Name: n}},
+			container: NewContainer(data,
+				NewElement(`{{ if .Container.Failed }}{{"✖" | FgRed }} {{ .Container.FailedMsg | FgRed }}{{else if .Container.Done }}{{ "✔" | FgGreen }} {{ .Container.DoneMsg | FgGreen }}{{else}}{{ spinner | FgYellow }} {{ .Prefix }} {{ .Container.Name | Bold }}{{end}}`),
+				NewElement(`  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
+				NewElement(`  Node: {{ .Container.Node }}`),
+				NewElement(`  Pid: {{ .Container.Pid }}`),
+				NewElement(`  ID: {{ .Container.ID | FgBlue }}`),
+				NewElement(`  Image: {{ .Container.Image | FgBlue }}`),
+			).WithLayout(Layout{
+				Dimensions: [2]int{width, height},
+				Padding:    [4]int{0, 1, 0, 1},
+			}).WithStyle(Style{
+				// Bg: StyleBg256(234),
+			}),
+		}
+
+		app.AddContainer(svc.container)
+		svcs[i] = svc
 	}
 
 	d := &Dashboard{
-		Name:        "Name",
-		services:    svcs,
-		done:        make(chan struct{}),
-		writer:      os.Stdout,
-		flushFunc:   func() {},
-		formatStr:   "",
-		hasHeader:   false,
-		maxServices: 0,
-		emptyText:   "Waiting",
+		Name:      "Name",
+		services:  svcs,
+		done:      make(chan struct{}),
+		flushFunc: func() {},
+		emptyText: "Waiting",
+		app:       app,
 	}
 
 	for _, opt := range opts {
 		opt(d)
 	}
 
-	// Parse service columns template
-	columns, useColumns := parseColumns(d.formatStr)
-	if useColumns {
-		d.columns = columns
-		d.useColumns = true
-
-		for i := range d.columns {
-			tmpl, err := template.New(fmt.Sprintf("col_%d", i)).Funcs(templateFuncs).Parse(d.columns[i].Template)
-			if err != nil {
-				fmt.Printf("error parsing column %d template: %v\n", i, err)
-				d.useColumns = false
-				break
-			}
-			d.columns[i].Parsed = tmpl
-		}
-	}
-
-	// Parse header column template
-	headerCol, useHeaderCols := parseColumns(d.headerStr)
-
-	if useHeaderCols {
-		d.headerCols = headerCol
-		d.useColumns = true
-
-		for i := range d.headerCols {
-			headerTmpl, err := template.New("header").Funcs(templateFuncs).Parse(d.headerCols[i].Template)
-			if err != nil {
-				fmt.Printf("error parsing header template: %v\n", err)
-				d.useColumns = false
-				break
-			}
-			d.headerCols[i].Parsed = headerTmpl
-		}
-	}
-	return d
+	return d, nil
 }

@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/pkg/events"
 
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
@@ -98,19 +97,6 @@ voiydctl watch nodes --selector voiyd.io/arch=arm64
 			exit := make(chan os.Signal, 1)
 			signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
-			// Create watcher
-			// dashCtx, dashCancel := context.WithCancel(context.Background())
-			// defer dashCancel()
-
-			watcher := cmdutil.NewDashboard(
-				args,
-				cmdutil.WithWriter(os.Stdout),
-				cmdutil.WithDefaultText("Loading events..."),
-				cmdutil.WithHeader(`{{"NAME"}}|20|{{ "Node"}}|20|{{"Task"}}|20|{{ "TTL" }}|20|{{ "AGE" }}|10|{{ "ExpiresIn" }}`),
-				cmdutil.WithFormat("{{ .Name | FgYellow }}|20|{{ .Metadata.NodeID}}|20|{{ .Metadata.TaskID }}|20|{{ .Metadata.TTL }}|20|{{ .Metadata.Age | age }}|10|{{ .Metadata.ExpiresIn | age }}"),
-			)
-			go watcher.Loop(ctx)
-
 			// Subscribe to events
 			eventChan, errChan := c.EventV1().Subscribe(ctx, events.ALL...)
 
@@ -137,34 +123,34 @@ voiydctl watch nodes --selector voiyd.io/arch=arm64
 							if err != nil {
 								panic(err)
 							}
-							md := map[string]any{
-								"TaskName": task.GetMeta().GetName(),
-								"Phase":    task.GetStatus().GetPhase().GetValue(),
-								// "pid":   task.GetStatus().GetPid().GetValue(),
-								"Node": task.GetStatus().GetNode().GetValue(),
-							}
-							watcher.SetMetadata(0, md)
-							watcher.UpdateText(0, task.GetMeta().GetUid())
+							// md := map[string]any{
+							// 	"TaskName": task.GetMeta().GetName(),
+							// 	"Phase":    task.GetStatus().GetPhase().GetValue(),
+							// 	// "pid":   task.GetStatus().GetPid().GetValue(),
+							// 	"Node": task.GetStatus().GetNode().GetValue(),
+							// }
+							// watcher.SetMetadata(0, md)
+							// watcher.UpdateText(0, task.GetMeta().GetUid())
 						case *leasesv1.Lease:
 							var lease leasesv1.Lease
 							err := event.GetObject().UnmarshalTo(&lease)
 							if err != nil {
 								panic(err)
 							}
-							md := map[string]any{
-								"Age":       lease.GetConfig().GetAcquiredAt().AsTime(),
-								"ExpiresIn": lease.GetConfig().GetExpiresAt().AsTime(),
-								"TaskID":    lease.GetConfig().GetTaskId(),
-								"NodeID":    lease.GetConfig().GetNodeId(),
-								"TTL":       time.Duration(time.Second * time.Duration(lease.GetConfig().GetTtlSeconds())).String(),
-							}
-							watcher.SetMetadata(0, md)
-							watcher.UpdateText(0, lease.GetMeta().GetUid())
+							// md := map[string]any{
+							// 	"Age":       lease.GetConfig().GetAcquiredAt().AsTime(),
+							// 	"ExpiresIn": lease.GetConfig().GetExpiresAt().AsTime(),
+							// 	"TaskID":    lease.GetConfig().GetTaskId(),
+							// 	"NodeID":    lease.GetConfig().GetNodeId(),
+							// 	"TTL":       time.Duration(time.Second * time.Duration(lease.GetConfig().GetTtlSeconds())).String(),
+							// }
+							// watcher.SetMetadata(0, md)
+							// watcher.UpdateText(0, lease.GetMeta().GetUid())
 						}
 					}
 				}
 			}()
-			watcher.Wait()
+			// watcher.Wait()
 			close(eventChan)
 		},
 	}
