@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -17,7 +16,6 @@ import (
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
 	"github.com/containerd/containerd/v2/pkg/cio"
-	"github.com/containerd/containerd/v2/pkg/filters"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	gocni "github.com/containerd/go-cni"
@@ -263,31 +261,20 @@ func (c *ContainerdRuntime) get(ctx context.Context, taskUID string) (containerd
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
-	cfilters := []string{
-		fmt.Sprintf(`labels."voiyd.io/uid"=="%s"`, regexp.QuoteMeta(taskUID)),
-		fmt.Sprintf("id~=^%s.*$", regexp.QuoteMeta(taskUID)),
-	}
-
-	_, err := filters.ParseAll(cfilters...)
+	ctr, err := c.client.LoadContainer(ctx, taskUID)
 	if err != nil {
-		return nil, err
-	}
-
-	ctrs, err := c.client.Containers(ctx, cfilters...)
-	if err != nil {
-		return nil, err
-	}
-
-	// Not found in runtime, remove from store
-	if len(ctrs) == 0 {
-		err = c.store.Delete(taskUID)
-		if errs.IgnoreNotFound(err) != nil {
-			return nil, err
+		// Not found in runtime, remove from store
+		if errdefs.IsNotFound(err) {
+			err = c.store.Delete(taskUID)
+			if errs.IgnoreNotFound(err) != nil {
+				return nil, err
+			}
+			return nil, errdefs.ErrNotFound
 		}
-		return nil, errdefs.ErrNotFound
+		return nil, err
 	}
 
-	return ctrs[0], nil
+	return ctr, nil
 }
 
 func (c *ContainerdRuntime) Pull(ctx context.Context, task *tasksv1.Task) error {
@@ -506,13 +493,12 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	l.Set("voiyd.io/uid", t.GetMeta().GetUid())
 
 	// Generate ID for the container
-	containerID := GenerateID()
 	containerUID := t.GetMeta().GetUid()
 
 	// Create container
 	cont, err := c.client.NewContainer(
 		ctx,
-		containerID.String(),
+		containerUID,
 		containerd.WithImage(image),
 		containerd.WithNewSnapshot(fmt.Sprintf("%s-snapshot", containerUID), image),
 		containerd.WithNewSpec(opts...),
