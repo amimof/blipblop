@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"io"
 	"maps"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,10 @@ import (
 type Data map[string]any
 
 // Frames for the spinner
-var frames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
+var (
+	frames   = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
+	frameIdx = 0
+)
 
 // Component describes how objects are rendered frame by frame
 type Component interface {
@@ -45,7 +49,8 @@ type App struct {
 	done       chan struct{}
 	lastLines  int
 	mu         sync.Mutex
-	writer     io.Writer
+	Writer     io.Writer
+	level      ColorLevel
 }
 
 // Container renders elements on the screen. Contaner holds layout information such
@@ -53,18 +58,16 @@ type App struct {
 type Container struct {
 	Layout
 	Style
-	data Data
-
-	mu       sync.Mutex
-	elements []*Element
+	ContentWidth int
+	data         Data
+	mu           sync.Mutex
+	elements     []*Element
 }
 
 type Element struct {
 	Template string             // Raw template string for this column
 	Width    int                // Max width (0 = unlimited)
 	Parsed   *template.Template // Compiled template (set during initialization)
-
-	frameIdx int
 }
 
 type Layout struct {
@@ -73,13 +76,13 @@ type Layout struct {
 }
 
 type Style struct {
-	Bg   Attribute
-	Fg   Attribute
-	Attr Attribute
+	Bg   []color.Attribute
+	Fg   []color.Attribute
+	Attr color.Attribute
 }
 
 func (e *Element) spinner() string {
-	return fmt.Sprintf("%c", frames[e.frameIdx%len(frames)])
+	return fmt.Sprintf("%c", frames[frameIdx%len(frames)])
 }
 
 // Render implements [Renderer]
@@ -98,8 +101,7 @@ func (e *Element) Render(d any) []byte {
 	}
 
 	// Advance frame tick
-	// TODO: What to do with frame here?
-	e.frameIdx = (e.frameIdx + 1) % len(frames)
+	// e.frameIdx = (e.frameIdx + 1) % len(frames)
 	return b.Bytes()
 }
 
@@ -110,10 +112,6 @@ func (e *Element) Count() int {
 }
 
 func (c *Container) contentWidth(data Data) int {
-	// if c.Dimensions[0] > 1 {
-	// 	return c.Dimensions[0]
-	// }
-
 	// Otherwise, calculate based on widest element
 	maxWidth := 0
 	for _, e := range c.elements {
@@ -128,30 +126,12 @@ func (c *Container) contentWidth(data Data) int {
 	return maxWidth
 }
 
-var resetCode = "\x1b[0m"
-
-// extractANSIStart gets the opening ANSI code from a colored string
-// e.g., color.New(color.BgCyan).Sprint("") -> "\x1b[46m\x1b[0m" -> "\x1b[46m"
-func extractANSIStart(coloredEmpty string) string {
-	// Remove the trailing reset code
-	return strings.TrimSuffix(coloredEmpty, resetCode)
-}
-
-// padToWidth pads a string to a specific width, accounting for ANSI codes
-func padToWidth(s string, width int) string {
-	visibleLen := utf8.RuneCount([]byte(stripANSI(s)))
-	if visibleLen >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-visibleLen)
-}
-
 // applyBgColor wraps a string with background color ANSI codes
 func (c *Container) applyBgColor(s string, max int) string {
-	bgAttr := c.Bg
+	// bgAttr := c.Bg
 
-	// No background color set
-	if bgAttr == 0 {
+	// Check if background color is set
+	if len(c.Bg) == 0 {
 		return padToWidth(s, max)
 	}
 
@@ -160,14 +140,15 @@ func (c *Container) applyBgColor(s string, max int) string {
 	}
 
 	// Get the background ANSI start code
-	bgCode := extractANSIStart(color.New(color.Attribute(bgAttr)).Sprint(""))
-	if bgCode == "" {
-		return padToWidth(s, max)
-	}
+	bgCode := extractANSIStart(color.New(c.Bg...).Sprint(""))
+	// if bgCode == "" {
+	// 	return padToWidth(s, max)
+	// }
 
-	// Strategy: Replace all reset codes with reset+background
-	// This maintains background even after foreground color resets
-	result := bgCode + strings.ReplaceAll(s, resetCode, resetCode+bgCode)
+	// Replace both simple and 256-color reset codes
+	result := bgCode + s
+	result = strings.ReplaceAll(result, "\x1b[0m", "\x1b[0m"+bgCode)
+	result = strings.ReplaceAll(result, "\x1b[0;25;0m", "\x1b[0;25;0m"+bgCode)
 
 	// Pad to width with background-colored spaces
 	visibleLen := utf8.RuneCount([]byte(stripANSI(result)))
@@ -187,11 +168,11 @@ func (c *Container) RenderLines(data Data) []string {
 	defer c.mu.Unlock()
 
 	lines := make([]string, 0, len(c.elements))
-	width := c.contentWidth(data)
+	c.ContentWidth = c.contentWidth(data)
 
 	// Top padding
 	for i := 0; i < c.Padding[0]; i++ {
-		line := c.applyBgColor(string([]byte{}), width)
+		line := c.applyBgColor(string([]byte{}), c.Dimensions[0])
 		lines = append(lines, line)
 	}
 
@@ -204,31 +185,47 @@ func (c *Container) RenderLines(data Data) []string {
 
 		d["Container"] = c.data
 		b := e.Render(d)
-		// padded := fmt.Sprintf("  %s  ", string(b))
-		// if len(padded) >= width {
-		// 	padded = truncateWithEllipsis(padded, c.Dimensions[0])
-		// }
+		padded := fmt.Sprintf("  %s  ", string(b))
+		if len(padded) >= c.Dimensions[0] {
+			padded = truncateWithEllipsis(padded, c.Dimensions[0])
+		}
 
-		line := c.applyBgColor(string(b), width)
+		line := c.applyBgColor(string(padded), c.Dimensions[0])
 		lines = append(lines, line)
 
 		// Advance frame tick
-		e.frameIdx = (e.frameIdx + 1) % len(frames)
+		// e.frameIdx = c.frameIdx
 
 	}
 
 	// Bottom padding
 	for i := 0; i < c.Padding[2]; i++ {
-		line := c.applyBgColor(string([]byte{}), width)
+		line := c.applyBgColor(string([]byte{}), c.Dimensions[0])
 		lines = append(lines, line)
 	}
 
 	return lines
 }
 
+// SetMetadata updates metadata for template access
 func (c *Container) SetMetadata(data Data) *Container {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.data == nil {
+		c.data = make(map[string]any)
+	}
 	c.data = data
 	return c
+}
+
+// UpdateMetadata sets metadata key for template access
+func (c *Container) UpdateMetadata(key string, value any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.data == nil {
+		c.data = make(map[string]any)
+	}
+	c.data[key] = value
 }
 
 // Render implements [Renderer]
@@ -275,8 +272,12 @@ func (a *App) renderFrame() {
 	defer a.mu.Unlock()
 	// Move cursor up to start position (if not first frame)
 	if a.lastLines > 0 {
-		_, _ = fmt.Fprintf(a.writer, "\033[%dA", a.lastLines)
+		_, _ = fmt.Fprintf(a.Writer, "\033[%dA", a.lastLines)
 	}
+
+	// Advance spinner by one tick
+	frameIdx = (frameIdx + 1) % len(frames)
+
 	linesThisFrame := 0
 	// Render each container
 	for _, container := range a.containers {
@@ -286,13 +287,13 @@ func (a *App) renderFrame() {
 		// Write each line with proper clearing
 		for _, line := range lines {
 			// Clear current line + return to column 0
-			_, _ = fmt.Fprint(a.writer, "\033[2K\r")
+			_, _ = fmt.Fprint(a.Writer, "\033[2K\r")
 
 			// Write line content
-			_, _ = fmt.Fprint(a.writer, line)
+			_, _ = fmt.Fprint(a.Writer, line)
 
 			// Move to next line
-			_, _ = fmt.Fprint(a.writer, "\n")
+			_, _ = fmt.Fprint(a.Writer, "\n")
 
 			linesThisFrame++
 		}
@@ -308,7 +309,7 @@ func (a *App) Loop(ctx context.Context) {
 
 	// Pre-allocate space for rendering
 	for range totalLines {
-		_, _ = fmt.Fprintln(a.writer)
+		_, _ = fmt.Fprintln(a.Writer)
 	}
 
 	// Set initial line count
@@ -321,7 +322,7 @@ func (a *App) Loop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// Move cursor past rendered content on exit
-			_, _ = fmt.Fprintln(a.writer)
+			_, _ = fmt.Fprintln(a.Writer)
 			return
 		case <-ticker.C:
 			a.renderFrame()
@@ -358,16 +359,34 @@ func (a *App) WaitAnd(fn func()) {
 	a.Wait()
 }
 
-// func (a *App) AddContainer(c *Container) int {
-// 	a.containers = append(a.containers, c)
-// 	return len(a.containers) - 1
-// }
-//
-// func (a *App) UpdateContainer(idx int, c *Container) {
-// }
+func (a *App) WithLevel(l ColorLevel) *App {
+	a.level = l
+	return a
+}
 
+// SetMetadata updates metadata for template access
 func (a *App) SetMetadata(md map[string]any) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.data == nil {
+		a.data = make(map[string]any)
+	}
 	a.data = md
+}
+
+// UpdateMetadata sets metadata key for template access
+func (a *App) UpdateMetadata(key string, value any) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.data == nil {
+		a.data = make(map[string]any)
+	}
+	a.data[key] = value
+}
+
+func (a *App) AddContainer(c *Container) *App {
+	a.containers = append(a.containers, c)
+	return a
 }
 
 // NewElement creates a new element with the provided format string.
@@ -392,19 +411,6 @@ func NewContainer(data Data, r ...*Element) *Container {
 	}
 }
 
-func NewContainers(num int, data Data, layout Layout, style Style, e ...*Element) []*Container {
-	containers := make([]*Container, num)
-	for i := range containers {
-		containers[i] = &Container{
-			elements: e,
-			data:     data,
-			Layout:   layout,
-			Style:    style,
-		}
-	}
-	return containers
-}
-
 func (c *Container) WithStyle(s Style) *Container {
 	c.Style = s
 	return c
@@ -415,12 +421,213 @@ func (c *Container) WithLayout(l Layout) *Container {
 	return c
 }
 
+func (c *Container) Copies(n int) []*Container {
+	containers := make([]*Container, n)
+	for i := range containers {
+		containers[i] = c
+	}
+	return containers
+}
+
+// stripANSI removes ANSI escape sequences from a string.
+// This is used to calculate the visible width of strings that contain color codes.
+func stripANSI(s string) string {
+	// Regex pattern to match ANSI escape sequences
+	// Matches: ESC [ <optional params> <command letter>
+	// Example: \x1b[38;5;001m or \x1b[0m
+	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	return re.ReplaceAllString(s, "")
+}
+
+// truncateWithEllipsis truncates a string to maxWidth, accounting for ANSI codes.
+// If truncated, adds "..." at the end (within the width limit).
+// Example: truncateWithEllipsis("very-long-name", 10) => "very-lo..."
+func truncateWithEllipsis(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return s // No limit
+	}
+
+	visible := visibleLength(s)
+	if visible <= maxWidth {
+		return fmt.Sprintf("%s%s", s, strings.Repeat(" ", maxWidth-visible))
+		// return s // Fits within limit
+	}
+
+	// Need to truncate
+	if maxWidth <= 3 {
+		// Too narrow for ellipsis, just cut
+		return truncateToWidth(s, maxWidth)
+	}
+
+	// Truncate to (maxWidth - 3) and add "..."
+	truncated := truncateToWidth(s, maxWidth-3)
+	return truncated + "…  "
+}
+
+// truncateToWidth truncates a string to exactly width visible characters,
+// preserving ANSI codes that appear before the cut point.
+func truncateToWidth(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	visibleCount := 0
+	inEscape := false
+	var result strings.Builder
+
+	for _, r := range s {
+		// Detect ANSI escape sequence start
+		if r == '\x1b' {
+			inEscape = true
+		}
+
+		// Always include escape sequence characters
+		if inEscape {
+			result.WriteRune(r)
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+
+		// Count visible characters
+		if visibleCount >= width {
+			break
+		}
+
+		result.WriteRune(r)
+		visibleCount++
+	}
+
+	return result.String()
+}
+
+// visibleLength returns the visible character count (excluding ANSI codes)
+func visibleLength(s string) int {
+	return len(stripANSI(s))
+}
+
+// padRight pads a string to a fixed width (accounting for ANSI codes)
+func padRight(s string, width int) string {
+	visible := visibleLength(s)
+	if visible >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-visible)
+}
+
+// padLeft pads a string to a fixed width on the left (accounting for ANSI codes)
+func padLeft(s string, width int) string {
+	visible := visibleLength(s)
+	if visible >= width {
+		return s
+	}
+	return strings.Repeat(" ", width-visible) + s
+}
+
+// Custom template functions for convenience
+var templateFuncs = template.FuncMap{
+	"duration": func(d time.Duration) string {
+		return FormatDuration(d)
+	},
+	"age": func(t time.Time) string {
+		return FormatDuration(time.Since(t))
+	},
+	"icon": func(done, failed bool) string {
+		if !done {
+			return "⠿" // Placeholder when not done
+		}
+		if failed {
+			return "✖"
+		}
+		return "✔"
+	},
+	"spinner": func() string {
+		return "⠋"
+	},
+	"OCImage": func(s string) string {
+		return "" // TODO: Parse OCI registry URL and colorize
+	},
+	"padLeft":  padLeft,
+	"padRight": padRight,
+
+	// Foreground colors (16-color ANSI)
+	"FgBlack":     FgBlack,
+	"FgRed":       FgRed,
+	"FgGreen":     FgGreen,
+	"FgYellow":    FgYellow,
+	"FgBlue":      FgBlue,
+	"FgMagenta":   FgMagenta,
+	"FgCyan":      FgCyan,
+	"FgWhite":     FgWhite,
+	"FgHiBlack":   FgHiBlack,
+	"FgHiRed":     FgHiRed,
+	"FgHiGreen":   FgHiGreen,
+	"FgHiYellow":  FgHiYellow,
+	"FgHiBlue":    FgHiBlue,
+	"FgHiMagenta": FgHiMagenta,
+	"FgHiCyan":    FgHiCyan,
+	"FgHiWhite":   FgHiWhite,
+
+	// Background colors (16-color ANSI)
+	"BgBlack":     BgBlack,
+	"BgRed":       BgRed,
+	"BgGreen":     BgGreen,
+	"BgYellow":    BgYellow,
+	"BgBlue":      BgBlue,
+	"BgMagenta":   BgMagenta,
+	"BgCyan":      BgCyan,
+	"BgWhite":     BgWhite,
+	"BgHiBlack":   BgHiBlack,
+	"BgHiRed":     BgHiRed,
+	"BgHiGreen":   BgHiGreen,
+	"BgHiYellow":  BgHiYellow,
+	"BgHiBlue":    BgHiBlue,
+	"BgHiMagenta": BgHiMagenta,
+	"BgHiCyan":    BgHiCyan,
+	"BgHiWhite":   BgHiWhite,
+
+	// Text attributes
+	"Reset":        Reset,
+	"Bold":         Bold,
+	"Faint":        Faint,
+	"Italic":       Italic,
+	"Underline":    Underline,
+	"BlinkSlow":    BlinkSlow,
+	"BlinkRapid":   BlinkRapid,
+	"ReverseVideo": ReverseVideo,
+	"Concealed":    Concealed,
+	"CrossedOut":   CrossedOut,
+
+	// 256-color palette
+	"Fg256": Fg256,
+	"Bg256": Bg256,
+}
+
+// extractANSIStart gets the opening ANSI code from a colored string
+// e.g., color.New(color.BgCyan).Sprint("") -> "\x1b[46m\x1b[0m" -> "\x1b[46m"
+func extractANSIStart(coloredEmpty string) string {
+	// Match any reset code (starts with ESC[0)
+	re := regexp.MustCompile(`\x1b\[0[0-9;]*m$`)
+	return re.ReplaceAllString(coloredEmpty, "")
+}
+
+// padToWidth pads a string to a specific width, accounting for ANSI codes
+func padToWidth(s string, width int) string {
+	visibleLen := utf8.RuneCount([]byte(stripANSI(s)))
+	if visibleLen >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-visibleLen)
+}
+
 // NewApp creates a new App using the given writer and containers and children.
 func NewApp(wr io.Writer, data Data, containers ...*Container) *App {
 	return &App{
-		writer:     wr,
+		Writer:     wr,
 		data:       data,
 		containers: containers,
 		done:       make(chan struct{}),
+		level:      Level256,
 	}
 }

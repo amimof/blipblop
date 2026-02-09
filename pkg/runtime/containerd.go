@@ -349,9 +349,11 @@ func (c *ContainerdRuntime) Delete(ctx context.Context, t *tasksv1.Task) error {
 	c.mu.Unlock()
 
 	// Delete the task
-	_, err = task.Delete(ctx)
-	if err != nil {
-		return err
+	if task != nil {
+		_, err = task.Delete(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Delete the container

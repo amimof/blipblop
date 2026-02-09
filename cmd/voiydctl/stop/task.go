@@ -3,7 +3,6 @@ package stop
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -72,32 +71,18 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 			// Send stop or kill for each task in args and wait for them all to stop
 			if viper.GetBool("wait") {
 
-				containers := cmdutil.NewContainers(len(args),
-					map[string]any{},
-					cmdutil.Layout{
-						Dimensions: [2]int{76, 2},
-						Padding:    [4]int{1, 2, 1, 2},
-					},
-					cmdutil.Style{
-						Bg: cmdutil.ColorBgHiBlack,
-					},
-					cmdutil.NewElement(` {{ spinner | FgYellow }} Stopping task {{ .Container.Name | FgBlue }}`),
-					cmdutil.NewElement(`   Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
-				)
+				dash, err := cmdutil.NewDashboard(args, cmdutil.WithHeader("Stopping task"))
+				if err != nil {
+					logrus.Fatal(err)
+				}
 
-				app := cmdutil.NewApp(
-					os.Stdout,
-					map[string]any{},
-					containers...,
-				)
-
-				appCtx, cancel := context.WithTimeout(cmd.Context(), time.Second*10)
-				defer cancel()
-				go app.Loop(appCtx)
+				appCtx := cmd.Context()
+				go dash.Loop(appCtx)
 
 				for i, cname := range args {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
+						dash.FailAfterMsg(idx, waitTimeout, "timeout reached")
 						if viper.GetBool("force") {
 							if err = c.TaskV1().Kill(ctx, cname); err != nil {
 								fmt.Printf("Error stopping task: %v", err)
@@ -119,14 +104,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 								return
 							}
 
-							phase := task.GetStatus().GetPhase().GetValue()
-
-							md := map[string]any{
-								"Name":  task.GetMeta().GetName(),
-								"Phase": phase,
-							}
-
-							containers[i].SetMetadata(md)
+							dash.SetTask(idx, task)
 
 							// Wait until retry
 							time.Sleep(250 * time.Millisecond)
@@ -134,7 +112,7 @@ func NewCmdStopTask(cfg *client.Config) *cobra.Command {
 					}(i, cname)
 				}
 
-				app.Wait()
+				dash.Wait()
 
 			}
 		},

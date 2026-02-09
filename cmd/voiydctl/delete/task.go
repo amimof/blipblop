@@ -3,7 +3,6 @@ package delete
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -65,58 +64,34 @@ func NewCmdDeleteTask(cfg *client.Config) *cobra.Command {
 			// Stop tasks in parallell and wait until they are stopped before deleting them
 			if viper.GetBool("wait") {
 
-				dash := cmdutil.NewDashboard(args)
+				dash, err := cmdutil.NewDashboard(args, cmdutil.WithHeader("Deleting task"))
+				if err != nil {
+					logrus.Fatal(err)
+				}
 
-				go dash.Loop(ctx)
+				appCtx := cmd.Context()
+				go dash.Loop(appCtx)
+
 				for i, cname := range args {
 					// Fire off delete operations concurrently
 					go func(idx int, taskID string) {
-						if viper.GetBool("force") {
-							if err = c.TaskV1().Kill(ctx, cname); err != nil {
-								dash.FailMsg(idx, fmt.Sprintf("failed to kill: %v", err))
-								return
-							}
-						} else {
-							if err = c.TaskV1().Stop(ctx, cname); err != nil {
-								dash.FailMsg(idx, fmt.Sprintf("failed to stop: %v", err))
-								return
-							}
-						}
+						dash.FailAfterMsg(idx, waitTimeout, "timeout reached")
 
-						dash.UpdateText(idx, "stopping…")
+						err = c.TaskV1().Delete(ctx, taskID)
+						if err != nil {
+							dash.FailMsg(idx, "failed to delete")
+							return
+						}
 
 						// Continously check task
 						for {
-
-							dash.FailAfterMsg(idx, viper.GetDuration("timeout"), "failed to stop in time")
 
 							task, err := c.TaskV1().Get(ctx, taskID)
 							if err != nil {
 								dash.FailMsg(idx, err.Error())
 								return
 							}
-
-							phase := task.GetStatus().GetPhase().GetValue()
-							status := task.GetStatus().GetReason().GetValue()
-
-							dash.UpdateText(idx, fmt.Sprintf("%s…", phase))
-							dash.UpdateDetails(idx, "Status", status)
-
-							if phase == "stopped" {
-								err = c.TaskV1().Delete(ctx, taskID)
-								if err != nil {
-									dash.FailMsg(idx, "failed to delete")
-									dash.UpdateDetails(idx, "Error", err.Error())
-									return
-								}
-								dash.DoneMsg(idx, "deleted successfully")
-								return
-							}
-
-							if strings.Contains(phase, "Err") {
-								dash.FailMsg(idx, "failed to delete")
-								return
-							}
+							dash.SetTask(idx, task)
 
 							// Wait until retry
 							time.Sleep(250 * time.Millisecond)

@@ -39,6 +39,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go.yaml.in/yaml/v2 v2.4.2
 	golang.org/x/mod v0.31.0
+	golang.org/x/term v0.38.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -92,7 +93,6 @@ require (
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/otlptranslator v0.0.2 // indirect
-	github.com/rivo/tview v0.42.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
 	github.com/spf13/afero v1.10.0 // indirect
@@ -105,7 +105,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
-	golang.org/x/term v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

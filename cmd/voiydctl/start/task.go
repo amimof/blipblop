@@ -3,8 +3,6 @@ package start
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -66,39 +64,22 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 			// Start tasks in parallell and wait until they are running
 			if viper.GetBool("wait") {
 
-				containers := cmdutil.NewContainers(len(args),
-					map[string]any{},
-					cmdutil.Layout{
-						Dimensions: [2]int{76, 2},
-						Padding:    [4]int{1, 2, 1, 2},
-					},
-					cmdutil.Style{
-						Bg: cmdutil.ColorBgHiBlack,
-					},
-					cmdutil.NewElement(` {{ spinner | FgYellow }} Starting task {{ .Container.Name | FgBlue }}`),
-					cmdutil.NewElement(`   Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
-					cmdutil.NewElement(`   Node: {{ .Container.Node | FgBlue }}`),
-					cmdutil.NewElement(`   Pid: {{ .Container.Pid | FgBlue }}`),
-					cmdutil.NewElement(`   ID: {{ .Container.ID | FgBlue }}`),
-					cmdutil.NewElement(`   Image: {{ .Container.Image | FgBlue }}`),
-				)
+				dash, err := cmdutil.NewDashboard(args, cmdutil.WithHeader("Starting task"))
+				if err != nil {
+					logrus.Fatal(err)
+				}
 
-				app := cmdutil.NewApp(
-					os.Stdout,
-					map[string]any{},
-					containers...,
-				)
-
-				appCtx, cancel := context.WithTimeout(cmd.Context(), time.Second*10)
-				defer cancel()
-				go app.Loop(appCtx)
+				appCtx := cmd.Context()
+				go dash.Loop(appCtx)
 
 				for i, cname := range args {
 					// Fire off start operations concurrently
 					go func(idx int, taskID string) {
+						dash.FailAfterMsg(idx, waitTimeout, "timeout reached")
+
 						err := c.TaskV1().Start(ctx, taskID)
 						if err != nil {
-							fmt.Printf("Error starting task: %v", err)
+							dash.FailMsg(idx, err.Error())
 							return
 						}
 
@@ -107,33 +88,18 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 
 							task, err := c.TaskV1().Get(ctx, taskID)
 							if err != nil {
-								fmt.Printf("Error starting task: %v", err)
+								dash.FailMsg(idx, err.Error())
 								return
 							}
 
-							image := task.GetConfig().GetImage()
-							phase := task.GetStatus().GetPhase().GetValue()
-							node := task.GetStatus().GetNode().GetValue()
-							id := task.GetStatus().GetId().GetValue()
-							pid := strconv.Itoa(int(task.GetStatus().GetPid().GetValue()))
-
-							md := map[string]any{
-								"Name":  task.GetMeta().GetName(),
-								"Phase": phase,
-								"Pid":   pid,
-								"Node":  node,
-								"ID":    id,
-								"Image": image,
-							}
-
-							containers[i].SetMetadata(md)
+							dash.SetTask(idx, task)
 
 							time.Sleep(250 * time.Millisecond)
 						}
 					}(i, cname)
 				}
 
-				app.Wait()
+				dash.Wait()
 
 			}
 		},
