@@ -338,7 +338,8 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 
 	nodeUID := n.GetMeta().GetUid()
 	md := map[string]string{
-		"node": n.GetMeta().GetName(),
+		"node_name": n.GetMeta().GetName(),
+		"node_uid":  n.GetMeta().GetUid(),
 	}
 
 	// Check if target node is connected
