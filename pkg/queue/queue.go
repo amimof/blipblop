@@ -36,11 +36,6 @@ type QueueMetrics struct {
 	ItemsFailed    atomic.Int64 // Total number of items that failed after max retries
 	TotalRetries   atomic.Int64 // Total number of retry attempts
 	CurrentDepth   atomic.Int64 // Current number of items in queue
-
-	// Histogram data for analysis (protected by mutex)
-	mu             sync.Mutex
-	processingTime []time.Duration // Processing duration samples
-	waitTime       []time.Duration // Wait time samples
 }
 
 // Enqueue adds a task to the queue

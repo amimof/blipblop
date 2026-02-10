@@ -11,8 +11,7 @@ import (
 )
 
 type WorkPool struct {
-	queue *TaskQueue
-	// OnTask     func(context.Context, *tasksv1.Task) error
+	queue      *TaskQueue
 	logger     logger.Logger
 	minBackoff time.Duration
 	maxBackoff time.Duration
