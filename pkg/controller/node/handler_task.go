@@ -189,7 +189,7 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task, report 
 
 	report.
 		Type(condition.TaskScheduled).
-		WithMetadata(map[string]string{"node": ""}).
+		WithMetadata(map[string]string{"node_name": "", "node_uid": ""}).
 		False(condition.ReasonStopped)
 
 	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
@@ -328,6 +328,11 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 
 	err = c.pullImage(ctx, task, report)
 	if err != nil {
+		return err
+	}
+
+	err = c.detachNetwork(ctx, task, report)
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 

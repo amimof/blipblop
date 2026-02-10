@@ -9,7 +9,12 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
-var ErrSchedulingNoNode = errors.New("no node fit for scheduling")
+var (
+	ErrSchedulingNoNode           = errors.New("no node fit for scheduling")
+	ErrSchedulingNoReadyNode      = errors.New("no ready nodes available")      // NEW
+	ErrSchedulingNoMatchingNode   = errors.New("no nodes match selector")       // NEW
+	ErrSchedulingNodeDisconnected = errors.New("selected node is disconnected") // NEW
+)
 
 type Scheduler interface {
 	Score(context.Context, *tasksv1.Task) (map[string]float64, error)
