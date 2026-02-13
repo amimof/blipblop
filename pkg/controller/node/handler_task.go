@@ -3,7 +3,7 @@ package nodecontroller
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
 	"github.com/containerd/errdefs"
 	gocni "github.com/containerd/go-cni"
@@ -11,20 +11,51 @@ import (
 
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
-	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/amimof/voiyd/pkg/queue"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
-func (c *Controller) isNodeSelected(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) bool {
-	node, err := c.clientset.NodeV1().Get(ctx, node.GetMeta().GetUid())
-	if err != nil {
-		c.logger.Debug("error checking node selection", "error", err)
-		return false
-	}
-	return labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector()).Matches(node.GetMeta().GetLabels())
+// processScheduleTask enqueues a task for async processing by the workpool
+func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
+	c.logger.Debug("enqueuing task for scheduling",
+		"task", task.GetMeta().GetName(),
+		"node", node.GetMeta().GetName())
+
+	return c.queue.Enqueue(ctx, &queue.QueueItem{
+		Task:       task,
+		EnqueuedAt: time.Now(),
+		RetryCount: 0,
+		Handler:    c.startTask,
+	})
+}
+
+// processScheduleTask enqueues a task for async processing by the workpool
+func (c *Controller) processStopTask(ctx context.Context, task *tasksv1.Task) error {
+	c.logger.Debug("enqueuing stop task",
+		"task", task.GetMeta().GetName())
+
+	return c.queue.Enqueue(ctx, &queue.QueueItem{
+		Task:       task,
+		EnqueuedAt: time.Now(),
+		RetryCount: 0,
+		Handler:    c.stopTask,
+	})
+}
+
+// processScheduleTask enqueues a task for async processing by the workpool
+func (c *Controller) processKillTask(ctx context.Context, task *tasksv1.Task) error {
+	c.logger.Debug("enqueuing kill task",
+		"task", task.GetMeta().GetName())
+
+	return c.queue.Enqueue(ctx, &queue.QueueItem{
+		Task:       task,
+		EnqueuedAt: time.Now(),
+		RetryCount: 0,
+		Handler:    c.killTask,
+	})
 }
 
 func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
@@ -51,7 +82,7 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Detach network
 	err = c.detachNetwork(ctx, task, report)
-	if err != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
@@ -81,6 +112,12 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
+	report := condition.NewForResource(task).As(nodeID)
+
+	err = c.detachNetwork(ctx, task, report)
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
 
 	// Release lease
 	defer func() {
@@ -90,18 +127,14 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		}
 	}()
 
-	report := condition.NewForResource(task).As(node.GetMeta().GetUid())
-
-	// Detach volumes
-	err = c.detachMounts(ctx, task, report)
-	if err != nil {
+	err = c.detachNetwork(ctx, task, report)
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	// Detach network
-	err = c.detachNetwork(ctx, task, report)
-	if err != nil {
-		return err
+	err = c.detachMounts(ctx, task, report)
+	if errs.IgnoreNotFound(err) != nil {
+		return nil
 	}
 
 	// Stop the task
@@ -269,20 +302,6 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task, report *
 	return c.clientset.TaskV1().Condition(ctx, report.Report())
 }
 
-func (c *Controller) onSchedule(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
-	// Should never return false since scheduler validates before it gets here
-	if !c.isNodeSelected(ctx, task, node) {
-		c.logger.Warn("received unexpected schedule for non-matching selector",
-			"task", task.GetMeta().GetName(),
-			"selector", task.GetConfig().GetNodeSelector(),
-			"nodeLabels", node.GetMeta().GetLabels())
-
-		// Still return error to avoid running mismatched tasks
-		return fmt.Errorf("node selector mismatch")
-	}
-	return c.startTask(ctx, task)
-}
-
 // Returns a version of task that is comparable by stripping fields that
 // should be omitted when comparing with proto.Equal for example
 func comparable(task *tasksv1.Task) *tasksv1.Task {
@@ -293,6 +312,9 @@ func comparable(task *tasksv1.Task) *tasksv1.Task {
 }
 
 func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
 
@@ -316,6 +338,11 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 
 	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
 
+	err = c.detachNetwork(ctx, task, report)
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
+
 	err = c.deleteTask(ctx, task, report)
 	if err != nil {
 		return err
@@ -331,11 +358,6 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
-	err = c.detachNetwork(ctx, task, report)
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
 	err = c.runtime.Run(ctx, task)
 	if err != nil {
 		return err
@@ -347,26 +369,23 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
 	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetaching))
 
-	id, err := c.runtime.ID(ctx, task.GetMeta().GetUid())
+	pid, err := c.runtime.Pid(ctx, task.GetMeta().GetUid())
 	if err != nil {
 		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
 		return err
 	}
 
-	pid, err := c.runtime.Pid(ctx, id)
-	if err != nil {
-		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
-		return err
-	}
+	if pid != 0 {
+		pm := networking.ParseCNIPortMappings(task.GetConfig().PortMappings...)
+		attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
 
-	pm := networking.ParseCNIPortMappings(task.GetConfig().PortMappings...)
-	attachOpts := []gocni.NamespaceOpts{gocni.WithCapabilityPortMap(pm), gocni.WithArgs("IgnoreUnknown", "true")}
+		// Delete CNI Network
+		err = c.netmanager.Detach(ctx, task.GetMeta().GetUid(), pid, attachOpts...)
+		if err != nil {
+			_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+			return err
+		}
 
-	// Delete CNI Network
-	err = c.netmanager.Detach(ctx, id, pid, attachOpts...)
-	if err != nil {
-		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
-		return err
 	}
 
 	md := map[string]string{
@@ -380,11 +399,14 @@ func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, repo
 func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
 	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttaching))
 
-	id, err := c.runtime.ID(ctx, task.GetMeta().GetUid())
-	if err != nil {
-		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
-		return err
-	}
+	// id, err := c.runtime.ID(ctx, task.GetMeta().GetUid())
+	// if err != nil {
+	// 	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+	// 	return err
+	// }
+
+	id := task.GetMeta().GetUid()
+	c.logger.Debug("attaching mounts for task", "task", id)
 
 	pid, err := c.runtime.Pid(ctx, id)
 	if err != nil {

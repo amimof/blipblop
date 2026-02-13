@@ -15,7 +15,9 @@ import (
 
 type TaskQueue struct {
 	mu      sync.RWMutex
-	items   chan *QueueItem
+	cond    sync.Cond
+	items   map[string]*QueueItem
+	popped  map[string]*QueueItem
 	logger  logger.Logger
 	closed  bool
 	metrics *QueueMetrics
@@ -24,25 +26,25 @@ type QueueItem struct {
 	Task       *tasksv1.Task
 	EnqueuedAt time.Time
 	RetryCount int
-	Priority   int // Reserved for future use, always 0 for now
 	Handler    events.TaskHandlerFunc
+	ctx        context.Context
+	cancel     func()
 }
 
 // QueueMetrics tracks performance and operational metrics for the queue
 type QueueMetrics struct {
-	ItemsEnqueued  atomic.Int64 // Total number of items enqueued
-	ItemsDequeued  atomic.Int64 // Total number of items dequeued
-	ItemsProcessed atomic.Int64 // Total number of items successfully processed
-	ItemsFailed    atomic.Int64 // Total number of items that failed after max retries
-	TotalRetries   atomic.Int64 // Total number of retry attempts
-	CurrentDepth   atomic.Int64 // Current number of items in queue
+	ItemsEnqueued  atomic.Int64
+	ItemsDequeued  atomic.Int64
+	ItemsProcessed atomic.Int64
+	ItemsFailed    atomic.Int64
+	TotalRetries   atomic.Int64
+	CurrentDepth   atomic.Int64
 }
 
 // Enqueue adds a task to the queue
-// Returns an error if the queue is closed
 func (q *TaskQueue) Enqueue(ctx context.Context, item *QueueItem) error {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
 	if q.closed {
 		return fmt.Errorf("queue is closed, cannot enqueue task %s", item.Task.GetMeta().GetName())
@@ -58,53 +60,81 @@ func (q *TaskQueue) Enqueue(ctx context.Context, item *QueueItem) error {
 		item.EnqueuedAt = time.Now()
 	}
 
-	// Non-blocking send to unbounded queue
-	select {
-	case q.items <- item:
+	// Cancel and remove any popped items
+	// if item.Task.GetMeta().GetUid() == v.Task.GetMeta().GetUid() {
+	if v, ok := q.popped[item.Task.GetMeta().GetUid()]; ok {
+		v.cancel()
+		delete(q.popped, v.Task.GetMeta().GetUid())
+	}
 
-		q.metrics.ItemsEnqueued.Add(1)
-		q.metrics.CurrentDepth.Add(1)
+	q.metrics.ItemsEnqueued.Add(1)
+	q.metrics.CurrentDepth.Add(1)
+	item.ctx, item.cancel = context.WithCancel(ctx)
+	q.items[item.Task.GetMeta().GetUid()] = item
 
-		q.logger.Debug("task enqueued",
-			"task", item.Task.GetMeta().GetName(),
-			"retry_count", item.RetryCount,
-			"queue_depth", q.metrics.CurrentDepth.Load())
+	q.logger.Debug("task enqueued",
+		"task", item.Task.GetMeta().GetName(),
+		"retry_count", item.RetryCount,
+		"queue_depth", q.metrics.CurrentDepth.Load())
 
-		return nil
+	q.cond.Signal()
+	return nil
+}
 
-	case <-ctx.Done():
-		return fmt.Errorf("queue context cancelled")
+func (q *TaskQueue) Done(t *tasksv1.Task) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if _, ok := q.items[t.GetMeta().GetUid()]; ok {
+		q.items[t.GetMeta().GetUid()].cancel()
+		delete(q.items, t.GetMeta().GetUid())
 	}
 }
 
 // Dequeue retrieves and removes a task from the queue
 // Blocks until an item is available or queue is closed
-// Returns nil when queue is closed and empty
-func (q *TaskQueue) Dequeue(ctx context.Context) (*QueueItem, error) {
-	select {
-	case item, ok := <-q.items:
-		if !ok {
-			// Channel closed and drained
-			return nil, fmt.Errorf("queue is closed")
-		}
+func (q *TaskQueue) Dequeue() (*QueueItem, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
-		q.metrics.ItemsDequeued.Add(1)
-		q.metrics.CurrentDepth.Add(-1)
-
-		// Calculate wait time
-		waitTime := time.Since(item.EnqueuedAt)
-
-		q.logger.Debug("task dequeued",
-			"task", item.Task.GetMeta().GetName(),
-			"wait_time", waitTime,
-			"retry_count", item.RetryCount,
-			"queue_depth", q.metrics.CurrentDepth.Load())
-
-		return item, nil
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	// Wait in a loop to handle spurious wakeups
+	for q.Len() == 0 && !q.closed {
+		q.cond.Wait()
 	}
+
+	// If queue is closed and empty, return error
+	if q.closed && q.Len() == 0 {
+		return nil, fmt.Errorf("queue is closed and empty")
+	}
+
+	item := q.Pop().(*QueueItem)
+	if item == nil {
+		return nil, fmt.Errorf("queue returned nil item")
+	}
+	q.popped[item.Task.GetMeta().GetUid()] = item
+
+	waitTime := time.Since(item.EnqueuedAt)
+
+	q.logger.Debug("task dequeued",
+		"task", item.Task.GetMeta().GetName(),
+		"wait_time", waitTime,
+		"retry_count", item.RetryCount,
+		"queue_depth", q.metrics.CurrentDepth.Load())
+
+	q.metrics.ItemsDequeued.Add(1)
+	q.metrics.CurrentDepth.Add(-1)
+
+	return item, nil
+}
+
+func (q *TaskQueue) Pop() any {
+	var n *QueueItem
+	for k, v := range q.items {
+		n = v
+		delete(q.items, k)
+		break
+	}
+	return n
 }
 
 // Requeue adds a task back to the queue with incremented retry count
@@ -114,23 +144,40 @@ func (q *TaskQueue) Requeue(ctx context.Context, item *QueueItem) error {
 		return fmt.Errorf("cannot requeue nil item")
 	}
 
+	if err := item.ctx.Err(); err != nil {
+		return fmt.Errorf("cannot requeue cancelled task: %w", err)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if q.closed {
+		return fmt.Errorf("queue is closed")
+	}
+
 	// Increment retry count
 	item.RetryCount++
 	q.metrics.TotalRetries.Add(1)
 
-	// Reset enqueue time for new wait measurement
+	// Reset enqueue time
 	item.EnqueuedAt = time.Now()
 
 	q.logger.Info("requeuing task for retry",
 		"task", item.Task.GetMeta().GetName(),
 		"retry_count", item.RetryCount)
 
-	return q.Enqueue(ctx, item)
+	q.metrics.ItemsEnqueued.Add(1)
+	q.metrics.CurrentDepth.Add(1)
+
+	q.items[item.Task.GetMeta().GetUid()] = item
+
+	q.cond.Signal()
+	return nil
 }
 
 // Len returns the current number of items in the queue
 func (q *TaskQueue) Len() int {
-	return int(q.metrics.CurrentDepth.Load())
+	return len(q.items)
 }
 
 func (q *TaskQueue) Close() {
@@ -142,7 +189,13 @@ func (q *TaskQueue) Close() {
 	}
 
 	q.closed = true
-	close(q.items)
+
+	for _, t := range q.items {
+		t.cancel()
+	}
+
+	// Wake up all waiting workers so they can see the queue is closed
+	q.cond.Broadcast()
 
 	q.logger.Info("task queue closed",
 		"remaining_items", q.metrics.CurrentDepth.Load(),
@@ -154,11 +207,14 @@ func (q *TaskQueue) Close() {
 // NewTaskQueue creates a new unbounded task queue
 func NewTaskQueue(logger logger.Logger) *TaskQueue {
 	q := &TaskQueue{
-		items:   make(chan *QueueItem, 1000), // Start with buffered channel for performance
+		items:   make(map[string]*QueueItem),
+		popped:  make(map[string]*QueueItem),
 		logger:  logger,
 		closed:  false,
 		metrics: &QueueMetrics{},
 	}
+
+	q.cond = *sync.NewCond(&q.mu)
 
 	return q
 }

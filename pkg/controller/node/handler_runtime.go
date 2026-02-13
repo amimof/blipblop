@@ -76,17 +76,22 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		return err
 	}
 
-	tname, err := c.runtime.Name(ctx, e.GetContainerID())
+	pid, err := c.runtime.Pid(ctx, e.GetContainerID())
 	if err != nil {
 		return err
 	}
 
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	err = c.netmanager.Detach(ctx, e.GetContainerID(), pid)
 	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	task, err := c.clientset.TaskV1().Get(ctx, tname)
+	lease, err := c.clientset.LeaseV1().Get(ctx, e.GetContainerID())
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	task, err := c.clientset.TaskV1().Get(ctx, e.GetContainerID())
 	if err != nil {
 		return err
 	}
@@ -126,17 +131,12 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		return err
 	}
 
-	tname, err := c.runtime.Name(ctx, e.GetContainerID())
-	if err != nil {
-		return err
-	}
-
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
+	lease, err := c.clientset.LeaseV1().Get(ctx, e.GetContainerID())
 	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	task, err := c.clientset.TaskV1().Get(ctx, tname)
+	task, err := c.clientset.TaskV1().Get(ctx, e.GetContainerID())
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 
 	gocni "github.com/containerd/go-cni"
 	"go.opentelemetry.io/otel"
@@ -22,6 +23,7 @@ type CNIManager struct {
 	cni       gocni.CNI
 	cniOpts   []gocni.Opt
 	cniNsOpts []gocni.NamespaceOpts
+	mu        sync.Mutex
 
 	// CNIBinDir describes the directory where the CNI binaries are stored
 	CNIBinDir string
@@ -165,6 +167,9 @@ func (c *CNIManager) netNamespace(pid uint32) string {
 
 // Attach implements Manager.
 func (c *CNIManager) Attach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) (*gocni.Result, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	ctx, span := tracer.Start(ctx, "networking.cni.Attach")
 	defer span.End()
 
@@ -180,6 +185,9 @@ func (c *CNIManager) Attach(ctx context.Context, containerID string, containerPI
 
 // Check implements Manager.
 func (c *CNIManager) Check(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	ctx, span := tracer.Start(ctx, "networking.cni.Check")
 	defer span.End()
 
@@ -195,6 +203,9 @@ func (c *CNIManager) Check(ctx context.Context, containerID string, containerPID
 
 // Detach implements Manager.
 func (c *CNIManager) Detach(ctx context.Context, containerID string, containerPID uint32, opts ...gocni.NamespaceOpts) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	ctx, span := tracer.Start(ctx, "networking.cni.Detach")
 	defer span.End()
 

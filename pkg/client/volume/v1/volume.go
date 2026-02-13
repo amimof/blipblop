@@ -93,6 +93,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *volumes.Volume, opts ...Crea
 	for _, opt := range opts {
 		opt(c)
 	}
+
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &volumes.CreateRequest{Volume: ctr})
 	if err != nil {
