@@ -57,7 +57,7 @@ func (w *WorkPool) worker(ctx context.Context, id int) {
 			w.logger.Info("worker context cancelled", "id", id)
 			return
 		default:
-			item, err := w.queue.Dequeue(ctx)
+			item, err := w.queue.Dequeue()
 			if err != nil {
 				w.logger.Debug("dequeue error, worker exiting", "id", id, "error", err)
 				return
@@ -68,22 +68,37 @@ func (w *WorkPool) worker(ctx context.Context, id int) {
 				if item.RetryCount >= w.maxRetries {
 					// Stop retrying after max attempts
 					w.logger.Error("task failed after max retries",
+						"error", err,
 						"task", item.Task.GetMeta().GetName(),
 						"retries", item.RetryCount)
-					w.queue.metrics.ItemsFailed.Add(1)
+					item.cancel()
 					continue // Don't requeue
 				}
 				// Only apply backoff when requeueing after failure
 				wait := backoff(w.minBackoff, w.maxBackoff, item.RetryCount)
 				w.logger.Info("task failed, retrying with backoff",
+					"error", err,
 					"task", item.Task.GetMeta().GetName(),
 					"retry", item.RetryCount+1,
 					"backoff", wait)
-				time.Sleep(wait)
-				_ = w.queue.Requeue(ctx, item)
+
+				select {
+				case <-time.After(wait):
+					// Backoff completed, try to requeue
+					err := w.queue.Requeue(ctx, item)
+					if err != nil {
+						w.logger.Debug("not requeuing task",
+							"task", item.Task.GetMeta().GetName(),
+							"reason", err)
+					}
+				case <-item.ctx.Done():
+					// Task was cancelled during backoff
+					w.logger.Info("task cancelled during backoff, not requeuing",
+						"task", item.Task.GetMeta().GetName())
+				}
 			} else {
 				// Success case
-				w.queue.metrics.ItemsProcessed.Add(1)
+				// w.queue.Done(item.Task)
 				w.logger.Debug("task processed successfully",
 					"task", item.Task.GetMeta().GetName())
 			}
@@ -124,9 +139,8 @@ func NewPool(queue *TaskQueue, opts ...WorkPoolOption) *WorkPool {
 		maxRetries: 100,
 		minBackoff: 5 * time.Second,
 		maxBackoff: 60 * time.Second,
-		// OnTask:     func(context.Context, *tasksv1.Task) error { return nil },
-		logger: logger.ConsoleLogger{},
-		stop:   make(chan struct{}),
+		logger:     logger.ConsoleLogger{},
+		stop:       make(chan struct{}),
 	}
 
 	for _, opt := range opts {

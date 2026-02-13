@@ -83,10 +83,10 @@ func (l *local) Create(ctx context.Context, req *volumesv1.CreateRequest, opts .
 	defer l.mu.Unlock()
 
 	volume := req.GetVolume()
-	volumeID := volume.GetMeta().GetName()
+	volumeName := volume.GetMeta().GetName()
 
 	// Check if volume already exists
-	if existing, _ := l.Get(ctx, &volumesv1.GetRequest{Uid: volumeID}); existing != nil {
+	if existing, _ := l.Get(ctx, &volumesv1.GetRequest{Name: volumeName}); existing != nil {
 		return nil, fmt.Errorf("volume %s already exists", volume.GetMeta().GetName())
 	}
 
@@ -101,7 +101,7 @@ func (l *local) Create(ctx context.Context, req *volumesv1.CreateRequest, opts .
 	// Create volume in repo
 	volume, err := l.repo.Create(ctx, volume)
 	if err != nil {
-		return nil, l.handleError(err, "error creating volume", "name", volumeID)
+		return nil, l.handleError(err, "error creating volume", "name", volumeName)
 	}
 
 	// Decorate label with some labels
@@ -170,7 +170,7 @@ func (l *local) Get(ctx context.Context, req *volumesv1.GetRequest, opts ...grpc
 	volume, err := l.repo.Get(ctx, uid)
 	if err != nil {
 		span.RecordError(err)
-		return nil, l.handleError(err, "error getting volume", "name", req.GetUid())
+		return nil, l.handleError(err, "error getting volume", "name", uid.String())
 	}
 
 	span.SetAttributes(attribute.String("volume.name", volume.GetMeta().GetName()))

@@ -249,7 +249,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	reporter := condition.NewReportFor(task)
 
 	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
-	if err != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
@@ -493,7 +493,7 @@ func New(cs *client.ClientSet, scheduler scheduling.Scheduler, opts ...NewOption
 		opt(c)
 	}
 	c.queue = queue.NewTaskQueue(c.logger)
-	c.workPool = queue.NewPool(c.queue, queue.WithLogger(c.logger))
+	c.workPool = queue.NewPool(c.queue, queue.WithLogger(c.logger), queue.WithMaxRetries(5))
 
 	return c
 }

@@ -14,6 +14,13 @@ type Logger interface {
 	Error(string, ...any)
 }
 
+type NilLogger struct{}
+
+func (c NilLogger) Debug(msg string, fields ...any) {}
+func (c NilLogger) Info(msg string, fields ...any)  {}
+func (c NilLogger) Warn(msg string, fields ...any)  {}
+func (c NilLogger) Error(msg string, fields ...any) {}
+
 type ConsoleLogger struct{}
 
 func (c ConsoleLogger) Debug(msg string, fields ...any) {

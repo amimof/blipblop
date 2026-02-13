@@ -18,6 +18,7 @@ import (
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"
+	"github.com/amimof/voiyd/pkg/queue"
 	"github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/volume"
 
@@ -40,6 +41,10 @@ type Controller struct {
 	exchange         *events.Exchange
 	renewInterval    time.Duration
 	netmanager       networking.Manager
+
+	mu       sync.Mutex
+	queue    *queue.TaskQueue
+	workPool *queue.WorkPool
 }
 
 type NewOption func(c *Controller)
@@ -95,6 +100,10 @@ func (c *Controller) Run(ctx context.Context) {
 	nodeUID := node.GetMeta().GetUid()
 	nodeName := c.node.GetMeta().GetName()
 
+	// init work pool
+	c.workPool.Start(ctx)
+	defer c.workPool.Stop()
+
 	topics := []eventsv1.EventType{
 		events.TailLogsStart,
 		events.TailLogsStop,
@@ -114,10 +123,10 @@ func (c *Controller) Run(ctx context.Context) {
 	}()
 
 	// Setup Node Handlers
-	c.exchange.On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.onSchedule)))
-	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
-	c.exchange.On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.stopTask)))
-	c.exchange.On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.killTask)))
+	c.exchange.On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.processScheduleTask)))
+	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
+	c.exchange.On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
+	c.exchange.On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.processKillTask)))
 
 	// Handle runtime events
 	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart, events.RuntimeTaskDelete)
@@ -332,6 +341,13 @@ func (c *Controller) Reconcile(ctx context.Context) error {
 			return err
 		}
 
+		report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
+
+		err = c.detachNetwork(ctx, task, report)
+		if errs.IgnoreNotFound(err) != nil {
+			return err
+		}
+
 		// Stop the task
 		err = c.runtime.Stop(ctx, task)
 		if errs.IgnoreNotFound(err) != nil {
@@ -365,9 +381,19 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
 		renewInterval:    time.Second * 30,
 	}
+
 	for _, opt := range opts {
 		opt(m)
 	}
 
+	// NEW: Initialize queue and workpool
+	m.queue = queue.NewTaskQueue(m.logger)
+	m.workPool = queue.NewPool(
+		m.queue,
+		queue.WithMaxWorkers(2),
+		queue.WithMaxRetries(5),
+		queue.WithBackoff(5*time.Second, 15*time.Second),
+		queue.WithLogger(m.logger),
+	)
 	return m, nil
 }
