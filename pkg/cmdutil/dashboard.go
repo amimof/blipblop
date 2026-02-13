@@ -223,14 +223,7 @@ func (d *Dashboard) WaitAnd(fn func()) {
 func (d *Dashboard) Loop(ctx context.Context) {
 	defer close(d.done)
 
-	go d.app.Loop(ctx)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		}
-	}
+	d.app.Loop(ctx)
 }
 
 // parseColumns parses a format string into column specifications.
