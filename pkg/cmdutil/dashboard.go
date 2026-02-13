@@ -111,46 +111,7 @@ type Detail struct {
 	Value string
 }
 
-// UpdateMetadata updates metadata for template access
-// func (d *Dashboard) UpdateMetadata(idx int, key, value string) {
-// 	d.Update(idx, func(s *ServiceState) {
-// 		if s.Metadata == nil {
-// 			s.Metadata = make(map[string]any)
-// 		}
-// 		s.Metadata[key] = value
-// 	})
-// }
-
-// SetMetadata replaces all metadata
-// func (d *Dashboard) SetMetadata(idx int, metadata map[string]any) {
-// 	d.Update(idx, func(s *ServiceState) {
-// 		s.Metadata = metadata
-// 	})
-// }
-
-// SetDetails assigns a new slice, overwriting any other Detail sets previously used.
-// If you want to update an existing line then use UpdateDetail()
-// func (d *Dashboard) SetDetails(idx int, lines []Detail) {
-// 	d.Update(idx, func(s *ServiceState) {
-// 		s.Details = lines
-// 	})
-// }
-
-// UpdateDetails inserts a new line. If a line with same key exists then that line is updated.
-// So two lines with the same key cannot exist in the slice.
-// func (d *Dashboard) UpdateDetails(idx int, key, value string) {
-// 	d.Update(idx, func(s *ServiceState) {
-// 		for i, d := range s.Details {
-// 			if d.Key == key {
-// 				s.Details[i] = Detail{Key: key, Value: value}
-// 				return
-// 			}
-// 		}
-// 		s.Details = append(s.Details, Detail{Key: key, Value: value})
-// 	})
-// }
-
-// AddService adds a new service dynamically (returns index)
+// AddTask adds a new task dynamically to dashboard (returns index)
 func (d *Dashboard) AddTask(t *tasksv1.Task) int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -160,7 +121,7 @@ func (d *Dashboard) AddTask(t *tasksv1.Task) int {
 	return len(d.services) - 1
 }
 
-// AddService adds a new service dynamically (returns index)
+// SetTask overwrites existing task at idx a new instance dynamically
 func (d *Dashboard) SetTask(idx int, t *tasksv1.Task) {
 	d.Update(idx, func(s *ServiceState) {
 		s.task = t
@@ -185,13 +146,6 @@ func (d *Dashboard) Update(idx int, fn func(s *ServiceState)) {
 	fn(d.services[idx])
 }
 
-// UpdateText lets workers mutate a single service under lock.
-// func (d *Dashboard) UpdateText(idx int, text string) {
-// 	d.Update(idx, func(s *ServiceState) {
-// 		s.Text = text
-// 	})
-// }
-
 // DoneMsg sets the provided message when the Dashboard is done
 func (d *Dashboard) DoneMsg(idx int, msg string) {
 	d.Update(idx, func(s *ServiceState) {
@@ -206,6 +160,7 @@ func (d *Dashboard) DoneMsg(idx int, msg string) {
 func (d *Dashboard) Done(idx int) {
 	d.Update(idx, func(s *ServiceState) {
 		s.container.UpdateMetadata("Done", true)
+		s.container.UpdateMetadata("DoneMsg", "")
 		s.Done = true
 	})
 }
@@ -247,27 +202,35 @@ func (d *Dashboard) FailAfterMsg(idx int, after time.Duration, msg string) {
 
 // Wait blocks until Loop finishes.
 func (d *Dashboard) Wait() {
-	d.app.Wait()
-	// <-d.done
-}
-
-// Loop calls loop on the underlying App instance passing the context through to it
-func (d *Dashboard) Loop(ctx context.Context) {
-	d.app.Loop(ctx)
-}
-
-// WaitAnd blocks until Loop finishes and executes the provided function when done
-func (d *Dashboard) WaitAnd(fn func()) {
 	go func() {
 		for {
 			time.Sleep(200 * time.Millisecond)
 			if d.IsDone() && len(d.services) > 0 {
-				fn()
-				return
+				d.done <- struct{}{}
 			}
 		}
 	}()
+	<-d.done
+}
+
+// WaitAnd blocks until Loop finishes and executes the provided function when done
+func (d *Dashboard) WaitAnd(fn func()) {
+	defer fn()
 	d.Wait()
+}
+
+// Loop calls loop on the underlying App instance passing the context through to it
+func (d *Dashboard) Loop(ctx context.Context) {
+	defer close(d.done)
+
+	go d.app.Loop(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // parseColumns parses a format string into column specifications.
@@ -398,6 +361,7 @@ func NewDashboard(names []string, opts ...Option) (*Dashboard, error) {
 	for i, n := range names {
 		data := map[string]any{
 			"Done":      false,
+			"DoneMsg":   "",
 			"Failed":    false,
 			"FailedMsg": "",
 			"Name":      n,

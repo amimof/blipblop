@@ -321,8 +321,8 @@ func (a *App) Loop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			// Move cursor past rendered content on exit
-			_, _ = fmt.Fprintln(a.Writer)
+			// Render one last frame before quitting
+			a.renderFrame()
 			return
 		case <-ticker.C:
 			a.renderFrame()

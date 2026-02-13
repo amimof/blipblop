@@ -7,6 +7,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -109,12 +110,17 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 
 							dash.SetTask(idx, task)
 
+							if condition.Reason(task.GetStatus().GetPhase().GetValue()) == condition.ReasonRunning {
+								dash.DoneMsg(idx, "Started task successfully")
+								return
+							}
+
 							time.Sleep(250 * time.Millisecond)
 						}
 					}(i, cname)
 				}
 
-				dash.Wait()
+				dash.WaitAnd(cancel)
 
 			}
 		},
