@@ -13,6 +13,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/networking"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -153,12 +154,17 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 
 						dash.SetTask(idx, task)
 
+						if condition.Reason(task.GetStatus().GetPhase().GetValue()) == condition.ReasonRunning {
+							dash.DoneMsg(idx, "Started task successfully")
+							return
+						}
+
 						// Wait until retry
 						time.Sleep(250 * time.Millisecond)
 					}
 				}(0, tname)
 
-				dash.Wait()
+				dash.WaitAnd(cancel)
 
 			}
 		},

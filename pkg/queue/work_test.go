@@ -4,48 +4,49 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"sync"
+	"sync/atomic"
 	"testing"
-	"testing/synctest"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/logger"
 )
 
 func TestWork(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
-		funcCalled := false
+	var callCount atomic.Int32
+	var wg sync.WaitGroup
 
-		q := NewTaskQueue(logger.NilLogger{})
-		pool := NewPool(q, WithLogger(logger.NilLogger{}), WithMaxWorkers(1), WithMaxRetries(10))
-		defer pool.Stop()
+	q := NewTaskQueue(logger.ConsoleLogger{})
+	pool := NewPool(q, WithLogger(logger.ConsoleLogger{}), WithMaxWorkers(1), WithMaxRetries(10), WithBackoff(time.Millisecond*100, time.Millisecond*100))
 
-		go pool.Start(ctx)
-		synctest.Wait()
+	go pool.Start(ctx)
 
-		for _, t := range tasks {
+	for _, test := range tasks {
 
-			err := q.Enqueue(ctx, &QueueItem{
-				Task:       t,
-				EnqueuedAt: time.Now(),
-				Handler: func(ctx context.Context, t *tasksv1.Task) error {
-					funcCalled = true
-					fmt.Printf("task %s: error in handler\n", t.GetMeta().GetName())
-					return errors.New("this causes a retry")
-				},
-			})
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+		wg.Add(1)
+		err := q.Enqueue(ctx, &QueueItem{
+			Task:       test,
+			EnqueuedAt: time.Now(),
+			Handler: func(ctx context.Context, t *tasksv1.Task) error {
+				fmt.Printf("task %s: error in handler\n", t.GetMeta().GetName())
+				callCount.Add(1)
+				wg.Done()
+				return errors.New("error")
+			},
+		})
+		assert.NoError(t, err)
+	}
 
-		if funcCalled {
-			t.Fatalf("func called before context canceled")
-		}
+	wg.Wait()
 
-		cancel()
-	})
+	cancel()
+	q.Close()
+	pool.Stop()
+
+	assert.Equal(t, int32(5), callCount.Load(), "handler should be called exactly 5 times")
 }
