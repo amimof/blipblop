@@ -66,6 +66,7 @@ const (
 
 	ReasonUnhealthy Reason = "Unhealthy"
 	ReasonReady     Reason = "Ready"
+	ReasonUnknown   Reason = "Unknown"
 )
 
 type (
