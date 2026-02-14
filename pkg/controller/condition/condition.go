@@ -9,7 +9,6 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
-	"github.com/amimof/voiyd/pkg/consts"
 	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -246,7 +245,7 @@ func getMetadataUInt32(report *typesv1.ConditionReport, t condition.Type, key st
 
 func getPhaseFromConditions(conds []*typesv1.Condition, ready condition.Reason) string {
 	if len(conds) == 0 {
-		return consts.PHASEUNKNOWN
+		return string(condition.ReasonUnknown)
 	}
 
 	// Check if there are un-ready conditions (status==false)

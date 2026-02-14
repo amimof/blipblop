@@ -9,7 +9,7 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
 	clientv1 "github.com/amimof/voiyd/pkg/client/volume/v1"
-	"github.com/amimof/voiyd/pkg/consts"
+	"github.com/amimof/voiyd/pkg/condition"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -85,7 +85,7 @@ func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ct
 			&volumesv1.Status{
 				Controllers: map[string]*volumesv1.ControllerStatus{
 					nodeName: {
-						Phase:    wrapperspb.String(consts.PHASEATTACHED),
+						Phase:    wrapperspb.String(string(condition.ReasonAttached)),
 						Ready:    wrapperspb.Bool(true),
 						Location: wrapperspb.String(localVol.Location()),
 					},
@@ -143,7 +143,7 @@ func (a *DefaultAttacher) Detach(ctx context.Context, n *nodesv1.Node, ctr *task
 			&volumesv1.Status{
 				Controllers: map[string]*volumesv1.ControllerStatus{
 					nodeName: {
-						Phase: wrapperspb.String(consts.PHASEPDETACHED),
+						Phase: wrapperspb.String(string(condition.ReasonDetached)),
 						Ready: wrapperspb.Bool(false),
 					},
 				},
