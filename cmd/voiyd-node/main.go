@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/amimof/voiyd/api/services/nodes/v1"
 	"github.com/amimof/voiyd/api/services/volumes/v1"
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/events"
@@ -418,7 +417,7 @@ func createNodeFile(n *nodesv1.Node, filePath string) error {
 	return nil
 }
 
-func loadFromFile(path string) (*nodes.Node, error) {
+func loadFromFile(path string) (*nodesv1.Node, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -432,7 +431,7 @@ func loadFromFile(path string) (*nodes.Node, error) {
 		return nil, err
 	}
 
-	var node nodes.Node
+	var node nodesv1.Node
 	err = yaml.Unmarshal(b, &node)
 	if err != nil {
 		return nil, err
@@ -458,14 +457,14 @@ func NewNodeFromEnv() (*nodesv1.Node, error) {
 	l.Set(labels.LabelPrefix("hostname").String(), hostname)
 
 	// Construct node instance
-	n := &nodes.Node{
+	n := &nodesv1.Node{
 		Version: "node/v1",
 		Meta: &types.Meta{
 			Name:   hostname,
 			Labels: l,
 		},
-		Config: &nodes.Config{
-			VolumeDrivers: &nodes.VolumeConfig{
+		Config: &nodesv1.Config{
+			VolumeDrivers: &nodesv1.VolumeConfig{
 				HostLocal: &volumes.VolumeDriverHostLocal{
 					RootDir: "/var/lib/voiyd/volumes",
 				},
