@@ -5,15 +5,22 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
 	rt "github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/store"
 	containerd "github.com/containerd/containerd/v2/client"
@@ -22,13 +29,14 @@ import (
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"gopkg.in/yaml.v2"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/instrumentation"
 	"github.com/amimof/voiyd/pkg/networking"
-	"github.com/amimof/voiyd/pkg/node"
 	"github.com/amimof/voiyd/pkg/volume"
 
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	containerdctrl "github.com/amimof/voiyd/pkg/controller/containerd"
 	nodectrl "github.com/amimof/voiyd/pkg/controller/node"
 	nodeupgradectrl "github.com/amimof/voiyd/pkg/controller/nodeupgrade"
@@ -202,7 +210,7 @@ func main() {
 	}()
 
 	// Join node
-	nodeCfg, err := node.LoadNodeFromEnv(nodeFile)
+	nodeCfg, err := LoadNodeFromEnv(nodeFile)
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err, "path", nodeFile)
 		os.Exit(1)
@@ -357,4 +365,116 @@ func serveMetrics(addr string, h http.Handler, l *slog.Logger) {
 		l.Error("error serving metrics", "error", err)
 		return
 	}
+}
+
+func LoadNodeFromEnv(path string) (*nodesv1.Node, error) {
+	// Attempt to load from the file
+	n, err := loadFromFile(path)
+	if err != nil {
+		// If the file is missing, create a new node from the environment
+		if os.IsNotExist(err) {
+			n, err = NewNodeFromEnv()
+			if err != nil {
+				return nil, fmt.Errorf("failed to create node from environment: %w", err)
+			}
+
+			// Save the new node to the specified path
+			err = createNodeFile(n, path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create node file: %w", err)
+			}
+		} else {
+			// Return any other error from loadFromFile immediately
+			return nil, fmt.Errorf("failed to load node from file: %w", err)
+		}
+	}
+	return n, nil
+}
+
+func createNodeFile(n *nodesv1.Node, filePath string) error {
+	b, err := yaml.Marshal(n)
+	if err != nil {
+		return err
+	}
+
+	p := path.Dir(filePath)
+	err = os.MkdirAll(p, 0)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+
+	//nolint:errcheck
+	defer f.Close()
+
+	err = os.WriteFile(filePath, b, 0)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func loadFromFile(path string) (*nodes.Node, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	//nolint:errcheck
+	defer f.Close()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var node nodes.Node
+	err = yaml.Unmarshal(b, &node)
+	if err != nil {
+		return nil, err
+	}
+
+	return &node, nil
+}
+
+// NewNodeFromEnv creates a new node from the current environment with the name s
+func NewNodeFromEnv() (*nodesv1.Node, error) {
+	// Hostname, arch and OS info
+	arch := runtime.GOARCH
+	oper := runtime.GOOS
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+
+	// Construct labels
+	l := labels.New()
+	l.Set(labels.LabelPrefix("arch").String(), arch)
+	l.Set(labels.LabelPrefix("os").String(), oper)
+	l.Set(labels.LabelPrefix("hostname").String(), hostname)
+
+	// Construct node instance
+	n := &nodes.Node{
+		Version: "node/v1",
+		Meta: &types.Meta{
+			Name:   hostname,
+			Labels: l,
+		},
+		Config: &nodes.Config{
+			VolumeDrivers: &nodes.VolumeConfig{
+				HostLocal: &volumes.VolumeDriverHostLocal{
+					RootDir: "/var/lib/voiyd/volumes",
+				},
+				Template: &volumes.VolumeDriverTemplate{
+					RootDir: "/var/lib/voiyd/templates",
+				},
+			},
+		},
+	}
+
+	return n, err
 }
