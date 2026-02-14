@@ -1,6 +1,6 @@
 module github.com/amimof/voiyd
 
-go 1.24.3
+go 1.25.7
 
 require (
 	github.com/containerd/go-cni v1.1.13
@@ -41,6 +41,7 @@ require (
 	golang.org/x/mod v0.31.0
 	golang.org/x/term v0.38.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409
+	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -106,7 +107,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 require (
