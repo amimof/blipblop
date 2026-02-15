@@ -10,22 +10,20 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
-	errs "github.com/amimof/voiyd/pkg/errors"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/amimof/voiyd/pkg/queue"
 	"github.com/amimof/voiyd/pkg/runtime"
+	"github.com/amimof/voiyd/pkg/store"
 	"github.com/amimof/voiyd/pkg/volume"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
-	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type Controller struct {
@@ -41,6 +39,8 @@ type Controller struct {
 	exchange         *events.Exchange
 	renewInterval    time.Duration
 	netmanager       networking.Manager
+	tokenStore       store.Store
+	leaseTokens      map[string]string
 
 	mu       sync.Mutex
 	queue    *queue.TaskQueue
@@ -88,6 +88,12 @@ func WithExchange(e *events.Exchange) NewOption {
 func WithNetworkManager(m networking.Manager) NewOption {
 	return func(c *Controller) {
 		c.netmanager = m
+	}
+}
+
+func WithTokenStore(s store.Store) NewOption {
+	return func(c *Controller) {
+		c.tokenStore = s
 	}
 }
 
@@ -229,13 +235,6 @@ func (c *Controller) renewLeases(ctx context.Context) {
 }
 
 func (c *Controller) renewAllLeases(ctx context.Context) {
-	node, err := c.getNode(ctx)
-	if err != nil {
-		c.logger.Error("error getting node", "error", err)
-		return
-	}
-	nodeUID := node.GetMeta().GetUid()
-
 	// Get all running tasks on this node from runtime
 	tasks, err := c.runtime.List(ctx)
 	if err != nil {
@@ -243,38 +242,29 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 		return
 	}
 
+	// Loop though runtime tasks and try to find an existing refresh token for it.
+	// - Task found in runtime but no refresh token in store = stop and remove task
+	// - Task found in both runtime and store = try to renew
+	// - If renew fails, stop and remove the task since its probably held by someone else
 	for _, task := range tasks {
-		taskUID, err := c.runtime.Name(ctx, task.GetMeta().GetUid())
+
+		taskName := task.GetMeta().GetName()
+		taskUID := task.GetMeta().GetUid()
+
+		refreshToken, err := c.tokenStore.Load(taskUID)
 		if err != nil {
+			c.logger.Debug("error loading refresh token from store", "error", err, "task", taskName)
+			_ = c.stopTask(ctx, task)
 			continue
 		}
 
-		// Stop task if lease doesn't exist for it
-		if _, err := c.clientset.LeaseV1().Get(ctx, taskUID); err != nil {
-			if errs.IsNotFound(err) {
-				if err := c.stopTask(ctx, task); err != nil {
-					c.logger.Error("error stopping task", "error", err, "task", taskUID)
-					continue
-				}
-			}
-		}
-
-		// Renew lease
-		renewed, err := c.clientset.LeaseV1().Renew(ctx, taskUID, nodeUID)
+		err = c.renewLease(ctx, task, string(refreshToken))
 		if err != nil {
-			c.logger.Debug("couldn't renew lease, stopping task", "error", err, "task", taskUID)
-			if err := c.stopTask(ctx, task); err != nil {
-				c.logger.Error("error stopping task", "error", err, "task", taskUID)
-				continue
-			}
+			c.logger.Debug("error renewing lease", "error", err, "task", taskName)
+			_ = c.stopTask(ctx, task)
 			continue
 		}
 
-		if !renewed {
-			c.logger.Warn("failed to renew lease", "task", taskUID, "error", err)
-		}
-
-		c.logger.Debug("renewed lease, reconciling", "task", taskUID)
 	}
 }
 
@@ -283,88 +273,7 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 // desired (missing from the server) and adds those missing from runtime.
 // It is preferrably run early during startup of the controller.
 func (c *Controller) Reconcile(ctx context.Context) error {
-	node, err := c.getNode(ctx)
-	if err != nil {
-		return err
-	}
-
-	nodeID := node.GetMeta().GetUid()
-
-	// Renew leases on boot
 	c.renewAllLeases(ctx)
-
-	// Get running tasks from runtime
-	runtimeTasks, err := c.runtime.List(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Verify that the containers in the runtime are supposed to run. If a lease
-	// for a running container cannot be acquired, stop it. Otherwise let it run.
-	for _, task := range runtimeTasks {
-		taskID := task.GetMeta().GetUid()
-
-		// Only acquire if task is supposed to be running
-		if task.GetStatus().GetPhase().GetValue() != string(condition.ReasonRunning) {
-			c.logger.Debug("skip lease acquisition because task is not running", "task", taskID)
-			continue
-		}
-
-		// Try to acquire lease for this task
-		ttl, acquired, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
-		if err != nil {
-			c.logger.Error("error acquiring lease during reconcile", "task", taskID, "error", err)
-			continue
-		}
-
-		// Successfully acquired lease - we can keep running this task
-		if acquired {
-			c.logger.Info("acquierd lease for task", "task", taskID, "node", nodeID, "ttl", ttl)
-
-			// Update task status to reflect actual state
-			if err = c.clientset.TaskV1().Status().Update(ctx, taskID, &tasksv1.Status{
-				Node: wrapperspb.String(nodeID),
-			}, "node"); err != nil {
-				c.logger.Warn("unable to update status", "error", err, "task", taskID, "node", nodeID)
-			}
-
-			continue
-		}
-
-		// Lease held by another node, stop running tasks in runtime
-		c.logger.Warn("lease held by another node", "task", taskID, "node", nodeID)
-
-		// Run cleanup early while netns still exists.
-		// This will allow the CNI plugin to remove networks without leaking.
-		err = c.runtime.Cleanup(ctx, taskID)
-		if err != nil {
-			return err
-		}
-
-		report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
-
-		err = c.detachNetwork(ctx, task, report)
-		if errs.IgnoreNotFound(err) != nil {
-			return err
-		}
-
-		// Stop the task
-		err = c.runtime.Stop(ctx, task)
-		if errs.IgnoreNotFound(err) != nil {
-			return err
-		}
-
-		// Remove any previous tasks ignoring any errors
-		err = c.runtime.Delete(ctx, task)
-		if err != nil {
-			return err
-		}
-
-		// Detach volumes
-		return c.attacher.Detach(ctx, c.node, task)
-
-	}
-
 	return nil
 }
 
@@ -380,6 +289,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		node:             n,
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
 		renewInterval:    time.Second * 30,
+		leaseTokens:      make(map[string]string),
 	}
 
 	for _, opt := range opts {

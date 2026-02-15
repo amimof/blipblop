@@ -3,6 +3,7 @@ package node
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
@@ -44,6 +45,12 @@ func WithExchange(e *events.Exchange) NewServiceOption {
 	}
 }
 
+func WithPublicKey(pubKey ecdsa.PublicKey) NewServiceOption {
+	return func(s *NodeService) {
+		s.pubKey = pubKey
+	}
+}
+
 type NodeService struct {
 	nodesv1.UnimplementedNodeServiceServer
 	local       nodesv1.NodeServiceClient
@@ -52,6 +59,7 @@ type NodeService struct {
 	streams     map[string]nodesv1.NodeService_ConnectServer
 	mu          sync.Mutex
 	logExchange *events.LogExchange
+	pubKey      ecdsa.PublicKey
 }
 
 func (n *NodeService) Register(server *grpc.Server) error {
@@ -267,6 +275,7 @@ func NewService(repo *repository.Repo[*nodesv1.Node], opts ...NewServiceOption) 
 		repo:     repo,
 		exchange: s.exchange,
 		logger:   s.logger,
+		pubKey:   s.pubKey,
 	}
 
 	return s

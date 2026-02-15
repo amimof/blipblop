@@ -46,7 +46,7 @@ type ContainerdRuntime struct {
 	mu           sync.Mutex
 	containerIOs map[string]*TaskIO
 	logDirFmt    string
-	store        store.Store
+	store        store.ProtoStore
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -65,7 +65,7 @@ func WithLogger(l logger.Logger) NewContainerdRuntimeOption {
 	}
 }
 
-func WithStore(s store.Store) NewContainerdRuntimeOption {
+func WithStore(s store.ProtoStore) NewContainerdRuntimeOption {
 	return func(c *ContainerdRuntime) {
 		c.store = s
 	}
@@ -630,7 +630,7 @@ func NewContainerdRuntimeClient(client *containerd.Client, opts ...NewContainerd
 		ns:           DefaultNamespace,
 		containerIOs: map[string]*TaskIO{},
 		logDirFmt:    "/var/lib/voiyd/containers/%s/log",
-		store:        store.NewEphemeralStore(),
+		store:        store.NewEphemeralProtoStore(),
 	}
 
 	for _, opt := range opts {

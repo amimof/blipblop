@@ -28,8 +28,8 @@ func WithClient(client leasesv1.LeaseServiceClient) CreateOption {
 }
 
 type ClientV1 interface {
-	Acquire(context.Context, string, string, ...CreateOption) (uint32, bool, error)
-	Renew(context.Context, string, string) (bool, error)
+	Acquire(context.Context, string, string, ...CreateOption) (*leasesv1.Lease, string, string, error)
+	Renew(context.Context, string, string) (string, error)
 	Release(context.Context, string, string) error
 	Get(context.Context, string) (*leasesv1.Lease, error)
 	List(context.Context, ...labels.Label) ([]*leasesv1.Lease, error)
@@ -41,7 +41,7 @@ type clientV1 struct {
 	id         string
 }
 
-func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...CreateOption) (uint32, bool, error) {
+func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...CreateOption) (*leasesv1.Lease, string, string, error) {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.lease.Acquire")
 	defer span.End()
@@ -51,36 +51,33 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...C
 	}
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	resp, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{NodeId: nodeID, TaskId: taskID})
+	resp, err := c.Client.Acquire(ctx, &leasesv1.AcquireRequest{TaskId: taskID, NodeId: nodeID})
 	if err != nil {
-		return 0, false, err
+		return nil, "", "", err
 	}
-	if !resp.Acquired {
-		return 0, false, err
-	}
-	return resp.GetLease().GetConfig().GetTtlSeconds(), true, nil
+	return resp.GetLease(), resp.GetToken(), resp.GetRefreshToken(), nil
 }
 
-func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string) (bool, error) {
+func (c *clientV1) Renew(ctx context.Context, taskID, refreshToken string) (string, error) {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.lease.Renew")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Renew(ctx, &leasesv1.RenewRequest{TaskId: taskID, NodeId: nodeID})
+	resp, err := c.Client.Renew(ctx, &leasesv1.RenewRequest{TaskId: taskID, RefreshToken: refreshToken})
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	return true, nil
+	return resp.GetRefreshToken(), nil
 }
 
-func (c *clientV1) Release(ctx context.Context, taskID, nodeID string) error {
+func (c *clientV1) Release(ctx context.Context, taskID, accessToken string) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.lease.Release")
 	defer span.End()
 
 	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Release(ctx, &leasesv1.ReleaseRequest{TaskId: taskID, NodeId: nodeID})
+	_, err := c.Client.Release(ctx, &leasesv1.ReleaseRequest{TaskId: taskID, Token: accessToken})
 	if err != nil {
 		return err
 	}

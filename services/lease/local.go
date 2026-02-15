@@ -2,6 +2,7 @@ package lease
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/amimof/voiyd/pkg/auth"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -30,6 +32,8 @@ type local struct {
 	logger      logger.Logger
 	leaseTTL    uint32
 	gracePeriod time.Duration
+	signingKey  *ecdsa.PrivateKey
+	tokenStore  map[string]string
 }
 
 var (
@@ -90,9 +94,6 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 	if _, err := uuid.Parse(req.GetTaskId()); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if _, err := uuid.Parse(req.GetNodeId()); err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
 
 	leases, err := l.repo.List(ctx, 0)
 	if err != nil {
@@ -102,37 +103,19 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 	// Check if lease already exists
 	for _, existing := range leases {
 		if existing.GetConfig().GetTaskId() == req.GetTaskId() {
-
-			// Node is same as before
-			if existing.GetConfig().GetNodeId() == req.GetNodeId() {
-				lease, err := l.renew(ctx, existing.GetConfig().GetTaskId(), req.GetNodeId())
-				if err != nil {
-					return nil, err
-				}
-				return &leasesv1.AcquireResponse{
-					Lease:    lease,
-					Holder:   existing.GetConfig().GetNodeId(),
-					Acquired: true,
-				}, nil
+			// Allows leases to be stolen if expired
+			if time.Now().Before(existing.GetConfig().GetExpiresAt().AsTime().Add(l.gracePeriod)) {
+				return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("lease for task %s already exist", req.GetTaskId()))
 			}
 
-			// Different node - check if current lease expired + grace period
-			if time.Now().After(existing.GetConfig().GetExpiresAt().AsTime().Add(l.gracePeriod)) {
-				lease, err := l.renew(ctx, existing.GetConfig().GetTaskId(), req.GetNodeId())
-				if err != nil {
-					return nil, err
-				}
-				return &leasesv1.AcquireResponse{
-					Lease:    lease,
-					Holder:   req.GetNodeId(),
-					Acquired: true,
-				}, nil
-			}
-
-			return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("lease for task %s already exist", req.GetTaskId()))
+			return l.updateLease(ctx, existing.GetMeta().GetUid(), req)
 		}
 	}
 
+	return l.createLease(ctx, req)
+}
+
+func (l *local) createLease(ctx context.Context, req *leasesv1.AcquireRequest) (*leasesv1.AcquireResponse, error) {
 	ttl := l.leaseTTL
 	now := time.Now()
 	expires := now.Add(time.Duration(ttl) * time.Second)
@@ -157,17 +140,99 @@ func (l *local) Acquire(ctx context.Context, req *leasesv1.AcquireRequest, _ ...
 		},
 	}
 
+	// Sign JWT access token
+	claims := auth.NewLeaseClaim(req.GetTaskId(), req.GetNodeId(), lease.GetMeta().GetUid(), lease.GetConfig().GetAcquiredAt().AsTime())
+
+	// Sign JWT refresh token
+	refreshToken, refreshTokenHash, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+
+	// Persist token to store
+	// TODO: Replace with a real store
+	l.tokenStore[lease.GetConfig().GetTaskId()] = refreshTokenHash
+
+	// Sign JWT token
+	token, err := auth.Generate(claims, l.signingKey)
+	if err != nil {
+		return nil, err
+	}
+
 	newLease, err := l.repo.Create(ctx, lease)
 	if err != nil {
+		fmt.Println("error creating lease", err)
 		return nil, l.handleError(err, "error creating lease", "name", req.GetTaskId())
 	}
 
 	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseAcquiered, newLease))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing lease acquire event", "leaseID", newLease.GetMeta().GetName(), "task", newLease.GetConfig().GetTaskId(), "node", newLease.GetConfig().GetNodeId())
+		return nil, l.handleError(err, "publish error",
+			"leaseID", newLease.GetMeta().GetName(),
+			"task", newLease.GetConfig().GetTaskId(),
+			"node", newLease.GetConfig().GetNodeId())
+	}
+	return &leasesv1.AcquireResponse{Lease: newLease, Token: token, RefreshToken: refreshToken}, nil
+}
+
+func (l *local) updateLease(ctx context.Context, leaseID string, req *leasesv1.AcquireRequest) (*leasesv1.AcquireResponse, error) {
+	uid, err := keys.ParseStr(leaseID)
+	if err != nil {
+		return nil, err
 	}
 
-	return &leasesv1.AcquireResponse{Acquired: true, Lease: newLease}, nil
+	lease, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	expires := now.Add(time.Duration(l.leaseTTL) * time.Second)
+
+	lease.GetConfig().AcquiredAt = timestamppb.New(now)
+	lease.GetConfig().RenewTime = timestamppb.New(now)
+	lease.GetConfig().ExpiresAt = timestamppb.New(expires)
+	lease.GetMeta().ResourceVersion++
+	lease.GetMeta().Generation++
+
+	// Sign JWT access token
+	claims := auth.NewLeaseClaim(req.GetTaskId(), req.GetNodeId(), lease.GetMeta().GetUid(), lease.GetConfig().GetAcquiredAt().AsTime())
+
+	// Sign JWT refresh token
+	refreshToken, refreshTokenHash, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+
+	// Persist token to store
+	// TODO: Replace with a real store
+	l.tokenStore[lease.GetConfig().GetTaskId()] = refreshTokenHash
+
+	// Sign JWT token
+	token, err := auth.Generate(claims, l.signingKey)
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.repo.Update(ctx, uid, lease)
+	if err != nil {
+		return nil, err
+	}
+
+	updatedLease, err := l.repo.Get(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseAcquiered, updatedLease))
+	if err != nil {
+		return nil, l.handleError(err, "publish error",
+			"leaseID", updatedLease.GetMeta().GetName(),
+			"task", updatedLease.GetConfig().GetTaskId(),
+			"node", updatedLease.GetConfig().GetNodeId())
+	}
+
+	return &leasesv1.AcquireResponse{Lease: updatedLease, Token: token, RefreshToken: refreshToken}, nil
 }
 
 func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...grpc.CallOption) (*leasesv1.ReleaseResponse, error) {
@@ -175,8 +240,10 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 	if _, err := uuid.Parse(req.GetTaskId()); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if _, err := uuid.Parse(req.GetNodeId()); err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+
+	_, err := auth.Verify(req.GetToken(), l.signingKey.PublicKey)
+	if err != nil {
+		return nil, status.Error(codes.PermissionDenied, "invalid token")
 	}
 
 	leases, err := l.repo.List(ctx, 0)
@@ -186,11 +253,6 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 
 	for _, existing := range leases {
 		if existing.GetConfig().GetTaskId() == req.GetTaskId() {
-
-			// Decline release request if nodeID does match current lease holder
-			if existing.GetConfig().GetNodeId() != req.GetNodeId() {
-				return nil, status.Error(codes.InvalidArgument, "cannot release lease on behalf of another lease holder")
-			}
 
 			uid, err := keys.ParseStr(existing.GetMeta().GetUid())
 			if err != nil {
@@ -215,25 +277,38 @@ func (l *local) Release(ctx context.Context, req *leasesv1.ReleaseRequest, _ ...
 }
 
 func (l *local) Renew(ctx context.Context, req *leasesv1.RenewRequest, _ ...grpc.CallOption) (*leasesv1.RenewResponse, error) {
-	lease, err := l.renew(ctx, req.GetTaskId(), req.GetNodeId())
+	existingHash, ok := l.tokenStore[req.GetTaskId()]
+	if !ok {
+		return nil, status.Error(codes.NotFound, "lease not found")
+	}
+
+	if existingHash != auth.HashRefreshToken(req.GetRefreshToken()) {
+		return nil, status.Error(codes.InvalidArgument, "invalid refresh token")
+	}
+
+	lease, err := l.renew(ctx, req.GetTaskId())
 	if err != nil {
 		return &leasesv1.RenewResponse{Renewed: false}, err
 	}
+
+	refreshToken, refreshTokenHash, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return nil, status.Errorf(codes.Unknown, "error generating refresh token: %v", err)
+	}
+
+	l.tokenStore[req.GetTaskId()] = refreshTokenHash
 
 	err = l.exchange.Publish(ctx, events.NewEvent(events.LeaseRenewed, lease))
 	if err != nil {
 		return nil, l.handleError(err, "error publishing lease released event", "error", err, "leaseID", lease.GetMeta().GetName(), "task", lease.GetConfig().GetTaskId(), "node", lease.GetConfig().GetNodeId())
 	}
 
-	return &leasesv1.RenewResponse{Renewed: true, Lease: lease}, nil
+	return &leasesv1.RenewResponse{Renewed: true, Lease: lease, RefreshToken: refreshToken}, nil
 }
 
-func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lease, error) {
+func (l *local) renew(ctx context.Context, taskID string) (*leasesv1.Lease, error) {
 	// Validate UIDs in req
 	if _, err := uuid.Parse(taskID); err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	if _, err := uuid.Parse(nodeID); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -246,16 +321,13 @@ func (l *local) renew(ctx context.Context, taskID, nodeID string) (*leasesv1.Lea
 		if existing.GetConfig().GetTaskId() == taskID {
 
 			// Renew if lease has a holder which has already expired
-			if existing.GetConfig().GetNodeId() != nodeID {
-				if time.Now().Before(existing.GetConfig().GetExpiresAt().AsTime().Add(l.gracePeriod)) {
-					return nil, fmt.Errorf("lease held by %s", existing.GetConfig().GetNodeId())
-				}
+			if time.Now().After(existing.GetConfig().GetExpiresAt().AsTime().Add(l.gracePeriod)) {
+				return nil, status.Error(codes.FailedPrecondition, "lease expired")
 			}
 
 			// Update expiry
 			existing.GetConfig().RenewTime = timestamppb.Now()
 			existing.GetConfig().ExpiresAt = timestamppb.New(time.Now().Add(time.Duration(existing.GetConfig().GetTtlSeconds()) * time.Second))
-			existing.GetConfig().NodeId = nodeID
 			existing.GetMeta().ResourceVersion++
 			existing.GetMeta().Generation++
 

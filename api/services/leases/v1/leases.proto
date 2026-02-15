@@ -19,7 +19,10 @@ service LeaseService {
     option (google.api.http) = {get: "/api/v1/leases"};
   }
   rpc Acquire(AcquireRequest) returns (AcquireResponse) {
-    option (google.api.http) = {post: "/api/v1/leases"};
+    option (google.api.http) = {
+      post: "/api/v1/leases"
+      body: "*"
+    };
   }
   rpc Release(ReleaseRequest) returns (ReleaseResponse) {
     option (google.api.http) = {delete: "/api/v1/leases/{id}"};
@@ -57,25 +60,26 @@ message AcquireRequest {
 
 message AcquireResponse {
   Lease lease = 1;
-  bool acquired = 2;
-  string holder = 3;
+  string token = 2;
+  string refresh_token = 3;
 }
 
 message RenewRequest {
   string id = 1;
   string task_id = 2 [(buf.validate.field).string.uuid = true];
-  string node_id = 3 [(buf.validate.field).string.uuid = true];
+  string refresh_token = 3 [(buf.validate.field).string.min_len = 1];
 }
 
 message RenewResponse {
   Lease lease = 1;
   bool renewed = 2;
+  string refresh_token = 3 [(buf.validate.field).string.min_len = 1];
 }
 
 message ReleaseRequest {
   string id = 1;
   string task_id = 2 [(buf.validate.field).string.uuid = true];
-  string node_id = 3 [(buf.validate.field).string.uuid = true];
+  string token = 3 [(buf.validate.field).string.min_len = 1];
 }
 
 message ReleaseResponse {

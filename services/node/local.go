@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"sync"
@@ -33,6 +34,7 @@ type local struct {
 	mu       sync.Mutex
 	exchange *events.Exchange
 	logger   logger.Logger
+	pubKey   ecdsa.PublicKey
 }
 
 var (

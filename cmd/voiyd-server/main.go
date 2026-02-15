@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -22,6 +23,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	"github.com/dgraph-io/badger/v4"
+	"github.com/golang-jwt/jwt/v5"
 	protovalidate_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -79,6 +81,7 @@ var (
 	tlsCertificate    string
 	tlsCertificateKey string
 	tlsCACertificate  string
+	tokenSigningKey   string
 	otelEndpoint      string
 	dbPath            string
 	leaseTTLSeconds   uint32
@@ -93,6 +96,7 @@ func init() {
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
+	pflag.StringVar(&tokenSigningKey, "token-signing-key", "", "the private key to use for signing JWT tokens")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.StringVar(&dbPath, "db-path", "/var/lib/voiyd/db", "Directory to store database state")
@@ -183,6 +187,13 @@ func main() {
 	var serverOpts []server.NewServerOption
 	var gatewayOpts []server.NewGatewayOption
 
+	// Load JWT signing key either from flags or auto-generated
+	signingKey, err := generatePrivateKey()
+	if err != nil {
+		log.Error("error loading signing key", "error", err)
+		os.Exit(1)
+	}
+
 	// Load in certificates either from flags or auto-generated
 	cert, err := generateCertificates()
 	if err != nil {
@@ -263,6 +274,7 @@ func main() {
 		repository.NewNodeRepo(repo),
 		node.WithLogger(log),
 		node.WithExchange(exchange),
+		node.WithPublicKey(signingKey.PublicKey),
 	)
 
 	containerSetService := containerset.NewService(
@@ -290,6 +302,7 @@ func main() {
 
 	leaseService := lease.NewService(
 		repository.NewLeaseRepo(repo),
+		lease.WithSigningKey(signingKey),
 		lease.WithLogger(log),
 		lease.WithExchange(exchange),
 		lease.WithTTL(leaseTTLSeconds),
@@ -505,6 +518,34 @@ func serveTCP(addr string, s *server.Server, errChan chan error) {
 		errChan <- fmt.Errorf("error serving server: %v", err)
 		return
 	}
+}
+
+func generatePrivateKey() (*ecdsa.PrivateKey, error) {
+	if tokenSigningKey != "" {
+		b, err := os.ReadFile(tokenSigningKey)
+		if err != nil {
+			return nil, err
+		}
+		key, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), b)
+		if err != nil {
+			return nil, err
+		}
+		return encodePem(key)
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	return encodePem(key)
+}
+
+func encodePem(key *ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
+	pkcs8Der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		panic(err)
+	}
+	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8Der})
+	return jwt.ParseECPrivateKeyFromPEM(pkcs8Pem)
 }
 
 func generateCertificates() (tls.Certificate, error) {
