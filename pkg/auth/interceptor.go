@@ -17,6 +17,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type ctxKey string
+
 type AuthInterceptor struct {
 	accessibleRoles map[string][]string
 	pubKey          ecdsa.PublicKey
@@ -103,9 +105,9 @@ func (a *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 		}
 
 		if claims != nil {
-			ctx = context.WithValue(ctx, "lease", claims.LeaseID)
-			ctx = context.WithValue(ctx, "subject", claims.Subject)
-			ctx = context.WithValue(ctx, "resource", claims.Resource)
+			ctx = context.WithValue(ctx, ctxKey("lease"), claims.LeaseID)
+			ctx = context.WithValue(ctx, ctxKey("subject"), claims.Subject)
+			ctx = context.WithValue(ctx, ctxKey("resource"), claims.Resource)
 		}
 
 		return handler(ctx, req)
@@ -119,17 +121,17 @@ func (a *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
 	) error {
-		ctx := stream.Context()
-		claims, err := a.authorize(ctx, info.FullMethod)
-		if err != nil {
-			return err
-		}
-		if claims != nil {
-			ctx = context.WithValue(ctx, "lease", claims.LeaseID)
-			ctx = context.WithValue(ctx, "subject", claims.Subject)
-			ctx = context.WithValue(ctx, "resource", claims.Resource)
-		}
-
+		// ctx := stream.Context()
+		// claims, err := a.authorize(ctx, info.FullMethod)
+		// if err != nil {
+		// 	return err
+		// }
+		// if claims != nil {
+		// 	ctx = context.WithValue(ctx, ctxKey("lease"), claims.LeaseID)
+		// 	ctx = context.WithValue(ctx, ctxKey("subject"), claims.Subject)
+		// 	ctx = context.WithValue(ctx, ctxKey("resource"), claims.Resource)
+		// }
+		//
 		return handler(srv, stream)
 	}
 }
