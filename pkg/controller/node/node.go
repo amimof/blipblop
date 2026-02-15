@@ -261,6 +261,7 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 		err = c.renewLease(ctx, task, string(refreshToken))
 		if err != nil {
 			c.logger.Debug("error renewing lease", "error", err, "task", taskName)
+			_ = c.stopTask(ctx, task)
 			continue
 		}
 
