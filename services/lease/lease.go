@@ -2,6 +2,7 @@ package lease
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"time"
 
 	"google.golang.org/grpc"
@@ -35,12 +36,19 @@ func WithTTL(ttl uint32) NewServiceOption {
 	}
 }
 
+func WithSigningKey(key *ecdsa.PrivateKey) NewServiceOption {
+	return func(s *LeaseService) {
+		s.signingKey = key
+	}
+}
+
 type LeaseService struct {
 	leasesv1.UnimplementedLeaseServiceServer
-	local    leasesv1.LeaseServiceClient
-	logger   logger.Logger
-	exchange *events.Exchange
-	leaseTTL uint32
+	local      leasesv1.LeaseServiceClient
+	logger     logger.Logger
+	exchange   *events.Exchange
+	leaseTTL   uint32
+	signingKey *ecdsa.PrivateKey
 }
 
 func (c *LeaseService) Register(server *grpc.Server) error {
@@ -84,6 +92,8 @@ func NewService(repo *repository.Repo[*leasesv1.Lease], opts ...NewServiceOption
 		logger:      s.logger,
 		leaseTTL:    s.leaseTTL,
 		gracePeriod: time.Second * 3,
+		signingKey:  s.signingKey,
+		tokenStore:  make(map[string]string),
 	}
 
 	return s

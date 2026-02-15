@@ -120,6 +120,12 @@ message Mount {
   string destination = 2;
   string type = 3;
   string volume = 4;
+  option (buf.validate.message).oneof = {
+    fields: [
+      "volume",
+      "source"
+    ]
+  };
   string source = 5;
   repeated string options = 6;
 }

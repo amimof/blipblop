@@ -34,7 +34,7 @@ var tasks []*tasksv1.Task = []*tasksv1.Task{
 }
 
 func Test_Store_Ephemeral(t *testing.T) {
-	store := NewEphemeralStore()
+	store := NewEphemeralProtoStore()
 
 	for _, t := range tasks {
 		if err := store.Save(t.GetMeta().GetName(), t); err != nil {

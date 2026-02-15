@@ -77,16 +77,12 @@
         },
         "parameters": [
           {
-            "name": "taskId",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "nodeId",
-            "in": "query",
-            "required": false,
-            "type": "string"
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AcquireRequest"
+            }
           }
         ],
         "tags": [
@@ -125,7 +121,7 @@
             "type": "string"
           },
           {
-            "name": "nodeId",
+            "name": "token",
             "in": "query",
             "required": false,
             "type": "string"
@@ -165,7 +161,8 @@
             "type": "string"
           },
           {
-            "name": "nodeId",
+            "name": "refreshToken",
+            "description": "string node_id = 3 [(buf.validate.field).string.uuid = true];",
             "in": "query",
             "required": false,
             "type": "string"
@@ -205,7 +202,8 @@
             "type": "string"
           },
           {
-            "name": "nodeId",
+            "name": "refreshToken",
+            "description": "string node_id = 3 [(buf.validate.field).string.uuid = true];",
             "in": "query",
             "required": false,
             "type": "string"
@@ -298,16 +296,27 @@
         }
       }
     },
+    "v1AcquireRequest": {
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        }
+      }
+    },
     "v1AcquireResponse": {
       "type": "object",
       "properties": {
         "lease": {
           "$ref": "#/definitions/v1Lease"
         },
-        "acquired": {
-          "type": "boolean"
+        "token": {
+          "type": "string"
         },
-        "holder": {
+        "refreshToken": {
           "type": "string"
         }
       }
@@ -410,6 +419,9 @@
         },
         "renewed": {
           "type": "boolean"
+        },
+        "refreshToken": {
+          "type": "string"
         }
       }
     }

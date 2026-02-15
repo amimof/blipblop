@@ -244,13 +244,18 @@ func main() {
 		}
 	}()
 
-	// Setup and run controllers
-	runtimeStore, err := store.NewFSStore(runtimeStoreDir)
+	// Setup stores
+	runtimeStore, err := store.NewFSProtoStore(runtimeStoreDir)
 	if err != nil {
-		log.Error("error creating FS store", "error", err, "path", runtimeStoreDir)
+		log.Error("error creating proto FS store", "error", err, "path", runtimeStoreDir)
 		os.Exit(1)
 	}
+	tokenStore, err := store.NewFSStore(path.Join(runtimeStoreDir, "tokens"))
+	if err != nil {
+		log.Error("error creating token FS store", "error", err, "path", runtimeStoreDir)
+	}
 
+	// Containerd runtime controller
 	runtime := rt.NewContainerdRuntimeClient(
 		cclient,
 		rt.WithStore(runtimeStore),
@@ -259,7 +264,7 @@ func main() {
 		rt.WithLogDirFmt(runtimeLogDir),
 	)
 
-	// Containerd runtime controller
+	// Setup and run controllers
 	containerdCtrl := containerdctrl.New(
 		cclient,
 		runtime,
@@ -274,6 +279,7 @@ func main() {
 		clientSet,
 		nodeCfg,
 		runtime,
+		nodectrl.WithTokenStore(tokenStore),
 		nodectrl.WithNetworkManager(cni),
 		nodectrl.WithExchange(exchange),
 		nodectrl.WithLogger(log),
