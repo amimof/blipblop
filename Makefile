@@ -94,7 +94,7 @@ $(TBIN)/%: | $(TBIN) ; $(info $(M) building $(PACKAGE))
 	   #rm -rf $$tmp ; exit $$ret
 
 GOCILINT = $(TBIN)/golangci-lint
-$(TBIN)/golangci-lint: PACKAGE=github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
+$(TBIN)/golangci-lint: PACKAGE=github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0
 
 GOLICENSES = $(TBIN)/go-licenses
 $(TBIN)/go-licenses: PACKAGE=github.com/google/go-licenses/v2@v2.0.1
@@ -106,19 +106,19 @@ lint: | $(GOCILINT) ; $(info $(M) running golangci-lint) @ ## Runs static code a
 
 .PHONY: test
 test: ; $(info $(M) running go test) @ ## Runs unit tests
-	$Q $(GO) test -count=1 -v ${PKGS}
+	$Q $(GO) test -count=1 -v ./...
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt) @ ## Formats Go code
-	$Q $(GO) fmt $(PKGS)
+	$Q $(GO) fmt ./...
 
 .PHONY: vet
 vet: ; $(info $(M) running go vet) @ ## Examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
-	$Q $(GO) vet $(PKGS)
+	$Q $(GO) vet ./...
 
 .PHONY: race
 race: ; $(info $(M) running go race) @ ## Runs tests with data race detection
-	$Q CGO_ENABLED=1 $(GO) test -race -short $(PKGS)
+	$Q CGO_ENABLED=1 $(GO) test -race -short ./...
 
 .PHONY: benchmark
 benchmark: ; $(info $(M) running go benchmark test) @ ## Benchmark tests to examine performance
@@ -127,7 +127,7 @@ benchmark: ; $(info $(M) running go benchmark test) @ ## Benchmark tests to exam
 .PHONY: coverage
 coverage: ; $(info $(M) running go coverage) @ ## Runs tests and generates code coverage report at ./test/coverage.out
 	$Q mkdir -p $(CURDIR)/test/
-	$Q $(GO) test -coverprofile="$(CURDIR)/test/coverage.out" $(PKGS)
+	$Q $(GO) test -coverprofile="$(CURDIR)/test/coverage.out" ./...
 	$Q $(GO) tool cover -html "$(CURDIR)/test/coverage.out" -o "$(CURDIR)/test/coverage.html"
 
 .PHONY: checkfmt
