@@ -16,7 +16,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
@@ -26,7 +25,6 @@ import (
 	"github.com/amimof/voiyd/pkg/repository"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
-	"github.com/amimof/voiyd/api/types/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
@@ -273,7 +271,7 @@ func (l *local) Create(ctx context.Context, req *tasksv1.CreateRequest, _ ...grp
 
 	// Initialize status field if empty
 	if task.GetStatus() == nil {
-		task.Status = &tasksv1.Status{Phase: wrapperspb.String("Pending")}
+		task.Status = &tasksv1.Status{}
 	}
 
 	// Create task in repo
@@ -567,7 +565,7 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 }
 
 // Condition implements [tasks.TaskServiceClient].
-func (l *local) Condition(ctx context.Context, req *types.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (l *local) Condition(ctx context.Context, req *typesv1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	uid, err := keys.ParseStr(req.GetTaskId())
 	if err != nil {
 		return nil, l.handleError(err, "couldn't parse uid")

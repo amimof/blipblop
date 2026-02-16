@@ -213,7 +213,7 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refresh
 		return err
 	}
 
-	c.logger.Info("renewed lease for task", "task", taskID, "node", nodeID)
+	c.logger.Debug("renewed lease for task", "task", taskID, "node", nodeID)
 	return nil
 }
 
