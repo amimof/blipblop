@@ -62,30 +62,31 @@ var (
 	// GOVERSION used to compile. Is set when project is built and should never be set manually
 	GOVERSION string
 
-	enabledListeners  []string
-	cleanupTimeout    time.Duration
-	maxHeaderSize     uint64
-	socketPath        string
-	serverAddress     string
-	metricsAddress    string
-	gatewayAddress    string
-	listenLimit       int
-	keepAlive         time.Duration
-	readTimeout       time.Duration
-	writeTimeout      time.Duration
-	logLevel          string
-	tlsListenLimit    int
-	tlsKeepAlive      time.Duration
-	tlsReadTimeout    time.Duration
-	tlsWriteTimeout   time.Duration
-	tlsCertificate    string
-	tlsCertificateKey string
-	tlsCACertificate  string
-	tokenSigningKey   string
-	otelEndpoint      string
-	dbPath            string
-	leaseTTLSeconds   uint32
-	log               *slog.Logger
+	enabledListeners   []string
+	cleanupTimeout     time.Duration
+	maxHeaderSize      uint64
+	socketPath         string
+	serverAddress      string
+	metricsAddress     string
+	gatewayAddress     string
+	listenLimit        int
+	keepAlive          time.Duration
+	readTimeout        time.Duration
+	writeTimeout       time.Duration
+	logLevel           string
+	tlsListenLimit     int
+	tlsKeepAlive       time.Duration
+	tlsReadTimeout     time.Duration
+	tlsWriteTimeout    time.Duration
+	tlsCertificate     string
+	tlsCertificateKey  string
+	tlsCACertificate   string
+	jwtSigningKey      string
+	jwtVerificationKey string
+	otelEndpoint       string
+	dbPath             string
+	leaseTTLSeconds    uint32
+	log                *slog.Logger
 )
 
 func init() {
@@ -96,7 +97,8 @@ func init() {
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
-	pflag.StringVar(&tokenSigningKey, "token-signing-key", "", "the private key to use for signing JWT tokens")
+	pflag.StringVar(&jwtSigningKey, "jwt-signing-key", "", "ecdsa (P-256) private key to use for signing JWT tokens")
+	pflag.StringVar(&jwtVerificationKey, "jwt-verification-key", "", "ecdsa (P-256) public key to use for verifying JWT tokens")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
 	pflag.StringVar(&dbPath, "db-path", "/var/lib/voiyd/db", "Directory to store database state")
@@ -521,8 +523,8 @@ func serveTCP(addr string, s *server.Server, errChan chan error) {
 }
 
 func generatePrivateKey() (*ecdsa.PrivateKey, error) {
-	if tokenSigningKey != "" {
-		b, err := os.ReadFile(tokenSigningKey)
+	if jwtSigningKey != "" && jwtVerificationKey != "" {
+		b, err := os.ReadFile(jwtSigningKey)
 		if err != nil {
 			return nil, err
 		}
