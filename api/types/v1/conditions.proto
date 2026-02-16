@@ -37,5 +37,6 @@ enum ConditionStatus {
 
 message ConditionRequest {
   string resource_version = 1 [(buf.validate.field).string.min_len = 1];
-  types.v1.ConditionReport report = 2;
+  string task_id = 2 [(buf.validate.field).string.min_len = 1];
+  repeated types.v1.Condition conditions = 3;
 }

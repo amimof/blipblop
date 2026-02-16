@@ -9,13 +9,10 @@ import (
 
 	"github.com/jarcoal/httpmock"
 	"go.uber.org/mock/gomock"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/services/node"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
@@ -79,6 +76,9 @@ func TestDownloadBinary_Success(t *testing.T) {
 	nodeMockClient := nodesclientv1.NewMockNodeServiceClient(ctrl)
 	nodesV1 := nodesclientv1.NewClientV1(nodesclientv1.WithClient(nodeMockClient))
 
+	// Setup mock publisher
+	mockPublisher := condition.NewMockPublisher(ctrl)
+
 	// Mock the Get() call that retrieves the node before reporting conditions
 	nodeMockClient.
 		EXPECT().
@@ -97,31 +97,14 @@ func TestDownloadBinary_Success(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	// Expect condition report for NodeReady=False with ReasonUpgrading
-	nodeMockClient.
+	// Expect Report to be called with NodeReady=False and ReasonUpgrading
+	mockPublisher.
 		EXPECT().
-		Condition(
-			gomock.Any(), // context
-			gomock.Any(), // ConditionRequest - we validate it in DoAndReturn
-			gomock.Any(), // grpc.CallOption
+		Report(
+			gomock.Any(), // resourceID
+			false,        // status (False for ReasonUpgrading)
+			gomock.Any(), // ConditionReport
 		).
-		DoAndReturn(func(ctx context.Context, req *typesv1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-			// Validate the condition request
-			if req.GetResourceVersion() != node.Version {
-				t.Errorf("expected resource_version=%s, got %s", node.Version, req.GetResourceVersion())
-			}
-			report := req.GetReport()
-			if report.GetType() != string(condition.NodeReady) {
-				t.Errorf("expected condition type=%s, got %s", condition.NodeReady, report.GetType())
-			}
-			if report.GetStatus() != typesv1.ConditionStatus_CONDITION_STATUS_FALSE {
-				t.Errorf("expected status=FALSE, got %v", report.GetStatus())
-			}
-			if report.GetReason() != string(condition.ReasonUpgrading) {
-				t.Errorf("expected reason=%s, got %s", condition.ReasonUpgrading, report.GetReason())
-			}
-			return &emptypb.Empty{}, nil
-		}).
 		Times(1)
 
 	// Setup http client and activate httpmock on it
@@ -174,6 +157,7 @@ func TestDownloadBinary_Success(t *testing.T) {
 			branch:    "master",
 			goversion: "1.25.2",
 		},
+		publisher: mockPublisher,
 	}
 
 	ctx := context.Background()

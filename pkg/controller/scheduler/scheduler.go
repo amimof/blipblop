@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
@@ -22,6 +23,7 @@ import (
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type NewOption func(c *Controller)
@@ -52,6 +54,12 @@ type Controller struct {
 	nodeService *node.NodeService
 	workPool    *queue.WorkPool
 	queue       *queue.TaskQueue
+	publisher   condition.Publisher
+}
+
+func (c *Controller) Report(report *typesv1.ConditionReport) {
+	status := report.GetStatus() == typesv1.ConditionStatus_CONDITION_STATUS_TRUE
+	c.publisher.Report(report.GetResourceId(), status, report)
 }
 
 func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task) error {
@@ -228,7 +236,7 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 
 	if !c.nodeService.IsNodeConnected(nodeUID) {
 		c.logger.Warn("target node not connected, cannot kill", "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "target node not connected"))
+		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "target node not connected"))
 		return fmt.Errorf("target node %s not connected", node.GetMeta().GetName())
 	}
 
@@ -238,7 +246,7 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	// Send to target node
 	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
 		c.logger.Error("failed to send kill event to node", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
+		c.Report(reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
 		return err
 	}
 
@@ -262,7 +270,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	if !c.nodeService.IsNodeConnected(nodeUID) {
 		c.logger.Warn("target node not connected, cannot stop", "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, "target node not connected"))
+		c.Report(reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, "target node not connected"))
 		return fmt.Errorf("target node %s not connected", node.GetMeta().GetName())
 	}
 
@@ -272,7 +280,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	// Send to target node
 	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
 		c.logger.Error("failed to send stop event to node", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
+		c.Report(reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
 		return err
 	}
 
@@ -304,7 +312,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 	match, err := c.hasMatchingNodes(ctx, task)
 	if err != nil {
 		c.logger.Debug("error matching selector with nodes", "error", err, "task", taskID, "selector", task.GetConfig().GetNodeSelector())
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
+		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
 		return err
 	}
 
@@ -318,7 +326,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 			// Continue to set condition even if release fails
 		}
 
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes match node selector"))
+		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "no nodes match node selector"))
 		return scheduling.ErrSchedulingNoMatchingNode
 	}
 
@@ -332,7 +340,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 			c.logger.Warn("error releasing lease after scheduling failure", "error", releaseErr, "task", taskID)
 		}
 
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
+		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
 		return err
 	}
 
@@ -351,7 +359,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 			c.logger.Warn("error releasing lease for disconnected node", "error", err, "task", taskID)
 		}
 
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "target node not connected"))
+		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, "target node not connected"))
 		return fmt.Errorf("target node %s not connected", n.GetMeta().GetName())
 	}
 
@@ -376,13 +384,27 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 	// Send ONLY to target node
 	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
 		c.logger.Error("failed to send schedule event to node", "error", err, "task", task.GetMeta().GetName(), "node", n.GetMeta().GetName())
-		_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
+		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
 		return err
 	}
 
 	// Update task status AFTER successful send
-	_ = c.clientset.TaskV1().Condition(ctx, reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
+	c.Report(reporter.Type(condition.TaskScheduled).WithMetadata(md).True(condition.ReasonScheduled, ""))
 	c.logger.Info("scheduled task to node", "task", task.GetMeta().GetName(), "node", n.GetMeta().GetName())
+
+	err = c.clientset.TaskV1().Status().Update(
+		ctx,
+		task.GetMeta().GetUid(),
+		&tasksv1.Status{
+			Node:  wrapperspb.String(n.GetMeta().GetName()),
+			Phase: wrapperspb.String(string(condition.ReasonScheduled)),
+		},
+		"node", "phase",
+	)
+	if err != nil {
+		c.logger.Error("error setting status on task", "error", err)
+	}
+
 	return nil
 }
 
@@ -466,6 +488,9 @@ func (c *Controller) Run(ctx context.Context) {
 
 	go c.workPool.Start(ctx)
 
+	publisher := condition.NewPublisher(c.clientset.TaskV1())
+	go publisher.Run(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -487,6 +512,7 @@ func New(cs *client.ClientSet, scheduler scheduling.Scheduler, opts ...NewOption
 		clientset: cs,
 		scheduler: scheduler,
 		logger:    logger.ConsoleLogger{},
+		publisher: condition.NewPublisher(cs.TaskV1()),
 	}
 
 	for _, opt := range opts {

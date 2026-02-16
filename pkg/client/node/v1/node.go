@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
-	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -51,7 +50,7 @@ type ClientV1 interface {
 	Connect(context.Context, string, string, chan *eventsv1.Event, chan error) error
 	Upgrade(context.Context, string, string) error
 	UpgradeAll(context.Context, map[string]string, string) error
-	Condition(context.Context, ...*typesv1.ConditionReport) error
+	Condition(context.Context, string, ...*typesv1.Condition) error
 }
 
 type StatusClientV1 interface {
@@ -205,18 +204,6 @@ func (c *clientV1) Connect(ctx context.Context, nodeUID, nodeName string, receiv
 
 		c.logger.Info("connected to server stream")
 
-		// Update status once connected
-		node, err := c.Get(ctx, nodeName)
-		if err != nil {
-			return err
-		}
-
-		reporter := condition.NewForResource(node)
-		err = c.Condition(ctx, reporter.Type(condition.NodeReady).True(condition.ReasonConnected))
-		if err != nil {
-			return err
-		}
-
 		// Stream handling
 		streamErr := c.handleStream(ctx, stream, receiveChan, errChan)
 
@@ -258,11 +245,9 @@ func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, v
 	return err
 }
 
-func (c *clientV1) Condition(ctx context.Context, reports ...*typesv1.ConditionReport) error {
-	for _, r := range reports {
-		if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: node.Version, Report: r}); err != nil {
-			return err
-		}
+func (c *clientV1) Condition(ctx context.Context, nodeID string, conditions ...*typesv1.Condition) error {
+	if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: node.Version, Conditions: conditions}); err != nil {
+		return err
 	}
 	return nil
 }

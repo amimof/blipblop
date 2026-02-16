@@ -282,6 +282,7 @@ message UpdateStatusRequest {
   string name = 2 [(buf.validate.field).string.min_len = 1];
   google.protobuf.FieldMask update_mask = 3 [(buf.validate.field).required = true];
   Status status = 4 [(buf.validate.field).required = true];
+  uint64 resource_version = 5;
 }
 message UpdateStatusResponse {
   string id = 1;

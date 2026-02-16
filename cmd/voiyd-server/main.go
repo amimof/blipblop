@@ -33,7 +33,6 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/amimof/voiyd/pkg/client"
-	conditionctrl "github.com/amimof/voiyd/pkg/controller/condition"
 	containersetctrl "github.com/amimof/voiyd/pkg/controller/containerset"
 	leasectrl "github.com/amimof/voiyd/pkg/controller/lease"
 	schedulerctrl "github.com/amimof/voiyd/pkg/controller/scheduler"
@@ -415,11 +414,6 @@ func main() {
 	leaseCtrl := leasectrl.New(cs, leasectrl.WithLogger(log), leasectrl.WithExchange(exchange))
 	go leaseCtrl.Run(ctx)
 	log.Info("Started Lease Controller")
-
-	// Conditions controller
-	conditionCtrl := conditionctrl.New(cs, conditionctrl.WithLogger(log), conditionctrl.WithExchange(exchange))
-	go conditionCtrl.Run(ctx)
-	log.Info("Started Condition Controller")
 
 	select {
 	case <-exit:

@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
@@ -47,11 +48,16 @@ type ClientV1 interface {
 	Get(context.Context, string) (*tasksv1.Task, error)
 	Delete(context.Context, string) error
 	List(context.Context, ...labels.Label) ([]*tasksv1.Task, error)
-	Condition(context.Context, ...*typesv1.ConditionReport) error
+	Condition(context.Context, string, ...*typesv1.Condition) error
 }
 
 type StatusClientV1 interface {
 	Update(context.Context, string, *tasksv1.Status, ...string) error
+	SetPhase(context.Context, string, string) error
+	SetNode(context.Context, string, string) error
+	SetID(context.Context, string, string) error
+	SetPid(context.Context, string, uint32) error
+	SetReason(context.Context, string, string) error
 }
 
 type clientV1 struct {
@@ -62,6 +68,31 @@ type clientV1 struct {
 
 type statusV1 struct {
 	client tasksv1.TaskServiceClient
+}
+
+// SetID implements [StatusClientV1].
+func (c *statusV1) SetID(ctx context.Context, id string, i string) error {
+	return c.Update(ctx, id, &tasksv1.Status{Id: wrapperspb.String(i)}, "id")
+}
+
+// SetNode implements [StatusClientV1].
+func (c *statusV1) SetNode(ctx context.Context, id string, node string) error {
+	return c.Update(ctx, id, &tasksv1.Status{Node: wrapperspb.String(node)}, "node")
+}
+
+// SetPhase implements [StatusClientV1].
+func (c *statusV1) SetPhase(ctx context.Context, id string, phase string) error {
+	return c.Update(ctx, id, &tasksv1.Status{Phase: wrapperspb.String(phase)}, "phase")
+}
+
+// SetPid implements [StatusClientV1].
+func (c *statusV1) SetPid(ctx context.Context, id string, pid uint32) error {
+	return c.Update(ctx, id, &tasksv1.Status{Pid: wrapperspb.UInt32(pid)}, "pid")
+}
+
+// SetReason implements [StatusClientV1].
+func (c *statusV1) SetReason(ctx context.Context, id string, reason string) error {
+	return c.Update(ctx, id, &tasksv1.Status{Reason: wrapperspb.String(reason)}, "reason")
 }
 
 func (c *clientV1) Status() StatusClientV1 {
@@ -261,11 +292,9 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (c *clientV1) Condition(ctx context.Context, reports ...*typesv1.ConditionReport) error {
-	for _, r := range reports {
-		if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: task.Version, Report: r}); err != nil {
-			return err
-		}
+func (c *clientV1) Condition(ctx context.Context, taskID string, conditions ...*typesv1.Condition) error {
+	if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: task.Version, Conditions: conditions, TaskId: taskID}); err != nil {
+		return err
 	}
 	return nil
 }

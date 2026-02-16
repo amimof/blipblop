@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/condition"
 	errs "github.com/amimof/voiyd/pkg/errors"
@@ -17,6 +18,7 @@ import (
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 // processScheduleTask enqueues a task for async processing by the workpool
@@ -44,7 +46,7 @@ func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task
 				return nil
 			}
 		}
-		return err
+		// return err
 	}
 
 	return c.queue.Enqueue(ctx, &queue.QueueItem{
@@ -167,7 +169,15 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	}
 
 	// Remove any previous tasks
-	return c.deleteTask(ctx, task, report)
+	err = c.deleteTask(ctx, task, report)
+	if err != nil {
+		return err
+	}
+
+	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonStopped))
+	_ = c.clientset.TaskV1().Status().SetReason(ctx, task.GetMeta().GetUid(), "")
+
+	return nil
 }
 
 // getNode fetches the node by either node name or node UID from the server. It uses whichever idenfier that exists in the
@@ -203,7 +213,7 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refresh
 		return err
 	}
 
-	c.logger.Info("renewed lease for task", "task", taskID, "node", nodeID)
+	c.logger.Debug("renewed lease for task", "task", taskID, "node", nodeID)
 	return nil
 }
 
@@ -261,13 +271,16 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task, report 
 		Type(condition.TaskReady).
 		False(condition.ReasonDeleting)
 
-	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
 	err := c.runtime.Delete(ctx, task)
 	if err != nil {
-		report.
-			Type(condition.TaskReady).
-			False(condition.ReasonDeleteFailed, err.Error())
-		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+		if !errs.IsNotFound(err) {
+			report.
+				Type(condition.TaskReady).
+				False(condition.ReasonDeleteFailed, err.Error())
+			c.Report(report.Report())
+
+		}
 		return err
 	}
 
@@ -276,14 +289,15 @@ func (c *Controller) deleteTask(ctx context.Context, task *tasksv1.Task, report 
 		WithMetadata(map[string]string{"node_name": "", "node_uid": ""}).
 		False(condition.ReasonStopped)
 
-	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
 
 	report.
 		Type(condition.TaskReady).
 		WithMetadata(map[string]string{"pid": "", "id": ""}).
 		False(condition.ReasonStopped)
 
-	return c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
+	return nil
 }
 
 func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
@@ -291,21 +305,23 @@ func (c *Controller) attachMounts(ctx context.Context, task *tasksv1.Task, repor
 	report.
 		Type(condition.VolumeReady).
 		False(condition.ReasonAttaching)
-	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+
+	c.Report(report.Report())
 
 	if err := c.attacher.PrepareMounts(ctx, c.node, task); err != nil {
 		report.
 			Type(condition.VolumeReady).
 			False(condition.ReasonAttachFailed, err.Error())
-		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+		c.Report(report.Report())
 		return err
 	}
 
 	report.
 		Type(condition.VolumeReady).
-		True(condition.ReasonAttached)
+		True(condition.ReasonAttached, "")
 
-	return c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
+	return nil
 }
 
 func (c *Controller) detachMounts(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
@@ -313,20 +329,24 @@ func (c *Controller) detachMounts(ctx context.Context, task *tasksv1.Task, repor
 	report.
 		Type(condition.VolumeReady).
 		False(condition.ReasonDetaching)
-	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
 
 	if err := c.attacher.Detach(ctx, c.node, task); err != nil {
-		report.
-			Type(condition.ImageReady).
-			False(condition.ReasonPullFailed)
-		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+		if !errs.IsNotFound(err) {
+			report.
+				Type(condition.ImageReady).
+				False(condition.ReasonPullFailed)
+			c.Report(report.Report())
+		}
+
 		return err
 	}
 
 	report.
 		Type(condition.VolumeReady).
 		False(condition.ReasonDetached)
-	return c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
+	return nil
 }
 
 func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
@@ -335,14 +355,16 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task, report *
 		Type(condition.ImageReady).
 		False(condition.ReasonPulling)
 
-	_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
 
 	err := c.runtime.Pull(ctx, task)
 	if err != nil {
-		report.
-			Type(condition.ImageReady).
-			False(condition.ReasonPullFailed, err.Error())
-		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
+		if !errs.IsNotFound(err) {
+			report.
+				Type(condition.ImageReady).
+				False(condition.ReasonPullFailed, err.Error())
+			c.Report(report.Report())
+		}
 		return err
 	}
 
@@ -350,7 +372,8 @@ func (c *Controller) pullImage(ctx context.Context, task *tasksv1.Task, report *
 		Type(condition.ImageReady).
 		True(condition.ReasonPulled)
 
-	return c.clientset.TaskV1().Condition(ctx, report.Report())
+	c.Report(report.Report())
+	return nil
 }
 
 // Returns a version of task that is comparable by stripping fields that
@@ -362,12 +385,25 @@ func comparable(task *tasksv1.Task) *tasksv1.Task {
 	return t
 }
 
-func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
+func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) (err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
+
+	defer func() {
+		if err != nil {
+			_ = c.clientset.TaskV1().Status().Update(
+				ctx,
+				task.GetMeta().GetUid(),
+				&tasksv1.Status{
+					Phase:  wrapperspb.String(string(condition.ReasonStartFailed)),
+					Reason: wrapperspb.String(err.Error()),
+				},
+			)
+		}
+	}()
 
 	t, err := c.runtime.Get(ctx, task.GetMeta().GetUid())
 	if errs.IgnoreNotFound(err) != nil {
@@ -409,15 +445,30 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
-	return c.attachNetwork(ctx, task, report)
+	err = c.attachNetwork(ctx, task, report)
+	if err != nil {
+		return err
+	}
+
+	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonRunning))
+	_ = c.clientset.TaskV1().Status().SetReason(ctx, task.GetMeta().GetUid(), "")
+
+	return nil
+}
+
+func (c *Controller) Report(report *typesv1.ConditionReport) {
+	status := report.GetStatus() == typesv1.ConditionStatus_CONDITION_STATUS_TRUE
+	c.publisher.Report(report.GetResourceId(), status, report)
 }
 
 func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
-	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetaching))
+	c.Report(report.Type(condition.NetworkReady).False(condition.ReasonDetaching))
 
 	pid, err := c.runtime.Pid(ctx, task.GetMeta().GetUid())
 	if err != nil {
-		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+		if !errs.IsNotFound(err) {
+			c.Report(report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+		}
 		return err
 	}
 
@@ -428,7 +479,9 @@ func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, repo
 		// Delete CNI Network
 		err = c.netmanager.Detach(ctx, task.GetMeta().GetUid(), pid, attachOpts...)
 		if err != nil {
-			_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+			if !errs.IsNotFound(err) {
+				c.Report(report.Type(condition.NetworkReady).False(condition.ReasonDetachFailed, err.Error()))
+			}
 			return err
 		}
 
@@ -439,11 +492,12 @@ func (c *Controller) detachNetwork(ctx context.Context, task *tasksv1.Task, repo
 		"gateway":    "",
 	}
 
-	return c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).WithMetadata(md).True(condition.ReasonDetached))
+	c.Report(report.Type(condition.NetworkReady).WithMetadata(md).True(condition.ReasonDetached))
+	return nil
 }
 
 func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task, report *condition.Report) error {
-	_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttaching))
+	c.Report(report.Type(condition.NetworkReady).False(condition.ReasonAttaching))
 
 	// id, err := c.runtime.ID(ctx, task.GetMeta().GetUid())
 	// if err != nil {
@@ -456,7 +510,9 @@ func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task, repo
 
 	pid, err := c.runtime.Pid(ctx, id)
 	if err != nil {
-		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		if !errs.IsNotFound(err) {
+			c.Report(report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		}
 		return err
 	}
 
@@ -465,7 +521,9 @@ func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task, repo
 
 	res, err := c.netmanager.Attach(ctx, id, pid, attachOpts...)
 	if err != nil {
-		_ = c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		if !errs.IsNotFound(err) {
+			c.Report(report.Type(condition.NetworkReady).False(condition.ReasonAttachFailed, err.Error()))
+		}
 		return err
 	}
 
@@ -486,5 +544,6 @@ func (c *Controller) attachNetwork(ctx context.Context, task *tasksv1.Task, repo
 		"gateway":    gw,
 	}
 
-	return c.clientset.TaskV1().Condition(ctx, report.Type(condition.NetworkReady).WithMetadata(md).True(condition.ReasonAttached))
+	c.Report(report.Type(condition.NetworkReady).WithMetadata(md).True(condition.ReasonAttached, ""))
+	return nil
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/amimof/voiyd/pkg/repository"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
-	"github.com/amimof/voiyd/api/types/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type local struct {
@@ -91,13 +91,55 @@ func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) er
 			if src.Conditions == nil {
 				continue
 			}
-			dst.Conditions = src.Conditions
+			// Merge conditions intelligently, keeping newest based on timestamp
+			dst.Conditions = mergeConditions(dst.Conditions, src.Conditions, &logger.ConsoleLogger{})
 		default:
 			return fmt.Errorf("unknown mask path %q", p)
 		}
 	}
 
 	return nil
+}
+
+// mergeConditions merges incoming conditions into existing conditions,
+// keeping the newest version of each condition type based on LastTransitionTime.
+// This prevents stale condition updates from overwriting newer ones.
+func mergeConditions(existing, incoming []*typesv1.Condition, logger logger.Logger) []*typesv1.Condition {
+	return protoutils.MergeSlices(
+		existing,
+		incoming,
+		func(c *typesv1.Condition) string {
+			// Use condition Type as the merge key
+			return c.Type.GetValue()
+		},
+		func(existingCond, incomingCond *typesv1.Condition) *typesv1.Condition {
+			// Determine which condition to keep based on timestamp
+			if incomingCond.LastTransitionTime == nil {
+				// Incoming has no timestamp, keep existing
+				logger.Debug("incoming condition has no timestamp, keeping existing",
+					"type", existingCond.Type.GetValue())
+				return existingCond
+			}
+
+			if existingCond.LastTransitionTime == nil {
+				// Existing has no timestamp, accept incoming
+				return incomingCond
+			}
+
+			// Both have timestamps - compare them
+			if incomingCond.LastTransitionTime.AsTime().After(existingCond.LastTransitionTime.AsTime()) {
+				// Incoming is newer, use it
+				return incomingCond
+			}
+
+			// Incoming is stale, keep existing
+			logger.Debug("rejecting stale condition",
+				"type", incomingCond.Type.GetValue(),
+				"incoming_time", incomingCond.LastTransitionTime.AsTime(),
+				"existing_time", existingCond.LastTransitionTime.AsTime())
+			return existingCond
+		},
+	)
 }
 
 // Merge lists strategically using merge keys
@@ -523,8 +565,29 @@ func (l *local) Update(ctx context.Context, req *tasksv1.UpdateRequest, _ ...grp
 }
 
 // Condition implements [tasks.TaskServiceClient].
-func (l *local) Condition(ctx context.Context, req *types.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	err := l.exchange.Publish(ctx, events.NewEvent(events.ConditionReported, req))
+func (l *local) Condition(ctx context.Context, req *typesv1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	uid, err := keys.ParseStr(req.GetTaskId())
+	if err != nil {
+		return nil, l.handleError(err, "couldn't parse uid")
+	}
+
+	updateReq := &tasksv1.UpdateStatusRequest{
+		Name: uid.NameStr(),
+		Uid:  uid.UUIDStr(),
+		UpdateMask: &fieldmaskpb.FieldMask{
+			Paths: []string{"conditions"},
+		},
+		Status: &tasksv1.Status{
+			Conditions: req.GetConditions(),
+		},
+	}
+
+	_, err = l.UpdateStatus(ctx, updateReq)
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.exchange.Publish(ctx, events.NewEvent(events.ConditionReported, req))
 	if err != nil {
 		return nil, err
 	}
