@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -16,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -83,7 +85,7 @@ var (
 	jwtSigningKey      string
 	jwtVerificationKey string
 	otelEndpoint       string
-	dbPath             string
+	dataPath           string
 	leaseTTLSeconds    uint32
 	log                *slog.Logger
 )
@@ -96,11 +98,11 @@ func init() {
 	pflag.StringVar(&tlsCertificate, "tls-certificate", "", "the certificate to use for secure connections")
 	pflag.StringVar(&tlsCertificateKey, "tls-key", "", "the private key to use for secure conections")
 	pflag.StringVar(&tlsCACertificate, "tls-ca", "", "the certificate authority file to be used with mutual tls auth")
-	pflag.StringVar(&jwtSigningKey, "jwt-signing-key", "", "ecdsa (P-256) private key to use for signing JWT tokens")
-	pflag.StringVar(&jwtVerificationKey, "jwt-verification-key", "", "ecdsa (P-256) public key to use for verifying JWT tokens")
+	pflag.StringVar(&jwtSigningKey, "jwt-signing-key", "/var/lib/voiyd/sign.pem", "ecdsa (P-256) private key to use for signing JWT tokens")
+	pflag.StringVar(&jwtVerificationKey, "jwt-verification-key", "/var/lib/voiyd/verify.pem", "ecdsa (P-256) public key to use for verifying JWT tokens")
 	pflag.StringVar(&logLevel, "log-level", "info", "The level of verbosity of log output")
 	pflag.StringVar(&otelEndpoint, "otel-endpoint", "", "Endpoint address of OpenTelemetry collector")
-	pflag.StringVar(&dbPath, "db-path", "/var/lib/voiyd/db", "Directory to store database state")
+	pflag.StringVar(&dataPath, "db-path", "/var/lib/voiyd", "Directory to store state")
 	pflag.StringSliceVar(&enabledListeners, "scheme", []string{"https", "grpc"}, "the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec")
 
 	pflag.IntVar(&listenLimit, "listen-limit", 0, "limit the number of outstanding requests")
@@ -189,7 +191,7 @@ func main() {
 	var gatewayOpts []server.NewGatewayOption
 
 	// Load JWT signing key either from flags or auto-generated
-	signingKey, err := generatePrivateKey()
+	signingKey, err := createSigningKey()
 	if err != nil {
 		log.Error("error loading signing key", "error", err)
 		os.Exit(1)
@@ -247,7 +249,7 @@ func main() {
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 
 	// Setup badgerdb and repo
-	db, err := badger.Open(badger.DefaultOptions(dbPath))
+	db, err := badger.Open(badger.DefaultOptions(path.Join(dataPath, "db")))
 	if err != nil {
 		log.Error("error opening badger database", "error", err)
 		os.Exit(1)
@@ -516,23 +518,68 @@ func serveTCP(addr string, s *server.Server, errChan chan error) {
 	}
 }
 
-func generatePrivateKey() (*ecdsa.PrivateKey, error) {
-	if jwtSigningKey != "" && jwtVerificationKey != "" {
-		b, err := os.ReadFile(jwtSigningKey)
-		if err != nil {
-			return nil, err
-		}
-		key, err := ecdsa.ParseRawPrivateKey(elliptic.P256(), b)
-		if err != nil {
-			return nil, err
-		}
-		return encodePem(key)
-	}
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+func createVerifyKey(key *ecdsa.PrivateKey) (*ecdsa.PublicKey, error) {
+	b, err := os.ReadFile(jwtVerificationKey)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			pemPub, err := encodePubPem(&key.PublicKey)
+			if err != nil {
+				return nil, err
+			}
+
+			pemPubB, err := pemPub.Bytes()
+			if err != nil {
+				return nil, err
+			}
+
+			err = os.WriteFile(path.Join(dataPath, "verify.pem"), pemPubB, 0o755)
+			if err != nil {
+				return nil, err
+			}
+
+			return pemPub, nil
+		}
 		return nil, err
 	}
-	return encodePem(key)
+
+	return ecdsa.ParseUncompressedPublicKey(elliptic.P256(), b)
+}
+
+func createSigningKey() (*ecdsa.PrivateKey, error) {
+	b, err := os.ReadFile(jwtSigningKey)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			if err != nil {
+				return nil, err
+			}
+
+			pemKey, err := encodePem(key)
+			if err != nil {
+				return nil, err
+			}
+
+			pemKeyB, err := pemKey.Bytes()
+			if err != nil {
+				return nil, err
+			}
+
+			err = os.WriteFile(path.Join(dataPath, "sign.pem"), pemKeyB, 0o755)
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = createVerifyKey(pemKey)
+			if err != nil {
+				return nil, err
+			}
+
+			return pemKey, nil
+		}
+		return nil, err
+	}
+
+	return ecdsa.ParseRawPrivateKey(elliptic.P256(), b)
 }
 
 func encodePem(key *ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
@@ -542,6 +589,15 @@ func encodePem(key *ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
 	}
 	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8Der})
 	return jwt.ParseECPrivateKeyFromPEM(pkcs8Pem)
+}
+
+func encodePubPem(key *ecdsa.PublicKey) (*ecdsa.PublicKey, error) {
+	pkcs8Der, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		panic(err)
+	}
+	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pkcs8Der})
+	return jwt.ParseECPublicKeyFromPEM(pkcs8Pem)
 }
 
 func generateCertificates() (tls.Certificate, error) {
