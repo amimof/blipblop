@@ -2,7 +2,7 @@
 
 # Managing signing keys
 
-voiyd-server uses ECDSA (P-256 / ES256) keys for signing and verifying JWT tokens. Currently, their primary purpose is to back the lease service with a signing and validation mechanism. If neither `--jwt-signing-key` nor `--jwt-verification-key` is provided, then voiyd-server will automatically generate an ECDSA private/public key pair at startup. Note that any signed JWT tokens signed will be instantly invalid if the server restarts. If you want persistent keys then you need to generate these and provide them to `voiyd-server` on the command line.
+voiyd-server uses ECDSA (P-256 / ES256) keys for signing and verifying JWT tokens. Currently, their primary purpose is to back the lease service with a signing and validation mechanism. If neither `--jwt-signing-key` nor `--jwt-verification-key` is provided, then voiyd-server will automatically generate an ECDSA private/public key pair in `/var/lib/voiyd/` at startup.
 
 ## Generating ECDSA keys with OpenSSL (ES256)
 
