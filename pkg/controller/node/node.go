@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
@@ -22,8 +23,8 @@ import (
 	"github.com/amimof/voiyd/pkg/volume"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	logsv1 "github.com/amimof/voiyd/api/services/logs/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type Controller struct {
@@ -31,7 +32,6 @@ type Controller struct {
 	logger           logger.Logger
 	clientset        *client.ClientSet
 	tracer           trace.Tracer
-	logChan          chan *logsv1.LogEntry
 	activeLogStreams map[events.LogKey]context.CancelFunc
 	logStreamsMu     sync.RWMutex
 	node             *nodesv1.Node
@@ -41,10 +41,11 @@ type Controller struct {
 	netmanager       networking.Manager
 	tokenStore       store.Store
 	leaseTokens      map[string]string
-
-	mu       sync.Mutex
-	queue    *queue.TaskQueue
-	workPool *queue.WorkPool
+	conditions       chan *typesv1.ConditionReport
+	mu               sync.Mutex
+	queue            *queue.TaskQueue
+	workPool         *queue.WorkPool
+	publisher        condition.Publisher
 }
 
 type NewOption func(c *Controller)
@@ -173,6 +174,10 @@ func (c *Controller) Run(ctx context.Context) {
 		}
 	}()
 
+	// Dispatch condition reports to task service
+	c.publisher = condition.NewPublisher(c.clientset.TaskV1())
+	go c.publisher.Run(ctx)
+
 	// Get hostname from environment
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -187,8 +192,16 @@ func (c *Controller) Run(ctx context.Context) {
 
 	// Report node status with metadata
 	if node, err := c.clientset.NodeV1().Get(ctx, nodeName); err == nil {
-		reporter := condition.NewForResource(node)
-		_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).WithMetadata(map[string]string{"hostname": hostname, "runtime_version": runtimeVer}).True(condition.ReasonConnected))
+		_ = c.clientset.NodeV1().Status().Update(
+			ctx,
+			node.GetMeta().GetUid(),
+			&nodesv1.Status{
+				Phase:    wrapperspb.String(string(condition.ReasonReady)),
+				Runtime:  wrapperspb.String(runtimeVer),
+				Hostname: wrapperspb.String(hostname),
+			},
+			"phase", "runtime", "hostname",
+		)
 	}
 
 	// Start lease loop
@@ -284,12 +297,12 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		netmanager:       &networking.UnimplementedManager{},
 		logger:           logger.ConsoleLogger{},
 		tracer:           otel.Tracer("controller"),
-		logChan:          make(chan *logsv1.LogEntry),
 		activeLogStreams: make(map[events.LogKey]context.CancelFunc),
 		node:             n,
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
 		renewInterval:    time.Second * 30,
 		leaseTokens:      make(map[string]string),
+		conditions:       make(chan *typesv1.ConditionReport),
 	}
 
 	for _, opt := range opts {

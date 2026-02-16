@@ -16,7 +16,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/repository"
@@ -190,19 +189,20 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		reporter := condition.NewForResource(node)
+		// reporter := condition.NewForResource(node)
 
 		n.logger.Info("removing node stream", "node", nodeName)
 
+		// TODO: Update node status correctly on disconnects
 		// Report disconnected status with fresh context
-		if _, err = n.Condition(cleanupCtx, &typesv1.ConditionRequest{
-			ResourceVersion: Version,
-			Report:          reporter.Type(condition.NodeReady).False(condition.ReasonDisconnected),
-		}); err != nil {
-			n.logger.Error("failed to report node disconnection", "error", err, "node", nodeName)
-		} else {
-			n.logger.Info("successfully reported node disconnection", "node", nodeName)
-		}
+		// if _, err = n.Condition(cleanupCtx, &typesv1.ConditionRequest{
+		// 	ResourceVersion: Version,
+		// 	Report:          reporter.Type(condition.NodeReady).False(condition.ReasonDisconnected),
+		// }); err != nil {
+		// 	n.logger.Error("failed to report node disconnection", "error", err, "node", nodeName)
+		// } else {
+		// 	n.logger.Info("successfully reported node disconnection", "node", nodeName)
+		// }
 
 		// Publish disconnect event
 		if err = n.exchange.Publish(cleanupCtx, events.NewEvent(events.NodeForget, node)); err != nil {

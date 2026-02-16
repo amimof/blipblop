@@ -9,8 +9,6 @@ import (
 	"os"
 	"runtime"
 
-	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
-	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/pkg/condition"
@@ -19,6 +17,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
+
+	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 type NewOption func(c *Controller)
@@ -69,6 +71,7 @@ type Controller struct {
 	tmpPath     string
 	binPath     string
 	httpClient  *http.Client
+	publisher   condition.Publisher
 }
 
 func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
@@ -102,12 +105,10 @@ func (c *Controller) Run(ctx context.Context) {
 
 	// Report node status with metadata
 	if node, err := c.clientset.NodeV1().Get(ctx, nodeName); err == nil {
-		_ = c.clientset.NodeV1().Condition(
-			ctx,
-			condition.NewForResource(node).
-				Type(condition.NodeReady).
-				WithMetadata(map[string]string{"node_version": c.nodeVersion.version}).
-				True(condition.ReasonConnected))
+		c.Report(condition.NewForResource(node).
+			Type(condition.NodeReady).
+			WithMetadata(map[string]string{"node_version": c.nodeVersion.version}).
+			True(condition.ReasonConnected))
 	}
 
 	binPath, err := os.Executable()
@@ -235,10 +236,7 @@ func (c *Controller) downloadBinary(ctx context.Context, ver, arch string) (stri
 	}
 
 	reporter := condition.NewForResource(node)
-
-	if err := c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).False(condition.ReasonUpgrading)); err != nil {
-		c.logger.Error("error setting condition", "error", err)
-	}
+	c.Report(reporter.Type(condition.NodeReady).False(condition.ReasonUpgrading))
 
 	binResp, err := c.httpClient.Get(assetURL)
 	if err != nil {
@@ -336,7 +334,7 @@ func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error
 
 	// Update with upgrade success
 	reporter := condition.NewForResource(node)
-	_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).False(condition.ReasonUpgrading))
+	c.Report(reporter.Type(condition.NodeReady).False(condition.ReasonUpgrading))
 
 	// Parse the version from flag
 	ver, err := cmdutil.ParseVersion(req.GetTargetVersion())
@@ -359,7 +357,7 @@ func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error
 	}
 
 	// Update with upgrade success
-	_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).WithMetadata(map[string]string{"upgraded_to": ver}).True(condition.ReasonUpgraded))
+	c.Report(reporter.Type(condition.NodeReady).WithMetadata(map[string]string{"upgraded_to": ver}).True(condition.ReasonUpgraded))
 
 	// Terminate program
 	os.Exit(0)
@@ -377,7 +375,12 @@ func (c *Controller) failUpgrade(ctx context.Context, upgradeErr error) {
 		return
 	}
 	reporter := condition.NewForResource(node)
-	_ = c.clientset.NodeV1().Condition(ctx, reporter.Type(condition.NodeReady).False(condition.ReasonUpgradeFailed, upgradeErr.Error()))
+	c.Report(reporter.Type(condition.NodeReady).False(condition.ReasonUpgradeFailed, upgradeErr.Error()))
+}
+
+func (c *Controller) Report(report *typesv1.ConditionReport) {
+	status := report.GetStatus() == typesv1.ConditionStatus_CONDITION_STATUS_TRUE
+	c.publisher.Report(report.GetResourceId(), status, report)
 }
 
 func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) *Controller {
@@ -389,6 +392,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) *Controller {
 		targetPath: "/usr/local/bin/",
 		tmpPath:    "/tmp/",
 		httpClient: http.DefaultClient,
+		publisher:  condition.NewPublisher(c.NodeV1()),
 	}
 	for _, opt := range opts {
 		opt(m)

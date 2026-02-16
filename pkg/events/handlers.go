@@ -154,18 +154,6 @@ func HandleScheduling(h SchedulingHandlerFunc) HandlerFunc {
 	}
 }
 
-func HandleConditionReport(h ConditionHandlerFunc) HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		var req typesv1.ConditionRequest
-		err := ev.GetObject().UnmarshalTo(&req)
-		if err != nil {
-			return err
-		}
-
-		return h(ctx, req.GetReport(), req.GetResourceVersion())
-	}
-}
-
 func HandleEach(f ...func()) TaskHandlerFunc {
 	return func(ctx context.Context, t *tasksv1.Task) error {
 		return nil

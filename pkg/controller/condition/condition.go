@@ -46,7 +46,7 @@ func (c *Controller) Run(ctx context.Context) {
 	_, err := c.clientset.EventV1().Subscribe(ctx, events.ConditionReported)
 
 	// Setup Handlers
-	c.clientset.EventV1().On(events.ConditionReported, events.HandleErrors(c.logger, events.HandleConditionReport(c.onConditionReported)))
+	// c.clientset.EventV1().On(events.ConditionReported, events.HandleErrors(c.logger, events.HandleConditionReport(c.onConditionReported)))
 
 	// Handle errors
 	for e := range err {

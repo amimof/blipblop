@@ -397,6 +397,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
@@ -717,6 +724,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
@@ -852,53 +866,6 @@
           }
         }
       }
-    },
-    "v1ConditionReport": {
-      "type": "object",
-      "properties": {
-        "resourceId": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/definitions/v1ConditionStatus"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "msg": {
-          "type": "string"
-        },
-        "observedGeneration": {
-          "type": "string",
-          "format": "uint64"
-        },
-        "observedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "metadata": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "reporter": {
-          "type": "string"
-        }
-      }
-    },
-    "v1ConditionStatus": {
-      "type": "string",
-      "enum": [
-        "CONDITION_STATUS_UNSPECIFIED",
-        "CONDITION_STATUS_TRUE",
-        "CONDITION_STATUS_FALSE",
-        "CONDITION_STATUS_UNKNOWN"
-      ],
-      "default": "CONDITION_STATUS_UNSPECIFIED"
     },
     "v1Config": {
       "type": "object",

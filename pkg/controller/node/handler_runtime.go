@@ -23,11 +23,6 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 		return err
 	}
 
-	lease, err := c.clientset.LeaseV1().Get(ctx, tname)
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
 	task, err := c.clientset.TaskV1().Get(ctx, tname)
 	if err != nil {
 		return err
@@ -38,33 +33,33 @@ func (c *Controller) onRuntimeTaskStart(ctx context.Context, obj *eventsv1.Event
 		return err
 	}
 
-	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
-		c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+	c.logger.Info("received task start event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-		report := condition.NewForResource(task).As(node.GetMeta().GetUid())
+	report := condition.NewForResource(task).As(node.GetMeta().GetUid())
 
-		md := map[string]string{
-			"pid":       strconv.Itoa(int(e.GetPid())),
-			"id":        e.GetContainerID(),
-			"node_uid":  node.GetMeta().GetUid(),
-			"node_name": node.GetMeta().GetName(),
-		}
-
-		report.
-			Type(condition.TaskScheduled).
-			WithMetadata(md).
-			True(condition.ReasonScheduled)
-
-		_ = c.clientset.TaskV1().Condition(ctx, report.Report())
-
-		report.
-			Type(condition.TaskReady).
-			WithMetadata(md).
-			True(condition.ReasonRunning)
-
-		return c.clientset.TaskV1().Condition(ctx, report.Report())
+	md := map[string]string{
+		"pid":       strconv.Itoa(int(e.GetPid())),
+		"id":        e.GetContainerID(),
+		"node_uid":  node.GetMeta().GetUid(),
+		"node_name": node.GetMeta().GetName(),
 	}
+
+	report.
+		Type(condition.TaskScheduled).
+		WithMetadata(md).
+		True(condition.ReasonScheduled)
+
+	c.Report(report.Report())
+
+	report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		True(condition.ReasonRunning)
+
+	c.Report(report.Report())
+
+	_ = c.clientset.TaskV1().Status().SetPid(ctx, task.GetMeta().GetUid(), e.GetPid())
+	_ = c.clientset.TaskV1().Status().SetID(ctx, task.GetMeta().GetUid(), e.GetContainerID())
 
 	return nil
 }
@@ -86,11 +81,6 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		return err
 	}
 
-	lease, err := c.clientset.LeaseV1().Get(ctx, e.GetContainerID())
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
 	task, err := c.clientset.TaskV1().Get(ctx, e.GetContainerID())
 	if err != nil {
 		return err
@@ -101,26 +91,24 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 		return err
 	}
 
-	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
-		c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
+	c.logger.Info("received task exit event from runtime", "exitCode", e.GetExitStatus(), "pid", e.GetPid(), "exitedAt", e.GetExitedAt())
 
-		report := condition.NewForResource(task).As(node.GetMeta().GetUid())
+	report := condition.NewForResource(task).As(node.GetMeta().GetUid())
 
-		exitStatus := ""
-		if e.GetExitStatus() > 0 {
-			exitStatus = fmt.Sprintf("exit status %d", e.GetExitStatus())
-		}
+	exitStatus := fmt.Sprintf("exit status %d", e.GetExitStatus())
 
-		md := map[string]string{"exit_status": exitStatus}
+	md := map[string]string{"exit_status": exitStatus}
 
-		taskReport := report.
-			Type(condition.TaskReady).
-			WithMetadata(md).
-			False(condition.ReasonStopped, exitStatus)
+	taskReport := report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		False(condition.ReasonStopped, exitStatus)
 
-		return c.clientset.TaskV1().Condition(ctx, taskReport)
-	}
+	c.Report(taskReport)
+
+	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonStopped))
+	_ = c.clientset.TaskV1().Status().SetReason(ctx, task.GetMeta().GetUid(), exitStatus)
+
 	return nil
 }
 
@@ -131,11 +119,6 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		return err
 	}
 
-	lease, err := c.clientset.LeaseV1().Get(ctx, e.GetContainerID())
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-
 	task, err := c.clientset.TaskV1().Get(ctx, e.GetContainerID())
 	if err != nil {
 		return err
@@ -146,21 +129,21 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 		return err
 	}
 
-	// Only proceed if task is owned by us
-	if lease.GetConfig().GetNodeId() == node.GetMeta().GetUid() {
-		c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
+	c.logger.Info("received task delete event from runtime", "task", e.GetContainerID(), "pid", e.GetPid())
 
-		report := condition.NewForResource(task).As(node.GetMeta().GetUid())
-		md := map[string]string{
-			"id":  "",
-			"pid": "",
-		}
-		taskReport := report.
-			Type(condition.TaskReady).
-			WithMetadata(md).
-			False(condition.ReasonStopped)
-
-		return c.clientset.TaskV1().Condition(ctx, taskReport)
+	report := condition.NewForResource(task).As(node.GetMeta().GetUid())
+	md := map[string]string{
+		"id":  "",
+		"pid": "",
 	}
+	taskReport := report.
+		Type(condition.TaskReady).
+		WithMetadata(md).
+		False(condition.ReasonStopped)
+
+	c.Report(taskReport)
+
+	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonDeleted))
+
 	return nil
 }

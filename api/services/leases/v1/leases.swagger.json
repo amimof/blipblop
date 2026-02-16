@@ -162,7 +162,6 @@
           },
           {
             "name": "refreshToken",
-            "description": "string node_id = 3 [(buf.validate.field).string.uuid = true];",
             "in": "query",
             "required": false,
             "type": "string"
@@ -203,7 +202,6 @@
           },
           {
             "name": "refreshToken",
-            "description": "string node_id = 3 [(buf.validate.field).string.uuid = true];",
             "in": "query",
             "required": false,
             "type": "string"
