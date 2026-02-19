@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/amimof/voiyd/pkg/keys"
+	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/dgraph-io/badger/v4"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
@@ -33,8 +34,8 @@ type Resource interface {
 }
 
 type Txn interface {
-	Get(key []byte) ([]byte, error)     // returns a COPY of value
-	List([]byte, int) ([][]byte, error) // returns a COPY of value
+	Get(key []byte) ([]byte, error)       // returns a COPY of value
+	List([]byte, int32) ([][]byte, error) // returns a COPY of value
 	Set(key, val []byte) error
 	Delete(key []byte) error
 	Keys([]byte) ([][]byte, error)
@@ -50,7 +51,7 @@ var TaskCodec = ProtoCodec[*tasksv1.Task]{
 }
 
 func NewTaskRepo[T *tasksv1.Task](db DB) *Repo[*tasksv1.Task] {
-	return NewRepo(db, TaskCodec, []byte("task/"), []byte("i/task/"))
+	return NewRepo(db, TaskCodec, []byte("task/"), []byte("i/task/"), []byte("i/idx/task"))
 }
 
 var NodeCodec = ProtoCodec[*nodesv1.Node]{
@@ -58,7 +59,7 @@ var NodeCodec = ProtoCodec[*nodesv1.Node]{
 }
 
 func NewNodeRepo[T *nodesv1.Node](db DB) *Repo[*nodesv1.Node] {
-	return NewRepo(db, NodeCodec, []byte("node/"), []byte("i/node/"))
+	return NewRepo(db, NodeCodec, []byte("node/"), []byte("i/node/"), []byte("i/idx/node"))
 }
 
 var VolumeCodec = ProtoCodec[*volumesv1.Volume]{
@@ -66,7 +67,7 @@ var VolumeCodec = ProtoCodec[*volumesv1.Volume]{
 }
 
 func NewVolumeRepo[T *volumesv1.Volume](db DB) *Repo[*volumesv1.Volume] {
-	return NewRepo(db, VolumeCodec, []byte("volume/"), []byte("i/volume/"))
+	return NewRepo(db, VolumeCodec, []byte("volume/"), []byte("i/volume/"), []byte("i/idx/volume"))
 }
 
 var EventCodec = ProtoCodec[*eventsv1.Event]{
@@ -74,7 +75,7 @@ var EventCodec = ProtoCodec[*eventsv1.Event]{
 }
 
 func NewEventRepo[T *eventsv1.Event](db DB) *Repo[*eventsv1.Event] {
-	return NewRepo(db, EventCodec, []byte("event/"), []byte("i/event/"))
+	return NewRepo(db, EventCodec, []byte("event/"), []byte("i/event/"), []byte("i/idx/event"))
 }
 
 var LeaseCodec = ProtoCodec[*leasesv1.Lease]{
@@ -82,7 +83,7 @@ var LeaseCodec = ProtoCodec[*leasesv1.Lease]{
 }
 
 func NewLeaseRepo[T *leasesv1.Lease](db DB) *Repo[*leasesv1.Lease] {
-	return NewRepo(db, LeaseCodec, []byte("lease/"), []byte("i/lease/"))
+	return NewRepo(db, LeaseCodec, []byte("lease/"), []byte("i/lease/"), []byte("i/idx/lease"))
 }
 
 var ContainerSetCodec = ProtoCodec[*containersetsv1.ContainerSet]{
@@ -90,7 +91,7 @@ var ContainerSetCodec = ProtoCodec[*containersetsv1.ContainerSet]{
 }
 
 func NewContainerSetRepo[T *containersetsv1.ContainerSet](db DB) *Repo[*containersetsv1.ContainerSet] {
-	return NewRepo(db, ContainerSetCodec, []byte("containerset/"), []byte("i/containerset/"))
+	return NewRepo(db, ContainerSetCodec, []byte("containerset/"), []byte("i/containerset/"), []byte("i/idx/containerset"))
 }
 
 type Codec[T proto.Message] interface {
@@ -112,23 +113,25 @@ func (c ProtoCodec[T]) Decode(b []byte) (T, error) {
 
 type Repo[T Resource] struct {
 	// db      *badger.DB
-	db      DB
-	prefix  []byte
-	iprefix []byte
-	Codec   Codec[T]
+	db        DB
+	prefix    []byte
+	iprefix   []byte
+	idxprefix []byte
+	Codec     Codec[T]
 }
 
 // func NewRepo[T proto.Message](db *badger.DB, codec Codec[T], prefix, iprefix []byte) *Repo[T] {
-func NewRepo[T Resource](db DB, codec Codec[T], prefix, iprefix []byte) *Repo[T] {
+func NewRepo[T Resource](db DB, codec Codec[T], prefix, iprefix, idxprefix []byte) *Repo[T] {
 	return &Repo[T]{
-		db:      db,
-		prefix:  prefix,
-		iprefix: iprefix,
-		Codec:   codec,
+		db:        db,
+		prefix:    prefix,
+		iprefix:   iprefix,
+		idxprefix: idxprefix,
+		Codec:     codec,
 	}
 }
 
-func (r Repo[T]) List(ctx context.Context, limit int) ([]T, error) {
+func (r Repo[T]) List(ctx context.Context, limit int32) ([]T, error) {
 	var out []T
 
 	err := r.db.View(ctx, func(txn Txn) error {
@@ -176,8 +179,14 @@ func (r Repo[T]) Get(ctx context.Context, id keys.ID) (T, error) {
 				return err
 			}
 			res = t
+		case keys.TagIdx:
+			t, err := r.getByIndex(ctx, id)
+			if err != nil {
+				return err
+			}
+			res = t
 		default:
-			return fmt.Errorf("unsupported id tag: %v", id.Tag())
+			return fmt.Errorf("unsupported  sssid tag: %v", id.Tag())
 		}
 		return nil
 	})
@@ -247,38 +256,104 @@ func (r Repo[T]) getByName(ctx context.Context, id keys.ID) (T, error) {
 		res = decoded
 		return nil
 	})
+
 	return res, err
 }
 
-func (r *Repo[T]) Create(ctx context.Context, resource Resource) (T, error) {
+func (r Repo[T]) getByIndex(ctx context.Context, id keys.ID) (T, error) {
+	idx := id.EncodePrefixed(r.idxprefix)
+	var res T
+
+	err := r.db.View(ctx, func(txn Txn) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		idxItem, err := txn.Get(idx)
+		if err != nil {
+			return err
+		}
+
+		var uid keys.ID
+		uid, err = keys.Decode(idxItem)
+		if err != nil {
+			return err
+		}
+
+		item, err := txn.Get(uid.EncodePrefixed(r.prefix))
+		if err != nil {
+			return err
+		}
+		decoded, err := r.Codec.Decode(item)
+		if err != nil {
+			return err
+		}
+		res = decoded
+		return nil
+	})
+
+	return res, err
+}
+
+func (r *Repo[T]) Create(ctx context.Context, resource T) (T, error) {
 	var res T
 
 	u := uuid.New()
 	resource.GetMeta().Uid = u.String()
 	resource.GetMeta().Created = timestamppb.Now()
 	resource.GetMeta().Updated = timestamppb.Now()
+	resource.GetMeta().ResourceVersion = 1
 
 	uid, err := keys.UUID(u)
 	if err != nil {
 		return res, err
 	}
+
 	name, err := keys.Name(resource.GetMeta().GetName())
 	if err != nil {
 		return res, err
 	}
 
-	b, err := proto.Marshal(resource)
+	idx, err := keys.Index(resource.GetMeta().GetName())
 	if err != nil {
 		return res, err
 	}
 
 	err = r.db.Update(ctx, func(txn Txn) error {
-		_, err := txn.Get(name.EncodePrefixed(r.iprefix))
+		existing, err := r.Get(ctx, name)
+		if err != nil {
+			if !errors.Is(err, ErrNotFound) {
+				return err
+			}
+		}
+
 		if err == nil {
 			return ErrIdxExists
 		}
 
+		changed, err := protoutils.SpecEqual(existing, resource)
+		if err != nil {
+			return err
+		}
+
+		protoutils.EnsureMessageField(resource, "status")
+
+		if changed {
+			resource.GetMeta().Generation++
+		}
+
+		b, err := proto.Marshal(resource)
+		if err != nil {
+			return err
+		}
+
 		if err := txn.Set(uid.EncodePrefixed(r.prefix), b); err != nil {
+			return err
+		}
+
+		if err := txn.Set(idx.EncodePrefixed(r.idxprefix), uid.Encode()); err != nil {
 			return err
 		}
 
@@ -373,7 +448,8 @@ func (r Repo[T]) Delete(ctx context.Context, id keys.ID) error {
 	return err
 }
 
-func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) error {
+func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) (T, error) {
+	var res T
 	err := r.db.Update(ctx, func(txn Txn) error {
 		select {
 		case <-ctx.Done():
@@ -394,6 +470,7 @@ func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) erro
 		meta.Created = existingMeta.Created
 		meta.Updated = timestamppb.Now()
 		meta.ResourceVersion = existingMeta.ResourceVersion + 1
+		meta.Generation = existingMeta.Generation + 1
 
 		// Marshal and save
 		b, err := proto.Marshal(resource)
@@ -416,8 +493,26 @@ func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) erro
 				return err
 			}
 
+			res, err = r.getByUID(ctx, id)
+			if err != nil {
+				return err
+			}
 		case keys.TagName:
 			err := r.updateByName(ctx, id, b)
+			if err != nil {
+				return err
+			}
+
+			res, err = r.getByName(ctx, id)
+			if err != nil {
+				return err
+			}
+		case keys.TagIdx:
+			err := r.updateByIdx(ctx, id, b)
+			if err != nil {
+				return err
+			}
+			res, err = r.getByIndex(ctx, id)
 			if err != nil {
 				return err
 			}
@@ -426,12 +521,32 @@ func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) erro
 		}
 		return nil
 	})
-	return err
+	return res, err
 }
 
 func (r Repo[T]) updateByName(ctx context.Context, id keys.ID, b []byte) error {
 	return r.db.Update(ctx, func(txn Txn) error {
 		idxItem, err := txn.Get(id.EncodePrefixed(r.iprefix))
+		if err != nil {
+			return err
+		}
+
+		uid, err := keys.Decode(idxItem)
+		if err != nil {
+			return err
+		}
+
+		if err := txn.Set(uid.EncodePrefixed(r.prefix), b); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (r Repo[T]) updateByIdx(ctx context.Context, id keys.ID, b []byte) error {
+	return r.db.Update(ctx, func(txn Txn) error {
+		idxItem, err := txn.Get(id.EncodePrefixed(r.idxprefix))
 		if err != nil {
 			return err
 		}

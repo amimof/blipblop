@@ -319,3 +319,72 @@ func TestToFields(t *testing.T) {
 		})
 	}
 }
+
+func TestSpecChanged(t *testing.T) {
+	testCases := []struct {
+		name    string
+		message []proto.Message
+		expect  bool
+	}{
+		{
+			name:   "spec chould be equal",
+			expect: true,
+			message: []proto.Message{
+				&tasksv1.Task{
+					Meta: &types.Meta{
+						Name: "test-task",
+						Labels: map[string]string{
+							"role": "root",
+						},
+					},
+					Config: &tasksv1.Config{
+						Image: "docker.io/library/nginx:latest",
+						Args: []string{
+							"--config /mnt/cfg/config.yaml",
+						},
+						NodeSelector: map[string]string{
+							"voiyd.io/arch": "amd64",
+							"voiyd.io/os":   "linux",
+						},
+					},
+					Status: &tasksv1.Status{
+						Phase: wrapperspb.String("Running"),
+					},
+				},
+				&tasksv1.Task{
+					Meta: &types.Meta{
+						Name: "test-task-2",
+						Labels: map[string]string{
+							"role": "root",
+							"zone": "west",
+						},
+					},
+					Config: &tasksv1.Config{
+						Image: "docker.io/library/nginx:latest",
+						Args: []string{
+							"--config /mnt/cfg/config.yaml",
+						},
+						NodeSelector: map[string]string{
+							"voiyd.io/arch": "amd64",
+							"voiyd.io/os":   "linux",
+						},
+					},
+					Status: &tasksv1.Status{
+						Phase:  wrapperspb.String("Stopped"),
+						Reason: wrapperspb.String("Killed"),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			equal, err := SpecEqual(tt.message[0], tt.message[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, tt.expect, equal)
+		})
+	}
+}

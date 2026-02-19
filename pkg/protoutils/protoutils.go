@@ -321,3 +321,66 @@ func StrategicMerge[T proto.Message](base, patch T, mergeFuncs ...func(b, p T)) 
 
 	return tmp
 }
+
+// EnsureMessageField initializes field on m if nil, using reflection
+func EnsureMessageField(m proto.Message, fieldName string) proto.Message {
+	if m == nil {
+		return m
+	}
+
+	am := m.ProtoReflect()
+
+	fd := am.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if fd == nil {
+		return m
+	}
+	if fd.Kind() != protoreflect.MessageKind {
+		return m
+	}
+
+	am.Mutable(fd)
+	return nil
+}
+
+// SpecEqual compares a and b's config field using reflection. Returns true if they match
+func SpecEqual(a, b proto.Message) (bool, error) {
+	if a == nil || b == nil {
+		return a == b, nil
+	}
+
+	am := a.ProtoReflect()
+	bm := b.ProtoReflect()
+
+	// Same message type is expected in an update.
+	if am.Descriptor().FullName() != bm.Descriptor().FullName() {
+		return false, fmt.Errorf("type mismatch: %s vs %s",
+			am.Descriptor().FullName(), bm.Descriptor().FullName())
+	}
+
+	fd := am.Descriptor().Fields().ByName("config")
+	if fd == nil {
+		// If you *require* a spec field, return error instead.
+		// If not, you can treat the entire message as “spec”.
+		return proto.Equal(a, b), nil
+	}
+
+	av := am.Get(fd)
+	bv := bm.Get(fd)
+
+	// Handle missing/zero values.
+	if !am.Has(fd) && !bm.Has(fd) {
+		return true, nil
+	}
+	if !am.Has(fd) || !bm.Has(fd) {
+		return false, nil
+	}
+
+	// If spec is a message, compare messages.
+	if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
+		return proto.Equal(av.Message().Interface(), bv.Message().Interface()), nil
+	}
+
+	// Otherwise compare scalar/list/map via value equality.
+	// (protoreflect.Value is comparable only in some cases; safer to normalize)
+	return av.Interface() == bv.Interface(), nil
+}

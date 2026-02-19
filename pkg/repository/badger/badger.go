@@ -32,7 +32,7 @@ func (x txn) Keys(prefix []byte) ([][]byte, error) {
 
 // List implements [repository.Txn].
 // TODO: limit does nothing here
-func (x txn) List(prefix []byte, limit int) ([][]byte, error) {
+func (x txn) List(prefix []byte, limit int32) ([][]byte, error) {
 	opts := badger.DefaultIteratorOptions
 	it := x.t.NewIterator(opts)
 	defer it.Close()

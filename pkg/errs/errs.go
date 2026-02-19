@@ -1,5 +1,5 @@
-// Package errors provides convenient constructs to work with errors
-package errors
+// Package errs provides convenient constructs to work with errors
+package errs
 
 import (
 	"errors"
@@ -10,6 +10,28 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var ErrLeaseHeld = errors.New("lease: already held by another holder")
+
+// ErrLeaseNotFound = errors.New("lease: not found")
+// ErrLeaseExpired  = errors.New("lease: expired")
+// ErrInvalidTTL    = errors.New("lease: invalid ttl")
+// ErrInvalidHolder = errors.New("lease: invalid holder")
+
+func IsConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	switch {
+	case errors.Is(err, ErrLeaseHeld):
+		return true
+	case errors.Is(err, repository.ErrIdxExists):
+		return true
+	}
+
+	return false
+}
 
 func IsNotFound(err error) bool {
 	var b bool

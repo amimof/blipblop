@@ -61,7 +61,7 @@ func (t *updateTxn) Keys([]byte) ([][]byte, error) {
 	panic("unimplemented")
 }
 
-func (t viewTxn) List(prefix []byte, limit int) ([][]byte, error) {
+func (t viewTxn) List(prefix []byte, limit int32) ([][]byte, error) {
 	out := make([][]byte, 0, len(t.snapshot))
 	for _, v := range t.snapshot {
 		out = append(out, v)
@@ -98,7 +98,7 @@ func (t *updateTxn) Delete(key []byte) error {
 	return nil
 }
 
-func (t *updateTxn) List(prefix []byte, limit int) ([][]byte, error) {
+func (t *updateTxn) List(prefix []byte, limit int32) ([][]byte, error) {
 	panic("list called in update-only txn")
 }
 

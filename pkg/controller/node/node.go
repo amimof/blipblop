@@ -3,6 +3,7 @@ package nodecontroller
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 	"sync"
 	"time"
@@ -40,12 +41,12 @@ type Controller struct {
 	renewInterval    time.Duration
 	netmanager       networking.Manager
 	tokenStore       store.Store
-	leaseTokens      map[string]string
-	conditions       chan *typesv1.ConditionReport
-	mu               sync.Mutex
-	queue            *queue.TaskQueue
-	workPool         *queue.WorkPool
-	publisher        condition.Publisher
+	// fencingTokens    map[string]uint64
+	conditions chan *typesv1.ConditionReport
+	mu         sync.Mutex
+	queue      *queue.TaskQueue
+	workPool   *queue.WorkPool
+	publisher  condition.Publisher
 }
 
 type NewOption func(c *Controller)
@@ -271,7 +272,7 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 			continue
 		}
 
-		err = c.renewLease(ctx, task, string(refreshToken))
+		err = c.renewLease(ctx, task, binary.LittleEndian.Uint64(refreshToken))
 		if err != nil {
 			c.logger.Debug("error renewing lease", "error", err, "task", taskName)
 			_ = c.stopTask(ctx, task)
@@ -301,7 +302,6 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		node:             n,
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
 		renewInterval:    time.Second * 30,
-		leaseTokens:      make(map[string]string),
 		conditions:       make(chan *typesv1.ConditionReport),
 	}
 

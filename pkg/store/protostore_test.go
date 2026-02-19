@@ -7,15 +7,16 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/amimof/voiyd/api/types/v1"
-	"github.com/amimof/voiyd/services/task"
+
 	"github.com/stretchr/testify/assert"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
+	"github.com/amimof/voiyd/pkg/client/version"
 )
 
 var tasks []*tasksv1.Task = []*tasksv1.Task{
 	{
-		Version: task.Version,
+		Version: version.VersionTask,
 		Meta: &types.Meta{
 			Name: "task-1234",
 		},
@@ -52,7 +53,7 @@ func Test_Store_Ephemeral(t *testing.T) {
 			id:   "task-1234",
 			name: "should be identical",
 			input: &tasksv1.Task{
-				Version: task.Version,
+				Version: version.VersionTask,
 				Meta: &types.Meta{
 					Name: "task-124",
 				},

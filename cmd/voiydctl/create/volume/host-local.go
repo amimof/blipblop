@@ -3,14 +3,15 @@ package volume
 import (
 	"context"
 
-	"github.com/amimof/voiyd/api/services/volumes/v1"
-	metav1 "github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/services/volume"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	metav1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 func NewCmdCreateHostLocalVolume(cfg *client.Config) *cobra.Command {
@@ -52,14 +53,14 @@ voiydctl create volume host-local data01
 
 			err = c.VolumeV1().Create(
 				ctx,
-				&volumes.Volume{
-					Version: volume.Version,
+				&volumesv1.Volume{
+					Version: version.VersionVolume,
 					Meta: &metav1.Meta{
 						Name:   vname,
 						Labels: cmdutil.ConvertKVStringsToMap(viper.GetStringSlice("resourceLabels")),
 					},
-					Config: &volumes.Config{
-						HostLocal:    &volumes.HostLocal{},
+					Config: &volumesv1.Config{
+						HostLocal:    &volumesv1.HostLocal{},
 						NodeSelector: cmdutil.ConvertKVStringsToMap(nodeSelector),
 					},
 				})

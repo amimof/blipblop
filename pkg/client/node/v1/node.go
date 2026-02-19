@@ -14,10 +14,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
-	"github.com/amimof/voiyd/services/node"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
@@ -246,7 +246,8 @@ func (c *clientV1) UpgradeAll(ctx context.Context, selector map[string]string, v
 }
 
 func (c *clientV1) Condition(ctx context.Context, nodeID string, conditions ...*typesv1.Condition) error {
-	if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: node.Version, Conditions: conditions}); err != nil {
+	version := version.VersionNode
+	if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: version, Conditions: conditions}); err != nil {
 		return err
 	}
 	return nil

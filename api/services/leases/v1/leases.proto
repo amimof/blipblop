@@ -29,8 +29,8 @@ service LeaseService {
   }
   rpc Renew(RenewRequest) returns (RenewResponse) {
     option (google.api.http) = {
-      put: "/api/v1/leases/{id}"
-      additional_bindings: {patch: "/api/v1/leases/{id}"}
+      put: "/api/v1/leases/{task_id}"
+      additional_bindings: {patch: "/api/v1/leases/{task_id}"}
     };
   }
 }
@@ -51,6 +51,7 @@ message LeaseConfig {
   uint32 ttl_seconds = 6;
   uint32 reschedule_count = 7;
   string original_node = 8;
+  uint64 fencing_token = 9;
 }
 
 message AcquireRequest {
@@ -60,26 +61,25 @@ message AcquireRequest {
 
 message AcquireResponse {
   Lease lease = 1;
-  string token = 2;
-  string refresh_token = 3;
+  uint64 fencing_token = 2;
 }
 
 message RenewRequest {
-  string id = 1;
-  string task_id = 2 [(buf.validate.field).string.uuid = true];
-  string refresh_token = 3 [(buf.validate.field).string.min_len = 1];
+  string task_id = 1 [(buf.validate.field).string.uuid = true];
+  string node_id = 2 [(buf.validate.field).string.uuid = true];
+  uint64 fencing_token = 3;
 }
 
 message RenewResponse {
   Lease lease = 1;
-  bool renewed = 2;
-  string refresh_token = 3 [(buf.validate.field).string.min_len = 1];
+  uint64 fencing_token = 2;
 }
 
 message ReleaseRequest {
   string id = 1;
   string task_id = 2 [(buf.validate.field).string.uuid = true];
-  string token = 3 [(buf.validate.field).string.min_len = 1];
+  string node_id = 3 [(buf.validate.field).string.uuid = true];
+  uint64 fencing_token = 4;
 }
 
 message ReleaseResponse {

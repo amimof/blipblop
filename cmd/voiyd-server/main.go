@@ -35,22 +35,21 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/amimof/voiyd/pkg/client"
-	containersetctrl "github.com/amimof/voiyd/pkg/controller/containerset"
-	leasectrl "github.com/amimof/voiyd/pkg/controller/lease"
-	schedulerctrl "github.com/amimof/voiyd/pkg/controller/scheduler"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/instrumentation"
 	"github.com/amimof/voiyd/pkg/repository"
 	badgerrepo "github.com/amimof/voiyd/pkg/repository/badger"
 	"github.com/amimof/voiyd/pkg/scheduling"
-	"github.com/amimof/voiyd/pkg/server"
-	"github.com/amimof/voiyd/services/containerset"
-	"github.com/amimof/voiyd/services/event"
-	"github.com/amimof/voiyd/services/lease"
-	logsvc "github.com/amimof/voiyd/services/log"
-	"github.com/amimof/voiyd/services/node"
-	"github.com/amimof/voiyd/services/task"
-	"github.com/amimof/voiyd/services/volume"
+
+	// "github.com/amimof/voiyd/pkg/server"
+
+	leasectrl "github.com/amimof/voiyd/pkg/controller/lease"
+	schedulerctrl "github.com/amimof/voiyd/pkg/controller/scheduler"
+
+	// "github.com/amimof/voiyd/pkg/server"
+	"github.com/amimof/voiyd/internal/app"
+	"github.com/amimof/voiyd/internal/infra"
+	transport "github.com/amimof/voiyd/internal/transport/grpc"
 )
 
 var (
@@ -187,15 +186,8 @@ func main() {
 	log = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: lvl, AddSource: true}))
 
 	// Setup TLS configuration based on flags
-	var serverOpts []server.NewServerOption
-	var gatewayOpts []server.NewGatewayOption
-
-	// Load JWT signing key either from flags or auto-generated
-	signingKey, err := createSigningKey()
-	if err != nil {
-		log.Error("error loading signing key", "error", err)
-		os.Exit(1)
-	}
+	var serverOpts []transport.NewServerOption
+	var gatewayOpts []transport.NewGatewayOption
 
 	// Load in certificates either from flags or auto-generated
 	cert, err := generateCertificates()
@@ -231,7 +223,7 @@ func main() {
 
 	creds := credentials.NewTLS(tlsConfig)
 	serverOpts = append(serverOpts,
-		server.WithGrpcOption(grpc.Creds(creds),
+		transport.WithGrpcOption(grpc.Creds(creds),
 			grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		),
 	)
@@ -240,8 +232,8 @@ func main() {
 		InsecureSkipVerify: true,
 	}
 	gatewayOpts = append(gatewayOpts,
-		server.WithTLSConfig(tlsConfig),
-		server.WithGrpcDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfigGw))),
+		transport.WithTLSConfig(tlsConfig),
+		transport.WithGrpcDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfigGw))),
 	)
 
 	// Setup signal handlers
@@ -266,50 +258,36 @@ func main() {
 	// Setup event exchange bus
 	exchange := events.NewExchange(events.WithExchangeLogger(log))
 
-	// Setup services
-	eventService := event.NewService(
-		repository.NewEventRepo(repo),
-		event.WithLogger(log),
-		event.WithExchange(exchange),
-	)
+	nodeSessionManager := app.NewNodeSessionManager(exchange, log)
+	eventSessionManager := app.NewNodeSessionManager(exchange, log)
 
-	nodeService := node.NewService(
-		repository.NewNodeRepo(repo),
-		node.WithLogger(log),
-		node.WithExchange(exchange),
-		node.WithPublicKey(signingKey.PublicKey),
-	)
+	nodeService := transport.NewNodeService(&app.NodeService{
+		Exchange: exchange,
+		Logger:   log,
+		Manager:  nodeSessionManager,
+		Repo:     repository.NewNodeRepo(repo),
+	})
 
-	containerSetService := containerset.NewService(
-		repository.NewContainerSetRepo(repo),
-		containerset.WithLogger(log),
-		containerset.WithExchange(exchange),
-	)
+	leaseService := transport.NewLeaseService(&app.LeaseService{
+		Exchange:    exchange,
+		Logger:      log,
+		LeaseTTL:    60,
+		GracePeriod: time.Second * 5,
+		Manager:     infra.NewLeaseManager(repository.NewLeaseRepo(repo)),
+	})
 
-	taskService := task.NewService(
-		repository.NewTaskRepo(repo),
-		task.WithLogger(log),
-		task.WithExchange(exchange),
-	)
+	taskService := transport.NewTaskService(&app.TaskService{
+		Exchange: exchange,
+		Logger:   log,
+		Repo:     repository.NewTaskRepo(repo),
+	})
 
-	logService := logsvc.NewService(
-		logsvc.WithLogger(log),
-		logsvc.WithExchange(exchange),
-	)
-
-	volumeService := volume.NewService(
-		repository.NewVolumeRepo(repo),
-		volume.WithLogger(log),
-		volume.WithExchange(exchange),
-	)
-
-	leaseService := lease.NewService(
-		repository.NewLeaseRepo(repo),
-		lease.WithSigningKey(signingKey),
-		lease.WithLogger(log),
-		lease.WithExchange(exchange),
-		lease.WithTTL(leaseTTLSeconds),
-	)
+	eventService := transport.NewEventService(&app.EventService{
+		Exchange: exchange,
+		Logger:   log,
+		Repo:     repository.NewEventRepo(repo),
+		Manager:  eventSessionManager,
+	})
 
 	// Context
 	ctx := context.Background()
@@ -329,32 +307,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	serverOpts = append(serverOpts, server.WithGrpcOption(metricsOpts), server.WithGrpcOption(grpc.UnaryInterceptor(protovalidate_middleware.UnaryServerInterceptor(validator))))
+	serverOpts = append(serverOpts,
+		transport.WithGrpcOption(metricsOpts),
+		transport.WithGrpcOption(grpc.UnaryInterceptor(protovalidate_middleware.UnaryServerInterceptor(validator))),
+		transport.WithExchange(exchange),
+		transport.WithLogger(log),
+		transport.WithDB(repo),
+	)
 	errChan := make(chan error)
 
 	go serveMetrics(metricsAddress, promhttp.Handler(), errChan)
 
 	// Setup server
-	s, err := server.New(serverOpts...)
+	s, err := transport.NewServer(serverOpts...)
 	if err != nil {
 		log.Error("error setting up gRPC server", "error", err)
 		os.Exit(1)
 	}
 
 	// Register services to gRPC server
-	err = s.RegisterService(
+	s.RegisterService(
 		eventService,
 		nodeService,
-		containerSetService,
+		// containerSetService,
 		taskService,
-		logService,
-		volumeService,
+		// logService,
+		// volumeService,
 		leaseService,
 	)
-	if err != nil {
-		log.Error("error registering services to server", "error", err)
-		os.Exit(1)
-	}
 
 	go serveTCP(serverAddress, s, errChan)
 	go serveUnix(s, errChan)
@@ -377,10 +357,10 @@ func main() {
 	}
 
 	// Setup gateway
-	gw, err := server.NewGateway(
+	gw, err := transport.NewGateway(
 		ctx,
 		socketAddr,
-		server.DefaultMux,
+		transport.DefaultMux,
 		gatewayOpts...,
 	)
 	if err != nil {
@@ -401,14 +381,9 @@ func main() {
 		}
 	}()
 
-	// Start controllers
-	containerSetCtrl := containersetctrl.New(cs, containersetctrl.WithLogger(log))
-	go containerSetCtrl.Run(ctx)
-	log.Info("Started ContainerSet Controller")
-
 	// Start scheduler
 	sched := scheduling.NewHorizontalScheduler(cs)
-	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithNodeService(nodeService), schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
+	schedulerCtrl := schedulerctrl.New(cs, sched, schedulerctrl.WithNodeSender(nodeSessionManager), schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange))
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started Scheduler Controller")
 
@@ -463,19 +438,20 @@ func serveMetrics(addr string, h http.Handler, errChan chan error) {
 	}
 }
 
-func serveGateway(addr string, gw *server.Gateway, errChan chan error) {
+func serveGateway(addr string, gw *transport.Gateway, errChan chan error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		errChan <- fmt.Errorf("error creating gateway listener: %v", err)
 		return
 	}
+	log.Info("gateway listening", "address", addr)
 	if err := gw.ServeTLS(l, tlsCertificate, tlsCertificateKey); err != nil {
 		errChan <- fmt.Errorf("error serving gateway: %v", err)
 		return
 	}
 }
 
-func serveUnix(s *server.Server, errChan chan error) {
+func serveUnix(s *transport.Server, errChan chan error) {
 	// Remove the socket file if it already exists
 	if _, err := os.Stat(socketPath); err == nil {
 		if err := os.RemoveAll(socketPath); err != nil {
@@ -505,7 +481,7 @@ func serveUnix(s *server.Server, errChan chan error) {
 	}
 }
 
-func serveTCP(addr string, s *server.Server, errChan chan error) {
+func serveTCP(addr string, s *transport.Server, errChan chan error) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		errChan <- fmt.Errorf("error setting up server listener: %v", err)

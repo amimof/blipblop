@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/amimof/voiyd/pkg/client"
-	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 )
@@ -47,7 +47,7 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 		task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
 		if err != nil {
 			if errs.IsNotFound(err) {
-				if err := c.clientset.LeaseV1().Release(ctx, lease.GetConfig().GetTaskId(), lease.GetConfig().GetNodeId()); err != nil {
+				if err := c.clientset.LeaseV1().Release(ctx, lease.GetConfig().GetTaskId(), lease.GetConfig().GetNodeId(), 0); err != nil {
 					c.logger.Error("error releasing lease", "error", err, "task", task.GetMeta().GetName())
 					continue
 				}

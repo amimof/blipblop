@@ -9,10 +9,10 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
-	"github.com/amimof/voiyd/services/task"
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
@@ -188,7 +188,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *tasksv1.Task, opts ...Create
 	defer span.End()
 
 	if ctr.Version == "" {
-		ctr.Version = task.Version
+		ctr.Version = version.VersionTask
 	}
 
 	for _, opt := range opts {
@@ -293,7 +293,8 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 }
 
 func (c *clientV1) Condition(ctx context.Context, taskID string, conditions ...*typesv1.Condition) error {
-	if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: task.Version, Conditions: conditions, TaskId: taskID}); err != nil {
+	version := version.VersionTask
+	if _, err := c.Client.Condition(ctx, &typesv1.ConditionRequest{ResourceVersion: version, Conditions: conditions, TaskId: taskID}); err != nil {
 		return err
 	}
 	return nil

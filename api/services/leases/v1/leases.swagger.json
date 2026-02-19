@@ -121,16 +121,25 @@
             "type": "string"
           },
           {
-            "name": "token",
+            "name": "nodeId",
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "fencingToken",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
           "LeaseService"
         ]
-      },
+      }
+    },
+    "/api/v1/leases/{taskId}": {
       "put": {
         "operationId": "LeaseService_Renew",
         "responses": {
@@ -149,22 +158,23 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "taskId",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
-            "name": "taskId",
+            "name": "nodeId",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "refreshToken",
+            "name": "fencingToken",
             "in": "query",
             "required": false,
-            "type": "string"
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
@@ -189,22 +199,23 @@
         },
         "parameters": [
           {
-            "name": "id",
+            "name": "taskId",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
-            "name": "taskId",
+            "name": "nodeId",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "refreshToken",
+            "name": "fencingToken",
             "in": "query",
             "required": false,
-            "type": "string"
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
@@ -311,11 +322,9 @@
         "lease": {
           "$ref": "#/definitions/v1Lease"
         },
-        "token": {
-          "type": "string"
-        },
-        "refreshToken": {
-          "type": "string"
+        "fencingToken": {
+          "type": "string",
+          "format": "uint64"
         }
       }
     },
@@ -365,6 +374,10 @@
         },
         "originalNode": {
           "type": "string"
+        },
+        "fencingToken": {
+          "type": "string",
+          "format": "uint64"
         }
       }
     },
@@ -415,11 +428,9 @@
         "lease": {
           "$ref": "#/definitions/v1Lease"
         },
-        "renewed": {
-          "type": "boolean"
-        },
-        "refreshToken": {
-          "type": "string"
+        "fencingToken": {
+          "type": "string",
+          "format": "uint64"
         }
       }
     }

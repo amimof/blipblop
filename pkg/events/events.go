@@ -46,6 +46,7 @@ const (
 	VolumeUpdate       = eventsv1.EventType_VolumeUpdate
 	VolumeGet          = eventsv1.EventType_VolumeGet
 	VolumeList         = eventsv1.EventType_VolumeList
+	VolumePatch        = eventsv1.EventType_VolumePatch
 
 	RuntimeTaskExit         = eventsv1.EventType_RuntimeTaskExit
 	RuntimeTaskCreate       = eventsv1.EventType_RuntimeTaskCreate

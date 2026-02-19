@@ -9,15 +9,15 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/amimof/voiyd/internal/app"
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
-	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/queue"
 	"github.com/amimof/voiyd/pkg/scheduling"
-	"github.com/amimof/voiyd/services/node"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
@@ -40,7 +40,7 @@ func WithExchange(e *events.Exchange) NewOption {
 	}
 }
 
-func WithNodeService(ns *node.NodeService) NewOption {
+func WithNodeSender(ns app.NodeSender) NewOption {
 	return func(c *Controller) {
 		c.nodeService = ns
 	}
@@ -51,7 +51,7 @@ type Controller struct {
 	scheduler   scheduling.Scheduler
 	logger      logger.Logger
 	exchange    *events.Exchange
-	nodeService *node.NodeService
+	nodeService app.NodeSender
 	workPool    *queue.WorkPool
 	queue       *queue.TaskQueue
 	publisher   condition.Publisher
@@ -206,7 +206,10 @@ func (c *Controller) releaseLeaseIfExists(ctx context.Context, taskID string) er
 	}
 	// Lease exists, attempt to release it
 	nodeID := lease.GetConfig().GetNodeId()
-	err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+
+	// TODO: Scheduler is never able to release without a fencing token
+	// This needs to be addressed
+	err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, 0)
 	if err != nil {
 		if errs.IsNotFound(err) {
 			c.logger.Debug("lease already released", "task", taskID, "node", nodeID)
@@ -244,7 +247,7 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	event := events.NewEvent(events.TaskKill, task)
 
 	// Send to target node
-	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
+	if err := c.nodeService.SendToNode(ctx, nodeUID, event); err != nil {
 		c.logger.Error("failed to send kill event to node", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
 		c.Report(reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
 		return err
@@ -278,7 +281,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	event := events.NewEvent(events.TaskStop, task)
 
 	// Send to target node
-	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
+	if err := c.nodeService.SendToNode(ctx, nodeUID, event); err != nil {
 		c.logger.Error("failed to send stop event to node", "error", err, "task", task.GetMeta().GetName(), "node", node.GetMeta().GetName())
 		c.Report(reporter.Type(condition.TaskReady).False(condition.ReasonStopFailed, err.Error()))
 		return err
@@ -382,7 +385,7 @@ func (c *Controller) scheduleTask(ctx context.Context, task *tasksv1.Task) error
 	// Create event
 	event := events.NewEvent(events.Schedule, scheduleReq)
 	// Send ONLY to target node
-	if err := c.nodeService.SendToNode(nodeUID, event); err != nil {
+	if err := c.nodeService.SendToNode(ctx, nodeUID, event); err != nil {
 		c.logger.Error("failed to send schedule event to node", "error", err, "task", task.GetMeta().GetName(), "node", n.GetMeta().GetName())
 		c.Report(reporter.Type(condition.TaskScheduled).False(condition.ReasonSchedulingFailed, err.Error()))
 		return err

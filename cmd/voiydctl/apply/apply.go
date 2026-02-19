@@ -16,13 +16,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/services/containerset"
-	"github.com/amimof/voiyd/services/node"
-	"github.com/amimof/voiyd/services/task"
-	"github.com/amimof/voiyd/services/volume"
 
-	containersetsv1 "github.com/amimof/voiyd/api/services/containersets/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
@@ -136,7 +132,7 @@ voiydctl apply -f resources.yaml
 				}
 
 				switch v {
-				case node.Version:
+				case version.VersionNode:
 					var n nodesv1.Node
 					if err := codec.Deserialize(docBytes, &n); err != nil {
 						logrus.Fatalf("error deserializing %s %d: %v", v, idx, err)
@@ -144,7 +140,7 @@ voiydctl apply -f resources.yaml
 					if err := applyNode(ctx, c, &n); err != nil {
 						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
 					}
-				case task.Version:
+				case version.VersionTask:
 					var ctr tasksv1.Task
 					if err := codec.Deserialize(docBytes, &ctr); err != nil {
 						logrus.Fatalf("error deserializing %s %d: %v", v, idx, err)
@@ -152,20 +148,12 @@ voiydctl apply -f resources.yaml
 					if err := applyTask(ctx, c, &ctr); err != nil {
 						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
 					}
-				case volume.Version:
+				case version.VersionVolume:
 					var vol volumesv1.Volume
 					if err := codec.Deserialize(docBytes, &vol); err != nil {
 						logrus.Fatalf("error deserializing %s %d: %v", v, idx, err)
 					}
 					if err := applyVolume(ctx, c, &vol); err != nil {
-						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
-					}
-				case containerset.Version:
-					var cs containersetsv1.ContainerSet
-					if err := codec.Deserialize(docBytes, &cs); err != nil {
-						logrus.Fatalf("error deserializing %s %d: %v", v, idx, err)
-					}
-					if err := applyTaskSet(ctx, c, &cs); err != nil {
 						logrus.Fatalf("error applying %s %d: %v", v, idx, err)
 					}
 				default:
@@ -193,7 +181,7 @@ func applyNode(ctx context.Context, c *client.ClientSet, n *nodesv1.Node) error 
 	_, err := c.NodeV1().Get(ctx, name)
 	if status.Code(err) == codes.NotFound {
 		if n.Version == "" {
-			n.Version = node.Version
+			n.Version = version.VersionNode
 		}
 		logrus.Infof("created %s: %s", n.Version, n.GetMeta().GetName())
 		return c.NodeV1().Create(ctx, n)
@@ -217,7 +205,7 @@ func applyTask(ctx context.Context, c *client.ClientSet, ctr *tasksv1.Task) erro
 	_, err := c.TaskV1().Get(ctx, name)
 	if status.Code(err) == codes.NotFound {
 		if ctr.Version == "" {
-			ctr.Version = task.Version
+			ctr.Version = version.VersionTask
 		}
 		logrus.Infof("created %s: %s", ctr.Version, ctr.GetMeta().GetName())
 		return c.TaskV1().Create(ctx, ctr)
@@ -241,7 +229,7 @@ func applyVolume(ctx context.Context, c *client.ClientSet, v *volumesv1.Volume) 
 	_, err := c.VolumeV1().Get(ctx, name)
 	if status.Code(err) == codes.NotFound {
 		if v.Version == "" {
-			v.Version = volume.Version
+			v.Version = version.VersionVolume
 		}
 		logrus.Infof("created %s: %s", v.Version, v.GetMeta().GetName())
 		return c.VolumeV1().Create(ctx, v)
@@ -253,28 +241,4 @@ func applyVolume(ctx context.Context, c *client.ClientSet, v *volumesv1.Volume) 
 	// Update if already exists
 	logrus.Infof("updated %s: %s", v.Version, v.GetMeta().GetName())
 	return c.VolumeV1().Update(ctx, name, v)
-}
-
-func applyTaskSet(ctx context.Context, c *client.ClientSet, cs *containersetsv1.ContainerSet) error {
-	name := cs.GetMeta().GetName()
-	if name == "" {
-		return fmt.Errorf("containerset.meta.name is required")
-	}
-
-	// Try to get existing
-	_, err := c.ContainerSetV1().Get(ctx, name)
-	if status.Code(err) == codes.NotFound {
-		if cs.Version == "" {
-			cs.Version = containerset.Version
-		}
-		logrus.Infof("created %s: %s", cs.Version, cs.GetMeta().GetName())
-		return c.ContainerSetV1().Create(ctx, cs)
-	}
-	if err != nil {
-		return err
-	}
-
-	// Update if already exists
-	logrus.Infof("updated %s: %s", cs.Version, cs.GetMeta().GetName())
-	return c.ContainerSetV1().Create(ctx, cs)
 }
