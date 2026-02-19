@@ -157,7 +157,7 @@ func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, hol
 }
 
 // Renew implements [app.LeaseStore].
-func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holder app.HolderID, ttl time.Duration) (*leasesv1.Lease, error) {
+func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holder app.HolderID, ttl time.Duration, token uint64) (*leasesv1.Lease, error) {
 	if err := ctx.Err(); err != nil {
 		return &leasesv1.Lease{}, err
 	}
@@ -188,7 +188,7 @@ func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holde
 		return nil, err
 	}
 
-	if app.HolderID(cur.GetConfig().GetNodeId()) != holder {
+	if cur.GetConfig().GetFencingToken() != token {
 		return &leasesv1.Lease{}, domain.ErrNotHolder
 	}
 
