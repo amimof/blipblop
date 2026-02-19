@@ -47,6 +47,6 @@ func (l *LeaseService) Release(ctx context.Context, taskID ResourceID, holderID 
 	return l.Manager.Release(ctx, taskID, holderID)
 }
 
-func (l *LeaseService) Renew(ctx context.Context, taskID ResourceID, nodeID HolderID) (*leasesv1.Lease, error) {
-	return l.Manager.Renew(ctx, taskID, nodeID, time.Duration(l.LeaseTTL))
+func (l *LeaseService) Renew(ctx context.Context, taskID ResourceID, nodeID HolderID, token uint64) (*leasesv1.Lease, error) {
+	return l.Manager.Renew(ctx, taskID, nodeID, time.Duration(l.LeaseTTL), token)
 }

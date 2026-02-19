@@ -53,7 +53,7 @@ func (c *LeaseService) Release(ctx context.Context, req *leasesv1.ReleaseRequest
 }
 
 func (c *LeaseService) Renew(ctx context.Context, req *leasesv1.RenewRequest) (*leasesv1.RenewResponse, error) {
-	lease, err := c.app.Renew(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()))
+	lease, err := c.app.Renew(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()), req.GetFencingToken())
 	if err != nil {
 		return nil, toStatus(err)
 	}

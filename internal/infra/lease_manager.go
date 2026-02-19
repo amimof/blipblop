@@ -188,10 +188,6 @@ func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holde
 		return nil, err
 	}
 
-	// if !cur.GetConfig().GetExpiresAt().AsTime().After(now) {
-	// 	return &leasesv1.Lease{}, errs.ErrLeaseExpired
-	// }
-
 	if app.HolderID(cur.GetConfig().GetNodeId()) != holder {
 		return &leasesv1.Lease{}, domain.ErrNotHolder
 	}
