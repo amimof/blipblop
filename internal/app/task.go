@@ -18,7 +18,6 @@ import (
 	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
 
-	"github.com/amimof/voiyd/api/services/tasks/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
@@ -315,7 +314,7 @@ func (l *TaskService) Start(ctx context.Context, id keys.ID) error {
 	return nil
 }
 
-func (l *TaskService) Patch(ctx context.Context, id keys.ID, patch *tasks.Task) error {
+func (l *TaskService) Patch(ctx context.Context, id keys.ID, patch *tasksv1.Task) error {
 	ctx, span := tracer.Start(ctx, "task.Patch")
 	defer span.End()
 

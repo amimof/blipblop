@@ -8,8 +8,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -25,7 +23,6 @@ import (
 
 	"buf.build/go/protovalidate"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/golang-jwt/jwt/v5"
 	protovalidate_middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -494,87 +491,87 @@ func serveTCP(addr string, s *transport.Server, errChan chan error) {
 	}
 }
 
-func createVerifyKey(key *ecdsa.PrivateKey) (*ecdsa.PublicKey, error) {
-	b, err := os.ReadFile(jwtVerificationKey)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			pemPub, err := encodePubPem(&key.PublicKey)
-			if err != nil {
-				return nil, err
-			}
+// func createVerifyKey(key *ecdsa.PrivateKey) (*ecdsa.PublicKey, error) {
+// 	b, err := os.ReadFile(jwtVerificationKey)
+// 	if err != nil {
+// 		if errors.Is(err, os.ErrNotExist) {
+// 			pemPub, err := encodePubPem(&key.PublicKey)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			pemPubB, err := pemPub.Bytes()
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			err = os.WriteFile(path.Join(dataPath, "verify.pem"), pemPubB, 0o755)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			return pemPub, nil
+// 		}
+// 		return nil, err
+// 	}
+//
+// 	return ecdsa.ParseUncompressedPublicKey(elliptic.P256(), b)
+// }
+//
+// func createSigningKey() (*ecdsa.PrivateKey, error) {
+// 	b, err := os.ReadFile(jwtSigningKey)
+// 	if err != nil {
+// 		if errors.Is(err, os.ErrNotExist) {
+// 			key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			pemKey, err := encodePem(key)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			pemKeyB, err := pemKey.Bytes()
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			err = os.WriteFile(path.Join(dataPath, "sign.pem"), pemKeyB, 0o755)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			_, err = createVerifyKey(pemKey)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+//
+// 			return pemKey, nil
+// 		}
+// 		return nil, err
+// 	}
+//
+// 	return ecdsa.ParseRawPrivateKey(elliptic.P256(), b)
+// }
 
-			pemPubB, err := pemPub.Bytes()
-			if err != nil {
-				return nil, err
-			}
-
-			err = os.WriteFile(path.Join(dataPath, "verify.pem"), pemPubB, 0o755)
-			if err != nil {
-				return nil, err
-			}
-
-			return pemPub, nil
-		}
-		return nil, err
-	}
-
-	return ecdsa.ParseUncompressedPublicKey(elliptic.P256(), b)
-}
-
-func createSigningKey() (*ecdsa.PrivateKey, error) {
-	b, err := os.ReadFile(jwtSigningKey)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-			if err != nil {
-				return nil, err
-			}
-
-			pemKey, err := encodePem(key)
-			if err != nil {
-				return nil, err
-			}
-
-			pemKeyB, err := pemKey.Bytes()
-			if err != nil {
-				return nil, err
-			}
-
-			err = os.WriteFile(path.Join(dataPath, "sign.pem"), pemKeyB, 0o755)
-			if err != nil {
-				return nil, err
-			}
-
-			_, err = createVerifyKey(pemKey)
-			if err != nil {
-				return nil, err
-			}
-
-			return pemKey, nil
-		}
-		return nil, err
-	}
-
-	return ecdsa.ParseRawPrivateKey(elliptic.P256(), b)
-}
-
-func encodePem(key *ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
-	pkcs8Der, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		panic(err)
-	}
-	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8Der})
-	return jwt.ParseECPrivateKeyFromPEM(pkcs8Pem)
-}
-
-func encodePubPem(key *ecdsa.PublicKey) (*ecdsa.PublicKey, error) {
-	pkcs8Der, err := x509.MarshalPKIXPublicKey(key)
-	if err != nil {
-		panic(err)
-	}
-	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pkcs8Der})
-	return jwt.ParseECPublicKeyFromPEM(pkcs8Pem)
-}
+// func encodePem(key *ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
+// 	pkcs8Der, err := x509.MarshalPKCS8PrivateKey(key)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8Der})
+// 	return jwt.ParseECPrivateKeyFromPEM(pkcs8Pem)
+// }
+//
+// func encodePubPem(key *ecdsa.PublicKey) (*ecdsa.PublicKey, error) {
+// 	pkcs8Der, err := x509.MarshalPKIXPublicKey(key)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	pkcs8Pem := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pkcs8Der})
+// 	return jwt.ParseECPublicKeyFromPEM(pkcs8Pem)
+// }
 
 func generateCertificates() (tls.Certificate, error) {
 	if tlsCertificate != "" && tlsCertificateKey != "" {
