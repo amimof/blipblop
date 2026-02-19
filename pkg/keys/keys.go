@@ -12,11 +12,13 @@ const (
 	UUIDLen     = 16 // Bytes
 	TagUID  Tag = 0x01
 	TagName Tag = 0x02
+	TagIdx  Tag = 0x03
 )
 
 var (
 	ErrEmptyUID    = errors.New("empty uid id")
 	ErrEmptyName   = errors.New("empty name id")
+	ErrEmptyIndex  = errors.New("empty index id")
 	ErrBadEncoding = errors.New("bad id encoding")
 	ErrBadTag      = errors.New("unknown id tag")
 	ErrBadUIDLen   = errors.New("uuid payload must be 16 bytes")
@@ -31,6 +33,13 @@ type (
 		raw []byte
 	}
 )
+
+func Index(s string) (ID, error) {
+	if s == "" {
+		return ID{}, ErrEmptyName
+	}
+	return ID{tag: TagIdx, raw: []byte(s)}, nil
+}
 
 func Name(s string) (ID, error) {
 	if s == "" {
@@ -89,14 +98,18 @@ func (id ID) String() string {
 			return ""
 		}
 		return u.String()
-	case TagName:
+	case TagName, TagIdx:
 		return string(id.Raw())
 	}
 	return ""
 }
 
+func (id ID) IdxStr() string {
+	return id.NameStr()
+}
+
 func (id ID) NameStr() string {
-	if id.Tag() == TagName {
+	if id.Tag() == TagName || id.Tag() == TagIdx {
 		return string(id.Raw())
 	}
 	return ""
@@ -145,7 +158,13 @@ func Decode(b []byte) (ID, error) {
 		raw := make([]byte, UUIDLen)
 		copy(raw, payload)
 		return ID{tag: tag, raw: raw}, nil
-
+	case TagIdx:
+		if len(payload) == 0 {
+			return ID{}, ErrEmptyIndex
+		}
+		raw := make([]byte, len(payload))
+		copy(raw, payload)
+		return ID{tag: tag, raw: raw}, nil
 	default:
 		return ID{}, ErrBadTag
 	}

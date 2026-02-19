@@ -122,7 +122,7 @@ message GetResponse {
 }
 
 message ListRequest {
-  uint32 limit = 1;
+  int32 limit = 1;
   map<string, string> selector = 2;
 }
 

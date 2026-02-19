@@ -22,7 +22,7 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"go.opentelemetry.io/otel"
 
-	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"

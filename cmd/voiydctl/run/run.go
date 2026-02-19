@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/networking"
@@ -106,6 +107,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 			}
 
 			err = c.TaskV1().Create(ctx, &tasksv1.Task{
+				Version: version.VersionTask,
 				Meta: &typesv1.Meta{
 					Name:   tname,
 					Labels: cmdutil.ReadKVStringsMapFromLabel(labels),

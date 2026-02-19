@@ -2,6 +2,7 @@ package nodecontroller
 
 import (
 	"context"
+	"encoding/binary"
 	"time"
 
 	"github.com/containerd/errdefs"
@@ -12,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/condition"
-	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/amimof/voiyd/pkg/queue"
 
@@ -20,6 +21,13 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
+
+// Uint64ToBytes converts the given uint64 value to slice of bytes.
+func Uint64ToBytes(val uint64) []byte {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, val)
+	return b
+}
 
 // processScheduleTask enqueues a task for async processing by the workpool
 func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
@@ -40,13 +48,13 @@ func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task
 				return nil
 			}
 
-			if err := c.renewLease(ctx, task, string(refreshToken)); err != nil {
+			if err := c.renewLease(ctx, task, binary.LittleEndian.Uint64(refreshToken)); err != nil {
 				// Task will be garbage collected in renew lease-loop
 				c.logger.Debug("error getting refresh token for task", "error", err, "task", taskUID)
 				return nil
 			}
 		}
-		// return err
+		return nil
 	}
 
 	return c.queue.Enqueue(ctx, &queue.QueueItem{
@@ -97,7 +105,11 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Release lease
 	defer func() {
-		err := c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+		refreshToken, err := c.tokenStore.Load(taskID)
+		if err != nil {
+			return
+		}
+		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, binary.LittleEndian.Uint64(refreshToken))
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
@@ -146,7 +158,11 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Release lease
 	defer func() {
-		err := c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+		refreshToken, err := c.tokenStore.Load(taskID)
+		if err != nil {
+			return
+		}
+		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, binary.LittleEndian.Uint64(refreshToken))
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
@@ -193,7 +209,7 @@ func (c *Controller) getNode(ctx context.Context) (*nodesv1.Node, error) {
 	return c.clientset.NodeV1().Get(ctx, nodeID)
 }
 
-func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refreshToken string) error {
+func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refreshToken uint64) error {
 	node, err := c.getNode(ctx)
 	if err != nil {
 		return err
@@ -202,13 +218,13 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refresh
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
 
-	newRefreshToken, err := c.clientset.LeaseV1().Renew(ctx, taskID, refreshToken)
+	lease, err := c.clientset.LeaseV1().Renew(ctx, taskID, nodeID, refreshToken)
 	if err != nil {
 		c.logger.Error("failed to renew lease", "error", err, "task", taskID, "nodeID", nodeID)
 		return err
 	}
 
-	err = c.tokenStore.Save(taskID, []byte(newRefreshToken))
+	err = c.tokenStore.Save(taskID, Uint64ToBytes(lease.GetConfig().GetFencingToken()))
 	if err != nil {
 		return err
 	}
@@ -226,17 +242,14 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
 
-	lease, accessToken, refreshToken, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
+	lease, token, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
 	if err != nil {
 		c.logger.Error("failed to acquire lease", "error", err, "task", taskID, "nodeID", nodeID)
 		return err
 	}
 
-	// Store for future use
-	c.leaseTokens[taskID] = accessToken
-
 	// Persist refresh token so we can recover from restarts
-	err = c.tokenStore.Save(taskID, []byte(refreshToken))
+	err = c.tokenStore.Save(taskID, Uint64ToBytes(token))
 	if err != nil {
 		return err
 	}
@@ -244,7 +257,7 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	// Release if task can't be provisioned
 	defer func() {
 		if err != nil {
-			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID)
+			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, token)
 			if err != nil {
 				c.logger.Warn("unable to release lease", "task", taskID, "node", nodeID)
 			}

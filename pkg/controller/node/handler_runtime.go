@@ -7,7 +7,7 @@ import (
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	"github.com/amimof/voiyd/pkg/condition"
-	errs "github.com/amimof/voiyd/pkg/errors"
+	"github.com/amimof/voiyd/pkg/errs"
 	cevents "github.com/containerd/containerd/api/events"
 )
 

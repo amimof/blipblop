@@ -5,14 +5,15 @@ import (
 	"io"
 	"os"
 
-	"github.com/amimof/voiyd/api/services/volumes/v1"
-	metav1 "github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/client"
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/cmdutil"
-	"github.com/amimof/voiyd/services/volume"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	volumesv1 "github.com/amimof/voiyd/api/services/volumes/v1"
+	metav1 "github.com/amimof/voiyd/api/types/v1"
 )
 
 var fileName string
@@ -72,14 +73,14 @@ voiydctl create volume template app-config config.yaml --file-name prometheus.ya
 
 			err = c.VolumeV1().Create(
 				ctx,
-				&volumes.Volume{
-					Version: volume.Version,
+				&volumesv1.Volume{
+					Version: version.VersionVolume,
 					Meta: &metav1.Meta{
 						Name:   vname,
 						Labels: cmdutil.ConvertKVStringsToMap(viper.GetStringSlice("resourceLabels")),
 					},
-					Config: &volumes.Config{
-						Template: &volumes.Template{
+					Config: &volumesv1.Config{
+						Template: &volumesv1.Template{
 							Name: fname,
 							Data: string(b),
 						},

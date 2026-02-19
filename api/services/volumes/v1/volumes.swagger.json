@@ -544,6 +544,27 @@
       },
       "additionalProperties": {}
     },
+    "v1Condition": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "status": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "msg": {
+          "type": "string"
+        },
+        "lastTransitionTime": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "v1Config": {
       "type": "object",
       "properties": {
@@ -698,6 +719,13 @@
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/v1ControllerStatus"
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Condition"
           }
         }
       }
