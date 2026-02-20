@@ -22,7 +22,7 @@ type LeaseStore interface {
 	LeaseGuard
 	Acquire(ctx context.Context, resource ResourceID, holder HolderID, ttl time.Duration) (*leasesv1.Lease, string, error)
 	Renew(ctx context.Context, resource ResourceID, holder HolderID, ttl time.Duration, token string) (*leasesv1.Lease, string, error)
-	Release(ctx context.Context, resource ResourceID, holder HolderID) error
+	Release(ctx context.Context, resource ResourceID, holder HolderID, token string) error
 	Get(ctx context.Context, resource ResourceID) (*leasesv1.Lease, error)
 	List(ctx context.Context) ([]*leasesv1.Lease, error)
 }

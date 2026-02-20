@@ -379,7 +379,9 @@ func (l *TaskService) UpdateStatus(ctx context.Context, id keys.ID, st *tasksv1.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if res, ok := md["x-voiyd-node-uid"]; ok && len(res) > 0 {
 			if isHolder, _ := l.Guard.IsHolder(ctx, ResourceID(id.String()), HolderID(res[0])); !isHolder {
-				return domain.ErrNotHolder
+				if !isHolder {
+					return domain.ErrNotHolder
+				}
 			}
 		}
 	}

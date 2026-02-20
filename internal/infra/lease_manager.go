@@ -153,7 +153,7 @@ func (m *LeaseManager) Get(ctx context.Context, resource app.ResourceID) (*lease
 }
 
 // Release implements [app.LeaseStore].
-func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, holder app.HolderID) error {
+func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, holder app.HolderID, token string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -174,10 +174,15 @@ func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, hol
 		return err
 	}
 
-	// cur, ok := m.leases[resource]
-	// if !ok {
-	// 	return app.ErrLeaseNotFound
-	// }
+	// Verify token
+	valid, err := ValidateHMAC([]byte(token), []byte(cur.GetStatus().GetTokenHash()), m.Key)
+	if err != nil {
+		return err
+	}
+
+	if !valid {
+		return domain.ErrInvalidToken
+	}
 
 	if app.HolderID(cur.GetConfig().GetNodeId()) != holder {
 		return domain.ErrNotHolder
@@ -261,6 +266,9 @@ func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holde
 func (m *LeaseManager) IsHolder(ctx context.Context, resourceID app.ResourceID, holderID app.HolderID) (bool, error) {
 	cur, err := m.Get(ctx, resourceID)
 	if err != nil {
+		if errs.IsNotFound(err) {
+			return true, nil
+		}
 		return false, err
 	}
 

@@ -8,7 +8,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 )
@@ -42,20 +41,6 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 	}
 
 	for _, lease := range leases {
-
-		// Does a task exist for the lease?
-		task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
-		if err != nil {
-			if errs.IsNotFound(err) {
-				if err := c.clientset.LeaseV1().Release(ctx, lease.GetConfig().GetTaskId(), lease.GetConfig().GetNodeId(), 0); err != nil {
-					c.logger.Error("error releasing lease", "error", err, "task", task.GetMeta().GetName())
-					continue
-				}
-			}
-			c.logger.Error("error getting task for lease", "error", err, "task", lease.GetConfig().GetTaskId())
-			continue
-		}
-
 		// If lease has expired
 		if time.Now().After(lease.GetConfig().GetExpiresAt().AsTime()) {
 			err = c.exchange.Forward(ctx, events.NewEvent(events.LeaseExpired, lease))

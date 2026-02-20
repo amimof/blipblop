@@ -47,6 +47,7 @@ type ContainerdRuntime struct {
 	containerIOs map[string]*TaskIO
 	logDirFmt    string
 	store        store.ProtoStore
+	appendLabels map[string]string
 }
 
 type NewContainerdRuntimeOption func(c *ContainerdRuntime)
@@ -450,9 +451,13 @@ func (c *ContainerdRuntime) Kill(ctx context.Context, t *tasksv1.Task) error {
 	}
 }
 
-func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
+func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task, ro ...RuntimeOption) error {
 	ctx, span := tracer.Start(ctx, "runtime.containerd.Run")
 	defer span.End()
+
+	for _, opt := range ro {
+		opt(c)
+	}
 
 	ctx = namespaces.WithNamespace(ctx, c.ns)
 
@@ -491,6 +496,7 @@ func (c *ContainerdRuntime) Run(ctx context.Context, t *tasksv1.Task) error {
 	l := labels.New()
 	l.Set("voiyd.io/name", t.GetMeta().GetName())
 	l.Set("voiyd.io/uid", t.GetMeta().GetUid())
+	l.AppendMap(c.appendLabels)
 
 	// Generate ID for the container
 	containerUID := t.GetMeta().GetUid()
@@ -631,6 +637,7 @@ func NewContainerdRuntimeClient(client *containerd.Client, opts ...NewContainerd
 		containerIOs: map[string]*TaskIO{},
 		logDirFmt:    "/var/lib/voiyd/containers/%s/log",
 		store:        store.NewEphemeralProtoStore(),
+		appendLabels: make(map[string]string),
 	}
 
 	for _, opt := range opts {

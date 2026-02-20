@@ -209,7 +209,7 @@ func (c *Controller) releaseLeaseIfExists(ctx context.Context, taskID string) er
 
 	// TODO: Scheduler is never able to release without a fencing token
 	// This needs to be addressed
-	err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, 0)
+	err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, "")
 	if err != nil {
 		if errs.IsNotFound(err) {
 			c.logger.Debug("lease already released", "task", taskID, "node", nodeID)

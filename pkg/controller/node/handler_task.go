@@ -3,6 +3,7 @@ package nodecontroller
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/containerd/errdefs"
@@ -14,6 +15,7 @@ import (
 	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/amimof/voiyd/pkg/queue"
+	"github.com/amimof/voiyd/pkg/runtime"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -101,7 +103,7 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 		if err != nil {
 			return
 		}
-		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, binary.LittleEndian.Uint64(refreshToken))
+		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, string(refreshToken))
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
@@ -154,10 +156,16 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		if err != nil {
 			return
 		}
-		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, binary.LittleEndian.Uint64(refreshToken))
+		err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, string(refreshToken))
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
+
+		c.mu.Lock()
+		delete(c.epochs, taskID)
+		c.mu.Unlock()
+
+		_ = c.tokenStore.Delete(taskID)
 	}()
 
 	err = c.detachNetwork(ctx, task, report)
@@ -222,7 +230,9 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task) error {
 		return err
 	}
 
-	c.logger.Info("Renewed a lease and got token", "token", newToken, "fencing", fencing)
+	c.mu.Lock()
+	c.epochs[taskID] = fencing
+	c.mu.Unlock()
 
 	err = c.tokenStore.Save(taskID, []byte(newToken))
 	if err != nil {
@@ -248,7 +258,9 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 		return err
 	}
 
-	c.logger.Info("Got a lease with token", "token", token, "fencing", fencing)
+	c.mu.Lock()
+	c.epochs[taskID] = fencing
+	c.mu.Unlock()
 
 	// Persist refresh token so we can recover from restarts
 	err = c.tokenStore.Save(taskID, []byte(token))
@@ -259,7 +271,7 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	// Release if task can't be provisioned
 	defer func() {
 		if err != nil {
-			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, 0)
+			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, token)
 			if err != nil {
 				c.logger.Warn("unable to release lease", "task", taskID, "node", nodeID)
 			}
@@ -433,6 +445,12 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) (err err
 		}
 	}
 
+	// Build a set of additional labels to pass to the runtime
+	labels := make(map[string]string)
+	if epoch, ok := c.epochs[task.GetMeta().GetUid()]; ok {
+		labels["voiyd.io/epoch"] = fmt.Sprintf("%d", epoch)
+	}
+
 	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
 
 	err = c.detachNetwork(ctx, task, report)
@@ -455,7 +473,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) (err err
 		return err
 	}
 
-	err = c.runtime.Run(ctx, task)
+	err = c.runtime.Run(ctx, task, runtime.WithContainerdLabels(labels))
 	if err != nil {
 		return err
 	}
