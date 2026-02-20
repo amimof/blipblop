@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/logger"
 
 	containersetv1 "github.com/amimof/voiyd/pkg/client/containerset/v1"
@@ -34,13 +35,6 @@ var DefaultTLSConfig = &tls.Config{
 }
 
 type NewClientOption func(c *ClientSet) error
-
-func WithClientID(id string) NewClientOption {
-	return func(c *ClientSet) error {
-		c.clientID = id
-		return nil
-	}
-}
 
 func WithGrpcDialOption(opts ...grpc.DialOption) NewClientOption {
 	return func(c *ClientSet) error {
@@ -148,6 +142,7 @@ type ClientSet struct {
 	tlsConfig            *tls.Config
 	clientID             string
 	logger               logger.Logger
+	id                   *identity.AtomicIdentity
 }
 
 func (c *ClientSet) NodeV1() nodev1.ClientV1 {
@@ -232,6 +227,9 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	}
 
+	id := &identity.AtomicIdentity{}
+	id.Set(identity.ClientIdentity{Name: uuid.New().String()})
+
 	// Default clientset
 	c := &ClientSet{
 		grpcOpts: defaultOpts,
@@ -240,6 +238,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 		},
 		clientID: uuid.New().String(),
 		logger:   logger.ConsoleLogger{},
+		id:       id,
 	}
 
 	// Allow passing in custom dial options
@@ -253,13 +252,16 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	// We always want TLS but TLSConfig might be changed by the user so that's why do this here
 	c.grpcOpts = append(c.grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 
+	// Add interceptors
+	c.grpcOpts = append(c.grpcOpts, grpc.WithUnaryInterceptor(identity.IdentityUnaryInterceptor(c.id)))
+
 	conn, err := grpc.NewClient(server, c.grpcOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	c.conn = conn
-	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.clientID, nodev1.WithLogger(c.logger))
+	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.id, nodev1.WithLogger(c.logger))
 	c.TaskV1Client = taskv1.NewClientV1WithConn(conn, c.clientID)
 	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientID)
 	c.eventV1Client = eventv1.NewClientV1(conn, c.clientID)

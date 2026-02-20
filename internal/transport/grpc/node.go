@@ -233,12 +233,12 @@ func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*node
 		return nil, err
 	}
 
-	err = n.app.Join(ctx, uid, req.GetNode())
+	node, err := n.app.Join(ctx, uid, req.GetNode())
 	if err != nil {
 		return nil, err
 	}
 
-	return &nodesv1.JoinResponse{Id: uid.UUIDStr()}, nil
+	return &nodesv1.JoinResponse{Uid: node.GetMeta().GetUid(), Name: node.GetMeta().GetName()}, nil
 }
 
 func (n *NodeService) Forget(ctx context.Context, req *nodesv1.ForgetRequest) (*nodesv1.ForgetResponse, error) {

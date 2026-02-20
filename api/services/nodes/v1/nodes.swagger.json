@@ -860,7 +860,10 @@
     "v1JoinResponse": {
       "type": "object",
       "properties": {
-        "id": {
+        "uid": {
+          "type": "string"
+        },
+        "name": {
           "type": "string"
         }
       }

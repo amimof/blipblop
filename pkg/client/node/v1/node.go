@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
@@ -69,10 +70,10 @@ func (c *clientV1) Status() StatusClientV1 {
 
 type clientV1 struct {
 	Client nodesv1.NodeServiceClient
-	id     string
 	mu     sync.Mutex
 	stream nodesv1.NodeService_ConnectClient
 	logger logger.Logger
+	id     *identity.AtomicIdentity
 }
 
 func (c *clientV1) NodeService() nodesv1.NodeServiceClient {
@@ -111,7 +112,6 @@ func (c *clientV1) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Delete(ctx, &nodesv1.DeleteRequest{Name: uid.NameStr(), Uid: uid.UUIDStr()})
 	if err != nil {
 		return err
@@ -125,7 +125,6 @@ func (c *clientV1) Get(ctx context.Context, id string) (*nodesv1.Node, error) {
 		return nil, err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	n, err := c.Client.Get(ctx, &nodesv1.GetRequest{Name: uid.NameStr(), Uid: uid.UUIDStr()})
 	if err != nil {
 		return nil, err
@@ -134,7 +133,6 @@ func (c *clientV1) Get(ctx context.Context, id string) (*nodesv1.Node, error) {
 }
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*nodesv1.Node, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	n, err := c.Client.List(ctx, &nodesv1.ListRequest{})
 	if err != nil {
 		return nil, err
@@ -147,7 +145,6 @@ func (c *clientV1) Update(ctx context.Context, id string, node *nodesv1.Node) er
 	if err != nil {
 		return err
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Update(ctx, &nodesv1.UpdateRequest{Name: uid.NameStr(), Uid: uid.UUIDStr(), Node: node})
 	if err != nil {
 		return err
@@ -156,7 +153,6 @@ func (c *clientV1) Update(ctx context.Context, id string, node *nodesv1.Node) er
 }
 
 func (c *clientV1) Create(ctx context.Context, node *nodesv1.Node, opts ...CreateOption) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &nodesv1.CreateRequest{Node: node})
 	if err != nil {
 		return err
@@ -165,16 +161,18 @@ func (c *clientV1) Create(ctx context.Context, node *nodesv1.Node, opts ...Creat
 }
 
 func (c *clientV1) Join(ctx context.Context, node *nodesv1.Node) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-	_, err := c.Client.Join(ctx, &nodesv1.JoinRequest{Node: node})
+	resp, err := c.Client.Join(ctx, &nodesv1.JoinRequest{Node: node})
 	if err != nil {
 		return err
 	}
+	c.id.Set(identity.ClientIdentity{
+		UID:  resp.GetUid(),
+		Name: resp.GetName(),
+	})
 	return nil
 }
 
 func (c *clientV1) Forget(ctx context.Context, n string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	req := &nodesv1.ForgetRequest{
 		Name: n,
 	}
@@ -321,11 +319,11 @@ func NewClientV1(opts ...CreateOption) ClientV1 {
 	return c
 }
 
-func NewClientV1WithConn(conn *grpc.ClientConn, clientID string, opts ...CreateOption) ClientV1 {
+func NewClientV1WithConn(conn *grpc.ClientConn, id *identity.AtomicIdentity, opts ...CreateOption) ClientV1 {
 	c := &clientV1{
 		Client: nodesv1.NewNodeServiceClient(conn),
-		id:     clientID,
 		logger: logger.ConsoleLogger{},
+		id:     id,
 	}
 
 	for _, opt := range opts {

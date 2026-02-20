@@ -257,6 +257,7 @@ func main() {
 
 	nodeSessionManager := app.NewNodeSessionManager(exchange, log)
 	eventSessionManager := app.NewNodeSessionManager(exchange, log)
+	leaseManager := infra.NewLeaseManager(repository.NewLeaseRepo(repo))
 
 	nodeService := transport.NewNodeService(&app.NodeService{
 		Exchange: exchange,
@@ -270,13 +271,14 @@ func main() {
 		Logger:      log,
 		LeaseTTL:    60,
 		GracePeriod: time.Second * 5,
-		Manager:     infra.NewLeaseManager(repository.NewLeaseRepo(repo)),
+		Manager:     leaseManager,
 	})
 
 	taskService := transport.NewTaskService(&app.TaskService{
 		Exchange: exchange,
 		Logger:   log,
 		Repo:     repository.NewTaskRepo(repo),
+		Guard:    leaseManager,
 	})
 
 	eventService := transport.NewEventService(&app.EventService{

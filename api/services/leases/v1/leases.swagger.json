@@ -170,11 +170,10 @@
             "type": "string"
           },
           {
-            "name": "fencingToken",
+            "name": "token",
             "in": "query",
             "required": false,
-            "type": "string",
-            "format": "uint64"
+            "type": "string"
           }
         ],
         "tags": [
@@ -211,11 +210,10 @@
             "type": "string"
           },
           {
-            "name": "fencingToken",
+            "name": "token",
             "in": "query",
             "required": false,
-            "type": "string",
-            "format": "uint64"
+            "type": "string"
           }
         ],
         "tags": [
@@ -322,6 +320,9 @@
         "lease": {
           "$ref": "#/definitions/v1Lease"
         },
+        "token": {
+          "type": "string"
+        },
         "fencingToken": {
           "type": "string",
           "format": "uint64"
@@ -339,6 +340,9 @@
         },
         "config": {
           "$ref": "#/definitions/v1LeaseConfig"
+        },
+        "status": {
+          "$ref": "#/definitions/v1LeaseStatus"
         }
       },
       "title": "Lease represents a node's right to run a task"
@@ -368,16 +372,17 @@
           "type": "integer",
           "format": "int64"
         },
-        "rescheduleCount": {
-          "type": "integer",
-          "format": "int64"
-        },
-        "originalNode": {
-          "type": "string"
-        },
         "fencingToken": {
           "type": "string",
           "format": "uint64"
+        }
+      }
+    },
+    "v1LeaseStatus": {
+      "type": "object",
+      "properties": {
+        "tokenHash": {
+          "type": "string"
         }
       }
     },
@@ -427,6 +432,9 @@
       "properties": {
         "lease": {
           "$ref": "#/definitions/v1Lease"
+        },
+        "token": {
+          "type": "string"
         },
         "fencingToken": {
           "type": "string",

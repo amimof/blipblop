@@ -37,11 +37,11 @@ func (c *LeaseService) List(ctx context.Context, req *leasesv1.ListRequest) (*le
 }
 
 func (c *LeaseService) Acquire(ctx context.Context, req *leasesv1.AcquireRequest) (*leasesv1.AcquireResponse, error) {
-	lease, err := c.app.Acquire(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()))
+	lease, token, err := c.app.Acquire(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()))
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &leasesv1.AcquireResponse{Lease: lease}, nil
+	return &leasesv1.AcquireResponse{Lease: lease, Token: token, FencingToken: lease.GetConfig().GetFencingToken()}, nil
 }
 
 func (c *LeaseService) Release(ctx context.Context, req *leasesv1.ReleaseRequest) (*leasesv1.ReleaseResponse, error) {
@@ -53,11 +53,11 @@ func (c *LeaseService) Release(ctx context.Context, req *leasesv1.ReleaseRequest
 }
 
 func (c *LeaseService) Renew(ctx context.Context, req *leasesv1.RenewRequest) (*leasesv1.RenewResponse, error) {
-	lease, err := c.app.Renew(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()), req.GetFencingToken())
+	lease, token, err := c.app.Renew(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()), req.GetToken())
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	return &leasesv1.RenewResponse{Lease: lease}, nil
+	return &leasesv1.RenewResponse{Lease: lease, Token: token, FencingToken: lease.GetConfig().GetFencingToken()}, nil
 }
 
 func NewLeaseService(app *app.LeaseService) *LeaseService {

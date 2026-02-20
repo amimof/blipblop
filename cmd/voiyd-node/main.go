@@ -208,7 +208,7 @@ func main() {
 		}
 	}()
 
-	// Join node
+	// Read node config
 	nodeCfg, err := LoadNodeFromEnv(nodeFile)
 	if err != nil {
 		log.Error("error creating a node from environment", "error", err, "path", nodeFile)

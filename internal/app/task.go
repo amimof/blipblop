@@ -8,10 +8,12 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/amimof/voiyd/internal/domain"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -27,6 +29,7 @@ type TaskService struct {
 	mu       sync.Mutex
 	Exchange *events.Exchange
 	Logger   logger.Logger
+	Guard    LeaseGuard
 }
 
 func (l *TaskService) handleError(err error, msg string, keysAndValues ...any) error {
@@ -372,6 +375,14 @@ func (l *TaskService) UpdateStatus(ctx context.Context, id keys.ID, st *tasksv1.
 
 	ctx, span := tracer.Start(ctx, "task.UpdateStatus")
 	defer span.End()
+
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if res, ok := md["x-voiyd-node-uid"]; ok && len(res) > 0 {
+			if isHolder, _ := l.Guard.IsHolder(ctx, ResourceID(id.String()), HolderID(res[0])); !isHolder {
+				return domain.ErrNotHolder
+			}
+		}
+	}
 
 	// Get the existing task before updating so we can compare specs
 	existingTask, err := l.Repo.Get(ctx, id)

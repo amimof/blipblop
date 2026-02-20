@@ -204,7 +204,8 @@ message JoinRequest {
 }
 
 message JoinResponse {
-  string id = 1;
+  string uid = 1;
+  string name = 2;
 }
 
 message ForgetRequest {
