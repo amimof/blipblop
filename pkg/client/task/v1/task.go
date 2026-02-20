@@ -5,10 +5,10 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
@@ -63,7 +63,7 @@ type StatusClientV1 interface {
 type clientV1 struct {
 	Client     tasksv1.TaskServiceClient
 	emitLabels labels.Label
-	id         string
+	id         *identity.AtomicIdentity
 }
 
 type statusV1 struct {
@@ -137,7 +137,6 @@ func (c *clientV1) Kill(ctx context.Context, id string) error {
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Kill(ctx, &tasksv1.KillRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), ForceKill: true})
 	if err != nil {
 		return err
@@ -155,7 +154,6 @@ func (c *clientV1) Stop(ctx context.Context, id string) error {
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Kill(ctx, &tasksv1.KillRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), ForceKill: false})
 	if err != nil {
 		return err
@@ -173,7 +171,6 @@ func (c *clientV1) Start(ctx context.Context, id string) error {
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Start(ctx, &tasksv1.StartRequest{Uid: uid.UUIDStr(), Name: uid.NameStr()})
 	if err != nil {
 		return err
@@ -195,7 +192,6 @@ func (c *clientV1) Create(ctx context.Context, ctr *tasksv1.Task, opts ...Create
 		opt(c)
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &tasksv1.CreateRequest{Task: ctr})
 	if err != nil {
 		return err
@@ -213,7 +209,6 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *tasksv1.Task) err
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Update(ctx, &tasksv1.UpdateRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Task: ctr})
 	if err != nil {
 		return err
@@ -231,7 +226,6 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *tasksv1.Task) erro
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Patch(ctx, &tasksv1.PatchRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Task: ctr})
 	if err != nil {
 		return err
@@ -240,8 +234,6 @@ func (c *clientV1) Patch(ctx context.Context, id string, ctr *tasksv1.Task) erro
 }
 
 func (c *clientV1) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.task.Get")
 	defer span.End()
@@ -259,8 +251,6 @@ func (c *clientV1) Get(ctx context.Context, id string) (*tasksv1.Task, error) {
 }
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*tasksv1.Task, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.task.List")
 	defer span.End()
@@ -274,8 +264,6 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*tasksv1.Task
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.task.Delete")
 	defer span.End()
@@ -308,10 +296,10 @@ func NewClientV1(opts ...CreateOption) ClientV1 {
 	return c
 }
 
-func NewClientV1WithConn(conn *grpc.ClientConn, clientID string, opts ...CreateOption) ClientV1 {
+func NewClientV1WithConn(conn *grpc.ClientConn, id *identity.AtomicIdentity, opts ...CreateOption) ClientV1 {
 	c := &clientV1{
 		Client: tasksv1.NewTaskServiceClient(conn),
-		id:     clientID,
+		id:     id,
 	}
 
 	for _, opt := range opts {

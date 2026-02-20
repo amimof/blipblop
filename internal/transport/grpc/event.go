@@ -70,9 +70,22 @@ func (n *EventService) List(ctx context.Context, req *eventsv1.ListRequest) (*ev
 }
 
 func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1.EventService_SubscribeServer) error {
+	var nodeUID string
+	var nodeName string
+	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+		if res, ok := md["x-voiyd-node-uid"]; ok && len(res) > 0 {
+			nodeUID = res[0]
+		}
+	}
+	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+		if res, ok := md["x-voiyd-node-name"]; ok && len(res) > 0 {
+			nodeName = res[0]
+		}
+	}
+
 	sess, err := s.app.Subscribe(stream.Context(), app.NodeConnectInput{
-		NodeUID:  req.GetClientId(),
-		NodeName: req.GetClientId(),
+		NodeUID:  nodeUID,
+		NodeName: nodeName,
 	})
 	if err != nil {
 		return err
@@ -95,11 +108,9 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 				}
 			case <-ctx.Done():
 
-				// s.logger.Info("node stream context cancelled", "reason", ctx.Err())
-
 				// Get node name from context
 				if md, ok := metadata.FromIncomingContext(ctx); ok {
-					if nodeName, ok := md["voiyd_node_name"]; ok && len(nodeName) > 0 {
+					if nodeName, ok := md["x-voiyd-node-name"]; ok && len(nodeName) > 0 {
 						_, err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
 						if err != nil {
 							errCh <- err

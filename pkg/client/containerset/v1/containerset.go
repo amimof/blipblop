@@ -6,10 +6,10 @@ import (
 	"reflect"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 
@@ -23,7 +23,7 @@ const (
 
 type ClientV1 struct {
 	containerService containersetsv1.ContainerSetServiceClient
-	id               string
+	id               *identity.AtomicIdentity
 }
 
 type Status = status.Status
@@ -44,7 +44,6 @@ func (g *Response[T]) Object() (T, error) {
 }
 
 func (c *ClientV1) Create(ctx context.Context, ctr *containersetsv1.ContainerSet) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.containerService.Create(ctx, &containersetsv1.CreateRequest{ContainerSet: ctr})
 	if err != nil {
 		return err
@@ -57,8 +56,6 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*containersetsv1.Contain
 	if err != nil {
 		return nil, err
 	}
-
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	res, err := c.containerService.Get(ctx, &containersetsv1.GetRequest{Name: uid.String(), Uid: uid.String()})
 	if err != nil {
 		return nil, err
@@ -67,7 +64,6 @@ func (c *ClientV1) Get(ctx context.Context, id string) (*containersetsv1.Contain
 }
 
 func (c *ClientV1) List(ctx context.Context) ([]*containersetsv1.ContainerSet, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	res, err := c.containerService.List(ctx, &containersetsv1.ListRequest{Selector: labels.New()})
 	if err != nil {
 		return nil, err
@@ -80,7 +76,6 @@ func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.containerService.Delete(ctx, &containersetsv1.DeleteRequest{Name: uid.String(), Uid: uid.String()})
 	if err != nil {
 		return err
@@ -88,9 +83,9 @@ func (c *ClientV1) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func NewClientV1(conn *grpc.ClientConn, clientId string) *ClientV1 {
+func NewClientV1(conn *grpc.ClientConn, id *identity.AtomicIdentity) *ClientV1 {
 	return &ClientV1{
 		containerService: containersetsv1.NewContainerSetServiceClient(conn),
-		id:               clientId,
+		id:               id,
 	}
 }

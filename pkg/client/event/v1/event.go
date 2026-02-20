@@ -9,12 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
@@ -25,7 +24,7 @@ import (
 )
 
 type ClientV1 struct {
-	id           string
+	id           *identity.AtomicIdentity
 	eventService eventsv1.EventServiceClient
 	exchange     events.Exchange
 	streamOnce   sync.Once
@@ -67,9 +66,7 @@ func (c *ClientV1) Create(ctx context.Context, e *eventsv1.Event) (*eventsv1.Eve
 }
 
 func (c *ClientV1) Publish(ctx context.Context, obj events.Object, evt eventsv1.EventType) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	req := events.NewRequest(evt, obj)
-	// re := &eventsv1.PublishRequest{Event: event.NewEventFor(c.id, id, evt)}
 	_, err := c.eventService.Publish(ctx, req)
 	if err != nil {
 		return err
@@ -160,7 +157,7 @@ func (c *ClientV1) Subscribe(ctx context.Context, topics ...eventsv1.EventType) 
 }
 
 func (c *ClientV1) startStream(ctx context.Context) (eventsv1.EventService_SubscribeClient, error) {
-	stream, err := c.eventService.Subscribe(ctx, &eventsv1.SubscribeRequest{ClientId: c.id})
+	stream, err := c.eventService.Subscribe(ctx, &eventsv1.SubscribeRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)
 	}
@@ -204,13 +201,10 @@ func isRetryableError(code codes.Code) bool {
 	return code == codes.Unavailable || code == codes.ResourceExhausted || code == codes.Internal
 }
 
-func NewClientV1(conn *grpc.ClientConn, clientID string) *ClientV1 {
-	if clientID == "" {
-		clientID = uuid.New().String()
-	}
+func NewClientV1(conn *grpc.ClientConn, id *identity.AtomicIdentity) *ClientV1 {
 	return &ClientV1{
 		eventService: eventsv1.NewEventServiceClient(conn),
-		id:           clientID,
+		id:           id,
 		exchange:     *events.NewExchange(events.WithExchangeLogger(logger.ConsoleLogger{})),
 	}
 }
