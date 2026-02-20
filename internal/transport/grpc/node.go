@@ -34,12 +34,12 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 	var nodeUID string
 	var nodeName string
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
-		if res, ok := md["voiyd_node_uid"]; ok && len(res) > 0 {
+		if res, ok := md["x-voiyd-node-uid"]; ok && len(res) > 0 {
 			nodeUID = res[0]
 		}
 	}
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
-		if res, ok := md["voiyd_node_name"]; ok && len(res) > 0 {
+		if res, ok := md["x-voiyd-node-name"]; ok && len(res) > 0 {
 			nodeName = res[0]
 		}
 	}

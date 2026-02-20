@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/amimof/voiyd/api/services/volumes/v1"
+	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -46,7 +46,7 @@ type StatusClientV1 interface {
 type clientV1 struct {
 	Client     volumes.VolumeServiceClient
 	emitLabels labels.Label
-	id         string
+	id         *identity.AtomicIdentity
 }
 
 type statusV1 struct {
@@ -94,7 +94,6 @@ func (c *clientV1) Create(ctx context.Context, ctr *volumes.Volume, opts ...Crea
 		opt(c)
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err := c.Client.Create(ctx, &volumes.CreateRequest{Volume: ctr})
 	if err != nil {
 		return err
@@ -112,7 +111,6 @@ func (c *clientV1) Update(ctx context.Context, name string, ctr *volumes.Volume)
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Update(ctx, &volumes.UpdateRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Volume: ctr})
 	if err != nil {
 		return err
@@ -130,7 +128,6 @@ func (c *clientV1) Patch(ctx context.Context, name string, ctr *volumes.Volume) 
 		return err
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
 	_, err = c.Client.Patch(ctx, &volumes.PatchRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Volume: ctr})
 	if err != nil {
 		return err
@@ -139,8 +136,6 @@ func (c *clientV1) Patch(ctx context.Context, name string, ctr *volumes.Volume) 
 }
 
 func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.volume.Get")
 	defer span.End()
@@ -158,8 +153,6 @@ func (c *clientV1) Get(ctx context.Context, id string) (*volumes.Volume, error) 
 }
 
 func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*volumes.Volume, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.volume.List")
 	defer span.End()
@@ -173,8 +166,6 @@ func (c *clientV1) List(ctx context.Context, l ...labels.Label) ([]*volumes.Volu
 }
 
 func (c *clientV1) Delete(ctx context.Context, id string) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_client_id", c.id)
-
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.volume.Delete")
 	defer span.End()
@@ -199,10 +190,10 @@ func NewClientV1(opts ...CreateOption) ClientV1 {
 	return c
 }
 
-func NewClientV1WithConn(conn *grpc.ClientConn, clientID string, opts ...CreateOption) ClientV1 {
+func NewClientV1WithConn(conn *grpc.ClientConn, id *identity.AtomicIdentity, opts ...CreateOption) ClientV1 {
 	c := &clientV1{
 		Client: volumes.NewVolumeServiceClient(conn),
-		id:     clientID,
+		id:     id,
 	}
 
 	for _, opt := range opts {

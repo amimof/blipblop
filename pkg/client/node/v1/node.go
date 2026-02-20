@@ -10,7 +10,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
@@ -193,7 +192,7 @@ func (c *clientV1) Connect(ctx context.Context, nodeUID, nodeName string, receiv
 		}
 
 		// Start a new stream connection
-		stream, err := c.startStream(ctx, nodeUID, nodeName)
+		stream, err := c.startStream(ctx)
 		if err != nil {
 			c.logger.Info("error connecting to stream", "error", err)
 			time.Sleep(2 * time.Second)
@@ -251,10 +250,8 @@ func (c *clientV1) Condition(ctx context.Context, nodeID string, conditions ...*
 	return nil
 }
 
-func (c *clientV1) startStream(ctx context.Context, nodeUID, nodeName string) (nodesv1.NodeService_ConnectClient, error) {
-	mdCtx := metadata.AppendToOutgoingContext(ctx, "voiyd_node_uid", nodeUID)
-	mdCtx = metadata.AppendToOutgoingContext(mdCtx, "voiyd_node_name", nodeName)
-	stream, err := c.Client.Connect(mdCtx)
+func (c *clientV1) startStream(ctx context.Context) (nodesv1.NodeService_ConnectClient, error) {
+	stream, err := c.Client.Connect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stream: %v", err)
 	}

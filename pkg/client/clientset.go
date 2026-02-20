@@ -36,6 +36,13 @@ var DefaultTLSConfig = &tls.Config{
 
 type NewClientOption func(c *ClientSet) error
 
+func WithIdentity(id *identity.AtomicIdentity) NewClientOption {
+	return func(c *ClientSet) error {
+		c.id = id
+		return nil
+	}
+}
+
 func WithGrpcDialOption(opts ...grpc.DialOption) NewClientOption {
 	return func(c *ClientSet) error {
 		c.grpcOpts = opts
@@ -140,7 +147,6 @@ type ClientSet struct {
 	mu                   sync.Mutex
 	grpcOpts             []grpc.DialOption
 	tlsConfig            *tls.Config
-	clientID             string
 	logger               logger.Logger
 	id                   *identity.AtomicIdentity
 }
@@ -196,10 +202,6 @@ func (c *ClientSet) Close() error {
 	return nil
 }
 
-func (c *ClientSet) ID() string {
-	return c.clientID
-}
-
 func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	// Define connection backoff policy
 	backoffConfig := backoff.Config{
@@ -228,7 +230,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	}
 
 	id := &identity.AtomicIdentity{}
-	id.Set(identity.ClientIdentity{Name: uuid.New().String()})
+	id.Set(identity.ClientIdentity{Name: uuid.New().String(), UID: uuid.New().String()})
 
 	// Default clientset
 	c := &ClientSet{
@@ -236,9 +238,8 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 		tlsConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},
-		clientID: uuid.New().String(),
-		logger:   logger.ConsoleLogger{},
-		id:       id,
+		logger: logger.ConsoleLogger{},
+		id:     id,
 	}
 
 	// Allow passing in custom dial options
@@ -253,7 +254,7 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 	c.grpcOpts = append(c.grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
 
 	// Add interceptors
-	c.grpcOpts = append(c.grpcOpts, grpc.WithUnaryInterceptor(identity.IdentityUnaryInterceptor(c.id)))
+	c.grpcOpts = append(c.grpcOpts, grpc.WithUnaryInterceptor(identity.IdentityUnaryInterceptor(c.id)), grpc.WithStreamInterceptor(identity.IdentityStreamInterceptor(c.id)))
 
 	conn, err := grpc.NewClient(server, c.grpcOpts...)
 	if err != nil {
@@ -262,12 +263,12 @@ func New(server string, opts ...NewClientOption) (*ClientSet, error) {
 
 	c.conn = conn
 	c.NodeV1Client = nodev1.NewClientV1WithConn(conn, c.id, nodev1.WithLogger(c.logger))
-	c.TaskV1Client = taskv1.NewClientV1WithConn(conn, c.clientID)
-	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.clientID)
-	c.eventV1Client = eventv1.NewClientV1(conn, c.clientID)
+	c.TaskV1Client = taskv1.NewClientV1WithConn(conn, c.id)
+	c.containerSetV1Client = containersetv1.NewClientV1(conn, c.id)
+	c.eventV1Client = eventv1.NewClientV1(conn, c.id)
 	c.logV1Client = logv1.NewClientV1(conn)
-	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.clientID)
-	c.leaseV1Client = leasev1.NewClientV1WithConn(conn, c.clientID)
+	c.volumeV1Client = volumev1.NewClientV1WithConn(conn, c.id)
+	c.leaseV1Client = leasev1.NewClientV1WithConn(conn, c.id)
 	c.healthV1Client = healthv1.NewClientV1WithConn(conn)
 
 	return c, nil
