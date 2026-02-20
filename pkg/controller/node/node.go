@@ -4,6 +4,7 @@ package nodecontroller
 import (
 	"context"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"
@@ -40,12 +42,12 @@ type Controller struct {
 	renewInterval    time.Duration
 	netmanager       networking.Manager
 	tokenStore       store.Store
-	// fencingTokens    map[string]uint64
-	conditions chan *typesv1.ConditionReport
-	mu         sync.Mutex
-	queue      *queue.TaskQueue
-	workPool   *queue.WorkPool
-	publisher  condition.Publisher
+	epochs           map[string]uint64
+	conditions       chan *typesv1.ConditionReport
+	mu               sync.Mutex
+	queue            *queue.TaskQueue
+	workPool         *queue.WorkPool
+	publisher        condition.Publisher
 }
 
 type NewOption func(c *Controller)
@@ -265,9 +267,47 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 
 		err = c.renewLease(ctx, task)
 		if err != nil {
+			if errs.IsConflict(err) {
+				c.logger.Warn("lease held by someone else, stopping task", "error", err, "task", taskName)
+				_ = c.stopTask(ctx, task)
+				continue
+			}
+			if errs.IsNotFound(err) {
+				err = c.acquireLease(ctx, task)
+				if err != nil {
+					c.logger.Warn("error acquiring lease on reconcile", "error", err, "task", taskName)
+					continue
+				}
+			}
+
+			if errs.IsPermissionDenied(err) {
+				c.logger.Warn("lease token invalid, stopping task", "error", err, "task", taskName)
+				_ = c.stopTask(ctx, task)
+				continue
+			}
+
 			c.logger.Debug("error renewing lease", "error", err, "task", taskName)
-			_ = c.stopTask(ctx, task)
 			continue
+		}
+
+		labels, err := c.runtime.Labels(ctx, task.GetMeta().GetUid())
+		if err != nil {
+			c.logger.Error("error getting labels from runtime", "error", err, "task", taskName)
+			continue
+		}
+
+		if v, ok := labels["voiyd.io/epoch"]; ok {
+			epoch, err := strconv.Atoi(v)
+			if err != nil {
+				c.logger.Error("error reading task epoch from task labels", "error", err)
+				continue
+			}
+
+			currentEpoch := c.epochs[task.GetMeta().GetUid()]
+			if uint64(epoch) < currentEpoch {
+				c.logger.Warn("stopping outdated task", "task_epoch", epoch, "current_epoch", currentEpoch)
+				_ = c.stopTask(ctx, task)
+			}
 		}
 
 	}
@@ -294,6 +334,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		attacher:         volume.NewDefaultAttacher(c.VolumeV1()),
 		renewInterval:    time.Second * 30,
 		conditions:       make(chan *typesv1.ConditionReport),
+		epochs:           make(map[string]uint64),
 	}
 
 	for _, opt := range opts {

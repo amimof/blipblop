@@ -84,7 +84,7 @@ message ReleaseRequest {
   string id = 1;
   string task_id = 2 [(buf.validate.field).string.uuid = true];
   string node_id = 3 [(buf.validate.field).string.uuid = true];
-  uint64 fencing_token = 4;
+  string token = 4;
 }
 
 message ReleaseResponse {

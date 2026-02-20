@@ -29,13 +29,23 @@ type TaskIO struct {
 	Stderr io.ReadCloser
 }
 
+type RuntimeOption func(Runtime)
+
+func WithContainerdLabels(l map[string]string) RuntimeOption {
+	return func(r Runtime) {
+		if c, ok := r.(*ContainerdRuntime); ok {
+			c.appendLabels = l
+		}
+	}
+}
+
 type Runtime interface {
 	List(context.Context, ...string) ([]*taskv1.Task, error)
 	Get(context.Context, string) (*taskv1.Task, error)
 	Delete(context.Context, *taskv1.Task) error
 	Kill(context.Context, *taskv1.Task) error
 	Stop(context.Context, *taskv1.Task) error
-	Run(context.Context, *taskv1.Task) error
+	Run(context.Context, *taskv1.Task, ...RuntimeOption) error
 	Cleanup(context.Context, string) error
 	Pull(context.Context, *taskv1.Task) error
 	Labels(context.Context, string) (labels.Label, error)

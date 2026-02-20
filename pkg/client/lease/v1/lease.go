@@ -31,7 +31,7 @@ func WithClient(client leasesv1.LeaseServiceClient) CreateOption {
 type ClientV1 interface {
 	Acquire(context.Context, string, string, ...CreateOption) (*leasesv1.Lease, string, uint64, error)
 	Renew(context.Context, string, string, string) (*leasesv1.Lease, string, uint64, error)
-	Release(context.Context, string, string, uint64) error
+	Release(context.Context, string, string, string) error
 	Get(context.Context, string) (*leasesv1.Lease, error)
 	List(context.Context, ...labels.Label) ([]*leasesv1.Lease, error)
 }
@@ -72,12 +72,12 @@ func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string, token strin
 	return resp.GetLease(), resp.GetToken(), resp.GetFencingToken(), nil
 }
 
-func (c *clientV1) Release(ctx context.Context, taskID, nodeID string, token uint64) error {
+func (c *clientV1) Release(ctx context.Context, taskID, nodeID string, token string) error {
 	tracer := otel.Tracer("client-v1")
 	ctx, span := tracer.Start(ctx, "client.lease.Release")
 	defer span.End()
 
-	_, err := c.Client.Release(ctx, &leasesv1.ReleaseRequest{TaskId: taskID, NodeId: nodeID, FencingToken: token})
+	_, err := c.Client.Release(ctx, &leasesv1.ReleaseRequest{TaskId: taskID, NodeId: nodeID, Token: token})
 	if err != nil {
 		return err
 	}

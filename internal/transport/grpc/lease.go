@@ -45,7 +45,7 @@ func (c *LeaseService) Acquire(ctx context.Context, req *leasesv1.AcquireRequest
 }
 
 func (c *LeaseService) Release(ctx context.Context, req *leasesv1.ReleaseRequest) (*leasesv1.ReleaseResponse, error) {
-	err := c.app.Release(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()))
+	err := c.app.Release(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()), req.GetToken())
 	if err != nil {
 		return nil, toStatus(err)
 	}

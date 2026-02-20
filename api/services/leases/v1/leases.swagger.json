@@ -127,11 +127,10 @@
             "type": "string"
           },
           {
-            "name": "fencingToken",
+            "name": "token",
             "in": "query",
             "required": false,
-            "type": "string",
-            "format": "uint64"
+            "type": "string"
           }
         ],
         "tags": [

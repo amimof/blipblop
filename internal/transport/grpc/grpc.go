@@ -21,6 +21,8 @@ func toStatus(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errs.IsConflict(err):
 		return status.Error(codes.AlreadyExists, err.Error())
+	case errs.IsPermissionDenied(err):
+		return status.Error(codes.PermissionDenied, err.Error())
 	// case errs.IsValidation(err):
 	// 	return status.Error(codes.InvalidArgument, err.Error())
 	// case errors.Is(err, context.Canceled):
