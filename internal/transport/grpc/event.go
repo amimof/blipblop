@@ -8,10 +8,13 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/amimof/voiyd/internal/app"
+	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	"github.com/amimof/voiyd/api/types/v1"
 )
 
 var ErrClientExists = errors.New("client already exists")
@@ -111,7 +114,7 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 				// Get node name from context
 				if md, ok := metadata.FromIncomingContext(ctx); ok {
 					if nodeName, ok := md["x-voiyd-node-name"]; ok && len(nodeName) > 0 {
-						_, err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
+						_, err := s.Publish(ctx, &eventsv1.PublishRequest{Event: events.NewEvent(events.NodeForget, &nodesv1.Node{Version: version.VersionNode, Meta: &types.Meta{Name: nodeName[0]}})})
 						if err != nil {
 							errCh <- err
 						}

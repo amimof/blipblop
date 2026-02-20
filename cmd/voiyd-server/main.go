@@ -258,6 +258,7 @@ func main() {
 	nodeSessionManager := app.NewNodeSessionManager(exchange, log)
 	eventSessionManager := app.NewNodeSessionManager(exchange, log)
 	leaseManager := infra.NewLeaseManager(repository.NewLeaseRepo(repo))
+	logSessionManager := app.NewNodeSessionManager(exchange, log)
 
 	nodeService := transport.NewNodeService(&app.NodeService{
 		Exchange: exchange,
@@ -286,6 +287,13 @@ func main() {
 		Logger:   log,
 		Repo:     repository.NewEventRepo(repo),
 		Manager:  eventSessionManager,
+	})
+
+	logService := transport.NewLogService(&app.LogService{
+		Exchange:    exchange,
+		Logger:      log,
+		Manager:     logSessionManager,
+		LogExchange: &events.LogExchange{},
 	})
 
 	// Context
@@ -330,7 +338,7 @@ func main() {
 		nodeService,
 		// containerSetService,
 		taskService,
-		// logService,
+		logService,
 		// volumeService,
 		leaseService,
 	)
