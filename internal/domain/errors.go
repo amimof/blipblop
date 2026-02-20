@@ -9,4 +9,5 @@ var (
 	ErrLeaseExpired  = errors.New("lease: expired")
 	ErrInvalidTTL    = errors.New("lease: invalid ttl")
 	ErrInvalidHolder = errors.New("lease: invalid holder")
+	ErrInvalidToken  = errors.New("lease: invalid token")
 )

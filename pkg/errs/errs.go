@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/amimof/voiyd/internal/domain"
 	"github.com/amimof/voiyd/pkg/repository"
 	"github.com/containerd/containerd/errdefs"
 	"google.golang.org/grpc/codes"
@@ -25,6 +26,8 @@ func IsConflict(err error) bool {
 
 	switch {
 	case errors.Is(err, ErrLeaseHeld):
+		return true
+	case errors.Is(err, domain.ErrLeaseHeld):
 		return true
 	case errors.Is(err, repository.ErrIdxExists):
 		return true

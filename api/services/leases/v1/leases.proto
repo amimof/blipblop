@@ -40,6 +40,7 @@ message Lease {
   string version = 1;
   types.v1.Meta meta = 2 [(buf.validate.field).required = true];
   LeaseConfig config = 3 [(buf.validate.field).required = true];
+  LeaseStatus status = 4;
 }
 
 message LeaseConfig {
@@ -49,9 +50,11 @@ message LeaseConfig {
   google.protobuf.Timestamp renew_time = 4;
   google.protobuf.Timestamp expires_at = 5;
   uint32 ttl_seconds = 6;
-  uint32 reschedule_count = 7;
-  string original_node = 8;
-  uint64 fencing_token = 9;
+  uint64 fencing_token = 7;
+}
+
+message LeaseStatus {
+  string token_hash = 1;
 }
 
 message AcquireRequest {
@@ -61,18 +64,20 @@ message AcquireRequest {
 
 message AcquireResponse {
   Lease lease = 1;
-  uint64 fencing_token = 2;
+  string token = 2;
+  uint64 fencing_token = 3;
 }
 
 message RenewRequest {
   string task_id = 1 [(buf.validate.field).string.uuid = true];
   string node_id = 2 [(buf.validate.field).string.uuid = true];
-  uint64 fencing_token = 3;
+  string token = 3;
 }
 
 message RenewResponse {
   Lease lease = 1;
-  uint64 fencing_token = 2;
+  string token = 2;
+  uint64 fencing_token = 3;
 }
 
 message ReleaseRequest {

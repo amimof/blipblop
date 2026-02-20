@@ -281,7 +281,7 @@ func (l *NodeService) Update(ctx context.Context, id keys.ID, node *nodesv1.Node
 	return nil
 }
 
-func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) error {
+func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) (*nodesv1.Node, error) {
 	ctx, span := tracer.Start(ctx, "node.Join")
 	defer span.End()
 
@@ -290,10 +290,10 @@ func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) 
 		if errors.Is(err, repository.ErrNotFound) {
 			l.Logger.Debug("creating node that joined", "nodeID", node.GetMeta().GetName())
 			if _, err := l.Create(ctx, node); err != nil {
-				return l.handleError(err, "error creating node", "name", node.GetMeta().GetName())
+				return nil, l.handleError(err, "error creating node", "name", node.GetMeta().GetName())
 			}
 		}
-		return l.handleError(err, "error getting node", "name", node.GetMeta().GetName())
+		return nil, l.handleError(err, "error getting node", "name", node.GetMeta().GetName())
 	}
 
 	// Perform update if node exists
@@ -301,15 +301,15 @@ func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) 
 
 	err = l.Update(ctx, id, node)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.NodeJoin, node))
 	if err != nil {
-		return l.handleError(err, "error publishing node join event", "name", node.GetMeta().GetName())
+		return nil, l.handleError(err, "error publishing node join event", "name", node.GetMeta().GetName())
 	}
 
-	return nil
+	return l.Get(ctx, id)
 }
 
 func (l *NodeService) Forget(ctx context.Context, id keys.ID) error {

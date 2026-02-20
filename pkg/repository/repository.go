@@ -434,7 +434,6 @@ func (r Repo[T]) Delete(ctx context.Context, id keys.ID) error {
 			if err := txn.Delete(uid.EncodePrefixed(r.prefix)); err != nil {
 				return err
 			}
-
 			// Delete the index key
 			if err := txn.Delete(idxKey); err != nil {
 				return err

@@ -7,8 +7,6 @@ import (
 
 	"github.com/containerd/errdefs"
 	gocni "github.com/containerd/go-cni"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -40,20 +38,14 @@ func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task
 
 	err := c.acquireLease(ctx, task)
 	if err != nil {
-		if status.Code(err) == codes.AlreadyExists {
-
-			refreshToken, err := c.tokenStore.Load(taskUID)
-			if err != nil {
-				c.logger.Debug("refresh token did not exist in store", "error", err, "task", taskUID)
-				return nil
-			}
-
-			if err := c.renewLease(ctx, task, binary.LittleEndian.Uint64(refreshToken)); err != nil {
+		if errs.IsConflict(err) {
+			if err := c.renewLease(ctx, task); err != nil {
 				// Task will be garbage collected in renew lease-loop
 				c.logger.Debug("error getting refresh token for task", "error", err, "task", taskUID)
 				return nil
 			}
 		}
+		c.logger.Warn("couldnt acquire lease", " error", err)
 		return nil
 	}
 
@@ -209,7 +201,7 @@ func (c *Controller) getNode(ctx context.Context) (*nodesv1.Node, error) {
 	return c.clientset.NodeV1().Get(ctx, nodeID)
 }
 
-func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refreshToken uint64) error {
+func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task) error {
 	node, err := c.getNode(ctx)
 	if err != nil {
 		return err
@@ -218,13 +210,21 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task, refresh
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
 
-	lease, err := c.clientset.LeaseV1().Renew(ctx, taskID, nodeID, refreshToken)
+	refreshToken, err := c.tokenStore.Load(taskID)
+	if err != nil {
+		c.logger.Debug("refresh token did not exist in store", "error", err, "task", taskID)
+		return nil
+	}
+
+	_, newToken, fencing, err := c.clientset.LeaseV1().Renew(ctx, taskID, nodeID, string(refreshToken))
 	if err != nil {
 		c.logger.Error("failed to renew lease", "error", err, "task", taskID, "nodeID", nodeID)
 		return err
 	}
 
-	err = c.tokenStore.Save(taskID, Uint64ToBytes(lease.GetConfig().GetFencingToken()))
+	c.logger.Info("Renewed a lease and got token", "token", newToken, "fencing", fencing)
+
+	err = c.tokenStore.Save(taskID, []byte(newToken))
 	if err != nil {
 		return err
 	}
@@ -242,14 +242,16 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
 
-	lease, token, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
+	lease, token, fencing, err := c.clientset.LeaseV1().Acquire(ctx, taskID, nodeID)
 	if err != nil {
 		c.logger.Error("failed to acquire lease", "error", err, "task", taskID, "nodeID", nodeID)
 		return err
 	}
 
+	c.logger.Info("Got a lease with token", "token", token, "fencing", fencing)
+
 	// Persist refresh token so we can recover from restarts
-	err = c.tokenStore.Save(taskID, Uint64ToBytes(token))
+	err = c.tokenStore.Save(taskID, []byte(token))
 	if err != nil {
 		return err
 	}
@@ -257,7 +259,7 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 	// Release if task can't be provisioned
 	defer func() {
 		if err != nil {
-			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, token)
+			err = c.clientset.LeaseV1().Release(ctx, taskID, nodeID, 0)
 			if err != nil {
 				c.logger.Warn("unable to release lease", "task", taskID, "node", nodeID)
 			}

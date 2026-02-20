@@ -3,7 +3,6 @@ package nodecontroller
 
 import (
 	"context"
-	"encoding/binary"
 	"os"
 	"sync"
 	"time"
@@ -263,16 +262,8 @@ func (c *Controller) renewAllLeases(ctx context.Context) {
 	for _, task := range tasks {
 
 		taskName := task.GetMeta().GetName()
-		taskUID := task.GetMeta().GetUid()
 
-		refreshToken, err := c.tokenStore.Load(taskUID)
-		if err != nil {
-			c.logger.Debug("error loading refresh token from store", "error", err, "task", taskName)
-			_ = c.stopTask(ctx, task)
-			continue
-		}
-
-		err = c.renewLease(ctx, task, binary.LittleEndian.Uint64(refreshToken))
+		err = c.renewLease(ctx, task)
 		if err != nil {
 			c.logger.Debug("error renewing lease", "error", err, "task", taskName)
 			_ = c.stopTask(ctx, task)

@@ -23,6 +23,7 @@ type LeaseManager struct {
 	mu  sync.Mutex
 	db  *repository.Repo[*leasesv1.Lease]
 	TTL uint32
+	Key []byte
 }
 
 // List implements [app.LeaseStore].
@@ -33,15 +34,15 @@ func (m *LeaseManager) List(ctx context.Context) ([]*leasesv1.Lease, error) {
 }
 
 // Acquire implements [app.LeaseStore].
-func (m *LeaseManager) Acquire(ctx context.Context, resource app.ResourceID, holder app.HolderID, ttl time.Duration) (*leasesv1.Lease, error) {
+func (m *LeaseManager) Acquire(ctx context.Context, resource app.ResourceID, holder app.HolderID, ttl time.Duration) (*leasesv1.Lease, string, error) {
 	if err := ctx.Err(); err != nil {
-		return &leasesv1.Lease{}, err
+		return &leasesv1.Lease{}, "", err
 	}
 	if holder == "" {
-		return &leasesv1.Lease{}, domain.ErrInvalidHolder
+		return &leasesv1.Lease{}, "", domain.ErrInvalidHolder
 	}
 	if ttl <= 0 {
-		return &leasesv1.Lease{}, domain.ErrInvalidTTL
+		return &leasesv1.Lease{}, "", domain.ErrInvalidTTL
 	}
 
 	m.mu.Lock()
@@ -49,7 +50,7 @@ func (m *LeaseManager) Acquire(ctx context.Context, resource app.ResourceID, hol
 
 	uid, err := keys.Index(string(resource))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	now := time.Now()
@@ -60,6 +61,16 @@ func (m *LeaseManager) Acquire(ctx context.Context, resource app.ResourceID, hol
 		// Either not found, expired, or same holder reacquiring.
 		// Bump token when taking ownership from "nobody" (expired/not found) or when switching holders.
 		if errs.IsNotFound(err) {
+
+			token, err := GenerateToken()
+			if err != nil {
+				return nil, "", err
+			}
+
+			tokenHash, err := GenerateHMAC([]byte(token), m.Key)
+			if err != nil {
+				return nil, "", err
+			}
 
 			lease := &leasesv1.Lease{
 				Version: string(app.VersionLeaseV1),
@@ -77,25 +88,51 @@ func (m *LeaseManager) Acquire(ctx context.Context, resource app.ResourceID, hol
 					TtlSeconds:   m.TTL,
 					FencingToken: 1,
 				},
+				Status: &leasesv1.LeaseStatus{
+					TokenHash: tokenHash,
+				},
 			}
 
-			return m.db.Create(ctx, lease)
+			newLease, err := m.db.Create(ctx, lease)
+			if err != nil {
+				return nil, "", err
+			}
+
+			return newLease, token, nil
 		}
 
-		return nil, err
+		return nil, "", err
 	}
 
-	// Either not found, expired, or same holder reacquiring.
-	// Bump token when taking ownership from "nobody" (expired/not found) or when switching holders.
+	// Bump token when taking ownership from same holder or expired
 	if !cur.GetConfig().GetExpiresAt().AsTime().After(now) || cur.GetConfig().GetNodeId() == string(holder) {
+
+		token, err := GenerateToken()
+		if err != nil {
+			return nil, "", err
+		}
+
+		tokenHash, err := GenerateHMAC([]byte(token), m.Key)
+		if err != nil {
+			return nil, "", err
+		}
+
 		cur.GetConfig().FencingToken++
 		cur.GetConfig().RenewTime = timestamppb.New(now)
 		cur.GetConfig().AcquiredAt = timestamppb.New(now)
 		cur.GetConfig().ExpiresAt = timestamppb.New(expires)
-		return m.db.Update(ctx, uid, cur)
+		cur.GetConfig().NodeId = string(holder)
+		cur.GetStatus().TokenHash = tokenHash
+
+		updatedLease, err := m.db.Update(ctx, uid, cur)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return updatedLease, token, nil
 	}
 
-	return nil, errs.ErrLeaseHeld
+	return nil, "", errs.ErrLeaseHeld
 }
 
 // Get implements [app.LeaseStore].
@@ -106,12 +143,6 @@ func (m *LeaseManager) Get(ctx context.Context, resource app.ResourceID) (*lease
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// cur, ok := m.leases[resource]
-	// if !ok {
-	// 	return &leasesv1.Lease{}, app.ErrLeaseNotFound
-	// }
-	// return cur, nil
 
 	uid, err := keys.Index(string(resource))
 	if err != nil {
@@ -133,7 +164,7 @@ func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, hol
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	uid, err := keys.ParseStr(string(resource))
+	uid, err := keys.Index(string(resource))
 	if err != nil {
 		return err
 	}
@@ -153,19 +184,23 @@ func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, hol
 	}
 
 	// delete(m.leases, resource)
+	uid, err = keys.ParseStr(cur.Meta.GetUid())
+	if err != nil {
+		return err
+	}
 	return m.db.Delete(ctx, uid)
 }
 
 // Renew implements [app.LeaseStore].
-func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holder app.HolderID, ttl time.Duration, token uint64) (*leasesv1.Lease, error) {
+func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holder app.HolderID, ttl time.Duration, token string) (*leasesv1.Lease, string, error) {
 	if err := ctx.Err(); err != nil {
-		return &leasesv1.Lease{}, err
+		return &leasesv1.Lease{}, "", err
 	}
 	if holder == "" {
-		return &leasesv1.Lease{}, domain.ErrInvalidHolder
+		return &leasesv1.Lease{}, "", domain.ErrInvalidHolder
 	}
 	if ttl <= 0 {
-		return &leasesv1.Lease{}, domain.ErrInvalidTTL
+		return &leasesv1.Lease{}, "", domain.ErrInvalidTTL
 	}
 
 	now := time.Now()
@@ -175,31 +210,65 @@ func (m *LeaseManager) Renew(ctx context.Context, resource app.ResourceID, holde
 
 	uid, err := uuid.Parse(string(resource))
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	id, err := keys.Index(uid.String())
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	cur, err := m.db.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	if cur.GetConfig().GetFencingToken() != token {
-		return &leasesv1.Lease{}, domain.ErrNotHolder
+	// Verify token
+	valid, err := ValidateHMAC([]byte(token), []byte(cur.GetStatus().GetTokenHash()), m.Key)
+	if err != nil {
+		return nil, "", err
 	}
 
-	// Update expiry, bump fencing token
+	if !valid {
+		return nil, "", domain.ErrInvalidToken
+	}
+
+	// Update expiry, refresh token
+	newToken, err := GenerateToken()
+	if err != nil {
+		return nil, "", err
+	}
+
+	tokenHash, err := GenerateHMAC([]byte(newToken), m.Key)
+	if err != nil {
+		return nil, "", err
+	}
+
 	expires := now.Add(time.Duration(m.TTL) * time.Second)
-	cur.GetConfig().FencingToken++
 	cur.GetConfig().RenewTime = timestamppb.New(now)
 	cur.GetConfig().AcquiredAt = timestamppb.New(now)
 	cur.GetConfig().ExpiresAt = timestamppb.New(expires)
+	cur.GetStatus().TokenHash = tokenHash
 
-	return m.db.Update(ctx, id, cur)
+	updated, err := m.db.Update(ctx, id, cur)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return updated, newToken, nil
+}
+
+func (m *LeaseManager) IsHolder(ctx context.Context, resourceID app.ResourceID, holderID app.HolderID) (bool, error) {
+	cur, err := m.Get(ctx, resourceID)
+	if err != nil {
+		return false, err
+	}
+
+	if app.HolderID(cur.GetConfig().GetNodeId()) != holderID {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (m *LeaseManager) AssertHolder(ctx context.Context, resourceID app.ResourceID, holderID app.HolderID) (token app.FencingToken, err error) {
