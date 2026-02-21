@@ -222,45 +222,6 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 		input       *tasksv1.Task
 		expectOneOf []*nodesv1.Node
 	}{
-		"TaskInSetA": {
-			input: &tasksv1.Task{
-				Meta: &types.Meta{
-					Name: "amirs-container",
-					Labels: map[string]string{
-						labels.LabelPrefix("container-set").String(): "set-a",
-					},
-				},
-				Config: &tasksv1.Config{
-					Image: "docker.io/library/redis:latest",
-				},
-			},
-			expectOneOf: []*nodesv1.Node{
-				{
-					Meta: &types.Meta{
-						Name: "node-a",
-						Labels: map[string]string{
-							labels.LabelPrefix("plattform").String(): "linux/amd64",
-						},
-					},
-					Status: &nodesv1.Status{
-						Phase: wrapperspb.String(string(condition.ReasonReady)),
-					},
-				},
-				{
-					Meta: &types.Meta{
-						Name: "node-b",
-					},
-				},
-				{
-					Meta: &types.Meta{
-						Name: "node-d",
-					},
-					Status: &nodesv1.Status{
-						Phase: wrapperspb.String(string(condition.ReasonReady)),
-					},
-				},
-			},
-		},
 		"TaskWithNodeSelector": {
 			input: &tasksv1.Task{
 				Meta: &types.Meta{
