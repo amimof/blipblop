@@ -234,10 +234,28 @@ func (l *TaskService) Create(ctx context.Context, task *tasksv1.Task) (*tasksv1.
 		return nil, l.handleError(err, "error creating task", "name", newTask.GetMeta().GetName())
 	}
 
-	// Publish event that task is created
-	err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskCreate, task))
+	n, err := l.Scheduler.Start(ctx, task)
 	if err != nil {
-		return nil, l.handleError(err, "error publishing task create event", "name", newTask.GetMeta().GetName())
+		return nil, err
+	}
+
+	id, err := keys.ParseStr(newTask.GetMeta().GetUid())
+	if err != nil {
+		return nil, err
+	}
+
+	err = l.UpdateStatus(
+		ctx,
+		id,
+		&tasksv1.Status{
+			Phase: wrapperspb.String(string(condition.ReasonScheduled)),
+			Node:  wrapperspb.String(n.GetMeta().GetName()),
+		},
+		"phase",
+		"node",
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return newTask, nil

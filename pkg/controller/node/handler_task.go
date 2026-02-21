@@ -210,6 +210,9 @@ func (c *Controller) getNode(ctx context.Context) (*nodesv1.Node, error) {
 }
 
 func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	node, err := c.getNode(ctx)
 	if err != nil {
 		return err
@@ -226,13 +229,11 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task) error {
 
 	_, newToken, fencing, err := c.clientset.LeaseV1().Renew(ctx, taskID, nodeID, string(refreshToken))
 	if err != nil {
-		c.logger.Error("failed to renew lease", "error", err, "task", taskID, "nodeID", nodeID)
+		c.logger.Error("failed to renew lease", "error", err, "task", taskID, "nodeID", nodeID, "epoch", fencing)
 		return err
 	}
 
-	c.mu.Lock()
 	c.epochs[taskID] = fencing
-	c.mu.Unlock()
 
 	err = c.tokenStore.Save(taskID, []byte(newToken))
 	if err != nil {
@@ -244,6 +245,9 @@ func (c *Controller) renewLease(ctx context.Context, task *tasksv1.Task) error {
 }
 
 func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	node, err := c.getNode(ctx)
 	if err != nil {
 		return err
@@ -258,9 +262,7 @@ func (c *Controller) acquireLease(ctx context.Context, task *tasksv1.Task) error
 		return err
 	}
 
-	c.mu.Lock()
 	c.epochs[taskID] = fencing
-	c.mu.Unlock()
 
 	// Persist refresh token so we can recover from restarts
 	err = c.tokenStore.Save(taskID, []byte(token))

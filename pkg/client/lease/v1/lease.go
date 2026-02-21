@@ -56,7 +56,7 @@ func (c *clientV1) Acquire(ctx context.Context, taskID, nodeID string, opts ...C
 		return nil, "", 0, err
 	}
 
-	return resp.GetLease(), resp.GetToken(), resp.GetFencingToken(), nil
+	return resp.GetLease(), resp.GetToken(), resp.GetLease().GetConfig().GetFencingToken(), nil
 }
 
 func (c *clientV1) Renew(ctx context.Context, taskID, nodeID string, token string) (*leasesv1.Lease, string, uint64, error) {
