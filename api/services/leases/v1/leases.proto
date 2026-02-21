@@ -4,9 +4,7 @@ package services.leases.v1;
 
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
-import "services/tasks/v1/tasks.proto";
 import "types/v1/meta.proto";
 
 option go_package = "github.com/amimof/voiyd/api/services/leases/v1;leases";

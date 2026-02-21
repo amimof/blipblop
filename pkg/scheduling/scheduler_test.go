@@ -9,7 +9,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/api/types/v1"
-	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/stretchr/testify/assert"
@@ -196,8 +195,6 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 	// Setup mock client
 	containerMockClient := tasks.NewMockTaskServiceClient(ctrl)
 	nodeMockClient := nodes.NewMockNodeServiceClient(ctrl)
-	clientV1 := tasks.NewClientV1(tasks.WithClient(containerMockClient))
-	nodesV1 := nodes.NewClientV1(nodes.WithClient(nodeMockClient))
 
 	// Setup Mocks
 	mocks := map[string]want{
@@ -219,8 +216,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 	}
 
 	// Setup Scheduler
-	cs := &client.ClientSet{TaskV1Client: clientV1, NodeV1Client: nodesV1}
-	scheduler := NewHorizontalScheduler(cs)
+	scheduler := NewHorizontalScheduler()
 
 	cases := map[string]struct {
 		input       *tasksv1.Task
@@ -298,7 +294,7 @@ func TestHorizontalSchedulerSingleNode(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			n, err := scheduler.Schedule(ctx, c.input)
+			n, err := scheduler.Schedule(ctx, c.input, testNodes.Nodes)
 			assert.NoError(t, err)
 			var match bool
 			for _, e := range c.expectOneOf {

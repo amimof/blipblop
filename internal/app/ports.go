@@ -5,6 +5,8 @@ import (
 	"time"
 
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
+	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 type (
@@ -12,6 +14,17 @@ type (
 	HolderID     string
 	FencingToken uint64
 )
+
+type Scheduler interface {
+	TaskManager
+	Schedule(ctx context.Context, task *tasksv1.Task) (*nodesv1.Node, error)
+}
+
+type TaskManager interface {
+	Start(ctx context.Context, task *tasksv1.Task) (*nodesv1.Node, error)
+	Stop(ctx context.Context, task *tasksv1.Task, nodeUID string) error
+	Kill(ctx context.Context, task *tasksv1.Task, nodeUID string) error
+}
 
 type LeaseGuard interface {
 	IsHolder(ctx context.Context, resourceID ResourceID, holderID HolderID) (bool, error)

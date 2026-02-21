@@ -17,6 +17,6 @@ var (
 )
 
 type Scheduler interface {
-	Score(context.Context, *tasksv1.Task) (map[string]float64, error)
-	Schedule(context.Context, *tasksv1.Task) (*nodesv1.Node, error)
+	Score(context.Context, *tasksv1.Task, []*nodesv1.Node) (map[string]float64, error)
+	Schedule(context.Context, *tasksv1.Task, []*nodesv1.Node) (*nodesv1.Node, error)
 }
