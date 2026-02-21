@@ -7,8 +7,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/amimof/voiyd/pkg/client"
-	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
 
@@ -16,9 +14,7 @@ import (
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
-type horizontal struct {
-	clientset *client.ClientSet
-}
+type horizontal struct{}
 
 func excludeByName(original []*nodesv1.Node, nodeName string) []*nodesv1.Node {
 	var result []*nodesv1.Node
@@ -64,19 +60,15 @@ func pickRandomNode(original []*nodesv1.Node) (*nodesv1.Node, error) {
 	return original[i], nil
 }
 
-func (s *horizontal) Score(ctx context.Context, c *tasksv1.Task) (map[string]float64, error) {
+func (s *horizontal) Score(_ context.Context, _ *tasksv1.Task, _ []*nodesv1.Node) (map[string]float64, error) {
 	return nil, nil
 }
 
-func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.Node, error) {
-	// List all nodes
-	allNodes, err := s.clientset.NodeV1().List(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+// TODO: Fix scheduling algorithm so Disconnected nodes are excluded
+func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task, allNodes []*nodesv1.Node) (*nodesv1.Node, error) {
 	// Don't attempt to schedule on a Unready node
-	filteredNodes := filterByState(allNodes, string(condition.ReasonReady))
+	// filteredNodes := filterByState(allNodes, string(condition.ReasonReady))
+	filteredNodes := allNodes
 
 	// Make sure we have at least 1 node in the cluster
 	if len(filteredNodes) < 1 {
@@ -86,38 +78,10 @@ func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task) (*nodesv1.No
 	// Filter nodes depending on nodeSelector
 	filteredNodes = filterByNodeSelector(filteredNodes, c.GetConfig().GetNodeSelector())
 
-	// Check if the container belongs to a set
-	setLabelKey := labels.LabelPrefix("container-set").String()
-	if setName, ok := c.GetMeta().GetLabels()[setLabelKey]; ok {
-
-		filter := labels.New()
-		filter.Set(setLabelKey, setName)
-
-		// Get all containers in set
-		tasks, err := s.clientset.TaskV1().List(ctx, filter)
-		if err != nil {
-			return nil, err
-		}
-
-		// Remove nodes that already have containers from the same set
-		containersInSet := filteredNodes
-		for _, task := range tasks {
-			containersInSet = excludeByName(containersInSet, task.GetStatus().GetNode().GetValue())
-		}
-
-		// If no nodes are available, then schedule on a node that has containers from same set
-		if len(containersInSet) > 0 {
-			filteredNodes = containersInSet
-		}
-
-	}
-
 	// Choose a node by random out of the filtered list of nodes
 	return pickRandomNode(filteredNodes)
 }
 
-func NewHorizontalScheduler(c *client.ClientSet) Scheduler {
-	return &horizontal{
-		clientset: c,
-	}
+func NewHorizontalScheduler() Scheduler {
+	return &horizontal{}
 }

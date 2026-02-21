@@ -26,6 +26,7 @@ var (
 type NodeSender interface {
 	SendToNode(ctx context.Context, nodeUID string, ev *eventsv1.Event) error
 	IsNodeConnected(nodeUID string) bool
+	List(ctx context.Context, limit int32) ([]*nodesv1.Node, error)
 }
 
 type SessionManager interface {
@@ -111,9 +112,13 @@ func NewNodeSessionManager(exchange *events.Exchange, l logger.Logger, opts ...N
 	return m
 }
 
-// func (m *NodeSessionManager) Connect(ctx context.Context, node *nodesv1.Node, in NodeConnectInput) (Session, error) {
-//
-// }
+func (m *NodeSessionManager) List(ctx context.Context, limit int32) ([]*nodesv1.Node, error) {
+	var nodes []*nodesv1.Node
+	for _, sess := range m.sessions {
+		nodes = append(nodes, sess.node)
+	}
+	return nodes, nil
+}
 
 func (m *NodeSessionManager) Connect(ctx context.Context, node *nodesv1.Node, in NodeConnectInput) (Session, error) {
 	if err := ctx.Err(); err != nil {

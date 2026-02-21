@@ -12,8 +12,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/internal/domain"
+	"github.com/amimof/voiyd/pkg/condition"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -25,11 +28,12 @@ import (
 )
 
 type TaskService struct {
-	Repo     *repository.Repo[*tasksv1.Task]
-	mu       sync.Mutex
-	Exchange *events.Exchange
-	Logger   logger.Logger
-	Guard    LeaseGuard
+	Repo      *repository.Repo[*tasksv1.Task]
+	mu        sync.Mutex
+	Exchange  *events.Exchange
+	Logger    logger.Logger
+	Scheduler Scheduler
+	Manager   LeaseStore
 }
 
 func (l *TaskService) handleError(err error, msg string, keysAndValues ...any) error {
@@ -275,9 +279,17 @@ func (l *TaskService) Kill(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskKill, task))
+	lease, err := l.Manager.Get(ctx, ResourceID(task.GetMeta().GetUid()))
 	if err != nil {
-		return l.handleError(err, "error publishing task kill event", "name", task.GetMeta().GetName())
+		if errs.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	err = l.Scheduler.Kill(ctx, task, lease.GetConfig().GetNodeId())
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -292,9 +304,17 @@ func (l *TaskService) Stop(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskStop, task))
+	lease, err := l.Manager.Get(ctx, ResourceID(task.GetMeta().GetUid()))
 	if err != nil {
-		return l.handleError(err, "error publishing task kill event", "name", task.GetMeta().GetName())
+		if errs.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	err = l.Scheduler.Stop(ctx, task, lease.GetConfig().GetNodeId())
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -309,9 +329,23 @@ func (l *TaskService) Start(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskStart, task))
+	n, err := l.Scheduler.Start(ctx, task)
 	if err != nil {
-		return l.handleError(err, "error publishing task start event", "name", task.GetMeta().GetName())
+		return err
+	}
+
+	err = l.UpdateStatus(
+		ctx,
+		id,
+		&tasksv1.Status{
+			Phase: wrapperspb.String(string(condition.ReasonScheduled)),
+			Node:  wrapperspb.String(n.GetMeta().GetName()),
+		},
+		"phase",
+		"node",
+	)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -378,7 +412,7 @@ func (l *TaskService) UpdateStatus(ctx context.Context, id keys.ID, st *tasksv1.
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if res, ok := md["x-voiyd-node-uid"]; ok && len(res) > 0 {
-			if isHolder, _ := l.Guard.IsHolder(ctx, ResourceID(id.String()), HolderID(res[0])); !isHolder {
+			if isHolder, _ := l.Manager.IsHolder(ctx, ResourceID(id.String()), HolderID(res[0])); !isHolder {
 				if !isHolder {
 					return domain.ErrNotHolder
 				}
