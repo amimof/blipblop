@@ -236,6 +236,9 @@ func (r Repo[T]) getByName(ctx context.Context, id keys.ID) (T, error) {
 
 		idxItem, err := txn.Get(name)
 		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				return ErrNotFound
+			}
 			return err
 		}
 
@@ -367,7 +370,7 @@ func (r *Repo[T]) Create(ctx context.Context, resource T) (T, error) {
 		return res, err
 	}
 
-	_, err = r.getByUID(ctx, uid)
+	res, err = r.getByUID(ctx, uid)
 	if err != nil {
 		return res, err
 	}
@@ -393,6 +396,36 @@ func (r Repo[T]) Delete(ctx context.Context, id keys.ID) error {
 
 			// Iterate through all index keys to find which one points to this UID
 			for _, indexKey := range indexKeys {
+				// Read the value stored in this index key (it contains the UID)
+				indexValue, err := txn.Get(indexKey)
+				if err != nil {
+					continue // Skip if we can't read this index key
+				}
+
+				// Decode the UID stored in the index
+				indexedUID, err := keys.Decode(indexValue)
+				if err != nil {
+					continue // Skip if we can't decode
+				}
+
+				// Compare the indexed UID with the UID we're trying to delete
+				if bytes.Equal(indexedUID.Encode(), id.Encode()) {
+					// This index points to our UID, delete it
+					if err := txn.Delete(indexKey); err != nil {
+						return err
+					}
+					break
+				}
+			}
+
+			// Find and delete the index entry that points to this UID
+			indexKeys2, err := txn.Keys(r.idxprefix)
+			if err != nil {
+				return err
+			}
+
+			// Iterate through all index keys to find which one points to this UID
+			for _, indexKey := range indexKeys2 {
 				// Read the value stored in this index key (it contains the UID)
 				indexValue, err := txn.Get(indexKey)
 				if err != nil {
