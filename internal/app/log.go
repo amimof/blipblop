@@ -14,22 +14,13 @@ type LogService struct {
 	Exchange    *events.Exchange
 	LogExchange *events.LogExchange
 	Manager     SessionManager
+	Sender      NodeSender
 }
 
 func (s *LogService) SendStartLogsCommand(ctx context.Context, req *logsv1.TailLogRequest) error {
-	err := s.Exchange.Publish(ctx, events.NewEvent(events.TailLogsStart, req))
-	if err != nil {
-		s.Logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetTaskId(), "tail?", req.GetWatch())
-		return err
-	}
-	return nil
+	return s.Sender.SendToNode(ctx, req.GetNodeId(), events.NewEvent(events.TailLogsStart, req))
 }
 
 func (s *LogService) SendStopLogsCommand(ctx context.Context, req *logsv1.TailLogRequest) error {
-	err := s.Exchange.Publish(ctx, events.NewEvent(events.TailLogsStop, req))
-	if err != nil {
-		s.Logger.Error("error publishing TailLogStart event", "nodeID", req.GetNodeId(), "containerID", req.GetTaskId(), "tail?", req.GetWatch())
-		return err
-	}
-	return nil
+	return s.Sender.SendToNode(ctx, req.GetNodeId(), events.NewEvent(events.TailLogsStop, req))
 }

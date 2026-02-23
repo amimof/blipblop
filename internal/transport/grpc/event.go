@@ -144,57 +144,6 @@ func (s *EventService) Subscribe(req *eventsv1.SubscribeRequest, stream eventsv1
 	<-ctx.Done()
 	err = <-errCh
 	return err
-
-	// // Identify the client
-	// ctx := stream.Context()
-	//
-	// ctx, span := tracer.Start(ctx, "service.event.Subscribe")
-	// defer span.End()
-	//
-	// clientID := req.ClientId
-	// peer, _ := peer.FromContext(ctx)
-	//
-	// eventChan := s.exchange.Subscribe(ctx, events.ALL...)
-	//
-	// md, _ := metadata.FromIncomingContext(ctx)
-	//
-	// span.SetAttributes(
-	// 	attribute.String("client.id", clientID),
-	// 	attribute.String("peer.addr", peer.Addr.String()),
-	// )
-	//
-	// s.logger.Debug("client connected", "clientId", clientID, "address", peer.Addr.String(), "controller", md.Get("voiyd_controller_name"))
-	//
-	// go func() {
-	// 	for {
-	// 		select {
-	// 		case n := <-eventChan:
-	//
-	// 			err := stream.Send(n)
-	// 			if err != nil {
-	// 				s.logger.Error("unable to emit event to clients", "error", err, "eventType", n.GetType().String(), "objectId", n.GetObjectId(), "eventId", n.GetMeta().GetName(), "clientId", req.ClientId)
-	// 				return
-	// 			}
-	// 		case <-ctx.Done():
-	//
-	// 			s.logger.Info("node stream context cancelled", "reason", ctx.Err())
-	//
-	// 			// Get node name from context
-	// 			if md, ok := metadata.FromIncomingContext(ctx); ok {
-	// 				if nodeName, ok := md["voiyd_node_name"]; ok && len(nodeName) > 0 {
-	// 					_, err := s.Publish(ctx, &eventsv1.PublishRequest{Event: &eventsv1.Event{ObjectId: nodeName[0], Type: eventsv1.EventType_NodeForget}})
-	// 					if err != nil {
-	// 						s.logger.Error("error publishing event", "error", err)
-	// 					}
-	// 				}
-	// 			}
-	// 			return
-	// 		}
-	// 	}
-	// }()
-	//
-	// <-ctx.Done()
-	// return nil
 }
 
 func (s *EventService) Forward(ctx context.Context, event *eventsv1.Event) error {

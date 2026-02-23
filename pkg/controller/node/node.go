@@ -10,7 +10,6 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/pkg/client"
@@ -132,24 +131,6 @@ func (c *Controller) Run(ctx context.Context) {
 	c.workPool.Start(ctx)
 	defer c.workPool.Stop()
 
-	topics := []eventsv1.EventType{
-		events.TailLogsStart,
-		events.TailLogsStop,
-	}
-
-	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "node")
-	evt, errCh := c.clientset.EventV1().Subscribe(ctx, topics...)
-
-	c.clientset.EventV1().On(events.TailLogsStart, events.HandleErrors(c.logger, c.onLogStart))
-	c.clientset.EventV1().On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
-
-	go func() {
-		for e := range evt {
-			c.logger.Info("node controller received event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
-		}
-	}()
-
 	// Setup Node Handlers
 	c.exchange.On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.processScheduleTask)))
 	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
@@ -158,16 +139,13 @@ func (c *Controller) Run(ctx context.Context) {
 	c.exchange.On(events.NodeUpdate, events.HandleErrors(c.logger, events.HandleNode(c.processNodeUpdate)))
 
 	// Handle runtime events
-	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart, events.RuntimeTaskDelete)
 	c.exchange.On(events.RuntimeTaskExit, events.HandleErrors(c.logger, c.onRuntimeTaskExit))
 	c.exchange.On(events.RuntimeTaskStart, events.HandleErrors(c.logger, c.onRuntimeTaskStart))
 	c.exchange.On(events.RuntimeTaskDelete, events.HandleErrors(c.logger, c.onRuntimeTaskDelete))
 
-	go func() {
-		for e := range runtimeChan {
-			c.logger.Info("node controller received runtime event", "event", e.GetType().String(), "objectID", e.GetObjectId())
-		}
-	}()
+	// Handle log handlers
+	c.exchange.On(events.TailLogsStart, events.HandleErrors(c.logger, c.onLogStart))
+	c.exchange.On(events.TailLogsStop, events.HandleErrors(c.logger, c.onLogStop))
 
 	// Connect with retry logic
 	connErr := make(chan error, 1)
@@ -234,14 +212,6 @@ func (c *Controller) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case e, ok := <-errCh:
-			if !ok {
-				errCh = nil
-				continue
-			}
-			if e != nil {
-				c.logger.Error("received error on channel", "error", e)
-			}
 		case e, ok := <-connErr:
 			if !ok {
 				connErr = nil
