@@ -138,11 +138,6 @@ func (e *Exchange) publish(ctx context.Context, ev *eventsv1.Event, persist bool
 	return nil
 }
 
-func remove(s []HandlerFunc, i int) []HandlerFunc {
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
-}
-
 func NewExchange(opts ...NewExchangeOption) *Exchange {
 	e := &Exchange{
 		topics:             make(map[eventsv1.EventType][]chan *eventsv1.Event),

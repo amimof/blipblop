@@ -185,11 +185,6 @@ func (c *Controller) setTaskAsScheduled(ctx context.Context, task *tasksv1.Task,
 	return c.clientset.TaskV1().Update(ctx, task.GetMeta().GetUid(), task)
 }
 
-func (c *Controller) setTaskAsUnscheduled(ctx context.Context, task *tasksv1.Task, nodeName string) error {
-	task.GetStatus().Node = wrapperspb.String("")
-	return c.clientset.TaskV1().Update(ctx, task.GetMeta().GetUid(), task)
-}
-
 func (c *Controller) processLeaseExpired(ctx context.Context, lease *leasesv1.Lease) error {
 	task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
 	if errs.IgnoreNotFound(err) != nil {
@@ -407,26 +402,6 @@ func (c *Controller) shouldScheduleTask(ctx context.Context, taskID string) (boo
 	leaseExpired := time.Now().After(expiryWithGrace)
 
 	return leaseExpired, nil
-}
-
-// Checks if there are nodes that matches the task's nodeSelector.
-// Returns true if at least one node has matching labels.
-// Returns false if no nodes has matching labels.
-func (c *Controller) hasMatchingNodes(ctx context.Context, task *tasksv1.Task) (bool, error) {
-	nodes, err := c.clientset.NodeV1().List(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if any node matches the task's nodeSelector
-	selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
-	for _, node := range nodes {
-		if selector.Matches(node.GetMeta().GetLabels()) {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 func (c *Controller) Reconcile(ctx context.Context) error {
