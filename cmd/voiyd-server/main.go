@@ -36,13 +36,10 @@ import (
 	"github.com/amimof/voiyd/pkg/instrumentation"
 	"github.com/amimof/voiyd/pkg/repository"
 	badgerrepo "github.com/amimof/voiyd/pkg/repository/badger"
-	"github.com/amimof/voiyd/pkg/scheduling"
-
-	// "github.com/amimof/voiyd/pkg/server"
 
 	leasectrl "github.com/amimof/voiyd/pkg/controller/lease"
+	schedulerctrl "github.com/amimof/voiyd/pkg/controller/scheduler"
 
-	// "github.com/amimof/voiyd/pkg/server"
 	"github.com/amimof/voiyd/internal/app"
 	"github.com/amimof/voiyd/internal/infra"
 	transport "github.com/amimof/voiyd/internal/transport/grpc"
@@ -259,13 +256,6 @@ func main() {
 	leaseManager := infra.NewLeaseManager(repository.NewLeaseRepo(repo))
 	logSessionManager := app.NewNodeSessionManager(exchange, log)
 
-	schedulerManager := &infra.ScheduleManager{
-		Exchange:    exchange,
-		Logger:      log,
-		Scheduler:   scheduling.NewHorizontalScheduler(),
-		NodeService: nodeSessionManager,
-	}
-
 	nodeService := transport.NewNodeService(&app.NodeService{
 		Exchange: exchange,
 		Logger:   log,
@@ -282,11 +272,10 @@ func main() {
 	})
 
 	taskService := transport.NewTaskService(&app.TaskService{
-		Exchange:  exchange,
-		Logger:    log,
-		Repo:      repository.NewTaskRepo(repo),
-		Manager:   leaseManager,
-		Scheduler: schedulerManager,
+		Exchange: exchange,
+		Logger:   log,
+		Repo:     repository.NewTaskRepo(repo),
+		Manager:  leaseManager,
 	})
 
 	eventService := transport.NewEventService(&app.EventService{
@@ -394,6 +383,11 @@ func main() {
 			log.Error("error closing clientset connection", "error", err)
 		}
 	}()
+
+	// Scheduler controller
+	schedulerCtrl := schedulerctrl.New(cs, schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange), schedulerctrl.WithNodeService(nodeSessionManager))
+	go schedulerCtrl.Run(ctx)
+	log.Info("Started scheduler Controller")
 
 	// Lease controller
 	leaseCtrl := leasectrl.New(cs, leasectrl.WithLogger(log), leasectrl.WithExchange(exchange))

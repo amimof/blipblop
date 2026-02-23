@@ -89,9 +89,15 @@ func (e *Exchange) Publish(ctx context.Context, ev *eventsv1.Event) error {
 // Publish publishes an event of a certain type
 func (e *Exchange) publish(ctx context.Context, ev *eventsv1.Event, persist bool) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	t := ev.GetType()
+
+	// Snapshot channels, handlers and forwarders under lock
+	evChans := append([]chan *eventsv1.Event(nil), e.topics[t]...)
+	persistent := append([]HandlerFunc(nil), e.persistentHandlers[t]...)
+	once := append([]HandlerFunc(nil), e.fireOnceHandlers[t]...)
+	delete(e.fireOnceHandlers, t)
+	forwarders := append([]Forwarder(nil), e.forwarders...)
+	e.mu.Unlock()
 
 	ctx, span := tracer.Start(ctx, "exchange.Publish")
 	span.SetAttributes(
@@ -101,39 +107,28 @@ func (e *Exchange) publish(ctx context.Context, ev *eventsv1.Event, persist bool
 	)
 	defer span.End()
 
-	// Publish to subscribers on the topic
-	if evChans, ok := e.topics[t]; ok {
-		for _, evChan := range evChans {
-			go func(ch chan *eventsv1.Event) {
-				ch <- ev
-			}(evChan)
+	// fan out to subscribers (lock-free)
+	for _, evChan := range evChans {
+		go func(ch chan *eventsv1.Event) { ch <- ev }(evChan)
+	}
+
+	// call persistent handlers (lock-free — re-entrant Publish now safe)
+	for _, handler := range persistent {
+		if err := handler(ctx, ev); err != nil {
+			go func(err error) { e.errChan <- err }(err)
 		}
 	}
 
-	// Run persistent handler funcs
-	if handlers, ok := e.persistentHandlers[t]; ok {
-		for _, handler := range handlers {
-			if err := handler(ctx, ev); err != nil {
-				go func(err error) {
-					e.errChan <- err
-				}(err)
-			}
+	// call fire-once handlers (lock-free)
+	for _, handler := range once {
+		if err := handler(ctx, ev); err != nil {
+			e.errChan <- err
 		}
 	}
 
-	// Run oneoff handler funcs
-	if handlers, ok := e.fireOnceHandlers[t]; ok {
-		for i, handler := range handlers {
-			if err := handler(ctx, ev); err != nil {
-				e.errChan <- err
-			}
-			handlers = remove(handlers, i)
-		}
-	}
-
-	// Call forwarders if persistent
+	// call forwarders (lock-free)
 	if persist {
-		for _, forwarder := range e.forwarders {
+		for _, forwarder := range forwarders {
 			if err := forwarder.Forward(ctx, ev); err != nil {
 				return err
 			}

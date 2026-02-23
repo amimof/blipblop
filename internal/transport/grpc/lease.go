@@ -52,6 +52,14 @@ func (c *LeaseService) Release(ctx context.Context, req *leasesv1.ReleaseRequest
 	return &leasesv1.ReleaseResponse{Released: true}, nil
 }
 
+func (c *LeaseService) Revoke(ctx context.Context, req *leasesv1.RevokeRequest) (*leasesv1.RevokeResponse, error) {
+	err := c.app.Revoke(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()))
+	if err != nil {
+		return nil, toStatus(err)
+	}
+	return &leasesv1.RevokeResponse{Released: true}, nil
+}
+
 func (c *LeaseService) Renew(ctx context.Context, req *leasesv1.RenewRequest) (*leasesv1.RenewResponse, error) {
 	lease, token, err := c.app.Renew(ctx, app.ResourceID(req.GetTaskId()), app.HolderID(req.GetNodeId()), req.GetToken())
 	if err != nil {

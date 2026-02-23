@@ -265,6 +265,12 @@ func (l *NodeService) Update(ctx context.Context, id keys.ID, node *nodesv1.Node
 		return l.handleError(err, "error updating node", "name", node.GetMeta().GetName())
 	}
 
+	// Notify session manager about the change
+	err = l.Manager.Set(ctx, updated.GetMeta().GetUid(), node)
+	if err != nil {
+		return err
+	}
+
 	changed, err := protoutils.SpecEqual(existingNode.GetConfig(), updated.GetConfig())
 	if err != nil {
 		return err
@@ -299,7 +305,7 @@ func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) 
 	// Perform update if node exists
 	l.Logger.Debug("updating node that joined", "nodeID", node.GetMeta().GetName())
 
-	err = l.Update(ctx, id, node)
+	_, err = l.Repo.Update(ctx, id, node)
 	if err != nil {
 		return nil, err
 	}

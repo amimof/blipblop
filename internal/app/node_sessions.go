@@ -12,10 +12,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/logger"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
+	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 )
 
 var (
@@ -23,14 +25,19 @@ var (
 	ErrNodeQueueFull    = errors.New("node outbound queue full")
 )
 
+type TaskGetter interface {
+	Get(ctx context.Context, id keys.ID) (*tasksv1.Task, error)
+	List(ctx context.Context, limit int32) ([]*tasksv1.Task, error)
+}
+
 type NodeSender interface {
 	SendToNode(ctx context.Context, nodeUID string, ev *eventsv1.Event) error
 	IsNodeConnected(nodeUID string) bool
-	List(ctx context.Context, limit int32) ([]*nodesv1.Node, error)
 }
 
 type SessionManager interface {
 	Connect(ctx context.Context, node *nodesv1.Node, in NodeConnectInput) (Session, error)
+	Set(ctx context.Context, nodeUID string, node *nodesv1.Node) error
 }
 
 type Session interface {
@@ -118,6 +125,25 @@ func (m *NodeSessionManager) List(ctx context.Context, limit int32) ([]*nodesv1.
 		nodes = append(nodes, sess.node)
 	}
 	return nodes, nil
+}
+
+func (m *NodeSessionManager) Set(ctx context.Context, nodeUID string, node *nodesv1.Node) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.sessions[nodeUID]; ok {
+		m.sessions[nodeUID].node = node
+		return nil
+	}
+	return errors.New("node session not found")
+}
+
+func (m *NodeSessionManager) Get(ctx context.Context, nodeUID string) (*nodesv1.Node, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.sessions[nodeUID]; ok {
+		return m.sessions[nodeUID].node, nil
+	}
+	return nil, errors.New("node session not found")
 }
 
 func (m *NodeSessionManager) Connect(ctx context.Context, node *nodesv1.Node, in NodeConnectInput) (Session, error) {

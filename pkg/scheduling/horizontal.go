@@ -60,23 +60,46 @@ func pickRandomNode(original []*nodesv1.Node) (*nodesv1.Node, error) {
 	return original[i], nil
 }
 
+// Checks if there are nodes that matches the task's nodeSelector.
+// Returns true if at least one node has matching labels.
+// Returns false if no nodes has matching labels.
+func hasMatchingNodes(task *tasksv1.Task, nodes []*nodesv1.Node) (bool, error) {
+	// Check if any node matches the task's nodeSelector
+	selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
+	for _, node := range nodes {
+		if selector.Matches(node.GetMeta().GetLabels()) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (s *horizontal) Score(_ context.Context, _ *tasksv1.Task, _ []*nodesv1.Node) (map[string]float64, error) {
 	return nil, nil
 }
 
 // TODO: Fix scheduling algorithm so Disconnected nodes are excluded
-func (s *horizontal) Schedule(ctx context.Context, c *tasksv1.Task, allNodes []*nodesv1.Node) (*nodesv1.Node, error) {
+func (s *horizontal) Schedule(ctx context.Context, t *tasksv1.Task, allNodes []*nodesv1.Node) (*nodesv1.Node, error) {
 	// Don't attempt to schedule on a Unready node
 	// filteredNodes := filterByState(allNodes, string(condition.ReasonReady))
 	filteredNodes := allNodes
 
+	match, err := hasMatchingNodes(t, filteredNodes)
+	if err != nil {
+		return nil, err
+	}
+
+	if !match {
+		return nil, ErrSchedulingNoMatchingNode
+	}
 	// Make sure we have at least 1 node in the cluster
 	if len(filteredNodes) < 1 {
 		return nil, ErrSchedulingNoNode
 	}
 
 	// Filter nodes depending on nodeSelector
-	filteredNodes = filterByNodeSelector(filteredNodes, c.GetConfig().GetNodeSelector())
+	filteredNodes = filterByNodeSelector(filteredNodes, t.GetConfig().GetNodeSelector())
 
 	// Choose a node by random out of the filtered list of nodes
 	return pickRandomNode(filteredNodes)

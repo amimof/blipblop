@@ -11,9 +11,9 @@ import (
 
 var (
 	ErrSchedulingNoNode           = errors.New("no node fit for scheduling")
-	ErrSchedulingNoReadyNode      = errors.New("no ready nodes available")      // NEW
-	ErrSchedulingNoMatchingNode   = errors.New("no nodes match selector")       // NEW
-	ErrSchedulingNodeDisconnected = errors.New("selected node is disconnected") // NEW
+	ErrSchedulingNoReadyNode      = errors.New("no ready nodes available")
+	ErrSchedulingNoMatchingNode   = errors.New("no nodes match selector")
+	ErrSchedulingNodeDisconnected = errors.New("selected node is disconnected")
 )
 
 type Scheduler interface {

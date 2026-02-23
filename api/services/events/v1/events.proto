@@ -33,6 +33,7 @@ message Event {
   string client_id = 4;
   EventType type = 5 [(buf.validate.field).required = true];
   google.protobuf.Any object = 6;
+  string reason = 7;
 }
 
 message ScheduleRequest {

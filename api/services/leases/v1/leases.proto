@@ -25,6 +25,7 @@ service LeaseService {
   rpc Release(ReleaseRequest) returns (ReleaseResponse) {
     option (google.api.http) = {delete: "/api/v1/leases/{id}"};
   }
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
   rpc Renew(RenewRequest) returns (RenewResponse) {
     option (google.api.http) = {
       put: "/api/v1/leases/{task_id}"
@@ -86,6 +87,16 @@ message ReleaseRequest {
 }
 
 message ReleaseResponse {
+  bool released = 1;
+}
+
+message RevokeRequest {
+  string id = 1;
+  string task_id = 2 [(buf.validate.field).string.uuid = true];
+  string node_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message RevokeResponse {
   bool released = 1;
 }
 

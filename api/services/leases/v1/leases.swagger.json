@@ -438,6 +438,14 @@
           "format": "uint64"
         }
       }
+    },
+    "v1RevokeResponse": {
+      "type": "object",
+      "properties": {
+        "released": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }
