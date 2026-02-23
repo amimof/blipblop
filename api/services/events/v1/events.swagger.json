@@ -83,6 +83,9 @@
         },
         "object": {
           "$ref": "#/definitions/protobufAny"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },

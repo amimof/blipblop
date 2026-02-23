@@ -26,6 +26,7 @@ type LeaseServiceClient interface {
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 	Acquire(ctx context.Context, in *AcquireRequest, opts ...grpc.CallOption) (*AcquireResponse, error)
 	Release(ctx context.Context, in *ReleaseRequest, opts ...grpc.CallOption) (*ReleaseResponse, error)
+	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
 	Renew(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*RenewResponse, error)
 }
 
@@ -73,6 +74,15 @@ func (c *leaseServiceClient) Release(ctx context.Context, in *ReleaseRequest, op
 	return out, nil
 }
 
+func (c *leaseServiceClient) Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error) {
+	out := new(RevokeResponse)
+	err := c.cc.Invoke(ctx, "/services.leases.v1.LeaseService/Revoke", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *leaseServiceClient) Renew(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*RenewResponse, error) {
 	out := new(RenewResponse)
 	err := c.cc.Invoke(ctx, "/services.leases.v1.LeaseService/Renew", in, out, opts...)
@@ -90,6 +100,7 @@ type LeaseServiceServer interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Acquire(context.Context, *AcquireRequest) (*AcquireResponse, error)
 	Release(context.Context, *ReleaseRequest) (*ReleaseResponse, error)
+	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
 	Renew(context.Context, *RenewRequest) (*RenewResponse, error)
 	mustEmbedUnimplementedLeaseServiceServer()
 }
@@ -109,6 +120,9 @@ func (UnimplementedLeaseServiceServer) Acquire(context.Context, *AcquireRequest)
 }
 func (UnimplementedLeaseServiceServer) Release(context.Context, *ReleaseRequest) (*ReleaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Release not implemented")
+}
+func (UnimplementedLeaseServiceServer) Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Revoke not implemented")
 }
 func (UnimplementedLeaseServiceServer) Renew(context.Context, *RenewRequest) (*RenewResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Renew not implemented")
@@ -198,6 +212,24 @@ func _LeaseService_Release_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LeaseService_Revoke_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LeaseServiceServer).Revoke(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.leases.v1.LeaseService/Revoke",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LeaseServiceServer).Revoke(ctx, req.(*RevokeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _LeaseService_Renew_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RenewRequest)
 	if err := dec(in); err != nil {
@@ -238,6 +270,10 @@ var LeaseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Release",
 			Handler:    _LeaseService_Release_Handler,
+		},
+		{
+			MethodName: "Revoke",
+			Handler:    _LeaseService_Revoke_Handler,
 		},
 		{
 			MethodName: "Renew",

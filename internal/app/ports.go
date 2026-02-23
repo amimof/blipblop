@@ -18,6 +18,7 @@ type (
 type Scheduler interface {
 	TaskManager
 	Schedule(ctx context.Context, task *tasksv1.Task) (*nodesv1.Node, error)
+	Reschedule(ctx context.Context, task *tasksv1.Task, nodeUID string) (*nodesv1.Node, error)
 }
 
 type TaskManager interface {
@@ -36,6 +37,7 @@ type LeaseStore interface {
 	Acquire(ctx context.Context, resource ResourceID, holder HolderID, ttl time.Duration) (*leasesv1.Lease, string, error)
 	Renew(ctx context.Context, resource ResourceID, holder HolderID, ttl time.Duration, token string) (*leasesv1.Lease, string, error)
 	Release(ctx context.Context, resource ResourceID, holder HolderID, token string) error
+	Revoke(ctx context.Context, resource ResourceID, holder HolderID) error
 	Get(ctx context.Context, resource ResourceID) (*leasesv1.Lease, error)
 	List(ctx context.Context) ([]*leasesv1.Lease, error)
 }

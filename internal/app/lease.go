@@ -43,6 +43,10 @@ func (l *LeaseService) Acquire(ctx context.Context, taskID ResourceID, nodeID Ho
 	return l.Manager.Acquire(ctx, taskID, nodeID, time.Duration(l.LeaseTTL))
 }
 
+func (l *LeaseService) Revoke(ctx context.Context, taskID ResourceID, holderID HolderID) error {
+	return l.Manager.Revoke(ctx, taskID, holderID)
+}
+
 func (l *LeaseService) Release(ctx context.Context, taskID ResourceID, holderID HolderID, token string) error {
 	return l.Manager.Release(ctx, taskID, holderID, token)
 }

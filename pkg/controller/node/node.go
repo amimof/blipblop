@@ -17,6 +17,7 @@ import (
 	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/amimof/voiyd/pkg/queue"
@@ -100,6 +101,24 @@ func WithTokenStore(s store.Store) NewOption {
 	}
 }
 
+func (c *Controller) processNodeUpdate(ctx context.Context, node *nodesv1.Node) error {
+	tasks, err := c.runtime.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		selector := labels.NewCompositeSelectorFromMap(task.GetConfig().GetNodeSelector())
+		if !selector.Matches(node.GetMeta().GetLabels()) {
+			c.logger.Debug("labels no longer match, stopping task", "task", task.GetMeta().GetName())
+			if err := c.stopTask(ctx, task); err != nil {
+				c.logger.Error("error stopping task", "error", err, "task", task.GetMeta().GetLabels())
+				continue
+			}
+		}
+	}
+	return nil
+}
+
 // Run implements controller
 func (c *Controller) Run(ctx context.Context) {
 	node, err := c.getNode(ctx)
@@ -136,6 +155,7 @@ func (c *Controller) Run(ctx context.Context) {
 	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
 	c.exchange.On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
 	c.exchange.On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.processKillTask)))
+	c.exchange.On(events.NodeUpdate, events.HandleErrors(c.logger, events.HandleNode(c.processNodeUpdate)))
 
 	// Handle runtime events
 	runtimeChan := c.exchange.Subscribe(ctx, events.RuntimeTaskExit, events.RuntimeTaskStart, events.RuntimeTaskDelete)

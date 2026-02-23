@@ -152,8 +152,17 @@ func (m *LeaseManager) Get(ctx context.Context, resource app.ResourceID) (*lease
 	return m.db.Get(ctx, uid)
 }
 
-// Release implements [app.LeaseStore].
 func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, holder app.HolderID, token string) error {
+	return m.release(ctx, resource, holder, token, false)
+}
+
+// Revoke implements [app.LeaseStore].
+func (m *LeaseManager) Revoke(ctx context.Context, resource app.ResourceID, holder app.HolderID) error {
+	return m.release(ctx, resource, holder, "", true)
+}
+
+// Release implements [app.LeaseStore].
+func (m *LeaseManager) release(ctx context.Context, resource app.ResourceID, holder app.HolderID, token string, force bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -174,18 +183,20 @@ func (m *LeaseManager) Release(ctx context.Context, resource app.ResourceID, hol
 		return err
 	}
 
-	// Verify token
-	valid, err := ValidateHMAC([]byte(token), []byte(cur.GetStatus().GetTokenHash()), m.Key)
-	if err != nil {
-		return err
-	}
+	// Verify token if not forceful operation
+	if !force {
+		valid, err := ValidateHMAC([]byte(token), []byte(cur.GetStatus().GetTokenHash()), m.Key)
+		if err != nil {
+			return err
+		}
 
-	if !valid {
-		return domain.ErrInvalidToken
-	}
+		if !valid {
+			return domain.ErrInvalidToken
+		}
 
-	if app.HolderID(cur.GetConfig().GetNodeId()) != holder {
-		return domain.ErrNotHolder
+		if app.HolderID(cur.GetConfig().GetNodeId()) != holder {
+			return domain.ErrNotHolder
+		}
 	}
 
 	// delete(m.leases, resource)

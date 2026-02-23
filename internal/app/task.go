@@ -12,11 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/amimof/voiyd/internal/domain"
-	"github.com/amimof/voiyd/pkg/condition"
-	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/logger"
@@ -28,12 +25,11 @@ import (
 )
 
 type TaskService struct {
-	Repo      *repository.Repo[*tasksv1.Task]
-	mu        sync.Mutex
-	Exchange  *events.Exchange
-	Logger    logger.Logger
-	Scheduler Scheduler
-	Manager   LeaseStore
+	Repo     *repository.Repo[*tasksv1.Task]
+	mu       sync.Mutex
+	Exchange *events.Exchange
+	Logger   logger.Logger
+	Manager  LeaseStore
 }
 
 func (l *TaskService) handleError(err error, msg string, keysAndValues ...any) error {
@@ -234,28 +230,9 @@ func (l *TaskService) Create(ctx context.Context, task *tasksv1.Task) (*tasksv1.
 		return nil, l.handleError(err, "error creating task", "name", newTask.GetMeta().GetName())
 	}
 
-	n, err := l.Scheduler.Start(ctx, task)
+	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskCreate, task))
 	if err != nil {
-		return nil, err
-	}
-
-	id, err := keys.ParseStr(newTask.GetMeta().GetUid())
-	if err != nil {
-		return nil, err
-	}
-
-	err = l.UpdateStatus(
-		ctx,
-		id,
-		&tasksv1.Status{
-			Phase: wrapperspb.String(string(condition.ReasonScheduled)),
-			Node:  wrapperspb.String(n.GetMeta().GetName()),
-		},
-		"phase",
-		"node",
-	)
-	if err != nil {
-		return nil, err
+		return nil, l.handleError(err, "error publishing task start event", "name", task.GetMeta().GetName())
 	}
 
 	return newTask, nil
@@ -280,7 +257,7 @@ func (l *TaskService) Delete(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskDelete, task))
+	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskDelete, task))
 	if err != nil {
 		return l.handleError(err, "error publishing task delete event", "name", task.GetMeta().GetName())
 	}
@@ -297,17 +274,9 @@ func (l *TaskService) Kill(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	lease, err := l.Manager.Get(ctx, ResourceID(task.GetMeta().GetUid()))
+	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskKill, task))
 	if err != nil {
-		if errs.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-
-	err = l.Scheduler.Kill(ctx, task, lease.GetConfig().GetNodeId())
-	if err != nil {
-		return err
+		return l.handleError(err, "error publishing task kill event", "name", task.GetMeta().GetName())
 	}
 
 	return nil
@@ -322,17 +291,9 @@ func (l *TaskService) Stop(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	lease, err := l.Manager.Get(ctx, ResourceID(task.GetMeta().GetUid()))
+	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskStop, task))
 	if err != nil {
-		if errs.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-
-	err = l.Scheduler.Stop(ctx, task, lease.GetConfig().GetNodeId())
-	if err != nil {
-		return err
+		return l.handleError(err, "error publishing task stop event", "name", task.GetMeta().GetName())
 	}
 
 	return nil
@@ -347,23 +308,9 @@ func (l *TaskService) Start(ctx context.Context, id keys.ID) error {
 		return err
 	}
 
-	n, err := l.Scheduler.Start(ctx, task)
+	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskStart, task))
 	if err != nil {
-		return err
-	}
-
-	err = l.UpdateStatus(
-		ctx,
-		id,
-		&tasksv1.Status{
-			Phase: wrapperspb.String(string(condition.ReasonScheduled)),
-			Node:  wrapperspb.String(n.GetMeta().GetName()),
-		},
-		"phase",
-		"node",
-	)
-	if err != nil {
-		return err
+		return l.handleError(err, "error publishing task start event", "name", task.GetMeta().GetName())
 	}
 
 	return nil
@@ -411,7 +358,7 @@ func (l *TaskService) Patch(ctx context.Context, id keys.ID, patch *tasksv1.Task
 
 	// Only publish if spec is updated
 	if changed {
-		err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskPatch, task))
+		err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskPatch, task))
 		if err != nil {
 			return l.handleError(err, "error publishing task patch event", "name", existing.GetMeta().GetName())
 		}
@@ -438,6 +385,10 @@ func (l *TaskService) UpdateStatus(ctx context.Context, id keys.ID, st *tasksv1.
 		}
 	}
 
+	return l.updateStatus(ctx, id, st, mask...)
+}
+
+func (l *TaskService) updateStatus(ctx context.Context, id keys.ID, st *tasksv1.Status, mask ...string) error {
 	// Get the existing task before updating so we can compare specs
 	existingTask, err := l.Repo.Get(ctx, id)
 	if err != nil {
@@ -478,15 +429,15 @@ func (l *TaskService) Update(ctx context.Context, id keys.ID, task *tasksv1.Task
 		return l.handleError(err, "error updating task", "name", task.GetMeta().GetName())
 	}
 
-	changed, err := protoutils.SpecEqual(existingTask.GetConfig(), updated.GetConfig())
+	equal, err := protoutils.SpecEqual(existingTask.GetConfig(), updated.GetConfig())
 	if err != nil {
 		return err
 	}
 
 	// Only publish if spec is updated
-	if changed {
+	if !equal {
 		l.Logger.Debug("task was updated, emitting event to listeners", "event", "TaskUpdate", "name", updated.GetMeta().GetName())
-		err = l.Exchange.Forward(ctx, events.NewEvent(events.TaskUpdate, updated))
+		err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskUpdate, updated))
 		if err != nil {
 			return l.handleError(err, "error publishing task update event", "name", updated.GetMeta().GetName())
 		}
@@ -500,7 +451,7 @@ func (l *TaskService) Condition(ctx context.Context, id keys.ID, req *typesv1.Co
 		Conditions: req.GetConditions(),
 	}
 
-	err := l.UpdateStatus(ctx, id, st, "conditions")
+	err := l.updateStatus(ctx, id, st, "conditions")
 	if err != nil {
 		return err
 	}
