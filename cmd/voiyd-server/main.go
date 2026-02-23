@@ -290,6 +290,7 @@ func main() {
 		Logger:      log,
 		Manager:     logSessionManager,
 		LogExchange: &events.LogExchange{},
+		Sender:      nodeSessionManager,
 	})
 
 	// Context

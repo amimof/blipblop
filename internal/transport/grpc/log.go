@@ -23,8 +23,8 @@ type LogService struct {
 	app *app.LogService
 }
 
-func (c *LogService) Register(server *grpc.Server) {
-	logsv1.RegisterLogServiceServer(server, c)
+func (s *LogService) Register(server *grpc.Server) {
+	logsv1.RegisterLogServiceServer(server, s)
 }
 
 // TailLogs publishes TailLogStart to subscribers requesting them to start sending entries to the server.
