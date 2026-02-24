@@ -26,8 +26,8 @@ type NodeService struct {
 	app *app.NodeService
 }
 
-func (c *NodeService) Register(server *grpc.Server) {
-	nodesv1.RegisterNodeServiceServer(server, c)
+func (n *NodeService) Register(server *grpc.Server) {
+	nodesv1.RegisterNodeServiceServer(server, n)
 }
 
 func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
@@ -120,11 +120,11 @@ func (n *NodeService) Connect(stream nodesv1.NodeService_ConnectServer) error {
 func (n *NodeService) Get(ctx context.Context, req *nodesv1.GetRequest) (*nodesv1.GetResponse, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	node, err := n.app.Get(ctx, uid)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	return &nodesv1.GetResponse{Node: node}, nil
 }
@@ -132,7 +132,7 @@ func (n *NodeService) Get(ctx context.Context, req *nodesv1.GetRequest) (*nodesv
 func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateRequest) (*nodesv1.CreateResponse, error) {
 	node, err := n.app.Create(ctx, req.GetNode())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	return &nodesv1.CreateResponse{Node: node}, nil
 }
@@ -140,12 +140,12 @@ func (n *NodeService) Create(ctx context.Context, req *nodesv1.CreateRequest) (*
 func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteRequest) (*empty.Empty, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	err = n.app.Delete(ctx, uid)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -154,7 +154,7 @@ func (n *NodeService) Delete(ctx context.Context, req *nodesv1.DeleteRequest) (*
 func (n *NodeService) List(ctx context.Context, req *nodesv1.ListRequest) (*nodesv1.ListResponse, error) {
 	nodes, err := n.app.List(ctx, req.GetLimit())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	return &nodesv1.ListResponse{Nodes: nodes}, nil
 }
@@ -162,17 +162,17 @@ func (n *NodeService) List(ctx context.Context, req *nodesv1.ListRequest) (*node
 func (n *NodeService) Update(ctx context.Context, req *nodesv1.UpdateRequest) (*nodesv1.UpdateResponse, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	err = n.app.Update(ctx, uid, req.GetNode())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	node, err := n.app.Get(ctx, uid)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	return &nodesv1.UpdateResponse{Node: node}, nil
@@ -181,17 +181,17 @@ func (n *NodeService) Update(ctx context.Context, req *nodesv1.UpdateRequest) (*
 func (n *NodeService) Patch(ctx context.Context, req *nodesv1.PatchRequest) (*nodesv1.PatchResponse, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	err = n.app.Patch(ctx, uid, req.GetNode())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	node, err := n.app.Get(ctx, uid)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	return &nodesv1.PatchResponse{Node: node}, nil
@@ -200,12 +200,12 @@ func (n *NodeService) Patch(ctx context.Context, req *nodesv1.PatchRequest) (*no
 func (n *NodeService) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatusRequest) (*nodesv1.UpdateStatusResponse, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	err = n.app.UpdateStatus(ctx, uid, req.GetStatus(), req.GetUpdateMask().GetPaths()...)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	return &nodesv1.UpdateStatusResponse{Id: uid.UUIDStr()}, nil
@@ -214,11 +214,11 @@ func (n *NodeService) UpdateStatus(ctx context.Context, req *nodesv1.UpdateStatu
 func (n *NodeService) Condition(ctx context.Context, req *typesv1.ConditionRequest) (*emptypb.Empty, error) {
 	uid, err := keys.ParseStr(req.GetTaskId())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	err = n.app.Condition(ctx, uid, req)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -230,12 +230,12 @@ func (n *NodeService) Upgrade(ctx context.Context, req *nodesv1.UpgradeRequest) 
 func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*nodesv1.JoinResponse, error) {
 	uid, err := keys.FromUIDOrName(req.GetNode().GetMeta().GetUid(), req.GetNode().GetMeta().GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	node, err := n.app.Join(ctx, uid, req.GetNode())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	return &nodesv1.JoinResponse{Uid: node.GetMeta().GetUid(), Name: node.GetMeta().GetName()}, nil
@@ -244,11 +244,11 @@ func (n *NodeService) Join(ctx context.Context, req *nodesv1.JoinRequest) (*node
 func (n *NodeService) Forget(ctx context.Context, req *nodesv1.ForgetRequest) (*nodesv1.ForgetResponse, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 	err = n.app.Forget(ctx, uid)
 	if err != nil {
-		return nil, err
+		return nil, toStatus(err)
 	}
 
 	return &nodesv1.ForgetResponse{Id: uid.UUIDStr()}, nil

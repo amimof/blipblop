@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -27,16 +26,6 @@ type VolumeService struct {
 	mu       sync.Mutex
 	Exchange *events.Exchange
 	Logger   logger.Logger
-}
-
-func (l *VolumeService) handleError(err error, msg string, keysAndValues ...any) error {
-	def := []any{"error", err.Error()}
-	def = append(def, keysAndValues...)
-	l.Logger.Error(msg, def...)
-	if errors.Is(err, repository.ErrNotFound) {
-		return status.Error(codes.NotFound, err.Error())
-	}
-	return status.Error(codes.Internal, err.Error())
 }
 
 func applyMaskedUpdateVolume(dst, src *volumesv1.Status, mask *fieldmaskpb.FieldMask) error {
@@ -84,13 +73,15 @@ func (l *VolumeService) Create(ctx context.Context, volume *volumesv1.Volume) (*
 	// Create volume in repo
 	newVolume, err := l.Repo.Create(ctx, volume)
 	if err != nil {
-		return nil, l.handleError(err, "error creating volume", "name", newVolume.GetMeta().GetName())
+		l.Logger.Error("error creating volume", "error", err, "name", newVolume.GetMeta().GetName())
+		return nil, err
 	}
 
 	// Publish event that volume is created
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.VolumeCreate, volume))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing volume create event", "name", newVolume.GetMeta().GetName())
+		l.Logger.Error("error publishing volume create event", "error", err, "name", newVolume.GetMeta().GetName())
+		return nil, err
 	}
 
 	return newVolume, nil
@@ -117,7 +108,8 @@ func (l *VolumeService) Delete(ctx context.Context, id keys.ID) error {
 
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.VolumeDelete, volume))
 	if err != nil {
-		return l.handleError(err, "error publishing volume delete event", "name", volume.GetMeta().GetName())
+		l.Logger.Error("error publishing volume delete event", "error", err, "name", volume.GetMeta().GetName())
+		return err
 	}
 
 	return nil
@@ -133,7 +125,8 @@ func (l *VolumeService) Patch(ctx context.Context, id keys.ID, patch *volumesv1.
 	// Get existing volume from repo
 	existing, err := l.Repo.Get(ctx, id)
 	if err != nil {
-		return l.handleError(err, "error getting volume", "name", patch.GetMeta().GetName())
+		l.Logger.Error("error getting volume", "error", err, "name", patch.GetMeta().GetName())
+		return err
 	}
 
 	// Generate field mask
@@ -154,7 +147,8 @@ func (l *VolumeService) Patch(ctx context.Context, id keys.ID, patch *volumesv1.
 	// Update the volume
 	volume, err := l.Repo.Update(ctx, id, existing)
 	if err != nil {
-		return l.handleError(err, "error updating volume", "name", existing.GetMeta().GetName())
+		l.Logger.Error("error updating volume", "error", err, "name", existing.GetMeta().GetName())
+		return err
 	}
 
 	changed, err := protoutils.SpecEqual(existing.GetConfig(), volume.GetConfig())
@@ -166,7 +160,8 @@ func (l *VolumeService) Patch(ctx context.Context, id keys.ID, patch *volumesv1.
 	if changed {
 		err = l.Exchange.Forward(ctx, events.NewEvent(events.VolumePatch, volume))
 		if err != nil {
-			return l.handleError(err, "error publishing volume patch event", "name", existing.GetMeta().GetName())
+			l.Logger.Error("error publishing volume patch event", "error", err, "name", existing.GetMeta().GetName())
+			return err
 		}
 	}
 
@@ -218,7 +213,8 @@ func (l *VolumeService) Update(ctx context.Context, id keys.ID, volume *volumesv
 	// Update the volume
 	updated, err := l.Repo.Update(ctx, id, volume)
 	if err != nil {
-		return l.handleError(err, "error updating volume", "name", volume.GetMeta().GetName())
+		l.Logger.Error("error updating volume", "error", err, "name", volume.GetMeta().GetName())
+		return err
 	}
 
 	changed, err := protoutils.SpecEqual(existingVolume.GetConfig(), updated.GetConfig())
@@ -231,7 +227,8 @@ func (l *VolumeService) Update(ctx context.Context, id keys.ID, volume *volumesv
 		l.Logger.Debug("volume was updated, emitting event to listeners", "event", "VolumeUpdate", "name", updated.GetMeta().GetName())
 		err = l.Exchange.Forward(ctx, events.NewEvent(events.VolumeUpdate, updated))
 		if err != nil {
-			return l.handleError(err, "error publishing volume update event", "name", updated.GetMeta().GetName())
+			l.Logger.Error("error publishing volume update event", "error", err, "name", updated.GetMeta().GetName())
+			return err
 		}
 	}
 

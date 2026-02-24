@@ -10,6 +10,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/client/identity"
 	"github.com/amimof/voiyd/pkg/client/version"
+	"github.com/amimof/voiyd/pkg/errs"
 	"github.com/amimof/voiyd/pkg/keys"
 	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/util"
@@ -194,7 +195,7 @@ func (c *clientV1) Create(ctx context.Context, ctr *tasksv1.Task, opts ...Create
 
 	_, err := c.Client.Create(ctx, &tasksv1.CreateRequest{Task: ctr})
 	if err != nil {
-		return err
+		return errs.ToStatus(err)
 	}
 	return nil
 }
@@ -211,7 +212,7 @@ func (c *clientV1) Update(ctx context.Context, id string, ctr *tasksv1.Task) err
 
 	_, err = c.Client.Update(ctx, &tasksv1.UpdateRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), Task: ctr})
 	if err != nil {
-		return err
+		return errs.ToStatus(err)
 	}
 	return nil
 }
