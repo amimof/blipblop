@@ -227,8 +227,8 @@ func (c *clientV1) Upgrade(ctx context.Context, nodeID string, version string) e
 	}
 
 	_, err = c.Client.Upgrade(ctx, &nodesv1.UpgradeRequest{
-		Name:          uid.String(),
-		Uid:           uid.String(),
+		Name:          uid.NameStr(),
+		Uid:           uid.UUIDStr(),
 		TargetVersion: version,
 	})
 	return err

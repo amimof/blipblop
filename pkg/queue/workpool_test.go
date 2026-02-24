@@ -13,6 +13,7 @@ import (
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 // Helper function to create a test task
@@ -47,7 +48,7 @@ func TestWorkPool_SuccessfulExecution(t *testing.T) {
 
 	task := createTestTask("successful-task")
 
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 	pool := NewPool(q,
 		WithLogger(logger.NilLogger{}),
 		WithMaxWorkers(1),
@@ -59,9 +60,11 @@ func TestWorkPool_SuccessfulExecution(t *testing.T) {
 
 	// Enqueue a task that succeeds
 	err := q.Enqueue(ctx, &QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		Handler: func(ctx context.Context, t *tasksv1.Task) error {
+		Proto:        task,
+		ResourceID:   task.GetMeta().GetUid(),
+		ResourceName: task.GetMeta().GetName(),
+		EnqueuedAt:   time.Now(),
+		Handler: func(ctx context.Context, m proto.Message) error {
 			callCount.Add(1)
 			wg.Done()
 			return nil // Success
@@ -89,7 +92,7 @@ func TestWorkPool_RetryOnFailure(t *testing.T) {
 
 	task := createTestTask("retry-task")
 
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 	pool := NewPool(q,
 		WithLogger(logger.NilLogger{}),
 		WithMaxWorkers(1),
@@ -101,9 +104,11 @@ func TestWorkPool_RetryOnFailure(t *testing.T) {
 
 	// Enqueue a task that fails twice then succeeds
 	err := q.Enqueue(ctx, &QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		Handler: func(ctx context.Context, t *tasksv1.Task) error {
+		Proto:        task,
+		ResourceID:   task.GetMeta().GetUid(),
+		ResourceName: task.GetMeta().GetName(),
+		EnqueuedAt:   time.Now(),
+		Handler: func(ctx context.Context, m proto.Message) error {
 			count := callCount.Add(1)
 			if count <= 2 {
 				return errors.New("temporary failure")
@@ -132,7 +137,7 @@ func TestWorkPool_MaxRetriesExceeded(t *testing.T) {
 	task := createTestTask("failing-task")
 
 	maxRetries := 3
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 	pool := NewPool(q,
 		WithLogger(logger.NilLogger{}),
 		WithMaxWorkers(1),
@@ -144,9 +149,11 @@ func TestWorkPool_MaxRetriesExceeded(t *testing.T) {
 
 	// Enqueue a task that always fails
 	err := q.Enqueue(ctx, &QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		Handler: func(ctx context.Context, t *tasksv1.Task) error {
+		Proto:        task,
+		ResourceID:   task.GetMeta().GetUid(),
+		ResourceName: task.GetMeta().GetName(),
+		EnqueuedAt:   time.Now(),
+		Handler: func(ctx context.Context, m proto.Message) error {
 			callCount.Add(1)
 			return errors.New("persistent failure")
 		},
@@ -176,7 +183,7 @@ func TestWorkPool_GracefulStop(t *testing.T) {
 	var processingCompleted atomic.Bool
 	task := createTestTask("slow-task")
 
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 	pool := NewPool(q,
 		WithLogger(logger.NilLogger{}),
 		WithMaxWorkers(2),
@@ -187,9 +194,11 @@ func TestWorkPool_GracefulStop(t *testing.T) {
 
 	// Enqueue a task that takes time to process
 	err := q.Enqueue(ctx, &QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		Handler: func(ctx context.Context, t *tasksv1.Task) error {
+		Proto:        task,
+		ResourceID:   task.GetMeta().GetUid(),
+		ResourceName: task.GetMeta().GetName(),
+		EnqueuedAt:   time.Now(),
+		Handler: func(ctx context.Context, m proto.Message) error {
 			processingStarted.Store(true)
 			// Simulate work
 			time.Sleep(50 * time.Millisecond)
@@ -278,7 +287,7 @@ func TestWorkPool_MultipleWorkers(t *testing.T) {
 	numTasks := 5
 	wg.Add(numTasks)
 
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 	pool := NewPool(q,
 		WithLogger(logger.NilLogger{}),
 		WithMaxWorkers(3), // Multiple workers
@@ -291,9 +300,11 @@ func TestWorkPool_MultipleWorkers(t *testing.T) {
 	for i := range numTasks {
 		task := createTestTask("task-" + string(rune(i)))
 		err := q.Enqueue(ctx, &QueueItem{
-			Task:       task,
-			EnqueuedAt: time.Now(),
-			Handler: func(ctx context.Context, t *tasksv1.Task) error {
+			Proto:        task,
+			ResourceID:   task.GetMeta().GetUid(),
+			ResourceName: task.GetMeta().GetName(),
+			EnqueuedAt:   time.Now(),
+			Handler: func(ctx context.Context, m proto.Message) error {
 				processedCount.Add(1)
 				wg.Done()
 				return nil

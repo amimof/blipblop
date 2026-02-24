@@ -20,6 +20,7 @@ import (
 	"github.com/amimof/voiyd/api/types/v1"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/labels"
+	"github.com/amimof/voiyd/pkg/queue"
 	rt "github.com/amimof/voiyd/pkg/runtime"
 	"github.com/amimof/voiyd/pkg/store"
 	containerd "github.com/containerd/containerd/v2/client"
@@ -178,11 +179,12 @@ func main() {
 	}
 
 	// Setup metrics
-	metricsOpts, err := instrumentation.InitClientMetrics()
+	metricsOpts, meterProvider, err := instrumentation.InitClientMetrics()
 	if err != nil {
 		log.Error("failed to start prometheus exporter", "error", err)
 		os.Exit(1)
 	}
+	meter := meterProvider.Meter("voiyd-node")
 
 	go serveMetrics(metricsAddress, promhttp.Handler(), log)
 
@@ -274,11 +276,24 @@ func main() {
 	go containerdCtrl.Run(ctx)
 	log.Info("started containerd controller")
 
+	// Setup worker pool and task queue for workers
+	workerPool := queue.NewPool(
+		queue.NewTaskQueue(
+			queue.WithQueueLogger(log),
+			queue.WithMeter(meter),
+		),
+		queue.WithMaxWorkers(2),
+		queue.WithMaxRetries(5),
+		queue.WithBackoff(5*time.Second, 15*time.Second),
+		queue.WithLogger(log),
+	)
+
 	// Node controller
 	nodeCtrl, err := nodectrl.New(
 		clientSet,
 		nodeCfg,
 		runtime,
+		nodectrl.WithWorkPool(workerPool),
 		nodectrl.WithTokenStore(tokenStore),
 		nodectrl.WithNetworkManager(cni),
 		nodectrl.WithExchange(exchange),
@@ -294,6 +309,21 @@ func main() {
 	go nodeCtrl.Run(ctx)
 	log.Info("started node controller")
 
+	// Node Upgrade Controller
+	upgradeCtrl, err := nodeupgradectrl.New(
+		clientSet,
+		nodeCfg,
+		nodeupgradectrl.WithVersion(VERSION, COMMIT, BRANCH, GOVERSION),
+		nodeupgradectrl.WithLogger(log),
+		nodeupgradectrl.WithExchange(exchange),
+		nodeupgradectrl.WithWorkPool(workerPool),
+	)
+	if err != nil {
+		log.Error("error setting up Node Upgrade Controller")
+	}
+	go upgradeCtrl.Run(ctx)
+	log.Info("started node upgrade controller")
+
 	// Volume controller
 	volumeDrivers := volume.NodeVolumeDrivers(clientSet.VolumeV1(), nodeCfg)
 	volumeCtrl := volumectrl.New(
@@ -304,16 +334,6 @@ func main() {
 	)
 	go volumeCtrl.Run(ctx)
 	log.Info("started volume controller")
-
-	// Node Upgrade Controller
-	upgradeCtrl := nodeupgradectrl.New(
-		clientSet,
-		nodeCfg,
-		nodeupgradectrl.WithVersion(VERSION, COMMIT, BRANCH, GOVERSION),
-		nodeupgradectrl.WithLogger(log),
-	)
-	go upgradeCtrl.Run(ctx)
-	log.Info("started node upgrade controller")
 
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)

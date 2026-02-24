@@ -29,6 +29,8 @@ import (
 	typesv1 "github.com/amimof/voiyd/api/types/v1"
 )
 
+type NewOption func(c *Controller)
+
 type Controller struct {
 	runtime          runtime.Runtime
 	logger           logger.Logger
@@ -45,12 +47,9 @@ type Controller struct {
 	epochs           map[string]uint64
 	conditions       chan *typesv1.ConditionReport
 	mu               sync.Mutex
-	queue            *queue.TaskQueue
 	workPool         *queue.WorkPool
 	publisher        condition.Publisher
 }
-
-type NewOption func(c *Controller)
 
 func WithLeaseRenewalInterval(d time.Duration) NewOption {
 	return func(c *Controller) {
@@ -100,7 +99,28 @@ func WithTokenStore(s store.Store) NewOption {
 	}
 }
 
+func WithWorkPool(p *queue.WorkPool) NewOption {
+	return func(c *Controller) {
+		c.workPool = p
+	}
+}
+
+// processScheduleTask enqueues a task for async processing by the workpool
 func (c *Controller) processNodeUpdate(ctx context.Context, node *nodesv1.Node) error {
+	c.logger.Debug("enqueuing node update",
+		"task", node.GetMeta().GetName())
+
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: node.GetMeta().GetName(),
+		ResourceID:   node.GetMeta().GetUid(),
+		Proto:        node,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.nodeUpdate),
+	})
+}
+
+func (c *Controller) nodeUpdate(ctx context.Context, node *nodesv1.Node) error {
 	tasks, err := c.runtime.List(ctx)
 	if err != nil {
 		return err
@@ -132,10 +152,10 @@ func (c *Controller) Run(ctx context.Context) {
 	defer c.workPool.Stop()
 
 	// Setup Node Handlers
-	c.exchange.On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.processScheduleTask)))
-	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
-	c.exchange.On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.processStopTask)))
-	c.exchange.On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.processKillTask)))
+	c.exchange.On(events.Schedule, events.HandleErrors(c.logger, events.HandleScheduling(c.processSchedule)))
+	c.exchange.On(events.TaskDelete, events.HandleErrors(c.logger, events.HandleTask(c.processTaskStop)))
+	c.exchange.On(events.TaskStop, events.HandleErrors(c.logger, events.HandleTask(c.processTaskStop)))
+	c.exchange.On(events.TaskKill, events.HandleErrors(c.logger, events.HandleTask(c.processTaskKill)))
 	c.exchange.On(events.NodeUpdate, events.HandleErrors(c.logger, events.HandleNode(c.processNodeUpdate)))
 
 	// Handle runtime events
@@ -325,20 +345,19 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		renewInterval:    time.Second * 30,
 		conditions:       make(chan *typesv1.ConditionReport),
 		epochs:           make(map[string]uint64),
+		workPool: queue.NewPool(
+			queue.NewTaskQueue(),
+			queue.WithMaxWorkers(2),
+			queue.WithMaxRetries(5),
+			queue.WithBackoff(5*time.Second, 15*time.Second),
+			queue.WithLogger(logger.ConsoleLogger{}),
+		),
 	}
 
 	for _, opt := range opts {
 		opt(m)
 	}
 
-	// NEW: Initialize queue and workpool
-	m.queue = queue.NewTaskQueue(m.logger)
-	m.workPool = queue.NewPool(
-		m.queue,
-		queue.WithMaxWorkers(2),
-		queue.WithMaxRetries(5),
-		queue.WithBackoff(5*time.Second, 15*time.Second),
-		queue.WithLogger(m.logger),
-	)
+	// Initialize queue and workpool
 	return m, nil
 }

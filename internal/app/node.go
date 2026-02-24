@@ -15,6 +15,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/keys"
+	"github.com/amimof/voiyd/pkg/labels"
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/amimof/voiyd/pkg/protoutils"
 	"github.com/amimof/voiyd/pkg/repository"
@@ -31,6 +32,7 @@ type NodeService struct {
 	Exchange *events.Exchange
 	Logger   logger.Logger
 	Manager  SessionManager
+	Sender   NodeSender
 }
 
 func (l *NodeService) handleError(err error, msg string, keysAndValues ...any) error {
@@ -362,9 +364,33 @@ func (l *NodeService) Upgrade(ctx context.Context, req *nodesv1.UpgradeRequest) 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	err := l.Exchange.Forward(ctx, events.NewEvent(events.NodeUpgrade, req))
-	if err != nil {
-		return l.handleError(err, "error publishing node upgrade event", "name", req.GetName(), "labels", req.GetSelector())
+	// Send to all nodes matching selector
+	if req.GetSelector() != nil {
+		nodes, err := l.Repo.List(ctx, 0)
+		if err != nil {
+			return err
+		}
+		for _, n := range nodes {
+			selector := labels.NewCompositeSelectorFromMap(req.GetSelector())
+			if selector.Matches(n.GetMeta().GetLabels()) {
+				if !l.Sender.IsNodeConnected(req.GetUid()) {
+					l.Logger.Warn("not sending upgrade request to disconnected", "node", n.GetMeta().GetName())
+					continue
+				}
+				if err := l.Sender.SendToNode(ctx, n.GetMeta().GetUid(), events.NewEvent(events.NodeUpgrade, req)); err != nil {
+					l.Logger.Warn("error sending upgrade request to node", "error", err, "node", n.GetMeta().GetName())
+					continue
+				}
+			}
+		}
+	}
+
+	// Send to node by uid
+	if req.GetUid() != "" {
+		if !l.Sender.IsNodeConnected(req.GetUid()) {
+			return ErrNodeNotConnected
+		}
+		return l.Sender.SendToNode(ctx, req.GetUid(), events.NewEvent(events.NodeUpgrade, req))
 	}
 
 	return nil
