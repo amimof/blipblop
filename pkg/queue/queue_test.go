@@ -11,6 +11,7 @@ import (
 	"github.com/amimof/voiyd/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 var tasks []*tasksv1.Task = []*tasksv1.Task{
@@ -72,13 +73,15 @@ var tasks []*tasksv1.Task = []*tasksv1.Task{
 }
 
 func TestQueueDeduplication(t *testing.T) {
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 	ctx := context.Background()
 	for range 5 {
 		err := q.Enqueue(ctx, &QueueItem{
-			Task:       tasks[0],
-			EnqueuedAt: time.Now(),
-			Handler: func(ctx context.Context, t *tasksv1.Task) error {
+			Proto:        tasks[0],
+			ResourceID:   tasks[0].GetMeta().GetUid(),
+			ResourceName: tasks[0].GetMeta().GetName(),
+			EnqueuedAt:   time.Now(),
+			Handler: func(ctx context.Context, m proto.Message) error {
 				return nil
 			},
 		})
@@ -91,14 +94,16 @@ func TestQueueDeduplication(t *testing.T) {
 }
 
 func TestQueueDequeueRequeue(t *testing.T) {
-	q := NewTaskQueue(logger.NilLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.NilLogger{}))
 
 	ctx := context.Background()
-	for _, t := range tasks {
+	for _, task := range tasks {
 		err := q.Enqueue(ctx, &QueueItem{
-			Task:       t,
-			EnqueuedAt: time.Now(),
-			Handler: func(ctx context.Context, t *tasksv1.Task) error {
+			Proto:        task,
+			ResourceID:   task.GetMeta().GetUid(),
+			ResourceName: task.GetMeta().GetName(),
+			EnqueuedAt:   time.Now(),
+			Handler: func(ctx context.Context, m proto.Message) error {
 				return nil
 			},
 		})

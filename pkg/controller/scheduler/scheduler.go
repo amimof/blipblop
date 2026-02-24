@@ -46,6 +46,12 @@ func WithNodeService(ns app.NodeSender) NewOption {
 	}
 }
 
+func WithWorkPool(p *queue.WorkPool) NewOption {
+	return func(c *Controller) {
+		c.workPool = p
+	}
+}
+
 type Controller struct {
 	clientset   *client.ClientSet
 	scheduler   scheduling.Scheduler
@@ -53,8 +59,8 @@ type Controller struct {
 	exchange    *events.Exchange
 	nodeService app.NodeSender
 	workPool    *queue.WorkPool
-	queue       *queue.TaskQueue
-	publisher   condition.Publisher
+	// queue       *queue.TaskQueue
+	publisher condition.Publisher
 }
 
 func (c *Controller) Report(report *typesv1.ConditionReport) {
@@ -68,11 +74,13 @@ func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task
 	if err != nil {
 		return err
 	}
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       t,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.scheduleTask,
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        t,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.scheduleTask),
 	})
 }
 
@@ -82,11 +90,13 @@ func (c *Controller) processTaskStop(ctx context.Context, task *tasksv1.Task) er
 	if err != nil {
 		return err
 	}
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       t,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.stopTask,
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        t,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.stopTask),
 	})
 }
 
@@ -96,35 +106,46 @@ func (c *Controller) processTaskKill(ctx context.Context, task *tasksv1.Task) er
 	if err != nil {
 		return err
 	}
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       t,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.killTask,
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        t,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.killTask),
 	})
 }
 
 func (c *Controller) processTaskUpdate(ctx context.Context, task *tasksv1.Task) error {
-	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
+	c.logger.Info("enqueuing kill task", "task", task.GetMeta().GetName())
+	t, err := c.clientset.TaskV1().Get(ctx, task.GetMeta().GetUid())
 	if err != nil {
-		if errs.IsNotFound(err) {
-			return nil
-		}
 		return err
 	}
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        t,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.updateTask),
+	})
+}
 
-	n, err := c.reschedule(ctx, task, lease.GetConfig().GetNodeId())
-	if err != nil {
-		if err := c.stop(ctx, task, lease.GetConfig().GetNodeId()); err != nil {
-			fmt.Println("error sending stop to node", "error", err)
-			return err
-		}
+func (c *Controller) processLeaseExpired(ctx context.Context, lease *leasesv1.Lease) error {
+	task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
-
-	c.logger.Debug("scheduled task on node", "node", n.GetMeta().GetName())
-
-	return nil
+	c.logger.Info("enqueuing lease expired task", "task", task.GetMeta().GetName())
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        task,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.scheduleTask),
+	})
 }
 
 func (c *Controller) reschedule(ctx context.Context, task *tasksv1.Task, nodeUID string) (*nodesv1.Node, error) {
@@ -172,6 +193,29 @@ func (c *Controller) stop(ctx context.Context, task *tasksv1.Task, nodeUID strin
 	return nil
 }
 
+func (c *Controller) updateTask(ctx context.Context, task *tasksv1.Task) error {
+	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
+	if err != nil {
+		if errs.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	n, err := c.reschedule(ctx, task, lease.GetConfig().GetNodeId())
+	if err != nil {
+		if err := c.stop(ctx, task, lease.GetConfig().GetNodeId()); err != nil {
+			fmt.Println("error sending stop to node", "error", err)
+			return err
+		}
+		return err
+	}
+
+	c.logger.Debug("scheduled task on node", "node", n.GetMeta().GetName())
+
+	return nil
+}
+
 func (c *Controller) setTaskAsSchedulingFailed(ctx context.Context, task *tasksv1.Task, reason string) error {
 	task.GetStatus().Phase = wrapperspb.String(string(condition.ReasonSchedulingFailed))
 	task.GetStatus().Node = wrapperspb.String("")
@@ -183,20 +227,6 @@ func (c *Controller) setTaskAsScheduled(ctx context.Context, task *tasksv1.Task,
 	task.GetStatus().Phase = wrapperspb.String(string(condition.ReasonScheduled))
 	task.GetStatus().Node = wrapperspb.String(nodeName)
 	return c.clientset.TaskV1().Update(ctx, task.GetMeta().GetUid(), task)
-}
-
-func (c *Controller) processLeaseExpired(ctx context.Context, lease *leasesv1.Lease) error {
-	task, err := c.clientset.TaskV1().Get(ctx, lease.GetConfig().GetTaskId())
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
-	c.logger.Info("enqueuing lease expired task", "task", task.GetMeta().GetName())
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.scheduleTask,
-	})
 }
 
 func (c *Controller) processNode(ctx context.Context, node *nodesv1.Node) error {
@@ -466,13 +496,18 @@ func New(cs *client.ClientSet, opts ...NewOption) *Controller {
 		logger:    logger.ConsoleLogger{},
 		publisher: condition.NewPublisher(cs.TaskV1()),
 		scheduler: scheduling.NewHorizontalScheduler(),
+		workPool: queue.NewPool(
+			queue.NewTaskQueue(),
+			queue.WithMaxWorkers(2),
+			queue.WithMaxRetries(5),
+			queue.WithBackoff(5*time.Second, 15*time.Second),
+			queue.WithLogger(logger.ConsoleLogger{}),
+		),
 	}
 
 	for _, opt := range opts {
 		opt(c)
 	}
-	c.queue = queue.NewTaskQueue(c.logger)
-	c.workPool = queue.NewPool(c.queue, queue.WithLogger(c.logger), queue.WithMaxRetries(5))
 
 	return c
 }

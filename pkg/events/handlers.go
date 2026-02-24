@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/amimof/voiyd/pkg/logger"
+	"google.golang.org/protobuf/proto"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	leasesv1 "github.com/amimof/voiyd/api/services/leases/v1"
@@ -16,13 +17,14 @@ import (
 )
 
 type (
-	HandlerFunc           func(context.Context, *eventsv1.Event) error
-	TaskHandlerFunc       func(context.Context, *tasksv1.Task) error
-	VolumeHandlerFunc     func(context.Context, *volumesv1.Volume) error
-	NodeHandlerFunc       func(context.Context, *nodesv1.Node) error
-	LeaseHandlerFunc      func(context.Context, *leasesv1.Lease) error
-	ConditionHandlerFunc  func(context.Context, *typesv1.ConditionReport, string) error
-	SchedulingHandlerFunc func(context.Context, *tasksv1.Task, *nodesv1.Node) error
+	HandlerFunc            func(context.Context, *eventsv1.Event) error
+	TaskHandlerFunc        func(context.Context, *tasksv1.Task) error
+	VolumeHandlerFunc      func(context.Context, *volumesv1.Volume) error
+	NodeHandlerFunc        func(context.Context, *nodesv1.Node) error
+	NodeUpgradeHandlerFunc func(context.Context, *nodesv1.UpgradeRequest) error
+	LeaseHandlerFunc       func(context.Context, *leasesv1.Lease) error
+	ConditionHandlerFunc   func(context.Context, *typesv1.ConditionReport, string) error
+	SchedulingHandlerFunc  func(context.Context, *tasksv1.Task, *nodesv1.Node) error
 )
 
 type Handler interface {
@@ -70,6 +72,30 @@ func Handle(h HandlerFunc) HandlerFunc {
 	}
 }
 
+func HandleNew[T any, PT interface {
+	*T
+	proto.Message
+}](h func(context.Context, PT) error) HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		var obj T
+		if err := ev.GetObject().UnmarshalTo(PT(&obj)); err != nil {
+			return err
+		}
+		return h(ctx, PT(&obj))
+	}
+}
+
+func NewHandler[T any, PT interface {
+	*T
+	proto.Message
+}](
+	h func(context.Context, PT) error,
+) func(context.Context, proto.Message) error {
+	return func(ctx context.Context, m proto.Message) error {
+		return h(ctx, m.(PT)) // single type assertion, in one place
+	}
+}
+
 func HandleTask(h TaskHandlerFunc) HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		var task tasksv1.Task
@@ -111,6 +137,17 @@ func HandleVolume(h VolumeHandlerFunc) HandlerFunc {
 func HandleNode(h NodeHandlerFunc) HandlerFunc {
 	return func(ctx context.Context, ev *eventsv1.Event) error {
 		var node nodesv1.Node
+		err := ev.GetObject().UnmarshalTo(&node)
+		if err != nil {
+			return err
+		}
+		return h(ctx, &node)
+	}
+}
+
+func HandleNodeUpradeReq(h NodeUpgradeHandlerFunc) HandlerFunc {
+	return func(ctx context.Context, ev *eventsv1.Event) error {
+		var node nodesv1.UpgradeRequest
 		err := ev.GetObject().UnmarshalTo(&node)
 		if err != nil {
 			return err

@@ -13,6 +13,7 @@ import (
 
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
 	"github.com/amimof/voiyd/pkg/logger"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestWork(t *testing.T) {
@@ -21,7 +22,7 @@ func TestWork(t *testing.T) {
 	var callCount atomic.Int32
 	var wg sync.WaitGroup
 
-	q := NewTaskQueue(logger.ConsoleLogger{})
+	q := NewTaskQueue(WithQueueLogger(logger.ConsoleLogger{}))
 	pool := NewPool(q, WithLogger(logger.ConsoleLogger{}), WithMaxWorkers(1), WithMaxRetries(10), WithBackoff(time.Millisecond*100, time.Millisecond*100))
 
 	go pool.Start(ctx)
@@ -30,9 +31,12 @@ func TestWork(t *testing.T) {
 
 		wg.Add(1)
 		err := q.Enqueue(ctx, &QueueItem{
-			Task:       test,
-			EnqueuedAt: time.Now(),
-			Handler: func(ctx context.Context, t *tasksv1.Task) error {
+			Proto:        test,
+			ResourceID:   test.GetMeta().GetUid(),
+			ResourceName: test.GetMeta().GetName(),
+			EnqueuedAt:   time.Now(),
+			Handler: func(ctx context.Context, m proto.Message) error {
+				t := m.(*tasksv1.Task)
 				fmt.Printf("task %s: error in handler\n", t.GetMeta().GetName())
 				callCount.Add(1)
 				wg.Done()

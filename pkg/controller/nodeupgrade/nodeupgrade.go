@@ -8,15 +8,16 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/cmdutil"
 	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/logger"
+	"github.com/amimof/voiyd/pkg/queue"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/metadata"
 
 	eventsv1 "github.com/amimof/voiyd/api/services/events/v1"
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
@@ -54,6 +55,18 @@ func WithHTTPClient(cl *http.Client) NewOption {
 	}
 }
 
+func WithExchange(e *events.Exchange) NewOption {
+	return func(c *Controller) {
+		c.exchange = e
+	}
+}
+
+func WithWorkPool(p *queue.WorkPool) NewOption {
+	return func(c *Controller) {
+		c.workPool = p
+	}
+}
+
 type nodeVersion struct {
 	version   string
 	commit    string
@@ -72,36 +85,15 @@ type Controller struct {
 	binPath     string
 	httpClient  *http.Client
 	publisher   condition.Publisher
-}
-
-func (c *Controller) handleErrors(h events.HandlerFunc) events.HandlerFunc {
-	return func(ctx context.Context, ev *eventsv1.Event) error {
-		err := h(ctx, ev)
-		if err != nil {
-			c.logger.Error("handler returned error", "event", ev.GetType().String(), "error", err)
-			return err
-		}
-		return nil
-	}
+	workPool    *queue.WorkPool
+	exchange    *events.Exchange
 }
 
 func (c *Controller) Run(ctx context.Context) {
-	// Subscribe to events
-	ctx = metadata.AppendToOutgoingContext(ctx, "voiyd_controller_name", "nodeupgrade")
-	evt, errCh := c.clientset.EventV1().Subscribe(ctx, events.NodeUpgrade)
-
 	// Setup Node Handlers
-	c.clientset.EventV1().On(events.NodeUpgrade, c.handleErrors(c.onNodeUpgrade))
+	c.exchange.On(events.NodeUpgrade, events.HandleErrors(c.logger, events.Handle(c.processNodeUpgrade)))
 
 	nodeName := c.node.GetMeta().GetName()
-
-	go func() {
-		for e := range evt {
-			c.logger.Info("nodeupgrade controller got event", "event", e.GetType().String(), "clientID", nodeName, "objectID", e.GetObjectId())
-		}
-	}()
-
-	c.logger.Debug("node has version", "version", c.nodeVersion.version, "commit", c.nodeVersion.commit, "branch", c.nodeVersion.branch, "goversion", c.nodeVersion.goversion)
 
 	// Report node status with metadata
 	if node, err := c.clientset.NodeV1().Get(ctx, nodeName); err == nil {
@@ -111,27 +103,8 @@ func (c *Controller) Run(ctx context.Context) {
 			True(condition.ReasonConnected))
 	}
 
-	binPath, err := os.Executable()
-	if err != nil {
-		c.logger.Error("error getting executable name from environment", "error", err)
-	}
-	c.binPath = binPath
-
 	// Handle errors
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case e, ok := <-errCh:
-			if !ok {
-				errCh = nil
-				continue
-			}
-			if e != nil {
-				c.logger.Error("received error on channel", "error", e)
-			}
-		}
-	}
+	<-ctx.Done()
 }
 
 type apiResponse struct {
@@ -312,7 +285,32 @@ func (c *Controller) replaceBinary(src, dst string) error {
 	return nil
 }
 
-func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error {
+func (c *Controller) processNodeUpgrade(ctx context.Context, e *eventsv1.Event) error {
+	var req nodesv1.UpgradeRequest
+	err := e.GetObject().UnmarshalTo(&req)
+	if err != nil {
+		return err
+	}
+
+	node, err := c.clientset.NodeV1Client.Get(ctx, req.GetUid())
+	if err != nil {
+		return err
+	}
+
+	c.logger.Debug("enqueuing node upgrade",
+		"node", e.GetMeta().GetName())
+
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: node.GetMeta().GetName(),
+		ResourceID:   node.GetMeta().GetUid(),
+		Proto:        e,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.upgradeNode),
+	})
+}
+
+func (c *Controller) upgradeNode(ctx context.Context, e *eventsv1.Event) error {
 	_, span := c.tracer.Start(ctx, "controller.nodeupgrade.OnNodeUpgrade")
 	defer span.End()
 
@@ -325,8 +323,7 @@ func (c *Controller) onNodeUpgrade(ctx context.Context, e *eventsv1.Event) error
 
 	c.logger.Debug("received node upgrade request", "target_version", req.GetTargetVersion(), "current_version", c.nodeVersion.version)
 
-	nodeName := c.node.GetMeta().GetName()
-	node, err := c.clientset.NodeV1().Get(ctx, nodeName)
+	node, err := c.clientset.NodeV1().Get(ctx, req.GetUid())
 	if err != nil {
 		c.failUpgrade(ctx, err)
 		return err
@@ -383,7 +380,7 @@ func (c *Controller) Report(report *typesv1.ConditionReport) {
 	c.publisher.Report(report.GetResourceId(), status, report)
 }
 
-func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) *Controller {
+func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) (*Controller, error) {
 	m := &Controller{
 		node:       n,
 		clientset:  c,
@@ -393,10 +390,24 @@ func New(c *client.ClientSet, n *nodesv1.Node, opts ...NewOption) *Controller {
 		tmpPath:    "/tmp/",
 		httpClient: http.DefaultClient,
 		publisher:  condition.NewPublisher(c.NodeV1()),
+		workPool: queue.NewPool(
+			queue.NewTaskQueue(),
+			queue.WithMaxWorkers(2),
+			queue.WithMaxRetries(5),
+			queue.WithBackoff(5*time.Second, 15*time.Second),
+			queue.WithLogger(logger.ConsoleLogger{}),
+		),
 	}
+
+	binPath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("error getting executable name from environment: %v", err)
+	}
+	m.binPath = binPath
+
 	for _, opt := range opts {
 		opt(m)
 	}
 
-	return m
+	return m, nil
 }

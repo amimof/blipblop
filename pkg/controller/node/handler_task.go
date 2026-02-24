@@ -13,6 +13,7 @@ import (
 
 	"github.com/amimof/voiyd/pkg/condition"
 	"github.com/amimof/voiyd/pkg/errs"
+	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/networking"
 	"github.com/amimof/voiyd/pkg/queue"
 	"github.com/amimof/voiyd/pkg/runtime"
@@ -29,8 +30,8 @@ func Uint64ToBytes(val uint64) []byte {
 	return b
 }
 
-// processScheduleTask enqueues a task for async processing by the workpool
-func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
+// processSchedule enqueues a task for async processing by the workpool
+func (c *Controller) processSchedule(ctx context.Context, task *tasksv1.Task, node *nodesv1.Node) error {
 	taskUID := task.GetMeta().GetUid()
 	nodeUID := task.GetMeta().GetUid()
 
@@ -51,37 +52,43 @@ func (c *Controller) processScheduleTask(ctx context.Context, task *tasksv1.Task
 		return nil
 	}
 
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.startTask,
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: node.GetMeta().GetName(),
+		ResourceID:   node.GetMeta().GetUid(),
+		Proto:        task,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.startTask),
 	})
 }
 
 // processScheduleTask enqueues a task for async processing by the workpool
-func (c *Controller) processStopTask(ctx context.Context, task *tasksv1.Task) error {
+func (c *Controller) processTaskStop(ctx context.Context, task *tasksv1.Task) error {
 	c.logger.Debug("enqueuing stop task",
 		"task", task.GetMeta().GetName())
 
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.stopTask,
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        task,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.stopTask),
 	})
 }
 
 // processScheduleTask enqueues a task for async processing by the workpool
-func (c *Controller) processKillTask(ctx context.Context, task *tasksv1.Task) error {
+func (c *Controller) processTaskKill(ctx context.Context, task *tasksv1.Task) error {
 	c.logger.Debug("enqueuing kill task",
 		"task", task.GetMeta().GetName())
 
-	return c.queue.Enqueue(ctx, &queue.QueueItem{
-		Task:       task,
-		EnqueuedAt: time.Now(),
-		RetryCount: 0,
-		Handler:    c.killTask,
+	return c.workPool.Enqueue(ctx, &queue.QueueItem{
+		ResourceName: task.GetMeta().GetName(),
+		ResourceID:   task.GetMeta().GetUid(),
+		Proto:        task,
+		EnqueuedAt:   time.Now(),
+		RetryCount:   0,
+		Handler:      events.NewHandler(c.killTask),
 	})
 }
 

@@ -9,12 +9,10 @@ import (
 	"google.golang.org/grpc/stats/opentelemetry"
 )
 
-// type Shutdown func(context.Context) error
-
-func InitServerMetrics(ctx context.Context) (grpc.ServerOption, error) {
+func InitServerMetrics(ctx context.Context) (grpc.ServerOption, *metric.MeterProvider, error) {
 	exporter, err := prometheus.New()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	meterProvider := metric.NewMeterProvider(metric.WithReader(exporter))
@@ -25,13 +23,13 @@ func InitServerMetrics(ctx context.Context) (grpc.ServerOption, error) {
 		},
 	})
 
-	return opts, nil
+	return opts, meterProvider, nil
 }
 
-func InitClientMetrics() (grpc.DialOption, error) {
+func InitClientMetrics() (grpc.DialOption, *metric.MeterProvider, error) {
 	exporter, err := prometheus.New()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	meterProvider := metric.NewMeterProvider(metric.WithReader(exporter))
 
@@ -41,5 +39,5 @@ func InitClientMetrics() (grpc.DialOption, error) {
 		},
 	})
 
-	return opts, nil
+	return opts, meterProvider, nil
 }

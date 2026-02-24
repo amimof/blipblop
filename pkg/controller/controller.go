@@ -6,6 +6,6 @@ import (
 )
 
 type Controller interface {
-	Run(context.Context, <-chan struct{})
+	Run(context.Context) error
 	Reconcile(context.Context) error
 }

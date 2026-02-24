@@ -34,6 +34,7 @@ import (
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/events"
 	"github.com/amimof/voiyd/pkg/instrumentation"
+	"github.com/amimof/voiyd/pkg/queue"
 	"github.com/amimof/voiyd/pkg/repository"
 	badgerrepo "github.com/amimof/voiyd/pkg/repository/badger"
 
@@ -261,6 +262,7 @@ func main() {
 		Logger:   log,
 		Manager:  nodeSessionManager,
 		Repo:     repository.NewNodeRepo(repo),
+		Sender:   nodeSessionManager,
 	})
 
 	leaseService := transport.NewLeaseService(&app.LeaseService{
@@ -299,11 +301,13 @@ func main() {
 	defer cancel()
 
 	// Setup Metrics
-	metricsOpts, err := instrumentation.InitServerMetrics(ctx)
+
+	metricsOpts, meterProvider, err := instrumentation.InitServerMetrics(ctx)
 	if err != nil {
 		log.Error("Failed to start prometheus exporter", "error", err)
 		os.Exit(1)
 	}
+	meter := meterProvider.Meter("voiyd-server")
 
 	validator, err := protovalidate.New()
 	if err != nil {
@@ -374,6 +378,18 @@ func main() {
 
 	go serveGateway(gatewayAddress, gw, errChan)
 
+	// Setup worker pool and task queue for workers
+	workerPool := queue.NewPool(
+		queue.NewTaskQueue(
+			queue.WithQueueLogger(log),
+			queue.WithMeter(meter),
+		),
+		queue.WithMaxWorkers(2),
+		queue.WithMaxRetries(5),
+		queue.WithBackoff(5*time.Second, 15*time.Second),
+		queue.WithLogger(log),
+	)
+
 	// Setup a clientset for the controllers
 	cs, err := client.New(socketAddr, client.WithLogger(log), client.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
 	if err != nil {
@@ -386,12 +402,22 @@ func main() {
 	}()
 
 	// Scheduler controller
-	schedulerCtrl := schedulerctrl.New(cs, schedulerctrl.WithLogger(log), schedulerctrl.WithExchange(exchange), schedulerctrl.WithNodeService(nodeSessionManager))
+	schedulerCtrl := schedulerctrl.New(
+		cs,
+		schedulerctrl.WithLogger(log),
+		schedulerctrl.WithExchange(exchange),
+		schedulerctrl.WithNodeService(nodeSessionManager),
+		schedulerctrl.WithWorkPool(workerPool),
+	)
 	go schedulerCtrl.Run(ctx)
 	log.Info("Started scheduler Controller")
 
 	// Lease controller
-	leaseCtrl := leasectrl.New(cs, leasectrl.WithLogger(log), leasectrl.WithExchange(exchange))
+	leaseCtrl := leasectrl.New(
+		cs,
+		leasectrl.WithLogger(log),
+		leasectrl.WithExchange(exchange),
+	)
 	go leaseCtrl.Run(ctx)
 	log.Info("Started Lease Controller")
 

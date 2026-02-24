@@ -21,6 +21,18 @@ type WorkPool struct {
 	stop       chan struct{}
 }
 
+func (w *WorkPool) Enqueue(ctx context.Context, item *QueueItem) error {
+	return w.queue.Enqueue(ctx, item)
+}
+
+func (w *WorkPool) Dequeue() (*QueueItem, error) {
+	return w.queue.Dequeue()
+}
+
+func (w *WorkPool) Requeue(ctx context.Context, item *QueueItem) error {
+	return w.queue.Requeue(ctx, item)
+}
+
 func backoff(min, max time.Duration, attemptNum int) time.Duration {
 	// Calculate base
 	mult := math.Pow(2, float64(attemptNum))
@@ -63,13 +75,14 @@ func (w *WorkPool) worker(ctx context.Context, id int) {
 				return
 			}
 
-			err = item.Handler(ctx, item.Task)
+			err = item.Handler(ctx, item.Proto)
 			if err != nil {
+				w.queue.metrics.ItemsFailed.Add(1)
 				if item.RetryCount >= w.maxRetries {
 					// Stop retrying after max attempts
 					w.logger.Error("task failed after max retries",
 						"error", err,
-						"task", item.Task.GetMeta().GetName(),
+						"task", item.ResourceName,
 						"retries", item.RetryCount)
 					item.cancel()
 					continue // Don't requeue
@@ -78,7 +91,7 @@ func (w *WorkPool) worker(ctx context.Context, id int) {
 				wait := backoff(w.minBackoff, w.maxBackoff, item.RetryCount)
 				w.logger.Info("task failed, retrying with backoff",
 					"error", err,
-					"task", item.Task.GetMeta().GetName(),
+					"task", item.ResourceName,
 					"retry", item.RetryCount+1,
 					"backoff", wait)
 
@@ -88,19 +101,19 @@ func (w *WorkPool) worker(ctx context.Context, id int) {
 					err := w.queue.Requeue(ctx, item)
 					if err != nil {
 						w.logger.Debug("not requeuing task",
-							"task", item.Task.GetMeta().GetName(),
+							"task", item.ResourceName,
 							"reason", err)
 					}
 				case <-item.ctx.Done():
 					// Task was cancelled during backoff
 					w.logger.Info("task cancelled during backoff, not requeuing",
-						"task", item.Task.GetMeta().GetName())
+						"task", item.ResourceName)
 				}
 			} else {
 				// Success case
-				// w.queue.Done(item.Task)
+				w.queue.metrics.ItemsProcessed.Add(1)
 				w.logger.Debug("task processed successfully",
-					"task", item.Task.GetMeta().GetName())
+					"task", item.ResourceName)
 			}
 		}
 	}
