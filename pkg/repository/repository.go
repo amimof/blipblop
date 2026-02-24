@@ -480,7 +480,7 @@ func (r Repo[T]) Delete(ctx context.Context, id keys.ID) error {
 	return err
 }
 
-func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) (T, error) {
+func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource T) (T, error) {
 	var res T
 	err := r.db.Update(ctx, func(txn Txn) error {
 		select {
@@ -496,27 +496,18 @@ func (r Repo[T]) Update(ctx context.Context, id keys.ID, resource Resource) (T, 
 		}
 
 		// Preserve read-only fields from existing resource
-		meta := resource.GetMeta()
 		existingMeta := existing.GetMeta()
-		meta.Uid = existingMeta.Uid
-		meta.Created = existingMeta.Created
-		meta.Updated = timestamppb.Now()
-		meta.ResourceVersion = existingMeta.ResourceVersion + 1
-		meta.Generation = existingMeta.Generation + 1
+		resource.GetMeta().Uid = existingMeta.Uid
+		resource.GetMeta().Created = existingMeta.Created
+		resource.GetMeta().Updated = timestamppb.Now()
+		resource.GetMeta().ResourceVersion = existingMeta.ResourceVersion + 1
+		resource.GetMeta().Generation = existingMeta.Generation + 1
 
 		// Marshal and save
 		b, err := proto.Marshal(resource)
 		if err != nil {
 			return err
 		}
-		// TODO: Consider returning not-found err and let users decide if they want to override
-		// _, err := txn.Get(id.EncodePrefixed(r.prefix))
-		// if err == nil {
-		// 	return ErrIdxExists
-		// }
-
-		// Ignore read-only fields
-		resource.GetMeta().Updated = timestamppb.Now()
 
 		switch id.Tag() {
 		case keys.TagUID:

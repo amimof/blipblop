@@ -31,11 +31,10 @@ type TaskService struct {
 	Manager  LeaseStore
 }
 
-func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) error {
+func applyMaskedStatusUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) error {
 	if mask == nil || len(mask.Paths) == 0 {
 		return status.Error(codes.InvalidArgument, "update_mask is required")
 	}
-
 	for _, p := range mask.Paths {
 		switch p {
 		case "ip":
@@ -394,7 +393,7 @@ func (l *TaskService) updateStatus(ctx context.Context, id keys.ID, st *tasksv1.
 
 	// Apply mask safely
 	base := proto.Clone(existingTask.Status).(*tasksv1.Status)
-	if err := applyMaskedUpdate(base, st, &fieldmaskpb.FieldMask{Paths: mask}); err != nil {
+	if err := applyMaskedStatusUpdate(base, st, &fieldmaskpb.FieldMask{Paths: mask}); err != nil {
 		return status.Errorf(codes.InvalidArgument, "bad mask: %v", err)
 	}
 
@@ -419,6 +418,9 @@ func (l *TaskService) Update(ctx context.Context, id keys.ID, task *tasksv1.Task
 	if err != nil {
 		return err
 	}
+
+	// Don't touch status field on update
+	task.Status = existingTask.Status
 
 	// Update the task
 	updated, err := l.Repo.Update(ctx, id, task)

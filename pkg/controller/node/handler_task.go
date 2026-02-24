@@ -193,7 +193,7 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	// Remove any previous tasks
 	err = c.deleteTask(ctx, task, report)
-	if err != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
@@ -437,6 +437,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) (err err
 					Phase:  wrapperspb.String(string(condition.ReasonStartFailed)),
 					Reason: wrapperspb.String(err.Error()),
 				},
+				"phase", "reason",
 			)
 		}
 	}()
@@ -468,7 +469,7 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) (err err
 	}
 
 	err = c.deleteTask(ctx, task, report)
-	if err != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 

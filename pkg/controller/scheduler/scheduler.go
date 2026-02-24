@@ -217,16 +217,16 @@ func (c *Controller) updateTask(ctx context.Context, task *tasksv1.Task) error {
 }
 
 func (c *Controller) setTaskAsSchedulingFailed(ctx context.Context, task *tasksv1.Task, reason string) error {
-	task.GetStatus().Phase = wrapperspb.String(string(condition.ReasonSchedulingFailed))
-	task.GetStatus().Node = wrapperspb.String("")
-	task.GetStatus().Reason = wrapperspb.String(reason)
-	return c.clientset.TaskV1().Update(ctx, task.GetMeta().GetUid(), task)
+	phase := wrapperspb.String(string(condition.ReasonSchedulingFailed))
+	node := wrapperspb.String("")
+	re := wrapperspb.String(reason)
+	return c.clientset.TaskV1().Status().Update(ctx, task.GetMeta().GetUid(), &tasksv1.Status{Phase: phase, Node: node, Reason: re}, "phase", "node", "reason")
 }
 
 func (c *Controller) setTaskAsScheduled(ctx context.Context, task *tasksv1.Task, nodeName string) error {
-	task.GetStatus().Phase = wrapperspb.String(string(condition.ReasonScheduled))
-	task.GetStatus().Node = wrapperspb.String(nodeName)
-	return c.clientset.TaskV1().Update(ctx, task.GetMeta().GetUid(), task)
+	phase := wrapperspb.String(string(condition.ReasonScheduled))
+	node := wrapperspb.String(nodeName)
+	return c.clientset.TaskV1().Status().Update(ctx, task.GetMeta().GetUid(), &tasksv1.Status{Phase: phase, Node: node}, "phase", "node")
 }
 
 func (c *Controller) processNode(ctx context.Context, node *nodesv1.Node) error {
@@ -344,7 +344,7 @@ func (c *Controller) start(ctx context.Context, task *tasksv1.Task) (n *nodesv1.
 
 	defer func() {
 		if err != nil {
-			if err := c.setTaskAsSchedulingFailed(ctx, task, n.GetMeta().GetName()); err != nil {
+			if err := c.setTaskAsSchedulingFailed(ctx, task, err.Error()); err != nil {
 				c.logger.Warn("couldn't set mark task as scheduling failed", "error", err, "task", task.GetMeta().GetName())
 			}
 		}
