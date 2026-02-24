@@ -12,12 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v2"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/amimof/voiyd/pkg/client"
 	"github.com/amimof/voiyd/pkg/client/version"
 	"github.com/amimof/voiyd/pkg/cmdutil"
+	"github.com/amimof/voiyd/pkg/errs"
 
 	nodesv1 "github.com/amimof/voiyd/api/services/nodes/v1"
 	tasksv1 "github.com/amimof/voiyd/api/services/tasks/v1"
@@ -176,23 +175,19 @@ func applyNode(ctx context.Context, c *client.ClientSet, n *nodesv1.Node) error 
 	if name == "" {
 		return fmt.Errorf("node.meta.name is required")
 	}
-
-	// Try to get existing
-	_, err := c.NodeV1().Get(ctx, name)
-	if status.Code(err) == codes.NotFound {
-		if n.Version == "" {
-			n.Version = version.VersionNode
-		}
-		logrus.Infof("created %s: %s", n.Version, n.GetMeta().GetName())
-		return c.NodeV1().Create(ctx, n)
-	}
+	err := c.NodeV1().Create(ctx, n)
 	if err != nil {
+		if errs.IsConflict(err) {
+			if err := c.NodeV1().Update(ctx, name, n); err != nil {
+				return err
+			}
+			logrus.Infof("updated %s: %s", n.Version, n.GetMeta().GetName())
+			return nil
+		}
 		return err
 	}
-
-	// Update if already exists
-	logrus.Infof("updated %s: %s", n.Version, n.GetMeta().GetName())
-	return c.NodeV1().Update(ctx, name, n)
+	logrus.Infof("created %s: %s", n.Version, n.GetMeta().GetName())
+	return nil
 }
 
 func applyTask(ctx context.Context, c *client.ClientSet, ctr *tasksv1.Task) error {
@@ -200,23 +195,19 @@ func applyTask(ctx context.Context, c *client.ClientSet, ctr *tasksv1.Task) erro
 	if name == "" {
 		return fmt.Errorf("container.meta.name is required")
 	}
-
-	// Try to get existing
-	_, err := c.TaskV1().Get(ctx, name)
-	if status.Code(err) == codes.NotFound {
-		if ctr.Version == "" {
-			ctr.Version = version.VersionTask
-		}
-		logrus.Infof("created %s: %s", ctr.Version, ctr.GetMeta().GetName())
-		return c.TaskV1().Create(ctx, ctr)
-	}
+	err := c.TaskV1().Create(ctx, ctr)
 	if err != nil {
+		if errs.IsConflict(err) {
+			if err := c.TaskV1().Update(ctx, name, ctr); err != nil {
+				return err
+			}
+			logrus.Infof("updated %s: %s", ctr.Version, ctr.GetMeta().GetName())
+			return nil
+		}
 		return err
 	}
-
-	// Update if already exists
-	logrus.Infof("updated %s: %s", ctr.Version, ctr.GetMeta().GetName())
-	return c.TaskV1().Update(ctx, name, ctr)
+	logrus.Infof("created %s: %s", ctr.Version, ctr.GetMeta().GetName())
+	return nil
 }
 
 func applyVolume(ctx context.Context, c *client.ClientSet, v *volumesv1.Volume) error {
@@ -224,21 +215,17 @@ func applyVolume(ctx context.Context, c *client.ClientSet, v *volumesv1.Volume) 
 	if name == "" {
 		return fmt.Errorf("volume.meta.name is required")
 	}
-
-	// Try to get existing
-	_, err := c.VolumeV1().Get(ctx, name)
-	if status.Code(err) == codes.NotFound {
-		if v.Version == "" {
-			v.Version = version.VersionVolume
-		}
-		logrus.Infof("created %s: %s", v.Version, v.GetMeta().GetName())
-		return c.VolumeV1().Create(ctx, v)
-	}
+	err := c.VolumeV1().Create(ctx, v)
 	if err != nil {
+		if errs.IsConflict(err) {
+			if err := c.VolumeV1().Update(ctx, name, v); err != nil {
+				return err
+			}
+			logrus.Infof("updated %s: %s", v.Version, v.GetMeta().GetName())
+			return nil
+		}
 		return err
 	}
-
-	// Update if already exists
-	logrus.Infof("updated %s: %s", v.Version, v.GetMeta().GetName())
-	return c.VolumeV1().Update(ctx, name, v)
+	logrus.Infof("created %s: %s", v.Version, v.GetMeta().GetName())
+	return nil
 }

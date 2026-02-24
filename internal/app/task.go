@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -30,16 +29,6 @@ type TaskService struct {
 	Exchange *events.Exchange
 	Logger   logger.Logger
 	Manager  LeaseStore
-}
-
-func (l *TaskService) handleError(err error, msg string, keysAndValues ...any) error {
-	def := []any{"error", err.Error()}
-	def = append(def, keysAndValues...)
-	l.Logger.Error(msg, def...)
-	if errors.Is(err, repository.ErrNotFound) {
-		return status.Error(codes.NotFound, err.Error())
-	}
-	return status.Error(codes.Internal, err.Error())
 }
 
 func applyMaskedUpdate(dst, src *tasksv1.Status, mask *fieldmaskpb.FieldMask) error {
@@ -227,12 +216,13 @@ func (l *TaskService) Create(ctx context.Context, task *tasksv1.Task) (*tasksv1.
 	// Create task in repo
 	newTask, err := l.Repo.Create(ctx, task)
 	if err != nil {
-		return nil, l.handleError(err, "error creating task", "name", newTask.GetMeta().GetName())
+		return nil, err
 	}
 
 	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskCreate, task))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing task start event", "name", task.GetMeta().GetName())
+		l.Logger.Error("error publishing task start event", "error", err, "name", task.GetMeta().GetName())
+		return nil, err
 	}
 
 	return newTask, nil
@@ -259,7 +249,8 @@ func (l *TaskService) Delete(ctx context.Context, id keys.ID) error {
 
 	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskDelete, task))
 	if err != nil {
-		return l.handleError(err, "error publishing task delete event", "name", task.GetMeta().GetName())
+		l.Logger.Error("error publishing task delete event", "error", err, "name", task.GetMeta().GetName())
+		return err
 	}
 
 	return nil
@@ -276,7 +267,8 @@ func (l *TaskService) Kill(ctx context.Context, id keys.ID) error {
 
 	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskKill, task))
 	if err != nil {
-		return l.handleError(err, "error publishing task kill event", "name", task.GetMeta().GetName())
+		l.Logger.Error("error publishing task kill event", "error", err, "name", task.GetMeta().GetName())
+		return err
 	}
 
 	return nil
@@ -293,7 +285,8 @@ func (l *TaskService) Stop(ctx context.Context, id keys.ID) error {
 
 	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskStop, task))
 	if err != nil {
-		return l.handleError(err, "error publishing task stop event", "name", task.GetMeta().GetName())
+		l.Logger.Error("error publishing task stop event", "error", err, "name", task.GetMeta().GetName())
+		return err
 	}
 
 	return nil
@@ -310,7 +303,8 @@ func (l *TaskService) Start(ctx context.Context, id keys.ID) error {
 
 	err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskStart, task))
 	if err != nil {
-		return l.handleError(err, "error publishing task start event", "name", task.GetMeta().GetName())
+		l.Logger.Error("error publishing task start event", "error", err, "name", task.GetMeta().GetName())
+		return err
 	}
 
 	return nil
@@ -326,7 +320,8 @@ func (l *TaskService) Patch(ctx context.Context, id keys.ID, patch *tasksv1.Task
 	// Get existing task from repo
 	existing, err := l.Repo.Get(ctx, id)
 	if err != nil {
-		return l.handleError(err, "error getting task", "name", patch.GetMeta().GetName())
+		l.Logger.Error("error getting task", "error", err, "name", patch.GetMeta().GetName())
+		return err
 	}
 
 	// Generate field mask
@@ -348,7 +343,8 @@ func (l *TaskService) Patch(ctx context.Context, id keys.ID, patch *tasksv1.Task
 	// Update the task
 	task, err := l.Repo.Update(ctx, id, existing)
 	if err != nil {
-		return l.handleError(err, "error updating task", "name", existing.GetMeta().GetName())
+		l.Logger.Error("error updating task", "error", err, "name", existing.GetMeta().GetName())
+		return err
 	}
 
 	changed, err := protoutils.SpecEqual(existing.GetConfig(), task.GetConfig())
@@ -360,7 +356,8 @@ func (l *TaskService) Patch(ctx context.Context, id keys.ID, patch *tasksv1.Task
 	if changed {
 		err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskPatch, task))
 		if err != nil {
-			return l.handleError(err, "error publishing task patch event", "name", existing.GetMeta().GetName())
+			l.Logger.Error("error publishing task patch event", "error", err, "name", existing.GetMeta().GetName())
+			return err
 		}
 	}
 
@@ -426,7 +423,7 @@ func (l *TaskService) Update(ctx context.Context, id keys.ID, task *tasksv1.Task
 	// Update the task
 	updated, err := l.Repo.Update(ctx, id, task)
 	if err != nil {
-		return l.handleError(err, "error updating task", "name", task.GetMeta().GetName())
+		return err
 	}
 
 	equal, err := protoutils.SpecEqual(existingTask.GetConfig(), updated.GetConfig())
@@ -439,7 +436,8 @@ func (l *TaskService) Update(ctx context.Context, id keys.ID, task *tasksv1.Task
 		l.Logger.Debug("task was updated, emitting event to listeners", "event", "TaskUpdate", "name", updated.GetMeta().GetName())
 		err = l.Exchange.Publish(ctx, events.NewEvent(events.TaskUpdate, updated))
 		if err != nil {
-			return l.handleError(err, "error publishing task update event", "name", updated.GetMeta().GetName())
+			l.Logger.Error("error publishing task update event", "error", err, "name", updated.GetMeta().GetName())
+			return err
 		}
 	}
 

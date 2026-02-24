@@ -35,16 +35,6 @@ type NodeService struct {
 	Sender   NodeSender
 }
 
-func (l *NodeService) handleError(err error, msg string, keysAndValues ...any) error {
-	def := []any{"error", err.Error()}
-	def = append(def, keysAndValues...)
-	l.Logger.Error(msg, def...)
-	if errors.Is(err, repository.ErrNotFound) {
-		return status.Error(codes.NotFound, err.Error())
-	}
-	return status.Error(codes.Internal, err.Error())
-}
-
 func applyMaskedUpdateNode(dst, src *nodesv1.Status, mask *fieldmaskpb.FieldMask) error {
 	if mask == nil || len(mask.Paths) == 0 {
 		return status.Error(codes.InvalidArgument, "update_mask is required")
@@ -124,12 +114,12 @@ func (l *NodeService) Create(ctx context.Context, node *nodesv1.Node) (*nodesv1.
 
 	newNode, err := l.Repo.Create(ctx, node)
 	if err != nil {
-		return nil, l.handleError(err, "error creating node", "name", newNode.GetMeta().GetName())
+		return nil, err
 	}
 
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.NodeCreate, newNode))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing node create event", "name", newNode.GetMeta().GetName())
+		return nil, err
 	}
 
 	return newNode, nil
@@ -154,7 +144,8 @@ func (l *NodeService) Delete(ctx context.Context, id keys.ID) error {
 
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.NodeDelete, node))
 	if err != nil {
-		return l.handleError(err, "error publishing node delete event", "name", node.GetMeta().GetName())
+		l.Logger.Error("error publishing node delete event", "error", err, "name", node.GetMeta().GetName())
+		return err
 	}
 
 	return nil
@@ -208,7 +199,8 @@ func (l *NodeService) Patch(ctx context.Context, id keys.ID, patch *nodesv1.Node
 	// Get existing node from repo
 	existing, err := l.Repo.Get(ctx, id)
 	if err != nil {
-		return l.handleError(err, "error getting node", "name", patch.GetMeta().GetName())
+		l.Logger.Error("error getting node", "error", err, "name", patch.GetMeta().GetName())
+		return err
 	}
 
 	// Generate field mask
@@ -229,7 +221,8 @@ func (l *NodeService) Patch(ctx context.Context, id keys.ID, patch *nodesv1.Node
 	// Update the node
 	node, err := l.Repo.Update(ctx, id, existing)
 	if err != nil {
-		return l.handleError(err, "error patching node", "name", existing.GetMeta().GetName())
+		l.Logger.Error("error patching node", "error", err, "name", existing.GetMeta().GetName())
+		return err
 	}
 
 	changed, err := protoutils.SpecEqual(existing.GetConfig(), node.GetConfig())
@@ -241,7 +234,8 @@ func (l *NodeService) Patch(ctx context.Context, id keys.ID, patch *nodesv1.Node
 	if changed {
 		err = l.Exchange.Forward(ctx, events.NewEvent(events.NodePatch, node))
 		if err != nil {
-			return l.handleError(err, "error publishing node patch event", "name", existing.GetMeta().GetName())
+			l.Logger.Error("error publishing node patch event", "error", err, "name", existing.GetMeta().GetName())
+			return err
 		}
 	}
 
@@ -258,13 +252,15 @@ func (l *NodeService) Update(ctx context.Context, id keys.ID, node *nodesv1.Node
 	// Get the existing node before updating so we can compare specs
 	existingNode, err := l.Repo.Get(ctx, id)
 	if err != nil {
-		return l.handleError(err, "error getting node", "name", node.GetMeta().GetName())
+		l.Logger.Error("error getting node", "error", err, "name", node.GetMeta().GetName())
+		return err
 	}
 
 	// Update the node
 	updated, err := l.Repo.Update(ctx, id, node)
 	if err != nil {
-		return l.handleError(err, "error updating node", "name", node.GetMeta().GetName())
+		l.Logger.Error("error updating node", "error", err, "name", node.GetMeta().GetName())
+		return err
 	}
 
 	// Notify session manager about the change
@@ -282,7 +278,8 @@ func (l *NodeService) Update(ctx context.Context, id keys.ID, node *nodesv1.Node
 	if changed {
 		err = l.Exchange.Forward(ctx, events.NewEvent(events.NodeUpdate, updated))
 		if err != nil {
-			return l.handleError(err, "error publishing node update event", "name", updated.GetMeta().GetName())
+			l.Logger.Error("error publishing node update event", "error", err, "name", updated.GetMeta().GetName())
+			return err
 		}
 	}
 
@@ -298,10 +295,12 @@ func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) 
 		if errors.Is(err, repository.ErrNotFound) {
 			l.Logger.Debug("creating node that joined", "nodeID", node.GetMeta().GetName())
 			if _, err := l.Create(ctx, node); err != nil {
-				return nil, l.handleError(err, "error creating node", "name", node.GetMeta().GetName())
+				l.Logger.Error("error creating node", "error", err, "name", node.GetMeta().GetName())
+				return nil, err
 			}
 		}
-		return nil, l.handleError(err, "error getting node", "name", node.GetMeta().GetName())
+		l.Logger.Error("error getting node", "error", err, "name", node.GetMeta().GetName())
+		return nil, err
 	}
 
 	// Perform update if node exists
@@ -314,7 +313,8 @@ func (l *NodeService) Join(ctx context.Context, id keys.ID, node *nodesv1.Node) 
 
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.NodeJoin, node))
 	if err != nil {
-		return nil, l.handleError(err, "error publishing node join event", "name", node.GetMeta().GetName())
+		l.Logger.Error("error publishing node join event", "error", err, "name", node.GetMeta().GetName())
+		return nil, err
 	}
 
 	return l.Get(ctx, id)
@@ -334,12 +334,14 @@ func (l *NodeService) Forget(ctx context.Context, id keys.ID) error {
 
 	err = l.Repo.Delete(ctx, id)
 	if err != nil {
-		return l.handleError(err, "error deleting node", "name", node.GetMeta().GetName())
+		l.Logger.Error("error deleting node", "error", err, "name", node.GetMeta().GetName())
+		return err
 	}
 
 	err = l.Exchange.Forward(ctx, events.NewEvent(events.NodeForget, node))
 	if err != nil {
-		return l.handleError(err, "error publishing node forget event", "name", node.GetMeta().GetName())
+		l.Logger.Error("error publishing node forget event", "error", err, "name", node.GetMeta().GetName())
+		return err
 	}
 
 	return nil
