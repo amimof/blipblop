@@ -24,6 +24,9 @@ type Attacher interface {
 
 	// Allows for reversal of provisioned resources
 	Detach(ctx context.Context, node *nodesv1.Node, ctr *tasksv1.Task) error
+
+	// Allows for removing allocated resources reclaiming disk space
+	Reclaim(ctx context.Context, node *nodesv1.Node, ctr *tasksv1.Task) error
 }
 
 type DefaultAttacher struct {
@@ -103,6 +106,42 @@ func (a *DefaultAttacher) PrepareMounts(ctx context.Context, n *nodesv1.Node, ct
 
 // Detach implements Attacher interface
 func (a *DefaultAttacher) Detach(ctx context.Context, n *nodesv1.Node, ctr *tasksv1.Task) error {
+	mounts := ctr.GetConfig().GetMounts()
+	if len(mounts) == 0 {
+		return nil
+	}
+
+	// Get usable drivers from the node
+	nodeName := n.GetMeta().GetName()
+
+	for _, m := range mounts {
+
+		if m.GetVolume() == "" {
+			continue
+		}
+
+		// Update status on the volume
+		_ = a.volumeClient.Status().Update(
+			ctx,
+			m.GetVolume(),
+			&volumesv1.Status{
+				Controllers: map[string]*volumesv1.ControllerStatus{
+					nodeName: {
+						Phase: wrapperspb.String(string(condition.ReasonDetached)),
+						Ready: wrapperspb.Bool(false),
+					},
+				},
+			},
+			"controllers",
+		)
+
+	}
+
+	return nil
+}
+
+// Reclaim implements [Attacher].
+func (a *DefaultAttacher) Reclaim(ctx context.Context, n *nodesv1.Node, ctr *tasksv1.Task) error {
 	mounts := ctr.GetConfig().GetMounts()
 	if len(mounts) == 0 {
 		return nil
