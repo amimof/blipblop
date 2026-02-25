@@ -132,9 +132,16 @@ func (c *TaskService) Kill(ctx context.Context, req *tasksv1.KillRequest) (*empt
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	err = c.app.Kill(ctx, uid)
-	if err != nil {
-		return nil, toStatus(err)
+	if req.GetForceKill() {
+		err = c.app.Kill(ctx, uid)
+		if err != nil {
+			return nil, toStatus(err)
+		}
+	} else {
+		err = c.app.Stop(ctx, uid)
+		if err != nil {
+			return nil, toStatus(err)
+		}
 	}
 	return &emptypb.Empty{}, toStatus(err)
 }
