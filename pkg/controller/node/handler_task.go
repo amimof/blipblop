@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/containerd/errdefs"
 	gocni "github.com/containerd/go-cni"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -114,29 +113,42 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
+
+		c.mu.Lock()
+		delete(c.epochs, taskID)
+		c.mu.Unlock()
+
+		_ = c.tokenStore.Delete(taskID)
 	}()
 
-	report := condition.NewForResource(task).As(c.node.GetMeta().GetUid())
+	report := condition.NewForResource(task).As(nodeID)
 
-	// Detach network
 	err = c.detachNetwork(ctx, task, report)
 	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	// Remove any previous tasks
-	err = c.runtime.Kill(ctx, task)
-	if err != nil {
-		return err
-	}
-
 	err = c.detachMounts(ctx, task, report)
-	if !errdefs.IsNotFound(err) {
+	if errs.IgnoreNotFound(err) != nil {
+		return nil
+	}
+
+	// Stop the task
+	err = c.runtime.Kill(ctx, task)
+	if errs.IgnoreNotFound(err) != nil {
 		return err
 	}
 
-	// Detach volumes
-	return c.deleteTask(ctx, task, report)
+	// Remove any previous tasks
+	err = c.deleteTask(ctx, task, report)
+	if errs.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonStopped))
+	_ = c.clientset.TaskV1().Status().SetReason(ctx, task.GetMeta().GetUid(), "")
+
+	return nil
 }
 
 func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {

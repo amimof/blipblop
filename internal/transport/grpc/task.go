@@ -132,16 +132,9 @@ func (c *TaskService) Kill(ctx context.Context, req *tasksv1.KillRequest) (*empt
 	if err != nil {
 		return nil, toStatus(err)
 	}
-	if req.GetForceKill() {
-		err = c.app.Kill(ctx, uid)
-		if err != nil {
-			return nil, toStatus(err)
-		}
-	} else {
-		err = c.app.Stop(ctx, uid)
-		if err != nil {
-			return nil, toStatus(err)
-		}
+	err = c.app.Kill(ctx, uid)
+	if err != nil {
+		return nil, toStatus(err)
 	}
 	return &emptypb.Empty{}, toStatus(err)
 }
@@ -158,7 +151,7 @@ func (c *TaskService) Start(ctx context.Context, req *tasksv1.StartRequest) (*em
 	return &emptypb.Empty{}, toStatus(err)
 }
 
-func (c *TaskService) Stop(ctx context.Context, req *tasksv1.StartRequest) (*emptypb.Empty, error) {
+func (c *TaskService) Stop(ctx context.Context, req *tasksv1.StopRequest) (*emptypb.Empty, error) {
 	uid, err := keys.FromUIDOrName(req.GetUid(), req.GetName())
 	if err != nil {
 		return nil, toStatus(err)
