@@ -150,12 +150,6 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
-	report := condition.NewForResource(task).As(nodeID)
-
-	err = c.detachNetwork(ctx, task, report)
-	if errs.IgnoreNotFound(err) != nil {
-		return err
-	}
 
 	// Release lease
 	defer func() {
@@ -174,6 +168,8 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 
 		_ = c.tokenStore.Delete(taskID)
 	}()
+
+	report := condition.NewForResource(task).As(nodeID)
 
 	err = c.detachNetwork(ctx, task, report)
 	if errs.IgnoreNotFound(err) != nil {
