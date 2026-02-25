@@ -32,6 +32,7 @@ type TaskServiceClient interface {
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Kill(ctx context.Context, in *KillRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error)
 	Condition(ctx context.Context, in *v1.ConditionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -116,6 +117,15 @@ func (c *taskServiceClient) Kill(ctx context.Context, in *KillRequest, opts ...g
 	return out, nil
 }
 
+func (c *taskServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/services.tasks.v1.TaskService/Stop", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *taskServiceClient) UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*UpdateStatusResponse, error) {
 	out := new(UpdateStatusResponse)
 	err := c.cc.Invoke(ctx, "/services.tasks.v1.TaskService/UpdateStatus", in, out, opts...)
@@ -146,6 +156,7 @@ type TaskServiceServer interface {
 	Delete(context.Context, *DeleteRequest) (*emptypb.Empty, error)
 	Start(context.Context, *StartRequest) (*emptypb.Empty, error)
 	Kill(context.Context, *KillRequest) (*emptypb.Empty, error)
+	Stop(context.Context, *StopRequest) (*emptypb.Empty, error)
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error)
 	Condition(context.Context, *v1.ConditionRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedTaskServiceServer()
@@ -178,6 +189,9 @@ func (UnimplementedTaskServiceServer) Start(context.Context, *StartRequest) (*em
 }
 func (UnimplementedTaskServiceServer) Kill(context.Context, *KillRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Kill not implemented")
+}
+func (UnimplementedTaskServiceServer) Stop(context.Context, *StopRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Stop not implemented")
 }
 func (UnimplementedTaskServiceServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*UpdateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
@@ -342,6 +356,24 @@ func _TaskService_Kill_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TaskService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskServiceServer).Stop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.tasks.v1.TaskService/Stop",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskServiceServer).Stop(ctx, req.(*StopRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TaskService_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateStatusRequest)
 	if err := dec(in); err != nil {
@@ -416,6 +448,10 @@ var TaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Kill",
 			Handler:    _TaskService_Kill_Handler,
+		},
+		{
+			MethodName: "Stop",
+			Handler:    _TaskService_Stop_Handler,
 		},
 		{
 			MethodName: "UpdateStatus",

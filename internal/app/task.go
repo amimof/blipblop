@@ -274,7 +274,7 @@ func (l *TaskService) Kill(ctx context.Context, id keys.ID) error {
 }
 
 func (l *TaskService) Stop(ctx context.Context, id keys.ID) error {
-	ctx, span := tracer.Start(ctx, "task.Kill")
+	ctx, span := tracer.Start(ctx, "task.Stop")
 	defer span.End()
 
 	task, err := l.Repo.Get(ctx, id)

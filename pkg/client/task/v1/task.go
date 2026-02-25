@@ -138,7 +138,7 @@ func (c *clientV1) Kill(ctx context.Context, id string) error {
 		return err
 	}
 
-	_, err = c.Client.Kill(ctx, &tasksv1.KillRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), ForceKill: true})
+	_, err = c.Client.Kill(ctx, &tasksv1.KillRequest{Uid: uid.UUIDStr(), Name: uid.NameStr()})
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (c *clientV1) Stop(ctx context.Context, id string) error {
 		return err
 	}
 
-	_, err = c.Client.Kill(ctx, &tasksv1.KillRequest{Uid: uid.UUIDStr(), Name: uid.NameStr(), ForceKill: false})
+	_, err = c.Client.Stop(ctx, &tasksv1.StopRequest{Uid: uid.UUIDStr(), Name: uid.NameStr()})
 	if err != nil {
 		return err
 	}

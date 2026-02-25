@@ -68,6 +68,12 @@ service TaskService {
       additional_bindings: {put: "/api/v1/tasks/{name}/kill"}
     };
   }
+  rpc Stop(StopRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/api/v1/tasks/{uid}/stop"
+      additional_bindings: {put: "/api/v1/tasks/{name}/stop"}
+    };
+  }
   rpc UpdateStatus(UpdateStatusRequest) returns (UpdateStatusResponse) {
     option (google.api.http) = {
       put: "/api/v1/tasks/{uid}/status"
@@ -268,7 +274,6 @@ message KillRequest {
   };
   string uid = 1 [(buf.validate.field).string.min_len = 1];
   string name = 2 [(buf.validate.field).string.min_len = 1];
-  bool forceKill = 3;
 }
 
 message UpdateStatusRequest {
