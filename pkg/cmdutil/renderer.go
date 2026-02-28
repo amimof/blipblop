@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"html/template"
 	"io"
 	"maps"
 	"regexp"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 	"unicode/utf8"
 
@@ -20,10 +20,7 @@ import (
 type Data map[string]any
 
 // Frames for the spinner
-var (
-	frames   = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
-	frameIdx = 0
-)
+var frames = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
 
 // Component describes how objects are rendered frame by frame
 type Component interface {
@@ -48,6 +45,7 @@ type App struct {
 	containers []*Container
 	done       chan struct{}
 	lastLines  int
+	frameIdx   int // current spinner frame; only written inside renderFrame under mu
 	mu         sync.Mutex
 	Writer     io.Writer
 	level      ColorLevel
@@ -81,27 +79,29 @@ type Style struct {
 	Attr color.Attribute
 }
 
-func (e *Element) spinner() string {
-	return fmt.Sprintf("%c", frames[frameIdx%len(frames)])
+func spinnerFrame(idx int) string {
+	return fmt.Sprintf("%c", frames[idx%len(frames)])
 }
 
-// Render implements [Renderer]
-func (e *Element) Render(d any) []byte {
-	buf := bytes.Buffer{}
-	b := bytes.NewBuffer(buf.Bytes())
+// Render implements [Renderer].
+// frameIdx is the current animation frame owned by the App; it is passed in
+// rather than read from a shared variable to avoid data races.
+func (e *Element) Render(d any, frameIdx int) []byte {
+	b := &bytes.Buffer{}
 
-	// Update spinner function for this frame
-	templateFuncs["spinner"] = func() string {
-		return e.spinner()
+	// Build a per-call FuncMap that overrides only the spinner function so we
+	// never mutate the shared templateFuncs map from multiple goroutines.
+	localFuncs := template.FuncMap{
+		"spinner": func() string {
+			return spinnerFrame(frameIdx)
+		},
 	}
 
-	err := e.Parsed.Funcs(templateFuncs).Execute(b, d)
+	err := e.Parsed.Funcs(localFuncs).Execute(b, d)
 	if err != nil {
 		return nil
 	}
 
-	// Advance frame tick
-	// e.frameIdx = (e.frameIdx + 1) % len(frames)
 	return b.Bytes()
 }
 
@@ -109,21 +109,6 @@ func (e *Element) Render(d any) []byte {
 // Always returns 1 since elements never span across multiple lines.
 func (e *Element) Count() int {
 	return 1
-}
-
-func (c *Container) contentWidth(data Data) int {
-	// Otherwise, calculate based on widest element
-	maxWidth := 0
-	for _, e := range c.elements {
-		b := e.Render(data)
-		stripped := stripANSI(string(b))
-		width := utf8.RuneCount([]byte(stripped))
-		if width > maxWidth {
-			maxWidth = width
-		}
-	}
-
-	return maxWidth
 }
 
 // applyBgColor wraps a string with background color ANSI codes
@@ -163,45 +148,55 @@ func (c *Container) applyBgColor(s string, max int) string {
 	return result
 }
 
-func (c *Container) RenderLines(data Data) []string {
+func (c *Container) RenderLines(data Data, frameIdx int) []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	lines := make([]string, 0, len(c.elements))
-	c.ContentWidth = c.contentWidth(data)
-
 	// Top padding
-	for i := 0; i < c.Padding[0]; i++ {
-		line := c.applyBgColor(string([]byte{}), c.Dimensions[0])
-		lines = append(lines, line)
+	topPad := c.Padding[0]
+	botPad := c.Padding[2]
+	lines := make([]string, 0, topPad+len(c.elements)+botPad)
+
+	// Render all elements in a single pass, building the merged data map once
+	// per element. Track max visible width as we go — no second render pass needed.
+	type renderedLine struct {
+		text     string
+		visWidth int
+	}
+	renderedLines := make([]renderedLine, len(c.elements))
+	c.ContentWidth = 0
+
+	for i, e := range c.elements {
+		d := make(map[string]any, len(data)+1)
+		maps.Copy(d, data)
+		d["Container"] = c.data
+
+		b := e.Render(d, frameIdx)
+		text := string(b)
+		vis := utf8.RuneCount([]byte(stripANSI(text)))
+		renderedLines[i] = renderedLine{text, vis}
+		if vis > c.ContentWidth {
+			c.ContentWidth = vis
+		}
 	}
 
-	// Content
-	for _, e := range c.elements {
+	// Top padding
+	for range topPad {
+		lines = append(lines, c.applyBgColor("", c.Dimensions[0]))
+	}
 
-		// Make a copy of app data
-		d := map[string]any{}
-		maps.Copy(d, data)
-
-		d["Container"] = c.data
-		b := e.Render(d)
-		padded := fmt.Sprintf("  %s  ", string(b))
+	// Content — apply padding and truncation to the already-rendered text
+	for _, r := range renderedLines {
+		padded := fmt.Sprintf("  %s  ", r.text)
 		if len(padded) >= c.Dimensions[0] {
 			padded = truncateWithEllipsis(padded, c.Dimensions[0])
 		}
-
-		line := c.applyBgColor(string(padded), c.Dimensions[0])
-		lines = append(lines, line)
-
-		// Advance frame tick
-		// e.frameIdx = c.frameIdx
-
+		lines = append(lines, c.applyBgColor(padded, c.Dimensions[0]))
 	}
 
 	// Bottom padding
-	for i := 0; i < c.Padding[2]; i++ {
-		line := c.applyBgColor(string([]byte{}), c.Dimensions[0])
-		lines = append(lines, line)
+	for range botPad {
+		lines = append(lines, c.applyBgColor("", c.Dimensions[0]))
 	}
 
 	return lines
@@ -229,12 +224,12 @@ func (c *Container) UpdateMetadata(key string, value any) {
 }
 
 // Render implements [Renderer]
-func (c *Container) Render(data Data) []byte {
+func (c *Container) Render(data Data, frameIdx int) []byte {
 	buf := bytes.Buffer{}
 	by := bytes.NewBuffer(buf.Bytes())
 
 	for _, e := range c.elements {
-		b := e.Render(data)
+		b := e.Render(data, frameIdx)
 		_, err := by.Write(b)
 		if err != nil {
 			panic(err)
@@ -256,7 +251,7 @@ func (a *App) Render() []byte {
 	buf := bytes.Buffer{}
 	by := bytes.NewBuffer(buf.Bytes())
 	for _, c := range a.containers {
-		b := c.Render(a.data)
+		b := c.Render(a.data, a.frameIdx)
 		_, err := by.Write(b)
 		if err != nil {
 			panic(err)
@@ -275,14 +270,14 @@ func (a *App) renderFrame() {
 		_, _ = fmt.Fprintf(a.Writer, "\033[%dA", a.lastLines)
 	}
 
-	// Advance spinner by one tick
-	frameIdx = (frameIdx + 1) % len(frames)
+	// Advance spinner by one tick (safe: only written here, under a.mu)
+	a.frameIdx = (a.frameIdx + 1) % len(frames)
 
 	linesThisFrame := 0
 	// Render each container
 	for _, container := range a.containers {
 		// Get rendered lines from container
-		lines := container.RenderLines(a.data)
+		lines := container.RenderLines(a.data, a.frameIdx)
 
 		// Write each line with proper clearing
 		for _, line := range lines {
@@ -304,6 +299,8 @@ func (a *App) renderFrame() {
 
 // Loop renders the app each frame
 func (a *App) Loop(ctx context.Context) {
+	defer close(a.done)
+
 	// Calculate total lines needed
 	totalLines := a.Count()
 
@@ -347,16 +344,10 @@ func (a *App) Wait() {
 	<-a.done
 }
 
-// WaitAnd blocks until Loop finishes and executes the provided function when done
+// WaitAnd blocks until Loop finishes and then calls fn.
 func (a *App) WaitAnd(fn func()) {
-	go func() {
-		for {
-			time.Sleep(200 * time.Millisecond)
-			fn()
-			return
-		}
-	}()
 	a.Wait()
+	fn()
 }
 
 func (a *App) WithLevel(l ColorLevel) *App {
@@ -440,17 +431,16 @@ func stripANSI(s string) string {
 }
 
 // truncateWithEllipsis truncates a string to maxWidth, accounting for ANSI codes.
-// If truncated, adds "..." at the end (within the width limit).
-// Example: truncateWithEllipsis("very-long-name", 10) => "very-lo..."
+// If truncated, appends an ellipsis within the width limit.
+// Strings that already fit are returned unchanged.
+// Example: truncateWithEllipsis("very-long-name", 10) => "very-lo…  "
 func truncateWithEllipsis(s string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return s // No limit
 	}
 
-	visible := visibleLength(s)
-	if visible <= maxWidth {
-		return fmt.Sprintf("%s%s", s, strings.Repeat(" ", maxWidth-visible))
-		// return s // Fits within limit
+	if visibleLength(s) <= maxWidth {
+		return s // Fits — no padding here; callers handle alignment separately
 	}
 
 	// Need to truncate
@@ -459,7 +449,7 @@ func truncateWithEllipsis(s string, maxWidth int) string {
 		return truncateToWidth(s, maxWidth)
 	}
 
-	// Truncate to (maxWidth - 3) and add "..."
+	// Truncate to (maxWidth - 3) and add ellipsis
 	truncated := truncateToWidth(s, maxWidth-3)
 	return truncated + "…  "
 }
