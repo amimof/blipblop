@@ -16,6 +16,29 @@ import (
 
 type Color string
 
+// Field identifies a detail line that can be shown per task entry in the dashboard.
+type Field int
+
+const (
+	FieldPhase Field = iota
+	FieldNode
+	FieldPid
+	FieldID
+	FieldImage
+)
+
+// fieldTemplate maps each Field to its Go template string.
+var fieldTemplate = map[Field]string{
+	FieldPhase: `  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`,
+	FieldNode:  `  Node: {{ .Container.Node }}`,
+	FieldPid:   `  Pid: {{ .Container.Pid }}`,
+	FieldID:    `  ID: {{ .Container.ID | FgBlue }}`,
+	FieldImage: `  Image: {{ .Container.Image | FgBlue }}`,
+}
+
+// defaultFields is the ordered set of fields shown when WithFields is not called.
+var defaultFields = []Field{FieldPhase, FieldNode, FieldPid, FieldID, FieldImage}
+
 type Option func(*Dashboard)
 
 // WithWriter assigns a io.Writer that the Dashboard will render to.
@@ -36,15 +59,6 @@ func WithFlushFunc(f func()) Option {
 	}
 }
 
-// // WithDefaultText sets the text before UpdateText is called
-// func WithDefaultText(text string) Option {
-// 	return func(d *Dashboard) {
-// 		for _, s := range d.services {
-// 			s.Text = text
-// 		}
-// 	}
-// }
-
 // WithEmptyText sets the text to display when the list of services is empty
 func WithEmptyText(text string) Option {
 	return func(d *Dashboard) {
@@ -53,12 +67,6 @@ func WithEmptyText(text string) Option {
 	}
 }
 
-// func WithFormat(fmt string) Option {
-// 	return func(d *Dashboard) {
-// 		d.formatStr = fmt
-// 	}
-// }
-
 // WithHeader sets a header line that will be rendered once at the start
 func WithHeader(header string) Option {
 	return func(d *Dashboard) {
@@ -66,12 +74,16 @@ func WithHeader(header string) Option {
 	}
 }
 
-// WithMaxServices sets a limit of how many services can be displayed on each render frame.
-// func WithMaxServices(max int) Option {
-// 	return func(d *Dashboard) {
-// 		d.maxServices = max
-// 	}
-// }
+// WithFields sets which detail fields are displayed beneath each task entry.
+// Fields are rendered in the order they appear in defaultFields regardless of
+// the order they are passed here.
+// If WithFields is not called, all fields are shown (equivalent to passing all
+// Field constants).
+func WithFields(fields ...Field) Option {
+	return func(d *Dashboard) {
+		d.fields = fields
+	}
+}
 
 // ServiceState represents One line in the dashboard
 type ServiceState struct {
@@ -81,9 +93,6 @@ type ServiceState struct {
 	FailedMsg string
 	task      *tasksv1.Task
 	container *Container
-
-	// failedIcon  string
-	// successIcon string
 }
 
 // Dashboard holds all services + rendering logic
@@ -94,6 +103,7 @@ type Dashboard struct {
 	done      chan struct{}
 	flushFunc func()
 	emptyText string
+	fields    []Field // detail fields to display per task; nil means all fields
 	app       *App
 }
 
@@ -226,101 +236,6 @@ func (d *Dashboard) Loop(ctx context.Context) {
 	d.app.Loop(ctx)
 }
 
-// parseColumns parses a format string into column specifications.
-// Example: "{{ .Name }}|20|{{ .Text }}|15|{{ .Status }}"
-// Returns columns and whether column syntax was detected.
-// func parseColumns(formatStr string) ([]Column, bool) {
-// 	// Check if format uses column syntax (contains |digit|)
-// 	if !regexp.MustCompile(`\|\d+\|?`).MatchString(formatStr) {
-// 		return nil, false // Not using column syntax
-// 	}
-//
-// 	var columns []Column
-//
-// 	// Split by pipe to find column boundaries
-// 	// Pattern: template|width|template|width|template
-// 	parts := strings.Split(formatStr, "|")
-//
-// 	var currentTemplate strings.Builder
-//
-// 	for i := range parts {
-// 		part := parts[i]
-//
-// 		// Check if this part is a width specification (pure number)
-// 		part = strings.TrimSpace(part)
-// 		if width, err := strconv.Atoi(part); err == nil {
-// 			// This is a width spec, save current column
-// 			if currentTemplate.Len() > 0 {
-// 				columns = append(columns, Column{
-// 					Template: strings.TrimSpace(currentTemplate.String()),
-// 					Width:    width,
-// 				})
-// 				currentTemplate.Reset()
-// 			}
-// 		} else {
-// 			// This is template content
-// 			if currentTemplate.Len() > 0 {
-// 				currentTemplate.WriteString("|") // Restore pipe within template
-// 			}
-// 			currentTemplate.WriteString(part)
-// 		}
-// 	}
-//
-// 	// Handle last column (may not have trailing |width)
-// 	if currentTemplate.Len() > 0 {
-// 		columns = append(columns, Column{
-// 			Template: strings.TrimSpace(currentTemplate.String()),
-// 			Width:    0, // Last column unlimited by default
-// 		})
-// 	}
-//
-// 	return columns, len(columns) > 0
-// }
-
-// renderServiceWithColumns renders a ServiceState using column-based formatting.
-// Each column is rendered independently, truncated to its max width, and concatenated.
-// func (d *Dashboard) renderServiceWithColumns(s *ServiceState) (string, error) {
-// 	var result strings.Builder
-// 	for i, col := range d.columns {
-// 		content, err := d.renderCol(col, s)
-// 		if err != nil {
-// 			return "", fmt.Errorf("col %d render error: %w", i, err)
-// 		}
-// 		result.WriteString(content)
-// 	}
-// 	return result.String(), nil
-// }
-//
-// func (d *Dashboard) renderHeaderWithColumns() (string, error) {
-// 	var result strings.Builder
-// 	for i, col := range d.headerCols {
-// 		content, err := d.renderCol(col, d)
-// 		if err != nil {
-// 			return "", fmt.Errorf("col %d render error: %w", i, err)
-// 		}
-// 		result.WriteString(content)
-// 	}
-// 	return result.String(), nil
-// }
-//
-// func (d *Dashboard) renderCol(c Column, data any) (string, error) {
-// 	var buf bytes.Buffer
-// 	err := c.Parsed.Funcs(templateFuncs).Execute(&buf, data)
-// 	if err != nil {
-// 		return "", fmt.Errorf("column execution error: %w", err)
-// 	}
-//
-// 	content := buf.String()
-//
-// 	// Truncate to column width if specified
-// 	if c.Width > 0 {
-// 		content = truncateWithEllipsis(content, c.Width)
-// 		// Pad to exact width (for alignment)
-// 		content = padRight(content, c.Width)
-// 	}
-// 	return content, nil
-// }
-
 // IsDone return true if all services in the Dashboard is marked as done
 func (d *Dashboard) IsDone() bool {
 	d.mu.Lock()
@@ -350,6 +265,32 @@ func NewDashboard(names []string, opts ...Option) (*Dashboard, error) {
 		map[string]any{},
 	)
 
+	// Build a partial Dashboard and apply options first so that d.fields is
+	// known before we construct the per-task containers.
+	d := &Dashboard{
+		Name:      "Name",
+		done:      make(chan struct{}),
+		flushFunc: func() {},
+		emptyText: "Waiting",
+		app:       app,
+	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	// Resolve effective field set: nil means "all fields" (default behaviour).
+	activeFields := d.fields
+	if activeFields == nil {
+		activeFields = defaultFields
+	}
+
+	// Build a set for O(1) membership checks, preserving defaultFields order.
+	fieldSet := make(map[Field]struct{}, len(activeFields))
+	for _, f := range activeFields {
+		fieldSet[f] = struct{}{}
+	}
+
 	svcs := make([]*ServiceState, len(names))
 	for i, n := range names {
 		data := map[string]any{
@@ -364,16 +305,22 @@ func NewDashboard(names []string, opts ...Option) (*Dashboard, error) {
 			"ID":        "",
 			"Image":     "",
 		}
+
+		// Status line is always present.
+		elements := []*Element{
+			NewElement(`{{ if .Container.Failed }}{{"✖" | FgRed }} {{ .Container.FailedMsg | FgRed }}{{else if .Container.Done }}{{ "✔" | FgGreen }} {{ .Container.DoneMsg | FgGreen }}{{else}}{{ spinner | FgYellow }} {{ .Prefix }} {{ .Container.Name | Bold }}{{end}}`),
+		}
+
+		// Append one element per active field, in defaultFields order.
+		for _, f := range defaultFields {
+			if _, ok := fieldSet[f]; ok {
+				elements = append(elements, NewElement(fieldTemplate[f]))
+			}
+		}
+
 		svc := &ServiceState{
 			task: &tasksv1.Task{Meta: &types.Meta{Name: n}},
-			container: NewContainer(data,
-				NewElement(`{{ if .Container.Failed }}{{"✖" | FgRed }} {{ .Container.FailedMsg | FgRed }}{{else if .Container.Done }}{{ "✔" | FgGreen }} {{ .Container.DoneMsg | FgGreen }}{{else}}{{ spinner | FgYellow }} {{ .Prefix }} {{ .Container.Name | Bold }}{{end}}`),
-				NewElement(`  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`),
-				NewElement(`  Node: {{ .Container.Node }}`),
-				NewElement(`  Pid: {{ .Container.Pid }}`),
-				NewElement(`  ID: {{ .Container.ID | FgBlue }}`),
-				NewElement(`  Image: {{ .Container.Image | FgBlue }}`),
-			).WithLayout(Layout{
+			container: NewContainer(data, elements...).WithLayout(Layout{
 				Dimensions: [2]int{width, height},
 				Padding:    [4]int{0, 1, 0, 1},
 			}).WithStyle(Style{
@@ -385,18 +332,7 @@ func NewDashboard(names []string, opts ...Option) (*Dashboard, error) {
 		svcs[i] = svc
 	}
 
-	d := &Dashboard{
-		Name:      "Name",
-		services:  svcs,
-		done:      make(chan struct{}),
-		flushFunc: func() {},
-		emptyText: "Waiting",
-		app:       app,
-	}
-
-	for _, opt := range opts {
-		opt(d)
-	}
+	d.services = svcs
 
 	return d, nil
 }

@@ -96,7 +96,7 @@ voiydctl stop task --all`,
 			// Send stop or kill for each task in args and wait for them all to stop
 			if viper.GetBool("wait") {
 
-				dash, err := cmdutil.NewDashboard(tasks, cmdutil.WithHeader("Stopping task"))
+				dash, err := cmdutil.NewDashboard(tasks, cmdutil.WithHeader("Stopping task"), cmdutil.WithFields(cmdutil.FieldPhase, cmdutil.FieldNode))
 				if err != nil {
 					logrus.Fatal(err)
 				}
