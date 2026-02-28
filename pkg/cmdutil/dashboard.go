@@ -28,12 +28,14 @@ const (
 )
 
 // fieldTemplate maps each Field to its Go template string.
+// Detail lines are suppressed when the entry is in a terminal state (failed or
+// done) so that only the status line remains visible.
 var fieldTemplate = map[Field]string{
-	FieldPhase: `  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}`,
-	FieldNode:  `  Node: {{ .Container.Node }}`,
-	FieldPid:   `  Pid: {{ .Container.Pid }}`,
-	FieldID:    `  ID: {{ .Container.ID | FgBlue }}`,
-	FieldImage: `  Image: {{ .Container.Image | FgBlue }}`,
+	FieldPhase: `{{- if and (not .Container.Failed) (not .Container.Done) }}  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}{{- end}}`,
+	FieldNode:  `{{- if and (not .Container.Failed) (not .Container.Done) }}  Node: {{ .Container.Node }}{{- end}}`,
+	FieldPid:   `{{- if and (not .Container.Failed) (not .Container.Done) }}  Pid: {{ .Container.Pid }}{{- end}}`,
+	FieldID:    `{{- if and (not .Container.Failed) (not .Container.Done) }}  ID: {{ .Container.ID | FgBlue }}{{- end}}`,
+	FieldImage: `{{- if and (not .Container.Failed) (not .Container.Done) }}  Image: {{ .Container.Image | FgBlue }}{{- end}}`,
 }
 
 // defaultFields is the ordered set of fields shown when WithFields is not called.

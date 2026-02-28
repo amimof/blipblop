@@ -157,7 +157,7 @@ voiydctl run nginx --image=docker.io/library/nginx:latest -p 8080:80 --user 1024
 						dash.SetTask(idx, task)
 
 						if condition.Reason(task.GetStatus().GetPhase().GetValue()) == condition.ReasonRunning {
-							dash.DoneMsg(idx, "Started task successfully")
+							dash.DoneMsg(idx, fmt.Sprintf("%s started successfully", tname))
 							return
 						}
 
