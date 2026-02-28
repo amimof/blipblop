@@ -132,7 +132,7 @@ voiydctl stop task --all`,
 							dash.SetTask(idx, task)
 
 							if condition.Reason(task.GetStatus().GetPhase().GetValue()) == condition.ReasonStopped {
-								dash.DoneMsg(idx, "Stopped task successfully")
+								dash.DoneMsg(idx, fmt.Sprintf("%s stopped successfully", cname))
 								return
 							}
 

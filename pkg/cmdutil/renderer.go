@@ -185,8 +185,13 @@ func (c *Container) RenderLines(data Data, frameIdx int) []string {
 		lines = append(lines, c.applyBgColor("", c.Dimensions[0]))
 	}
 
-	// Content — apply padding and truncation to the already-rendered text
+	// Content — apply padding and truncation to the already-rendered text.
+	// Elements that render to empty/whitespace are skipped entirely so they
+	// don't leave blank rows (e.g. detail fields suppressed on failure/done).
 	for _, r := range renderedLines {
+		if strings.TrimSpace(stripANSI(r.text)) == "" {
+			continue
+		}
 		padded := fmt.Sprintf("  %s  ", r.text)
 		if len(padded) >= c.Dimensions[0] {
 			padded = truncateWithEllipsis(padded, c.Dimensions[0])
@@ -265,7 +270,8 @@ func (a *App) Render() []byte {
 func (a *App) renderFrame() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	// Move cursor up to start position (if not first frame)
+
+	// Move cursor up to the start of the last frame's output
 	if a.lastLines > 0 {
 		_, _ = fmt.Fprintf(a.Writer, "\033[%dA", a.lastLines)
 	}
@@ -274,26 +280,21 @@ func (a *App) renderFrame() {
 	a.frameIdx = (a.frameIdx + 1) % len(frames)
 
 	linesThisFrame := 0
-	// Render each container
 	for _, container := range a.containers {
-		// Get rendered lines from container
 		lines := container.RenderLines(a.data, a.frameIdx)
-
-		// Write each line with proper clearing
 		for _, line := range lines {
-			// Clear current line + return to column 0
-			_, _ = fmt.Fprint(a.Writer, "\033[2K\r")
-
-			// Write line content
+			_, _ = fmt.Fprint(a.Writer, "\033[2K\r") // clear line + return to col 0
 			_, _ = fmt.Fprint(a.Writer, line)
-
-			// Move to next line
 			_, _ = fmt.Fprint(a.Writer, "\n")
-
 			linesThisFrame++
 		}
 	}
-	// Store line count for next frame
+
+	// Erase everything below the last written line. This cleans up any surplus
+	// lines from a previous frame that had more lines than this one (e.g. after
+	// detail fields collapse on done/failure).
+	_, _ = fmt.Fprint(a.Writer, "\033[J")
+
 	a.lastLines = linesThisFrame
 }
 
@@ -301,16 +302,10 @@ func (a *App) renderFrame() {
 func (a *App) Loop(ctx context.Context) {
 	defer close(a.done)
 
-	// Calculate total lines needed
-	totalLines := a.Count()
-
-	// Pre-allocate space for rendering
-	for range totalLines {
-		_, _ = fmt.Fprintln(a.Writer)
-	}
-
-	// Set initial line count
-	a.lastLines = totalLines
+	// Start with no pre-allocated space. The first renderFrame call will write
+	// lines downward from the current cursor position. \033[J in renderFrame
+	// cleans up any surplus from previous frames.
+	a.lastLines = 0
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()

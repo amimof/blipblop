@@ -111,7 +111,7 @@ func NewCmdStartTask(cfg *client.Config) *cobra.Command {
 							dash.SetTask(idx, task)
 
 							if condition.Reason(task.GetStatus().GetPhase().GetValue()) == condition.ReasonRunning {
-								dash.DoneMsg(idx, "Started task successfully")
+								dash.DoneMsg(idx, fmt.Sprintf("%s started successfully", cname))
 								return
 							}
 
