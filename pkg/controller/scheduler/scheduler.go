@@ -265,8 +265,12 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	reporter := condition.NewReportFor(task)
 
 	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
-	if err != nil {
+	if errs.IgnoreNotFound(err) != nil {
 		return err
+	}
+	if lease == nil {
+		c.logger.Info("no lease found for task, nothing to kill", "task", task.GetMeta().GetName())
+		return nil
 	}
 
 	node, err := c.clientset.NodeV1().Get(ctx, lease.GetConfig().GetNodeId())
@@ -301,6 +305,10 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	lease, err := c.clientset.LeaseV1().Get(ctx, task.GetMeta().GetUid())
 	if errs.IgnoreNotFound(err) != nil {
 		return err
+	}
+	if lease == nil {
+		c.logger.Info("no lease found for task, nothing to stop", "task", task.GetMeta().GetName())
+		return nil
 	}
 
 	node, err := c.clientset.NodeV1().Get(ctx, lease.GetConfig().GetNodeId())

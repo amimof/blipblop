@@ -178,7 +178,7 @@ func ParseStr(in string) (ID, error) {
 	if uid, err := FromUIDOrName("", in); err == nil {
 		return uid, nil
 	}
-	return ID{}, fmt.Errorf("error parsing %s as uid", in)
+	return ID{}, fmt.Errorf("error parsing %q as uid", in)
 }
 
 // FromUIDOrName creates a ID from the provded strings. Prioritizes UIDs
