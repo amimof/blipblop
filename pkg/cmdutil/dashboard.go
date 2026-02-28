@@ -2,10 +2,10 @@ package cmdutil
 
 import (
 	"context"
-	"html/template"
 	"io"
 	"os"
 	"sync"
+	"text/template"
 	"time"
 
 	"golang.org/x/term"

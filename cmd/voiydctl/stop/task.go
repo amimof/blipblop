@@ -110,12 +110,12 @@ voiydctl stop task --all`,
 						dash.FailAfterMsg(idx, waitTimeout, "timeout reached")
 						if viper.GetBool("force") {
 							if err = c.TaskV1().Kill(ctx, cname); err != nil {
-								fmt.Printf("Error stopping task: %v", err)
+								dash.FailMsg(idx, err.Error())
 								return
 							}
 						} else {
 							if err = c.TaskV1().Stop(ctx, cname); err != nil {
-								fmt.Printf("Error stopping task: %v", err)
+								dash.FailMsg(idx, err.Error())
 								return
 							}
 						}
@@ -125,7 +125,7 @@ voiydctl stop task --all`,
 
 							task, werr := c.TaskV1().Get(ctx, taskID)
 							if werr != nil {
-								fmt.Printf("Error stopping task: %v", err)
+								dash.FailMsg(idx, err.Error())
 								return
 							}
 
