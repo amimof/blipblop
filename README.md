@@ -16,11 +16,14 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/amimof/voiyd)](https://goreportcard.com/report/github.com/amimof/voiyd)
 ![License: Apache-2.0](https://img.shields.io/github/license/kyverno/kyverno?color=blue)
 
-Voiyd is a lightweight container orchestration platform with a central server and agent nodes. It lets you schedule and manage containers across many number of arbitrary Linux hosts using a simple CLI. It’s designed to be small, understandable, and easy to run on your own infrastructure.
+Voiyd is a lightweight container orchestration platform for managing workloads centrally across Linux infrastructure. It helps you run and manage containers with a simple CLI and declarative configuration.
+
+The project grew out of a practical problem in my own homelab. I have many Linux hosts with very different hardware profiles, most of them cheap low-resource ARM devices, spread across locations, often behind NAT and firewalls, and sometimes connected over higher-latency links. I wanted something centrally managed, easy to understand, and straightforward to operate on my own terms.
 
 > **Note**: This project is under active early development and unstable. Features, APIs, and behavior are subject to change at any time and may not be backwards compatible between versions. Expect breaking changes.
 
 <!--toc:start-->
+- [Why voiyd exists](#why-voiyd-exists)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Components](#components)
@@ -28,6 +31,11 @@ Voiyd is a lightweight container orchestration platform with a central server an
 - [License](#license)
 - [Contributing](#contributing)
 <!--toc:end-->
+
+## Why voiyd exists
+
+voiyd started as a way to solve orchestration for my own infrastructure. I have many Linux servers with very different hardware configuration, and most of them are cheap ARM devices with limited resources. They are spread across different locations, often behind NAT and firewalls where opening inbound access is not an option, and the links between them have fairly high latency. I wanted a way to manage everything centrally, keep the workflow simple through a CLI, and still define infrastructure declaratively. voiyd exists to support that kind of environment. Centrally managed orchestration that stays lightweight, understandable, and practical.
+
 ## Features
 
 - **Central control plane**: voiyd-server provides the API and manages cluster state.
@@ -55,7 +63,6 @@ Voiyd is a lightweight container orchestration platform with a central server an
   - Stores cluster state using pluggable storage backends (BadgerDB, in-memory)
   - Handles task scheduling and placement decisions
   - Manages cluster events and log streaming
-  - Supports state replication for redundancy (in development)
 - `voiyd-node`  
   - Runs on each node.
   - Subscribes to events and executes tasks
@@ -70,7 +77,7 @@ Voiyd is a lightweight container orchestration platform with a central server an
 
 ## Getting Started
 
-See the [Quick Start Guide](/docs/quick-start.md) on how to setup and run voiyd clusters. See the full [Documentation](/docs/README.md) for more information.
+See the [Quick Start Guide](/docs/quick-start.md) to set up your first cluster and run your first workload. See the full [Documentation](/docs/README.md) for installation and usage details.
 
 ## License
 
