@@ -9,3 +9,4 @@ Home of the documentation. Here you will hopefully find everything you need to k
   - [Installing the CLI](/docs/installation/install-cli.md)
 - Configuration
 - Usage
+- [Recipies](/docs/recipies/README.md)

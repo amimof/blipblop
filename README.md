@@ -79,6 +79,13 @@ voiyd started as a way to solve orchestration for my own infrastructure. I have 
 
 See the [Quick Start Guide](/docs/quick-start.md) to set up your first cluster and run your first workload. See the full [Documentation](/docs/README.md) for installation and usage details.
 
+## Planned Features
+
+- Node interaction via CLI: Interact directly with nodes through the CLI, similar to the operational model used by Talos.
+- Private service discovery: Provide service discovery between workloads over a private network connecting all nodes. Services should be able to locate and communicate with each other regardless of where they run.
+- Node telemetry and sensors: Expose hardware and system telemetry from nodes through the API. This may include metrics, sensor data, and other device-level information useful for monitoring or scheduling.
+- Git-synchronized configuration: Allow infrastructure configuration to be synchronized directly from a Git repository. Built-in templating will support generating environment-specific configurations from a single source of truth.
+
 ## License
 
 voiyd is licensed under the Apache License, Version 2.0.
@@ -86,4 +93,6 @@ See the [`LICENSE`](./LICENSE) file for details.
 
 ## Contributing
 
-See the [Contribution Guide](/CONTRIBUTING.md)
+Voiyd is still evolving, so feedback and ideas are very welcome. If something is unclear, missing, or could work better, feel free to open an issue or start a discussion. Suggestions, design feedback, and pull requests are all appreciated 💜
+
+If you feel like contributing then have a look at the [Contribution Guide](/CONTRIBUTING.md)
