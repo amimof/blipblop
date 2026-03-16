@@ -40,7 +40,17 @@ func (l *LeaseService) Acquire(ctx context.Context, taskID ResourceID, nodeID Ho
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.Manager.Acquire(ctx, taskID, nodeID, time.Duration(l.LeaseTTL))
+	lease, token, err := l.Manager.Acquire(ctx, taskID, nodeID, time.Duration(l.LeaseTTL))
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Publish LeaseAcquired so the lease controller can start tracking expiry
+	if err := l.Exchange.Publish(ctx, events.NewEvent(events.LeaseAcquiered, lease)); err != nil {
+		l.Logger.Error("error publishing LeaseAcquired event", "error", err, "task", string(taskID))
+	}
+
+	return lease, token, nil
 }
 
 func (l *LeaseService) Revoke(ctx context.Context, taskID ResourceID, holderID HolderID) error {
