@@ -49,6 +49,11 @@ type Controller struct {
 	mu               sync.Mutex
 	workPool         *queue.WorkPool
 	publisher        condition.Publisher
+	// operations tracks tasks that have a lifecycle operation (start/stop/kill) in
+	// progress. Runtime event handlers check this map to avoid overwriting the phase
+	// with stale values while the owning handler is still running.
+	operations   map[string]condition.Reason
+	operationsMu sync.RWMutex
 }
 
 func WithLeaseRenewalInterval(d time.Duration) NewOption {
@@ -345,6 +350,7 @@ func New(c *client.ClientSet, n *nodesv1.Node, rt runtime.Runtime, opts ...NewOp
 		renewInterval:    time.Second * 30,
 		conditions:       make(chan *typesv1.ConditionReport),
 		epochs:           make(map[string]uint64),
+		operations:       make(map[string]condition.Reason),
 		workPool: queue.NewPool(
 			queue.NewTaskQueue(),
 			queue.WithMaxWorkers(2),

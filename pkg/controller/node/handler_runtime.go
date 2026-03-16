@@ -106,8 +106,17 @@ func (c *Controller) onRuntimeTaskExit(ctx context.Context, obj *eventsv1.Event)
 
 	c.Report(taskReport)
 
-	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonStopped))
-	_ = c.clientset.TaskV1().Status().SetReason(ctx, task.GetMeta().GetUid(), exitStatus)
+	// Only update the phase if this exit was not triggered by an intentional stop/kill.
+	// When stopTask/killTask is in progress it owns the final phase update.
+	// During startTask re-provisioning, the exit is transient and should be suppressed.
+	c.operationsMu.RLock()
+	_, inProgress := c.operations[task.GetMeta().GetUid()]
+	c.operationsMu.RUnlock()
+
+	if !inProgress {
+		_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonStopped))
+		_ = c.clientset.TaskV1().Status().SetReason(ctx, task.GetMeta().GetUid(), exitStatus)
+	}
 
 	return nil
 }
@@ -143,7 +152,17 @@ func (c *Controller) onRuntimeTaskDelete(ctx context.Context, obj *eventsv1.Even
 
 	c.Report(taskReport)
 
-	_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonDeleted))
+	// Only set phase to "Deleted" when the deletion was unexpected (not triggered
+	// by an intentional stop/kill or startTask re-provisioning). If stopTask or
+	// killTask is in progress they own the final phase and will set it to "Stopped".
+	// During startTask the delete is transient; it will set "Running" on success.
+	c.operationsMu.RLock()
+	_, inProgress := c.operations[task.GetMeta().GetUid()]
+	c.operationsMu.RUnlock()
+
+	if !inProgress {
+		_ = c.clientset.TaskV1().Status().SetPhase(ctx, task.GetMeta().GetUid(), string(condition.ReasonDeleted))
+	}
 
 	return nil
 }
