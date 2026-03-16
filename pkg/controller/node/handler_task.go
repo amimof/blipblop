@@ -103,8 +103,21 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
 
-	// Release lease
+	// Mark task as intentionally stopping so runtime events don't override the phase.
+	c.operationsMu.Lock()
+	c.operations[taskID] = condition.ReasonStopping
+	c.operationsMu.Unlock()
+
+	// Release lease and clear operations marker when done
 	defer func() {
+		c.operationsMu.Lock()
+		delete(c.operations, taskID)
+		c.operationsMu.Unlock()
+
+		c.mu.Lock()
+		delete(c.epochs, taskID)
+		c.mu.Unlock()
+
 		refreshToken, err := c.tokenStore.Load(taskID)
 		if err != nil {
 			return
@@ -113,10 +126,6 @@ func (c *Controller) killTask(ctx context.Context, task *tasksv1.Task) error {
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
-
-		c.mu.Lock()
-		delete(c.epochs, taskID)
-		c.mu.Unlock()
 
 		_ = c.tokenStore.Delete(taskID)
 	}()
@@ -163,8 +172,21 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 	taskID := task.GetMeta().GetUid()
 	nodeID := node.GetMeta().GetUid()
 
-	// Release lease
+	// Mark task as intentionally stopping so runtime events don't override the phase.
+	c.operationsMu.Lock()
+	c.operations[taskID] = condition.ReasonStopping
+	c.operationsMu.Unlock()
+
+	// Release lease and clear operations marker when done
 	defer func() {
+		c.operationsMu.Lock()
+		delete(c.operations, taskID)
+		c.operationsMu.Unlock()
+
+		c.mu.Lock()
+		delete(c.epochs, taskID)
+		c.mu.Unlock()
+
 		refreshToken, err := c.tokenStore.Load(taskID)
 		if err != nil {
 			return
@@ -173,10 +195,6 @@ func (c *Controller) stopTask(ctx context.Context, task *tasksv1.Task) error {
 		if err != nil {
 			c.logger.Warn("unable to release lease", "error", err, "task", taskID, "nodeID", nodeID)
 		}
-
-		c.mu.Lock()
-		delete(c.epochs, taskID)
-		c.mu.Unlock()
 
 		_ = c.tokenStore.Delete(taskID)
 	}()
@@ -435,6 +453,20 @@ func (c *Controller) startTask(ctx context.Context, task *tasksv1.Task) (err err
 
 	ctx, span := c.tracer.Start(ctx, "controller.node.OnTaskStart")
 	defer span.End()
+
+	taskID := task.GetMeta().GetUid()
+
+	// Mark as starting so runtime exit/delete events fired during re-provisioning
+	// (delete old container → run new one) don't overwrite the phase.
+	c.operationsMu.Lock()
+	c.operations[taskID] = condition.ReasonStarting
+	c.operationsMu.Unlock()
+
+	defer func() {
+		c.operationsMu.Lock()
+		delete(c.operations, taskID)
+		c.operationsMu.Unlock()
+	}()
 
 	defer func() {
 		if err != nil {

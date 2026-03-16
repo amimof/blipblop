@@ -25,21 +25,21 @@ const (
 	FieldPid
 	FieldID
 	FieldImage
+	FieldReason
 )
 
 // fieldTemplate maps each Field to its Go template string.
 // Detail lines are suppressed when the entry is in a terminal state (failed or
 // done) so that only the status line remains visible.
 var fieldTemplate = map[Field]string{
-	FieldPhase: `{{- if and (not .Container.Failed) (not .Container.Done) }}  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}{{- end}}`,
-	FieldNode:  `{{- if and (not .Container.Failed) (not .Container.Done) }}  Node: {{ .Container.Node }}{{- end}}`,
-	FieldPid:   `{{- if and (not .Container.Failed) (not .Container.Done) }}  Pid: {{ .Container.Pid }}{{- end}}`,
-	FieldID:    `{{- if and (not .Container.Failed) (not .Container.Done) }}  ID: {{ .Container.ID | FgBlue }}{{- end}}`,
-	FieldImage: `{{- if and (not .Container.Failed) (not .Container.Done) }}  Image: {{ .Container.Image | FgBlue }}{{- end}}`,
+	FieldPhase:  `{{- if and (not .Container.Failed) (not .Container.Done) }}  Phase: {{ if eq .Container.Phase "Running" }}{{ .Container.Phase | FgGreen }}{{else}}{{ .Container.Phase | FgYellow }}{{end}}{{- end}}`,
+	FieldNode:   `  Node: {{ .Container.Node }}`,
+	FieldPid:    `  Pid: {{ .Container.Pid }}`,
+	FieldReason: `{{- if and (not .Container.Failed) (not .Container.Done) }}  Error: {{ .Container.Reason | FgBlue }}{{- end}}`,
 }
 
 // defaultFields is the ordered set of fields shown when WithFields is not called.
-var defaultFields = []Field{FieldPhase, FieldNode, FieldPid, FieldID, FieldImage}
+var defaultFields = []Field{FieldPhase, FieldNode, FieldPid, FieldReason}
 
 type Option func(*Dashboard)
 
@@ -138,12 +138,13 @@ func (d *Dashboard) SetTask(idx int, t *tasksv1.Task) {
 	d.Update(idx, func(s *ServiceState) {
 		s.task = t
 		s.container.SetMetadata(map[string]any{
-			"Name":  t.GetMeta().GetName(),
-			"Phase": t.GetStatus().GetPhase().GetValue(),
-			"Node":  t.GetStatus().GetNode().GetValue(),
-			"Pid":   t.GetStatus().GetPid().GetValue(),
-			"ID":    t.GetStatus().GetId().GetValue(),
-			"Image": t.GetConfig().GetImage(),
+			"Name":   t.GetMeta().GetName(),
+			"Phase":  t.GetStatus().GetPhase().GetValue(),
+			"Node":   t.GetStatus().GetNode().GetValue(),
+			"Pid":    t.GetStatus().GetPid().GetValue(),
+			"ID":     t.GetStatus().GetId().GetValue(),
+			"Image":  t.GetConfig().GetImage(),
+			"Reason": t.GetStatus().GetReason(),
 		})
 	})
 }
@@ -306,6 +307,7 @@ func NewDashboard(names []string, opts ...Option) (*Dashboard, error) {
 			"Pid":       "",
 			"ID":        "",
 			"Image":     "",
+			"Reason":    "",
 		}
 
 		// Status line is always present.
